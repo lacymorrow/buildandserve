@@ -67,6 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
 	const [{ y }] = useWindowScroll();
 	const isOpaque = useMemo(() => variant === "floating" && y && y > 100, [y, variant]);
 	const { data: session } = useSession();
+	const signInRedirectUrl = useSignInRedirectUrl();
 
 	return (
 		<>
@@ -121,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
 								{!session && (
 									<>
 										<Link
-											href={routes.auth.signIn}
+											href={routes.launch}
 											className={cn(
 												buttonVariants({ variant: "default" }),
 												"w-full justify-center"

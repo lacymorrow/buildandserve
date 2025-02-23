@@ -21,6 +21,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
+import { useSignInRedirectUrl } from "@/hooks/use-sign-in-redirect-url";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { updateTheme } from "@/server/actions/settings";
@@ -39,9 +40,11 @@ interface UserMenuProps {
 
 export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className }) => {
 	const { data: session, status } = useSession();
-	const [isOpen, setIsOpen] = React.useState(false);
+	const signInRedirectUrl = useSignInRedirectUrl();
 	const { theme, setTheme } = useTheme();
 	const { toast } = useToast();
+	const [isOpen, setIsOpen] = React.useState(false);
+
 	const isAdmin = session?.user?.email && siteConfig.admin.isAdmin(session.user.email);
 
 	const handleThemeChange = React.useCallback(
@@ -120,7 +123,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className 
 	if (!session?.user) {
 		return (
 			<Link
-				href={routes.auth.signIn}
+				href={signInRedirectUrl}
 				className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "rounded-full")}
 			>
 				<UserIcon className="size-4" />
