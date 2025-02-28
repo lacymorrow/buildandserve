@@ -1,25 +1,20 @@
-import "@/styles/globals.css";
-import Head from "next/head";
-
-import { Space_Grotesk as FontSans, Noto_Serif as FontSerif } from "next/font/google";
-
+import { ErrorToast } from "@/components/primitives/error-toast";
+import { JsonLd } from "@/components/primitives/json-ld";
+import { AnalyticsProvider } from "@/components/providers/analytics-provider";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TRPCReactProvider } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
-import HolyLoader from "holy-loader";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "next-themes";
 import { ViewTransitions } from "next-view-transitions";
-import { Suspense, type ReactNode } from "react";
+import { Space_Grotesk as FontSans, Noto_Serif as FontSerif } from "next/font/google";
+import Head from "next/head";
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
+import { type ReactNode, Suspense } from "react";
 import { PageTracker } from "react-page-tracker";
-import { WebVitals } from "../primitives/web-vitals";
-import { JsonLd } from "@/components/primitives/json-ld";
-import { Analytics } from "@vercel/analytics/react";
-import { ErrorToast } from "@/components/primitives/error-toast";
-import { PostHogProvider } from "@/lib/posthog/posthog-provider";
-import { AnalyticsProvider } from "@/components/providers/analytics-provider";
+
+import "@/styles/globals.css";
 
 const fontSerif = FontSerif({
 	weight: ["400", "500", "600", "700"],
@@ -59,23 +54,25 @@ export function RootLayout({ children }: { children: ReactNode }) {
 					<PageTracker />
 					<SessionProvider>
 						<TRPCReactProvider>
-							<ThemeProvider attribute="class" defaultTheme="dark">
-								<TooltipProvider delayDuration={100}>
-									<AnalyticsProvider>
-										{/* Content */}
-										{children}
+							<NuqsAdapter>
+								<ThemeProvider attribute="class" defaultTheme="dark">
+									<TooltipProvider delayDuration={100}>
+										<AnalyticsProvider>
+											{/* Content */}
+											{children}
 
 
-										{/* Toast - Display messages to the user */}
-										<SonnerToaster />
+											{/* Toast - Display messages to the user */}
+											<SonnerToaster />
 
-										{/* Error Toast - Display error messages to the user based on search params */}
-										<Suspense>
-											<ErrorToast />
-										</Suspense>
-									</AnalyticsProvider>
-								</TooltipProvider>
-							</ThemeProvider>
+											{/* Error Toast - Display error messages to the user based on search params */}
+											<Suspense>
+												<ErrorToast />
+											</Suspense>
+										</AnalyticsProvider>
+									</TooltipProvider>
+								</ThemeProvider>
+							</NuqsAdapter>
 						</TRPCReactProvider>
 					</SessionProvider>
 				</body>
