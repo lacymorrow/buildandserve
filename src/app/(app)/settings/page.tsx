@@ -1,5 +1,6 @@
 "use client";
 
+import { TextMorph } from "@/components/ui/text-morph";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -35,7 +36,6 @@ export default function SettingsPage() {
 	// Set initial form data from session
 	React.useEffect(() => {
 		if (session?.user) {
-			console.log("Session user:", session.user);
 			const initialData = {
 				name: session.user.name ?? "",
 				bio: session.user.bio ?? "",
@@ -120,7 +120,11 @@ export default function SettingsPage() {
 	return (
 		<div className="space-y-6">
 			<div>
-				<h3 className="text-lg font-medium">Profile</h3>
+				<h3 className="text-2xl font-medium">
+					<TextMorph className="">
+						{formData.name || "Profile"}
+					</TextMorph>
+				</h3>
 				<p className="text-sm text-muted-foreground">
 					This is how others will see you on the site.
 				</p>
