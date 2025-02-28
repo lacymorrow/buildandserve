@@ -15,7 +15,7 @@
   },
   // "eslint.enable": false,
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "biomejs.biome",
+  "editor.defaultFormatter": "dbaeumer.vscode-eslint",
   "[javascript]": {
     "editor.defaultFormatter": "biomejs.biome"
   },

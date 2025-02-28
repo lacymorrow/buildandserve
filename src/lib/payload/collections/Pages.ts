@@ -1,6 +1,6 @@
-import type { Page } from "@/payload-types";
-import { type CollectionConfig } from "payload";
+import type { CollectionConfig } from "payload";
 import { blocks } from "../../../app/(payload)/blocks/index";
+import { BASE_URL } from "../../../config/base-url";
 
 /*
  * Pages Collection
@@ -14,7 +14,7 @@ export const Pages: CollectionConfig = {
 		defaultColumns: ["title", "slug", "publishedAt"],
 		preview: (doc) => {
 			if (!doc.slug) return "";
-			return `${process.env.NEXT_PUBLIC_APP_URL}/preview/pages/${doc.slug}`;
+			return `${BASE_URL}/preview/pages/${doc.slug}`;
 		},
 	},
 	access: {

@@ -1,6 +1,7 @@
 import { AuthForm } from "@/app/(app)/(authentication)/_components/login-form";
 import { SignInForm } from "@/app/(app)/(authentication)/sign-in/_components/sign-in-form";
 import { ConfettiSideCannons } from "@/components/magicui/confetti/confetti-side-cannons";
+import { Link } from "@/components/primitives/link-with-transition";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SparklesCore } from "@/components/ui/sparkles";
@@ -12,9 +13,9 @@ import { downloadRepoAnonymously } from "@/server/actions/github/download-repo";
 import { auth } from "@/server/auth";
 import { PaymentService } from "@/server/services/payment-service";
 import { DownloadIcon } from "lucide-react";
-import { Link } from "@/components/primitives/link-with-transition";
 
 interface SearchParams {
+	// Lemon Squeezy parameters
 	order_id?: string;
 	order_number?: string;
 	order_key?: string;
@@ -26,6 +27,12 @@ interface SearchParams {
 	email?: string;
 	name?: string;
 	custom_data?: string;
+
+	// Polar parameters
+	checkoutId?: string;
+	customer_session_token?: string;
+
+	// Common/generic
 	[key: string]: string | undefined;
 }
 
@@ -46,6 +53,10 @@ export default async function CheckoutSuccessPage({ searchParams: searchParamsPr
 	let customData: CustomData = {};
 	let accessGranted = false;
 	let canDownload = false;
+	let paymentProcessor = "unknown";
+	let orderId = "";
+	let email = "";
+	let status = "";
 
 	logger.info("Checkout success page loaded", {
 		requestId,
@@ -56,44 +67,84 @@ export default async function CheckoutSuccessPage({ searchParams: searchParamsPr
 	});
 
 	try {
-		// Process payment data...
-		if (searchParams.custom_data) {
-			try {
-				customData = JSON.parse(searchParams.custom_data) as CustomData;
-				logger.info("Parsed custom data", {
+		// Determine which payment processor was used
+		if (searchParams.order_id) {
+			// Lemon Squeezy checkout
+			paymentProcessor = "lemon-squeezy";
+			orderId = searchParams.order_id;
+			email = searchParams.email || "";
+			status = searchParams.status || "completed";
+
+			logger.info("Lemon Squeezy checkout detected", {
+				requestId,
+				orderId,
+				email,
+				status,
+			});
+
+			// Process Lemon Squeezy custom data
+			if (searchParams.custom_data) {
+				try {
+					customData = JSON.parse(searchParams.custom_data) as CustomData;
+					logger.info("Parsed Lemon Squeezy custom data", {
+						requestId,
+						customData,
+					});
+				} catch (error) {
+					logger.error("Error parsing Lemon Squeezy custom data", {
+						requestId,
+						error: error instanceof Error ? error.message : String(error),
+						rawCustomData: searchParams.custom_data,
+					});
+				}
+			}
+
+			// Check if download is possible for Lemon Squeezy
+			if (orderId && email && status === "paid") {
+				canDownload = true;
+				logger.info("Download enabled for Lemon Squeezy purchase", {
 					requestId,
-					customData,
+					orderId,
+					email,
 				});
-			} catch (error) {
-				logger.error("Error parsing custom data", {
+			}
+		} else if (searchParams.checkoutId) {
+			// Polar checkout
+			paymentProcessor = "polar";
+			orderId = searchParams.checkoutId;
+			// We don't have email directly from Polar, use user email if available
+			email = session?.user?.email || "";
+			status = "completed"; // Assume completed if we got redirected to success page
+
+			logger.info("Polar checkout detected", {
+				requestId,
+				checkoutId: orderId,
+				customer_session_token: searchParams.customer_session_token,
+			});
+
+			// Enable download if user is logged in (since we have their email)
+			if (orderId && session?.user?.email) {
+				canDownload = true;
+				logger.info("Download enabled for Polar purchase", {
 					requestId,
-					error: error instanceof Error ? error.message : String(error),
-					rawCustomData: searchParams.custom_data,
+					orderId,
+					email: session.user.email,
 				});
 			}
 		}
 
-		// Check if download is possible
-		if (searchParams.order_id && searchParams.email && searchParams.status === "paid") {
-			canDownload = true;
-			logger.info("Download enabled", {
-				requestId,
-				orderId: searchParams.order_id,
-				email: searchParams.email,
-			});
-		}
-
-		// Grant access if possible...
-		if (searchParams.order_id && (session?.user?.id || customData.user_id)) {
+		// Grant access if possible (works for both payment processors)
+		if (orderId && (session?.user?.id || customData.user_id)) {
 			try {
 				await PaymentService.createPayment({
 					userId: session?.user?.id || customData.user_id as string,
-					orderId: searchParams.order_id,
-					status: searchParams.status || "completed",
+					orderId: orderId,
+					status: status,
 					amount: 0,
 					metadata: JSON.stringify({
 						searchParams,
 						customData,
+						paymentProcessor,
 						test_mode: searchParams.test_mode === "true",
 					}) as unknown as Record<string, unknown>,
 				});
@@ -101,14 +152,16 @@ export default async function CheckoutSuccessPage({ searchParams: searchParamsPr
 				accessGranted = true;
 				logger.info("Access granted successfully", {
 					requestId,
-					orderId: searchParams.order_id,
+					orderId,
 					userId: session?.user?.id || customData.user_id,
+					paymentProcessor,
 				});
 			} catch (error) {
 				logger.error("Error granting access", {
 					requestId,
 					error: error instanceof Error ? error.message : String(error),
 					stack: error instanceof Error ? error.stack : undefined,
+					paymentProcessor,
 				});
 			}
 		}
@@ -182,8 +235,8 @@ export default async function CheckoutSuccessPage({ searchParams: searchParamsPr
 							</h3>
 							{/* Download button */}
 							<form action={downloadRepoAnonymously} className="w-full">
-								<input type="hidden" name="email" value={searchParams.email} />
-								<input type="hidden" name="orderId" value={searchParams.order_id} />
+								<input type="hidden" name="email" value={email} />
+								<input type="hidden" name="orderId" value={orderId} />
 								<Button
 									type="submit"
 									variant="outline"

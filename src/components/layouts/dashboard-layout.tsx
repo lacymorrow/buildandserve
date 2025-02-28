@@ -8,7 +8,7 @@ import { routes } from "@/config/routes";
 import { auth } from "@/server/auth";
 import { SidebarCloseIcon } from "lucide-react";
 import { redirect } from "next/navigation";
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 export const DashboardLayout = async ({
 	children,
@@ -47,4 +47,4 @@ export const DashboardLayout = async ({
 			</SidebarInset>
 		</SidebarLayout>
 	);
-}
+};

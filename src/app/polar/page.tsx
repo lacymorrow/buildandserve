@@ -8,19 +8,7 @@ export default function SubscriptionsPage() {
 			name: "Basic",
 			description: "Perfect for getting started",
 			price: "$9/month",
-		},
-		// {
-		// 	id: process.env.NEXT_PUBLIC_POLAR_PRO_PRICE_ID || "",
-		// 	name: "Pro",
-		// 	description: "For power users",
-		// 	price: "$29/month",
-		// },
-		// {
-		// 	id: process.env.NEXT_PUBLIC_POLAR_ENTERPRISE_PRICE_ID || "",
-		// 	name: "Enterprise",
-		// 	description: "For large teams",
-		// 	price: "$99/month",
-		// },
+		}
 	];
 
 	return (

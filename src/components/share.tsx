@@ -7,6 +7,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { BASE_URL } from "@/config/base-url";
 import { useToast } from "@/hooks/use-toast";
 import {
 	Facebook,
@@ -34,7 +35,7 @@ export const Share = ({
 }: ShareProps) => {
 	const { toast } = useToast();
 	const pathname = usePathname();
-	const url = `${process.env.NEXT_PUBLIC_APP_URL}${pathname}`;
+	const url = `${BASE_URL}${pathname}`;
 
 	const shareData = {
 		title,
