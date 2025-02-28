@@ -48,7 +48,7 @@ const builtByVariants = cva(
 
 export interface AttributionProps
 	extends React.HTMLAttributes<HTMLDivElement>,
-	VariantProps<typeof builtByVariants> {
+		VariantProps<typeof builtByVariants> {
 	title?: React.ReactNode;
 	description?: React.ReactNode;
 	onClose?: () => void;
@@ -158,7 +158,7 @@ export function Attribution({
 
 	if (variant === "popover" && isOpen) {
 		return (<>
-			<style>{styles}</style>
+		<style>{styles}</style>
 			<Card className={cn(builtByVariants({ variant }), className)} {...props}>
 				<CardHeader className="p-3">
 					{(title || description) && (
