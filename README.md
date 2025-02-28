@@ -1,4 +1,4 @@
-# Shipkit Bones🚀
+# Shipkit 🚀
 
 Launch your app at light speed. Fast, flexible, and feature-packed for the modern web.
 
