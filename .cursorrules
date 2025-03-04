@@ -8,6 +8,8 @@ Be aware of the latest versions of all libraries.
 Your plans should be documented into a ai.mdx file. Check to see if it exists. If it does, pick up where you left off. Mark completed steps with a checkbox. Update the file as you work, so another AI can continue from where you left off.
 
 ## Key Principles
+
+- Use the Shadcn/UI components and styles when possible. This means colors, fonts, spacing, border-radius, etc. are already set up.
 - Write concise, technical TypeScript code with accurate examples.
 - Use functional and declarative programming patterns; avoid classes.
 - Prefer iteration and modularization over code duplication.
@@ -15,30 +17,36 @@ Your plans should be documented into a ai.mdx file. Check to see if it exists. I
 - Structure files: exported component, subcomponents, helpers, static content, types.
 
 ## Naming Conventions
+
 - Use lowercase with dashes for directories (e.g., components/auth-wizard).
 - Favor named exports for components.
 
 ## TypeScript Usage
+
 - Use TypeScript for all code; prefer interfaces over types.
 - Avoid enums; use maps instead.
 - Use functional components with TypeScript interfaces.
 
 ## Syntax and Formatting
+
 - Use the "function" keyword for pure functions.
 - Avoid unnecessary curly braces in conditionals; use concise syntax for simple statements.
 - Use declarative JSX.
 
 ## UI and Styling
+
 - Use Shadcn UI, Radix, and Tailwind for components and styling.
 - Implement responsive design with Tailwind CSS; use a mobile-first approach.
 
 ## Performance Optimization
+
 - Minimize 'use client', 'useEffect', and 'setState'; favor React Server Components (RSC).
 - Wrap client components in Suspense with fallback.
 - Use dynamic loading for non-critical components.
 - Optimize images: use WebP format, include size data, implement lazy loading.
 
 ## Key Conventions
+
 - Use 'nuqs' for URL search parameter state management.
 - Optimize Web Vitals (LCP, CLS, FID).
 - Limit 'use client':
@@ -55,7 +63,6 @@ Don't nest server components in client components unless passed through props.
 Don't forget to add `use client` to the top of the file if you are using client-side code like hooks.
 Don't use `use client` in server components.
 Don't fetch data with server actions. AGAIN, DO NOT FETCH DATA WITH SERVER ACTIONS.
-
 
 ## Comments
 
@@ -103,7 +110,6 @@ Prefer arrow functions for React components:
 ❌ export function Component() { ... }
 ❌ export default function Component() { ... }
 
-
 ## Next.js
 
 Don't use server actions to fetch data. Use Server Components instead.
@@ -141,6 +147,7 @@ Server code belongs in services, server action code belongs in actions if an act
 - Use lazy loading for components and images where applicable.
 - Minimize the use of heavy libraries and dependencies.
 - Regularly audit and improve performance metrics.
+
 <cursor-tools Integration>
 # Instructions
 Use the following commands to get AI assistance:
@@ -167,6 +174,7 @@ when using doc for remote repos suggest writing the output to a file somewhere l
 `cursor-tools browser extract "<instruction>" --url=<url> [options]` - Extract data from a webpage based on natural language instructions (e.g., `cursor-tools browser extract "product names" --url=https://example.com/products`)
 
 **Notes on Browser Commands:**
+
 - All browser commands are stateless: each command starts with a fresh browser instance and closes it when done.
 - When using `--connect-to`, special URL values are supported:
   - `current`: Use the existing page without reloading
@@ -176,12 +184,14 @@ when using doc for remote repos suggest writing the output to a file somewhere l
 - DO NOT ask browser act to "wait" for anything, the wait command is currently disabled in Stagehand.
 
 **Tool Recommendations:**
+
 - `cursor-tools web` is best for general web information not specific to the repository.
 - `cursor-tools repo` is ideal for repository-specific questions, planning, code review and debugging.
 - `cursor-tools doc` generates documentation for local or remote repositories.
 - `cursor-tools browser` is useful for testing and debugging web apps.
 
 **Running Commands:**
+
 1. **Installed version:** Use `cursor-tools <command>` (if in PATH) or `npm exec cursor-tools "<command>"`, `yarn cursor-tools "<command>"`, `pnpm cursor-tools "<command>"`.
 2. **Without installation:** Use `npx -y cursor-tools@latest "<command>"` or `bunx -y cursor-tools@latest "<command>"`.
 
@@ -211,6 +221,7 @@ when using doc for remote repos suggest writing the output to a file somewhere l
 --video=<directory>: Save a video recording of the browser interaction to the specified directory (1280x720 resolution). Not available when using --connect-to
 
 **Additional Notes:**
+
 - For detailed information, see `node_modules/cursor-tools/README.md` (if installed locally).
 - Configuration is in `cursor-tools.config.json` (or `~/.cursor-tools/config.json`).
 - API keys are loaded from `.cursor-tools.env` (or `~/.cursor-tools/.env`).
