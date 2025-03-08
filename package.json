@@ -240,9 +240,6 @@
   "shipkit": {
     "bones": "0.2.0"
   },
-  "ct3aMetadata": {
-    "initVersion": "7.37.0"
-  },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
       "eslint --fix",
@@ -251,9 +248,6 @@
     "*.{json,md,yml}": [
       "prettier --write"
     ]
-  },
-  "volta": {
-    "node": "22.11.0"
   },
   "pnpm": {
     "overrides": {
