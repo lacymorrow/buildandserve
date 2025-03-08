@@ -5,6 +5,7 @@ import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TRPCReactProvider } from "@/lib/trpc/react";
 import { cn } from "@/lib/utils";
+import HolyLoader from "holy-loader";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "next-themes";
 import { ViewTransitions } from "next-view-transitions";
@@ -15,7 +16,6 @@ import { type ReactNode, Suspense } from "react";
 import { PageTracker } from "react-page-tracker";
 
 import "@/styles/globals.css";
-
 const fontSerif = FontSerif({
 	weight: ["400", "500", "600", "700"],
 	style: ["normal", "italic"],

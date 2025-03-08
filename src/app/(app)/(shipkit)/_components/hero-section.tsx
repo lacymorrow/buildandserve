@@ -37,7 +37,8 @@ const BackgroundAnimation = () => {
 export function HeroSection() {
 	return (
 		<section className="relative w-full bg-background py-12 md:py-24 lg:py-32 xl:py-48">
-			<BackgroundAnimation />
+			{/* Todo: fix hydration error */}
+			{/* <BackgroundAnimation /> */}
 			<div className="container relative z-10 px-4 md:px-6">
 				<div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
 					<div className="flex flex-col justify-center space-y-4">

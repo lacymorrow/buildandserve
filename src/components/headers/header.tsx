@@ -65,6 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
 	navLinks = defaultNavLinks,
 	variant = "default",
 }) => {
+	const signInRedirectUrl = useSignInRedirectUrl();
 	const [{ y }] = useWindowScroll();
 	const isOpaque = useMemo(() => variant === "floating" && y && y > 100, [y, variant]);
 	const { data: session } = useSession();

@@ -3,6 +3,9 @@
 import { Icons } from "@/components/images/icons";
 import { Link } from "@/components/primitives/link-with-transition";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Tooltip,
 	TooltipContent,
@@ -15,9 +18,6 @@ import { useSession } from "next-auth/react";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface GitHubSession {
 	user: {
@@ -71,68 +71,71 @@ export const GitHubConnectButton = ({ className }: { className?: string }) => {
 	};
 
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				{isConnected ? (
-					<div className={cn("flex flex-col items-center justify-center gap-1", className)}>
-						<Link
-							href={siteConfig.repo.url}
-							className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full")}
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							<Icons.github className="mr-2 h-4 w-4" />
-							View Repository
-						</Link>
-						<Button
-							onClick={() => void handleDisconnect()}
-							variant="link"
-							size="sm"
-							disabled={isLoading}
-							className="text-muted-foreground"
-						>
-							Not {githubUsername}? Click to disconnect.
-						</Button>
-					</div>
-				) : (
-					<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-						<DialogTrigger asChild>
-							<Button disabled={isLoading} className={cn(className)}>
-								<Icons.github className="mr-2 h-4 w-4" />
-								{isLoading ? "Connecting..." : "Connect GitHub"}
+		<>
+			{isConnected ? (
+				<div className={cn("flex flex-col items-center justify-center gap-1", className)}>
+					<Link
+						href={siteConfig.repo.url}
+						className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full")}
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						<Icons.github className="mr-2 h-4 w-4" />
+						View Repository
+					</Link>
+					<Tooltip delayDuration={200}>
+						<TooltipTrigger asChild>
+							<Button
+								onClick={() => void handleDisconnect()}
+								variant="link"
+								size="sm"
+								disabled={isLoading}
+								className="text-muted-foreground"
+							>
+								Not {githubUsername}? Click to disconnect.
 							</Button>
-						</DialogTrigger>
-						<DialogContent>
-							<DialogHeader>
-								<DialogTitle>Connect GitHub Account</DialogTitle>
-							</DialogHeader>
-							<form onSubmit={handleConnect} className="space-y-4">
-								<div className="space-y-2">
-									<Label htmlFor="username">GitHub Username</Label>
-									<Input
-										id="username"
-										value={username}
-										onChange={(e) => setUsername(e.target.value)}
-										placeholder="Enter your GitHub username"
-										disabled={isLoading}
-										required
-									/>
-								</div>
-								<Button type="submit" disabled={isLoading} className="w-full">
-									{isLoading ? "Verifying..." : "Verify Username"}
-								</Button>
-							</form>
-						</DialogContent>
-					</Dialog>
-				)}
-			</TooltipTrigger>
-			<TooltipContent>
-				<p>
-					{isConnected
-						? `Remove GitHub repository access for ${githubUsername}`
-						: "Enter your GitHub username"}
-				</p>
-			</TooltipContent>
-		</Tooltip>
+						</TooltipTrigger>
+						<TooltipContent>
+							<p>
+								{isConnected
+									? `Remove GitHub repository access for ${githubUsername}`
+									: "Enter your GitHub username"}
+							</p>
+						</TooltipContent>
+					</Tooltip>
+				</div>
+			) : (
+				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+					<DialogTrigger asChild>
+						<Button disabled={isLoading} className={cn(className)}>
+							<Icons.github className="mr-2 h-4 w-4" />
+							{isLoading ? "Connecting..." : "Connect GitHub"}
+						</Button>
+					</DialogTrigger>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>Connect GitHub Account</DialogTitle>
+						</DialogHeader>
+						<form onSubmit={handleConnect} className="space-y-4">
+							<div className="space-y-2">
+								<Label htmlFor="username">GitHub Username</Label>
+								<Input
+									id="username"
+									value={username}
+									onChange={(e) => setUsername(e.target.value)}
+									placeholder="Enter your GitHub username"
+									disabled={isLoading}
+									required
+								/>
+							</div>
+							<Button type="submit" disabled={isLoading} className="w-full">
+								{isLoading ? "Verifying..." : "Verify Username"}
+							</Button>
+						</form>
+					</DialogContent>
+				</Dialog>
+			)}
+
+		</>
 	);
 };
