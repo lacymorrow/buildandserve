@@ -1,8 +1,10 @@
+// ! Don't use @/env here, it will break the build
 import path from "path";
 import { fileURLToPath } from "url";
 
 // storage-adapter-import-placeholder
 import { postgresAdapter } from "@payloadcms/db-postgres";
+import { resendAdapter } from "@payloadcms/email-resend";
 import { payloadCloudPlugin } from "@payloadcms/payload-cloud";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { buildConfig } from "payload";
@@ -20,8 +22,7 @@ const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
 export default buildConfig({
-	secret:
-		process.env.PAYLOAD_SECRET ?? process.env.AUTH_SECRET ?? "supersecret",
+	secret: process.env.PAYLOAD_SECRET ?? process.env.AUTH_SECRET ?? "supersecret",
 	routes: {
 		admin: "/cms-admin",
 		api: "/cms-api",
@@ -90,4 +91,15 @@ export default buildConfig({
 		// storage-adapter-placeholder
 	],
 	telemetry: false,
+
+	// If AUTH_RESEND_KEY is set, use the resend adapter
+	...(process.env.AUTH_RESEND_KEY
+		? {
+				email: resendAdapter({
+					defaultFromAddress: "dev@payloadcms.com",
+					defaultFromName: "Payload CMS",
+					apiKey: process.env.AUTH_RESEND_KEY || "",
+				}),
+			}
+		: {}),
 });

@@ -68,6 +68,7 @@
     "@opentelemetry/api-logs": "^0.57.2",
     "@opentelemetry/instrumentation": "^0.57.2",
     "@opentelemetry/sdk-logs": "^0.57.2",
+    "@payloadcms/email-resend": "^3.27.0",
     "@payloadcms/next": "^3.27.0",
     "@payloadcms/payload-cloud": "^3.27.0",
     "@payloadcms/richtext-lexical": "^3.27.0",
