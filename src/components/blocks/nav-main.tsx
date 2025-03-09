@@ -23,18 +23,17 @@ import { siteConfig } from "@/config/site";
 import { cn } from "@/lib/utils";
 import { ChevronRightIcon } from "@radix-ui/react-icons";
 import { ArrowLeftFromLineIcon, Download, FileTerminalIcon, Settings2, SquareTerminal, Wrench } from "lucide-react";
-import { LinkOrButton } from "@/components/primitives/link-or-button";
 
 const data = [
-	{
-		title: `Download ${siteConfig.name}`,
-		url: routes.download,
-		icon: Download,
-	},
 	{
 		title: "Dashboard",
 		url: routes.app.dashboard,
 		icon: SquareTerminal,
+	},
+	{
+		title: `Download ${siteConfig.name}`,
+		url: routes.download,
+		icon: Download,
 	},
 	{
 		title: "Manage",

@@ -1,7 +1,6 @@
 import { routes } from "@/config/routes";
 import type { NextAuthConfig } from "next-auth";
 import { providers } from "./auth.providers";
-import { AuthService } from "@/server/services/auth-service";
 
 // Extend the default session user type
 declare module "next-auth" {
@@ -14,7 +13,6 @@ declare module "next-auth" {
 			bio: string | null;
 			githubUsername: string | null;
 			theme?: "light" | "dark" | "system";
-			emailNotifications?: boolean;
 			emailVerified: Date | null;
 		};
 	}
@@ -110,14 +108,7 @@ export const authOptions: NextAuthConfig = {
 				session.user.name = token.name as string | null;
 				session.user.bio = token.bio as string | null;
 				session.user.githubUsername = token.githubUsername as string | null;
-				session.user.theme = token.theme as
-					| "light"
-					| "dark"
-					| "system"
-					| undefined;
-				session.user.emailNotifications = token.emailNotifications as
-					| boolean
-					| undefined;
+				session.user.theme = token.theme as "light" | "dark" | "system" | undefined;
 			}
 			return session;
 		},

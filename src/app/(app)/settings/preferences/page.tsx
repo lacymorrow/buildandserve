@@ -36,7 +36,6 @@ export default function PreferencesPage() {
 			try {
 				const result = await updateSettings({
 					theme: newTheme,
-					emailNotifications: true, // Keep existing notification settings
 				});
 				if (!result.success) {
 					toast.error(result.error ?? "Failed to update preferences");

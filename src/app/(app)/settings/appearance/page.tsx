@@ -34,7 +34,6 @@ export default function AppearancePage() {
 			try {
 				const result = await updateSettings({
 					theme: newTheme,
-					emailNotifications: true, // Keep existing notification settings
 				});
 
 				if (!result.success) {
