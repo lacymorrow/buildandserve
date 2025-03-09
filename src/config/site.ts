@@ -64,7 +64,7 @@ interface SiteConfig {
 		domain: string;
 		legal: string;
 		privacy: string;
-		format: (type: Exclude<keyof SiteConfig['email'], 'format'>) => string;
+		format: (type: Exclude<keyof SiteConfig["email"], "format">) => string;
 	};
 
 	// Creator information
@@ -92,15 +92,15 @@ interface SiteConfig {
 			shipkit: string;
 		};
 		format: {
-			buyUrl: (product: keyof SiteConfig['store']['products']) => string;
+			buyUrl: (product: keyof SiteConfig["store"]["products"]) => string;
 		};
 	};
 
-	// Admin access control
+	// Admin access control - client-side stub
 	admin: {
-		emails: string[];
-		domains: string[];
-		isAdmin: (email: string) => boolean;
+		// Client-side stub for admin check
+		// The actual check happens server-side via admin-actions.ts
+		isAdmin: (email?: string | null) => boolean;
 	};
 
 	// SEO and metadata
@@ -204,11 +204,9 @@ export const siteConfig: SiteConfig = {
 	},
 
 	admin: {
-		emails: ["lacymorrow0@gmail.com", "gojukebox@gmail.com"],
-		domains: ["lacymorrow.com"],
-		isAdmin: (email) =>
-			siteConfig.admin.emails.includes(email) ||
-			siteConfig.admin.domains.some((domain) => email?.endsWith(`@${domain}`)),
+		// Client-side stub that will be implemented by client components
+		// using the server action from admin-actions.ts
+		isAdmin: (email) => false,
 	},
 
 	metadata: {

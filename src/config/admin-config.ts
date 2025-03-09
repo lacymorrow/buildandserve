@@ -1,0 +1,40 @@
+/**
+ * Admin Configuration
+ *
+ * Server-side only configuration for admin access control.
+ * This file should only be imported by server components or server actions.
+ */
+
+/**
+ * Admin configuration interface
+ */
+export interface AdminConfig {
+	emails: string[];
+	domains: string[];
+	isAdmin: (email?: string | null) => boolean;
+}
+
+/**
+ * Admin configuration with environment variable support
+ * Allows setting admin emails via environment variables
+ * during deployment without touching code
+ */
+export const adminConfig: AdminConfig = {
+	// Admin emails - comma-separated list from environment variable or defaults
+	emails: process.env.ADMIN_EMAILS
+		? process.env.ADMIN_EMAILS.split(",").map((email) => email.trim())
+		: ["lacymorrow0@gmail.com", "gojukebox@gmail.com"],
+
+	// Admin domains - using default values
+	domains: ["lacymorrow.com"],
+
+	// Check if an email is an admin
+	isAdmin: (email?: string | null): boolean => {
+		if (!email) return false;
+
+		return (
+			adminConfig.emails.includes(email) ||
+			adminConfig.domains.some((domain) => email.endsWith(`@${domain}`))
+		);
+	},
+};

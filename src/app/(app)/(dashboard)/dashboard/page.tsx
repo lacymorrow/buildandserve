@@ -13,13 +13,14 @@ import {
 } from "@/components/ui/card";
 import { CodeWindow } from "@/components/ui/code-window";
 import { GitHubConnectButton } from "@/components/ui/github-connect-button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BASE_URL } from "@/config/base-url";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
 import { downloadRepo } from "@/server/actions/github/download-repo";
 import { auth } from "@/server/auth";
+import { apiKeyService } from "@/server/services/api-key-service";
 import { checkGitHubConnection } from "@/server/services/github/github-service";
 import { PaymentService } from "@/server/services/payment-service";
 import {
@@ -34,15 +35,10 @@ import {
 	HardDrive,
 	History,
 	LineChart,
-	Search,
-	Settings,
 	Shield,
 	Star,
 	Users
 } from "lucide-react";
-import { redirect } from "next/navigation";
-import { apiKeyService } from "@/server/services/api-key-service";
-import { BASE_URL } from "@/config/base-url";
 
 // Recent activity type
 interface Activity {
@@ -126,17 +122,19 @@ docker run -p 3000:3000 shipkit`;
 
 export default async function DashboardPage() {
 	const session = await auth();
+	const userId = session?.user?.id ?? "";
 
-	const hasGitHubConnection = await checkGitHubConnection(session?.user?.id ?? "");
+	// Run all async operations in parallel
+	const [hasPurchased, hasGitHubConnection, userApiKeys] = await Promise.all([
+		PaymentService.getUserPaymentStatus(userId),
+		checkGitHubConnection(userId),
+		userId ? apiKeyService.getUserApiKeys(userId) : Promise.resolve([])
+	]);
 
 	// Get the user's API key
 	let apiKey: string | undefined;
-	if (session?.user?.id) {
-		const userApiKeys = await apiKeyService.getUserApiKeys(session.user.id);
-		if (userApiKeys.length > 0) {
-			apiKey = userApiKeys[0].apiKey.key;
-		}
-		console.log(apiKey);
+	if (userApiKeys.length > 0) {
+		apiKey = userApiKeys[0].apiKey.key;
 	}
 
 	// Redirect after deploy to /vercel/deploy/${apiKey}
@@ -147,13 +145,12 @@ export default async function DashboardPage() {
 	}
 	const vercelDeployHref = deployUrl.toString();
 
-
 	return (
-		<div className="container mx-auto py-10 space-y-4">
+		<div className="container mx-auto py-6 space-y-4">
 			<PageHeader>
 				<div className="w-full flex flex-wrap items-center justify-between gap-2">
 					<div>
-						<PageHeaderHeading>Welcome, {session?.user?.name}</PageHeaderHeading>
+						<PageHeaderHeading>Hello, {session?.user?.name ?? session?.user?.email ?? "friend"}</PageHeaderHeading>
 						<PageHeaderDescription>
 							Here's what's happening with your projects
 						</PageHeaderDescription>
