@@ -2,7 +2,9 @@ Error: Mismatching "lexical" dependency versions found: lexical@0.20.2 (Please c
 
 ## Solution
 
-Remove the carets `^` from the packages in your `package.json` file.
+Verify that any `@lexical/...` and `lexical dependencies are using the version noted.
+
+Also, remove the carets `^` from the packages in your `package.json` file.
 
 ```json
 "@lexical/list": "0.20.0",
@@ -19,6 +21,6 @@ import dynamic from "next/dynamic";
 const ReactApp = dynamic(() => import('./App'), { ssr: false });
 
 export default function Page() {
-	return <ReactApp />;
+ return <ReactApp />;
 }
 ```
