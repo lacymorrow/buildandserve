@@ -24,7 +24,7 @@ const dirname = path.dirname(filename);
 export default buildConfig({
 	secret: process.env.PAYLOAD_SECRET ?? process.env.AUTH_SECRET ?? "supersecret",
 	routes: {
-		admin: "/cms-admin",
+		admin: "/cms",
 		api: "/cms-api",
 	},
 	admin: {

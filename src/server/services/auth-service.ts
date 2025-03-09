@@ -1,5 +1,3 @@
-import crypto from "node:crypto";
-import { promisify } from "node:util";
 import { routes } from "@/config/routes";
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
 import { STATUS_CODES } from "@/config/status-codes";
@@ -8,6 +6,8 @@ import { signIn, signOut } from "@/server/auth";
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
 import type { UserRole } from "@/types/user";
+import crypto from "node:crypto";
+import { promisify } from "node:util";
 import "server-only";
 
 interface AuthOptions {
@@ -215,7 +215,6 @@ export const AuthService = {
 				bio: user.bio,
 				githubUsername: user.githubUsername,
 				theme: user.theme as "system" | "light" | "dark" | undefined,
-				emailNotifications: user.emailNotifications ?? undefined,
 			};
 		} catch (error) {
 			console.error("Auth error:", error);
