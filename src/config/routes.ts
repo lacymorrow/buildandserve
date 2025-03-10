@@ -156,9 +156,9 @@ export const routes = {
 	// Pages Router demo routes
 	pagesDemo: {
 		root: "/pages",
-		static: "/pages-demo/static",
-		dynamic: "/pages-demo/dynamic",
-		apiExample: "/pages-demo/api-example",
+		static: "/pages/static",
+		dynamic: "/pages/dynamic",
+		apiExample: "/pages/api-example",
 	},
 
 	// External links

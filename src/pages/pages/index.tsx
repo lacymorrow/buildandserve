@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { routes } from '@/config/routes'
 import Link from 'next/link'
 
 export default function PagesDemo() {
@@ -12,11 +13,11 @@ export default function PagesDemo() {
 						<CardHeader>
 							<CardTitle>Static Page Example</CardTitle>
 							<CardDescription>
-								Demonstrates static page generation in the Pages Router
+								Shows how static pages work in the Pages Router
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Link href="/pages-demo/static" passHref>
+							<Link href={routes.pagesDemo.static} passHref>
 								<Button variant="outline" className="w-full">
 									View Static Page
 								</Button>
@@ -32,7 +33,7 @@ export default function PagesDemo() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Link href="/pages-demo/dynamic" passHref>
+							<Link href={routes.pagesDemo.dynamic} passHref>
 								<Button variant="outline" className="w-full">
 									View Dynamic Page
 								</Button>
@@ -48,7 +49,7 @@ export default function PagesDemo() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Link href="/pages-demo/api-example" passHref>
+							<Link href={routes.pagesDemo.apiExample} passHref>
 								<Button variant="outline" className="w-full">
 									View API Example
 								</Button>
@@ -64,7 +65,7 @@ export default function PagesDemo() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Link href="/" passHref>
+							<Link href={routes.home} passHref>
 								<Button variant="outline" className="w-full">
 									Back to App Router
 								</Button>
