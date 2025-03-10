@@ -16,12 +16,10 @@ export default async function DocsLayout({ children }: DocsLayoutProps) {
 	return (
 		<>
 			<Header navLinks={navLinks} />
-			<div className="container mx-auto w-full min-w-0 prose dark:prose-invert my-header">
 
-				{/* Content */}
-				{children}
+			{/* Content */}
+			{children}
 
-			</div>
 		</>
 	)
 }

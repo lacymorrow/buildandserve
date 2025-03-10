@@ -9,7 +9,7 @@ import { PageTracker } from "react-page-tracker";
  * Root layout component that wraps the entire application
  * Uses ShipkitProvider to manage all core providers
  */
-export function RootLayout({ children }: { children: ReactNode }) {
+export function AppLayout({ children }: { children: ReactNode }) {
 	return (
 		<ViewTransitions>
 

@@ -3,7 +3,7 @@
  * @see https://nextjs.org/docs/app/api-reference/file-conventions/not-found
  */
 
-import { RootLayout } from "@/components/layouts/root-layout";
+import { AppLayout } from "@/components/layouts/app-layout";
 import { Link } from "@/components/primitives/link-with-transition";
 import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/primitives/page-header";
 import { WavesBackground } from "@/components/ui/background-waves";
@@ -24,7 +24,7 @@ const config = {
 
 export default function NotFound() {
 	return (
-		<RootLayout>
+		<AppLayout>
 			<WavesBackground config={config} />
 			<div className="container relative flex h-screen w-screen flex-col items-center justify-center">
 				<div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center gap-4">
@@ -56,6 +56,6 @@ export default function NotFound() {
 					</p>
 				</div>
 			</div>
-		</RootLayout>
+		</AppLayout>
 	);
 }

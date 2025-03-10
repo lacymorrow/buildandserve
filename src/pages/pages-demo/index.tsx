@@ -1,14 +1,12 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useRouter } from 'next/router'
+import Link from 'next/link'
 
 export default function PagesDemo() {
-	const router = useRouter()
-
 	return (
 		<>
-			<div className="max-w-4xl mx-auto">
-				<h1 className="text-4xl font-bold mb-8">Pages Router Demo</h1>
+			<div className="container py-10">
+				<h1 className="mb-8 text-3xl font-bold">Pages Router Examples</h1>
 				<div className="grid gap-6 md:grid-cols-2">
 					<Card>
 						<CardHeader>
@@ -18,9 +16,11 @@ export default function PagesDemo() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Button variant="outline" onClick={() => router.push('/pages-demo/static')}>
-								View Static Page
-							</Button>
+							<Link href="/pages-demo/static" passHref>
+								<Button variant="outline" className="w-full">
+									View Static Page
+								</Button>
+							</Link>
 						</CardContent>
 					</Card>
 
@@ -32,9 +32,11 @@ export default function PagesDemo() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Button variant="outline" onClick={() => router.push('/pages-demo/dynamic')}>
-								View Dynamic Page
-							</Button>
+							<Link href="/pages-demo/dynamic" passHref>
+								<Button variant="outline" className="w-full">
+									View Dynamic Page
+								</Button>
+							</Link>
 						</CardContent>
 					</Card>
 
@@ -46,9 +48,11 @@ export default function PagesDemo() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Button variant="outline" onClick={() => router.push('/pages-demo/api-example')}>
-								View API Example
-							</Button>
+							<Link href="/pages-demo/api-example" passHref>
+								<Button variant="outline" className="w-full">
+									View API Example
+								</Button>
+							</Link>
 						</CardContent>
 					</Card>
 
@@ -60,9 +64,11 @@ export default function PagesDemo() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Button variant="outline" onClick={() => router.push('/')}>
-								Back to App Router
-							</Button>
+							<Link href="/" passHref>
+								<Button variant="outline" className="w-full">
+									Back to App Router
+								</Button>
+							</Link>
 						</CardContent>
 					</Card>
 				</div>

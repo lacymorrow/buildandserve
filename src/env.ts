@@ -1,27 +1,44 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
-/*
+/**
  * Environment variable configuration using T3 Env
  * @see https://env.t3.gg
+ *
+ * This file defines and validates all environment variables used in the application.
+ * Variables are grouped by purpose and documented for clarity.
  */
 export const env = createEnv({
 	/**
-	 * Specify your server-side environment variables schema here. This way you can ensure the app
-	 * isn't built with invalid env vars.
+	 * Server-side environment variables schema
+	 * These variables are only available on the server and not exposed to the client
 	 */
 	server: {
-		DATABASE_URL: z.string().url().optional(),
-		DB_PREFIX: z.string().default("db"),
+		// ======== Core Environment ========
 		NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
-		// Auth
+		// ======== Feature Flags ========
+		DISABLE_LOGGING: z.string().optional(),
+		DISABLE_ERROR_LOGGING: z.string().optional(),
+		DISABLE_BUILDER: z.string().optional(), // Disable Builder CMS
+		DISABLE_PAYLOAD: z.string().optional(), // Disable Payload CMS
+
+		// ======== Database ========
+		DATABASE_URL: z.string().url().optional(),
+		DB_PREFIX: z.string().default("db"),
+
+		// ======== Authentication ========
 		AUTH_SECRET: z.string().optional(),
 		AUTH_URL: z.preprocess(
 			(str) => process.env.VERCEL_URL ?? str,
 			process.env.VERCEL ? z.string().optional() : z.string().url().optional()
 		),
 
+		// Email and Magic login
+		AUTH_RESEND_KEY: z.string().optional(),
+		RESEND_AUDIENCE_ID: z.string().optional(),
+
+		// OAuth Providers
 		AUTH_DISCORD_ID: z.string().optional(),
 		AUTH_DISCORD_SECRET: z.string().optional(),
 		AUTH_GITHUB_ID: z.string().optional(),
@@ -29,115 +46,131 @@ export const env = createEnv({
 		AUTH_GOOGLE_ID: z.string().optional(),
 		AUTH_GOOGLE_SECRET: z.string().optional(),
 
-		// GitHub (for downloading the repo)
+		// ======== Content Management ========
+		// Payload CMS
+		PAYLOAD_SECRET: z.string().optional(),
+
+		// ======== External Services ========
+		// GitHub
 		GITHUB_ACCESS_TOKEN: z.string().optional(),
 
 		// Google
 		GOOGLE_CLIENT_EMAIL: z.string().optional(),
 		GOOGLE_PRIVATE_KEY: z.string().optional(),
 
-		// OpenAI
+		// AI Services
 		OPENAI_API_KEY: z.string().optional(),
-
-		// Anthropic
 		ANTHROPIC_API_KEY: z.string().optional(),
 
-		// Lemon Squeezy
+		// Payments
 		LEMONSQUEEZY_API_KEY: z.string().optional(),
 		LEMONSQUEEZY_STORE_ID: z.string().optional(),
 		LEMONSQUEEZY_WEBHOOK_SECRET: z.string().optional(),
 
-		// Resend
-		AUTH_RESEND_KEY: z.string().optional(),
-		RESEND_AUDIENCE_ID: z.string().optional(),
-
-		// AWS S3
+		// Storage
 		AWS_REGION: z.string().optional(),
 		AWS_ACCESS_KEY_ID: z.string().optional(),
 		AWS_SECRET_ACCESS_KEY: z.string().optional(),
 		AWS_BUCKET_NAME: z.string().optional(),
 
-		// Payload
-		DISABLE_BUILDER: z.string().optional(),
-		DISABLE_PAYLOAD: z.string().optional(),
-		PAYLOAD_SECRET: z.string().optional(),
-
-		// Upstash
+		// Caching
 		UPSTASH_REDIS_REST_URL: z.string().optional(),
 		UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
-		// Vercel
+		// Deployment
 		VERCEL_ACCESS_TOKEN: z.string().optional(),
 		VERCEL_CLIENT_ID: z.string().optional(),
 		VERCEL_CLIENT_SECRET: z.string().optional(),
 	},
 
 	/**
-	 * Specify your client-side environment variables schema here. This way you can ensure the app
-	 * isn't built with invalid env vars. To expose them to the client, prefix them with
-	 * `NEXT_PUBLIC_`.
+	 * Client-side environment variables schema
+	 * These variables are exposed to the client and must be prefixed with NEXT_PUBLIC_
 	 */
 	client: {
+		// Content Management
 		NEXT_PUBLIC_BUILDER_API_KEY: z.string().optional(),
+
+		// Analytics
 		NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
 		NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
-
-		// Umami
 		NEXT_PUBLIC_UMAMI_WEBSITE_ID: z.string().optional(),
 	},
 
 	/**
-	 * You can't destruct `process.env` as a regular object in the Next.js edge runtimes (e.g.
-	 * middlewares) or client-side so we need to destruct manually.
+	 * Runtime environment mapping
+	 * Maps schema variables to actual process.env values
 	 */
 	runtimeEnv: {
+		// Core Environment
+		NODE_ENV: process.env.NODE_ENV,
+
+		// Feature Flags
+		DISABLE_LOGGING: process.env.DISABLE_LOGGING,
+		DISABLE_ERROR_LOGGING: process.env.DISABLE_ERROR_LOGGING,
+		DISABLE_BUILDER: process.env.DISABLE_BUILDER,
+		DISABLE_PAYLOAD: process.env.DISABLE_PAYLOAD,
+
+		// Database
 		DATABASE_URL: process.env.DATABASE_URL,
 		DB_PREFIX: process.env.DB_PREFIX,
-		NODE_ENV: process.env.NODE_ENV,
+
+		// Authentication
 		AUTH_SECRET: process.env.AUTH_SECRET,
 		AUTH_URL: process.env.AUTH_URL,
+		AUTH_RESEND_KEY: process.env.AUTH_RESEND_KEY,
+		RESEND_AUDIENCE_ID: process.env.RESEND_AUDIENCE_ID,
+
+		// OAuth Providers
 		AUTH_DISCORD_ID: process.env.AUTH_DISCORD_ID,
 		AUTH_DISCORD_SECRET: process.env.AUTH_DISCORD_SECRET,
 		AUTH_GITHUB_ID: process.env.AUTH_GITHUB_ID,
 		AUTH_GITHUB_SECRET: process.env.AUTH_GITHUB_SECRET,
 		AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID,
 		AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET,
+
+		// Content Management
+		PAYLOAD_SECRET: process.env.PAYLOAD_SECRET,
+
+		// External Services
 		GITHUB_ACCESS_TOKEN: process.env.GITHUB_ACCESS_TOKEN,
 		GOOGLE_CLIENT_EMAIL: process.env.GOOGLE_CLIENT_EMAIL,
 		GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY,
+
+		// AI Services
 		OPENAI_API_KEY: process.env.OPENAI_API_KEY,
 		ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+
+		// Payments
 		LEMONSQUEEZY_API_KEY: process.env.LEMONSQUEEZY_API_KEY,
 		LEMONSQUEEZY_STORE_ID: process.env.LEMONSQUEEZY_STORE_ID,
 		LEMONSQUEEZY_WEBHOOK_SECRET: process.env.LEMONSQUEEZY_WEBHOOK_SECRET,
-		AUTH_RESEND_KEY: process.env.AUTH_RESEND_KEY,
-		RESEND_AUDIENCE_ID: process.env.RESEND_AUDIENCE_ID,
-		DISABLE_BUILDER: process.env.DISABLE_BUILDER,
-		DISABLE_PAYLOAD: process.env.DISABLE_PAYLOAD,
-		PAYLOAD_SECRET: process.env.PAYLOAD_SECRET,
-		UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
-		UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
-		VERCEL_ACCESS_TOKEN: process.env.VERCEL_ACCESS_TOKEN,
-		VERCEL_CLIENT_ID: process.env.VERCEL_CLIENT_ID,
-		VERCEL_CLIENT_SECRET: process.env.VERCEL_CLIENT_SECRET,
+
+		// Storage
 		AWS_REGION: process.env.AWS_REGION,
 		AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
 		AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
 		AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME,
 
+		// Caching
+		UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+		UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
+
+		// Deployment
+		VERCEL_ACCESS_TOKEN: process.env.VERCEL_ACCESS_TOKEN,
+		VERCEL_CLIENT_ID: process.env.VERCEL_CLIENT_ID,
+		VERCEL_CLIENT_SECRET: process.env.VERCEL_CLIENT_SECRET,
+
+		// Client-side variables
 		NEXT_PUBLIC_BUILDER_API_KEY: process.env.NEXT_PUBLIC_BUILDER_API_KEY,
 		NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
 		NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
 		NEXT_PUBLIC_UMAMI_WEBSITE_ID: process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID,
 	},
+
 	/**
-	 * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
-	 * useful for Docker builds.
+	 * Configuration options
 	 */
 	skipValidation: !!process.env.SKIP_ENV_VALIDATION,
-	/**
-	 * Makes it so that empty strings are treated as undefined. `SOME_VAR: z.string()` and
-	 * `SOME_VAR=''` will throw an error.
-	 */
 	emptyStringAsUndefined: true,
 });

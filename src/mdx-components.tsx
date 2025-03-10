@@ -1,6 +1,7 @@
 import { Card } from "@/components/mdx/card";
 import { CardGroup } from "@/components/mdx/card-group";
 import { SecretGenerator } from "@/components/mdx/secret-generator";
+import { TypographyProvider } from "@/components/providers/typography-provider";
 import { siteConfig } from "@/config/site";
 import type { MDXComponents } from "mdx/types";
 
@@ -9,10 +10,15 @@ import type { MDXComponents } from "mdx/types";
 export function useMDXComponents(components: MDXComponents): MDXComponents {
 	return {
 		// ...fumadocsComponents,
-		...components,
+		wrapper: ({ children }) => (
+			<TypographyProvider id="sk-mdx-wrapper" className="container mx-auto">
+				{children}
+			</TypographyProvider>
+		),
 		Card,
 		CardGroup,
 		SecretGenerator,
 		SiteName: () => <>{siteConfig.name}</>,
+		...components,
 	};
 }

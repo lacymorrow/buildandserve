@@ -153,6 +153,14 @@ export const routes = {
 		trpc: "/trpc",
 	},
 
+	// Pages Router demo routes
+	pagesDemo: {
+		root: "/pages",
+		static: "/pages-demo/static",
+		dynamic: "/pages-demo/dynamic",
+		apiExample: "/pages-demo/api-example",
+	},
+
 	// External links
 	external: {
 		shipkit: `https://${siteConfig.branding.domain}`,
