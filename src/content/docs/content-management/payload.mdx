@@ -1,0 +1,77 @@
+---
+title: 'Payload CMS'
+description: 'Using Payload CMS with ShipKit'
+---
+
+# Payload CMS
+
+[Payload CMS](https://payloadcms.com) is a self-hosted headless CMS with a powerful admin interface and API. ShipKit integrates Payload CMS for structured content management.
+
+## Configuration
+
+Add these environment variables to enable Payload CMS:
+
+```env
+# Required
+PAYLOAD_SECRET=your_payload_secret_key
+DATABASE_URL=your_postgres_database_url
+
+# Optional - Disable Payload in development
+DISABLE_PAYLOAD=true
+```
+
+### Generate a Secure Secret
+
+You can use the tool below to generate a secure random string for your `PAYLOAD_SECRET`:
+
+<SecretGenerator label="Generate Payload Secret" />
+
+## Content Structure
+
+Payload CMS in ShipKit is configured with the following collections:
+
+- **Pages**: For creating dynamic pages with flexible layouts
+- **Media**: For managing images and other media files
+- **Users**: For managing admin users
+
+## Creating Content
+
+1. Access the Payload admin at `/cms`
+2. Log in with your admin credentials
+3. Navigate to the Pages collection
+4. Create a new page with a unique slug
+5. Add content blocks to build your page
+6. Publish the page when ready
+
+## Accessing Content
+
+Content created in Payload CMS is automatically available at the URL matching its slug:
+
+- A page with slug `about` will be available at `/about`
+- A page with slug `products/featured` will be available at `/products/featured`
+
+## Preview Mode
+
+You can preview unpublished content by appending `?preview=true` to the URL when logged into the admin.
+
+## API Access
+
+Payload provides a REST API for programmatic access to your content:
+
+```typescript
+// Example: Fetch a page by slug
+const page = await payload.find({
+  collection: 'pages',
+  where: {
+    slug: {
+      equals: 'about',
+    },
+  },
+});
+```
+
+## Resources
+
+- [Payload Documentation](https://payloadcms.com/docs)
+- [Database Setup Guide](https://payloadcms.com/docs/database/overview)
+- [Content Modeling Guide](https://payloadcms.com/docs/fields/overview)

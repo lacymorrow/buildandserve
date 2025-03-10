@@ -1,6 +1,6 @@
 "use client";
 
-import { type DialogProps } from "@radix-ui/react-dialog";
+import { type DialogProps, DialogTitle } from "@radix-ui/react-dialog";
 import { CircleIcon, FileIcon, LaptopIcon } from "@radix-ui/react-icons";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/command";
 
 import { cn } from "@/lib/utils";
-import { type MainNavItem, type SidebarNavItem } from "@/types/nav";
+import type { MainNavItem, SidebarNavItem } from "@/types/nav";
 import { Moon, Sun } from "lucide-react";
 
 export interface DocsConfig {
@@ -521,7 +521,7 @@ export function CommandMenu({ ...props }: DialogProps) {
 			<Button
 				variant="outline"
 				className={cn(
-					"relative w-full justify-start rounded-[0.5rem] bg-muted/50 text-sm font-normal text-muted-foreground shadow-none sm:pr-12 md:w-36",
+					"relative w-full justify-start rounded-[0.5rem] bg-muted/50 text-sm font-normal text-muted-foreground shadow-none sm:pr-12 md:w-36"
 				)}
 				size="sm"
 				onClick={() => setOpen(true)}
@@ -535,6 +535,7 @@ export function CommandMenu({ ...props }: DialogProps) {
 				</kbd>
 			</Button>
 			<CommandDialog open={open} onOpenChange={setOpen}>
+				<DialogTitle>Search Documentation</DialogTitle>
 				<CommandInput placeholder="Type a command or search..." />
 				<CommandList>
 					<CommandEmpty>No results found.</CommandEmpty>

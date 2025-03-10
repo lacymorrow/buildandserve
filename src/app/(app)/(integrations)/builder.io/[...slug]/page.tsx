@@ -8,7 +8,7 @@ import "@/styles/builder-io.css";
 
 interface PageProps {
 	params: Promise<{
-		page: string[];
+		slug: string[];
 	}>;
 }
 
@@ -25,7 +25,7 @@ export default async function Page(props: PageProps) {
 		.get("page", {
 			userAttributes: {
 				// Use the page path specified in the URL to fetch the content
-				urlPath: "/" + ((await props?.params)?.page?.join("/") || ""),
+				urlPath: `/${(await props?.params)?.slug?.join("/")}`,
 			},
 			// Set prerender to false to return JSON instead of HTML
 			prerender: false,

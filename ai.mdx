@@ -1,0 +1,64 @@
+# AI Development Progress
+
+This document tracks the AI-assisted development progress for ShipKit.
+
+## Unified CMS Routing
+
+- [x] Created a unified dynamic route handler that checks both Payload CMS and Builder.io
+- [x] Implemented metadata generation from both CMS sources
+- [x] Added proper fallback handling with 404 responses
+- [x] Created documentation for the unified CMS routing system
+- [x] Fixed slug handling to properly query Payload CMS
+- [x] Added robust error handling for Builder.io integration
+- [x] Implemented fallback mechanisms for when either CMS is unavailable
+- [x] Enhanced debugging to troubleshoot slug matching issues
+- [x] Removed publishedAt filter to allow finding unpublished pages
+- [x] Created comprehensive content management documentation
+- [x] Added SecretGenerator component for generating Payload CMS secrets
+
+## Implementation Details
+
+The unified CMS routing system allows content to be served from either Payload CMS or Builder.io using the same URL structure. This provides flexibility in content management while maintaining a consistent URL structure for users.
+
+### Files Created/Modified
+
+- `src/app/(payload)/[...slug]/page.tsx` - Main dynamic route handler that checks both CMS systems
+- `src/content/docs/ai/unified-cms-routing.mdx` - Documentation for the unified routing system
+- `src/content/docs/content-management/index.mdx` - Overview of content management options
+- `src/content/docs/content-management/payload.mdx` - Payload CMS documentation
+- `src/content/docs/content-management/builder.mdx` - Builder.io documentation
+- `src/content/docs/content-management/markdown-mdx.mdx` - Markdown and MDX documentation
+- `src/components/mdx/secret-generator.tsx` - Component for generating secure secrets
+- `src/mdx-components.tsx` - Updated to include the SecretGenerator component
+
+### How It Works
+
+1. When a user visits a URL, the dynamic route handler processes the request
+2. The system first checks if the content exists in Payload CMS
+   - First tries with the full slug path (joined with "/")
+   - If not found, tries with just the first segment of the slug
+   - If still not found, tries a more flexible "like" query
+3. If found in Payload CMS, it renders using Payload's components
+4. If not found in Payload CMS, it checks Builder.io (if enabled)
+5. If found in Builder.io, it renders using Builder.io's components
+6. If not found in either CMS, a 404 page is displayed
+
+### Improvements Made
+
+- Added robust error handling for Builder.io integration
+- Implemented proper slug handling for Payload CMS queries
+- Added fallback mechanisms for when either CMS is unavailable
+- Added detailed logging for debugging purposes
+- Improved metadata generation from both CMS sources
+- Removed publishedAt filter to allow finding unpublished pages
+- Added multiple query strategies to find content with different slug formats
+- Enhanced debugging to troubleshoot slug matching issues
+- Created comprehensive documentation for content management options
+- Added interactive SecretGenerator component for generating secure Payload secrets
+
+### Next Steps
+
+- [ ] Add caching to improve performance
+- [ ] Implement preview mode for both CMS systems
+- [ ] Add analytics to track which CMS is serving which pages
+- [ ] Create a dashboard to visualize content distribution

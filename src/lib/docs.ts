@@ -48,8 +48,9 @@ export interface NavSection {
 export const getDocBySlug = cache(async (slug = "index") => {
 	try {
 		const doc = await import(`@/content/docs/${slug}.mdx`).catch((error) => {
-			// console.error(`Error importing doc: ${slug}`, error);
-			return null;
+			// Append /index to the slug if it doesn't exist
+			const newSlug = slug.endsWith("/") ? `${slug}index` : `${slug}/index`;
+			return import(`@/content/docs/${newSlug}.mdx`);
 		});
 
 		if (!doc) {
@@ -66,9 +67,7 @@ export const getDocBySlug = cache(async (slug = "index") => {
 			...frontmatter,
 			slug,
 			content: Content,
-			lastModified: frontmatter?.updatedAt
-				? new Date(frontmatter.updatedAt)
-				: new Date(),
+			lastModified: frontmatter?.updatedAt ? new Date(frontmatter.updatedAt) : new Date(),
 			section: frontmatter.section ?? "core",
 		};
 	} catch (error) {
@@ -197,9 +196,7 @@ function processDirectory(dir: string): NavSection[] {
 		}
 		// Process root MDX files
 		const rootItems: NavItem[] = [];
-		for (const entry of entries.filter(
-			(entry) => entry.isFile() && entry.name.endsWith(".mdx"),
-		)) {
+		for (const entry of entries.filter((entry) => entry.isFile() && entry.name.endsWith(".mdx"))) {
 			const filePath = path.join(rootPath, dir, entry.name);
 			const content = fs.readFileSync(filePath, "utf-8");
 			const { data } = matter(content);
@@ -231,9 +228,7 @@ export const getDocsNavigation = cache(async (): Promise<NavSection[]> => {
 });
 
 // Add helper function to get doc from params
-export async function getDocFromParams(
-	params: Promise<{ slug?: string | string[] }>,
-) {
+export async function getDocFromParams(params: Promise<{ slug?: string | string[] }>) {
 	try {
 		const resolvedParams = await params;
 		const slug =

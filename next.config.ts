@@ -1,6 +1,8 @@
 import { FILE_UPLOAD_MAX_SIZE } from "@/config/file";
 import { redirects } from "@/config/routes";
+import BuilderDevTools from "@builder.io/dev-tools/next";
 import createMDX from "@next/mdx";
+import { withPayload } from "@payloadcms/next/withPayload";
 import type { NextConfig } from "next";
 
 /**
@@ -88,6 +90,8 @@ let nextConfig: NextConfig = {
 		serverActions: {
 			bodySizeLimit: FILE_UPLOAD_MAX_SIZE,
 		},
+		// @see: https://nextjs.org/docs/app/api-reference/config/next-config-js/viewTransition
+		viewTransition: true,
 		webVitalsAttribution: ["CLS", "LCP", "TTFB", "FCP", "FID"],
 	},
 	/*
@@ -120,6 +124,14 @@ let nextConfig: NextConfig = {
  * Configurations
  * Order matters!
  */
+// Builder config
+nextConfig =
+	!env?.NEXT_PUBLIC_BUILDER_API_KEY || !!env?.DISABLE_BUILDER
+		? nextConfig
+		: BuilderDevTools()(nextConfig);
+
+// Payload config
+nextConfig = !env?.DATABASE_URL || !!env?.DISABLE_PAYLOAD ? nextConfig : withPayload(nextConfig);
 
 /*
  * MDX config - should be last or second to last

@@ -1,82 +1,32 @@
-import { ErrorToast } from "@/components/primitives/error-toast";
-import { JsonLd } from "@/components/primitives/json-ld";
-import { AnalyticsProvider } from "@/components/providers/analytics-provider";
-import { Toaster as SonnerToaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { TRPCReactProvider } from "@/lib/trpc/react";
-import { cn } from "@/lib/utils";
-import HolyLoader from "holy-loader";
-import { SessionProvider } from "next-auth/react";
-import { ThemeProvider } from "next-themes";
+import { ShipkitProvider } from "@/components/providers/shipkit-provider";
 import { ViewTransitions } from "next-view-transitions";
-import { Space_Grotesk as FontSans, Noto_Serif as FontSerif } from "next/font/google";
 import Head from "next/head";
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
-import { type ReactNode, Suspense } from "react";
+import type { ReactNode } from "react";
 import { PageTracker } from "react-page-tracker";
 
-import "@/styles/globals.css";
-const fontSerif = FontSerif({
-	weight: ["400", "500", "600", "700"],
-	style: ["normal", "italic"],
-	subsets: ["latin"],
-	variable: "--font-serif",
-});
-
-const fontSans = FontSans({
-	display: "swap",
-	subsets: ["latin"],
-	variable: "--font-sans",
-});
-
+/**
+ * Root layout component that wraps the entire application
+ * Uses ShipkitProvider to manage all core providers
+ */
 export function RootLayout({ children }: { children: ReactNode }) {
 	return (
 		<ViewTransitions>
+
 			<Head>
 				{/* React Scan */}
 				<script src="https://unpkg.com/react-scan/dist/auto.global.js" async />
 			</Head>
-			<html lang="en" suppressHydrationWarning>
-				<body
-					className={cn(
-						"min-h-screen antialiased",
-						"font-sans font-normal leading-relaxed",
-						fontSans.variable,
-						fontSerif.variable
-					)}
-				>
-					<JsonLd organization website />
-					<HolyLoader
-						showSpinner
-						height={"4px"}
-						color={"linear-gradient(90deg, #FF61D8, #8C52FF, #5CE1E6, #FF61D8)"}
-					/>
-					<PageTracker />
-					<SessionProvider>
-						<TRPCReactProvider>
-							<NuqsAdapter>
-								<ThemeProvider attribute="class" defaultTheme="dark">
-									<TooltipProvider delayDuration={100}>
-										<AnalyticsProvider>
-											{/* Content */}
-											{children}
 
+			{/* PageTracker - Track page views */}
+			<PageTracker />
 
-											{/* Toast - Display messages to the user */}
-											<SonnerToaster />
-
-											{/* Error Toast - Display error messages to the user based on search params */}
-											<Suspense>
-												<ErrorToast />
-											</Suspense>
-										</AnalyticsProvider>
-									</TooltipProvider>
-								</ThemeProvider>
-							</NuqsAdapter>
-						</TRPCReactProvider>
-					</SessionProvider>
-				</body>
-			</html>
+			{/* ShipkitProvider - Manage all core providers */}
+			<ShipkitProvider>
+				<NuqsAdapter>
+					{children}
+				</NuqsAdapter>
+			</ShipkitProvider>
 		</ViewTransitions>
 	);
 }
