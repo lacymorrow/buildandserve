@@ -147,11 +147,17 @@ export const routes = {
 	workers: {
 		logger: "/workers/workers/logger-worker.js",
 	},
+
 	// Demo routes
 	demo: {
+		// CMS Demo routes
+		builderio: "/builderio",
+		payloadCms: "/payload-cms",
+
 		network: "/network",
+
+		// TRPC example from T3.gg
 		trpc: "/trpc",
-		fileUpload: "/file-upload",
 	},
 
 	// Pages Router demo routes

@@ -74,28 +74,13 @@ return (
 );
 ```
 
-### Using the useAdminCheck Hook
+### Using the useIsAdmin Hook
 
 ```tsx
-import { useAdminCheck } from '@/components/admin/admin-check';
+import { useIsAdmin } from '@/hooks/use-is-admin';
 
-// In your component
-const { isAdmin, isLoading } = useAdminCheck(session?.user?.email);
-
-if (isLoading) return <div>Loading...</div>;
-
-return (
-  <div>
-    <h1>Welcome to the Dashboard</h1>
-    
-    {isAdmin && (
-      <div>
-        <h2>Admin Controls</h2>
-        <p>This section is only visible to administrators.</p>
-      </div>
-    )}
-  </div>
-);
+// In your component:
+const { isAdmin, isLoading } = useIsAdmin(session?.user?.email);
 ```
 
 ## Security Considerations

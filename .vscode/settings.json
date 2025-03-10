@@ -49,5 +49,10 @@
   },
   "[mdx]": {
     "editor.defaultFormatter": "unifiedjs.vscode-mdx"
-  }
+  },
+  "[git-commit]": {
+    "editor.wordWrap": "on"
+  },
+  "editor.wordWrap": "on",
+  "chat.editor.wordWrap": "off"
 }

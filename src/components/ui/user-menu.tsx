@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useSignInRedirectUrl } from "@/hooks/use-sign-in-redirect-url";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -45,7 +45,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className 
 	const { toast } = useToast();
 	const [isOpen, setIsOpen] = React.useState(false);
 
-	const isAdmin = session?.user?.email && siteConfig.admin.isAdmin(session.user.email);
+	const { isAdmin, isLoading: isAdminLoading } = useIsAdmin(session?.user?.email);
 
 	const handleThemeChange = React.useCallback(
 		async (value: string) => {

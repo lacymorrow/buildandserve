@@ -96,13 +96,6 @@ interface SiteConfig {
 		};
 	};
 
-	// Admin access control - client-side stub
-	admin: {
-		// Client-side stub for admin check
-		// The actual check happens server-side via admin-actions.ts
-		isAdmin: (email?: string | null) => boolean;
-	};
-
 	// SEO and metadata
 	metadata: {
 		keywords: string[];
@@ -201,12 +194,6 @@ export const siteConfig: SiteConfig = {
 			buyUrl: (product) =>
 				`https://shipkit.lemonsqueezy.com/checkout/buy/${siteConfig.store.products[product]}`,
 		},
-	},
-
-	admin: {
-		// Client-side stub that will be implemented by client components
-		// using the server action from admin-actions.ts
-		isAdmin: (email) => false,
 	},
 
 	metadata: {

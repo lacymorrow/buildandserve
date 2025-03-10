@@ -1,0 +1,46 @@
+# AI Assistant Documentation
+
+This file documents the changes made by the AI assistant to the Shipkit codebase.
+
+## Admin Checking Logic Consolidation
+
+- [x] Updated `src/config/site.ts` to add a warning to the client-side admin check stub
+- [x] Updated `src/components/ui/user-menu.tsx` to use the `useIsAdmin` hook instead of `siteConfig.admin.isAdmin`
+- [x] Updated `src/app/(app)/(admin)/layout.tsx` to use the `checkIsAdmin` server action instead of `siteConfig.admin.isAdmin`
+- [x] Created documentation in `src/docs/admin-checking.md` explaining the recommended approach for admin checking
+
+## Admin Checking Code Organization
+
+- [x] Moved the `useIsAdmin` hook from `src/components/admin/admin-check.tsx` to `src/hooks/use-is-admin.tsx`
+- [x] Deleted the original `src/components/admin/admin-check.tsx` file
+- [x] Updated imports in `src/components/ui/user-menu.tsx` to use the new hook location
+- [x] Updated documentation in `src/docs/admin-checking.md` to reflect the simplified approach
+
+## Admin Checking Architecture Improvement
+
+- [x] Created `src/server/services/admin-service.ts` with functions for server-side admin checking
+- [x] Updated `src/app/(app)/(admin)/layout.tsx` to use the admin service instead of server actions
+- [x] Updated documentation to reflect the proper architectural pattern:
+  - Server components should use services directly
+  - Client components should use server actions via hooks
+
+### Problem
+
+The original implementation had architectural issues:
+1. Server components were using server actions for data fetching, which violates the project's architecture principles
+2. The approach didn't follow the separation of concerns between services and actions
+3. The code didn't align with the project's convention that "server code belongs in services, server action code belongs in actions"
+
+### Solution
+
+Improved the architecture by:
+1. Creating a dedicated admin service for server components
+2. Ensuring server components use services directly for data fetching
+3. Maintaining server actions for client components
+4. Updating documentation to clearly explain the architectural pattern
+
+This approach ensures that:
+- The code follows the project's architectural principles
+- There's a clear separation between services and actions
+- Server components use services directly for data fetching
+- Client components use server actions via hooks

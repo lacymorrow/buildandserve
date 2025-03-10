@@ -26,7 +26,9 @@ export const adminConfig: AdminConfig = {
 		: ["lacymorrow0@gmail.com", "gojukebox@gmail.com"],
 
 	// Admin domains - using default values
-	domains: ["lacymorrow.com"],
+	domains: process.env.ADMIN_DOMAINS
+		? process.env.ADMIN_DOMAINS.split(",").map((domain) => domain.trim())
+		: ["lacymorrow.com"],
 
 	// Check if an email is an admin
 	isAdmin: (email?: string | null): boolean => {

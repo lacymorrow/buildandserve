@@ -1,7 +1,7 @@
 import { Header } from "@/components/headers/header";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
 import { auth } from "@/server/auth";
+import { isAdmin } from "@/server/services/admin-service";
 import { redirect } from "next/navigation";
 import type React from "react";
 
@@ -21,18 +21,20 @@ export default async function AdminLayout({
 	children: React.ReactNode;
 }) {
 	const session = await auth();
-	const isAdmin =
-		session?.user?.email && siteConfig.admin.isAdmin(session.user.email);
+	const userIsAdmin = isAdmin(session?.user?.email);
 
-	if (!isAdmin) {
-		console.warn("User is not an admin, redirecting to home", session?.user?.email, siteConfig.admin);
+	if (!userIsAdmin) {
+		console.warn("User is not an admin, redirecting to home", session?.user?.email);
 		redirect(routes.home);
 	}
 
 	return (
-		<>
-			<Header navLinks={navLinks} />
-			{children}
-		</>
+		<div className="flex min-h-screen flex-col">
+			<Header
+				navLinks={navLinks}
+				variant="sticky"
+			/>
+			<div className="container flex-1 py-6 md:py-10">{children}</div>
+		</div>
 	);
 }
