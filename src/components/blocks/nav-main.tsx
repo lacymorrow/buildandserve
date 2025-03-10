@@ -22,7 +22,7 @@ import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
 import { cn } from "@/lib/utils";
 import { ChevronRightIcon } from "@radix-ui/react-icons";
-import { ArrowLeftFromLineIcon, Download, FileTerminalIcon, Settings2, SquareTerminal, Wrench } from "lucide-react";
+import { ArrowLeftFromLineIcon, FileTerminalIcon, Settings2, SquareTerminal, Wrench } from "lucide-react";
 
 const data = [
 	{
@@ -30,11 +30,11 @@ const data = [
 		url: routes.app.dashboard,
 		icon: SquareTerminal,
 	},
-	{
-		title: `Download ${siteConfig.name}`,
-		url: routes.download,
-		icon: Download,
-	},
+	// {
+	// 	title: `Download ${siteConfig.name}`,
+	// 	url: routes.download,
+	// 	icon: Download,
+	// },
 	{
 		title: "Manage",
 		icon: Settings2,

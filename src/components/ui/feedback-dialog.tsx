@@ -75,7 +75,7 @@ export const FeedbackDialog = ({ trigger, className }: FeedbackDialogProps) => {
 			<DialogTrigger className="w-full" asChild>
 				<div className="w-full">
 					{trigger || (
-						<Button variant="ghost" className={`w-full ${className}`}>
+						<Button variant="ghost" className={`w-full px-2 ${className}`}>
 							Feedback
 						</Button>
 					)}
