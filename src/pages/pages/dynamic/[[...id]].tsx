@@ -17,7 +17,7 @@ export default function DynamicPage(props: DynamicPageProps) {
 	const exampleId = `example-${Math.floor(Math.random() * 1000)}`;
 
 	// Create a dynamic route using the routes configuration
-	const dynamicExampleRoute = createRoute(`${routes.pagesDemo.dynamic}/${exampleId}`);
+	const dynamicExampleRoute = createRoute(`${routes.pages.dynamic}/${exampleId}`);
 
 	return (
 		<PagesLayout>

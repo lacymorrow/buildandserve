@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { routes } from '@/config/routes'
 import Link from 'next/link'
 
-export default function PagesDemo() {
+export default function PagesRouterDemo() {
 	return (
 		<>
 			<div className="container py-10">
@@ -17,7 +17,7 @@ export default function PagesDemo() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Link href={routes.pagesDemo.static} passHref>
+							<Link href={routes.pages.static} passHref>
 								<Button variant="outline" className="w-full">
 									View Static Page
 								</Button>
@@ -33,7 +33,7 @@ export default function PagesDemo() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Link href={routes.pagesDemo.dynamic} passHref>
+							<Link href={routes.pages.dynamic} passHref>
 								<Button variant="outline" className="w-full">
 									View Dynamic Page
 								</Button>
@@ -49,7 +49,7 @@ export default function PagesDemo() {
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Link href={routes.pagesDemo.apiExample} passHref>
+							<Link href={routes.pages.apiExample} passHref>
 								<Button variant="outline" className="w-full">
 									View API Example
 								</Button>

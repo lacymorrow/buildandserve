@@ -5,8 +5,6 @@ import type { ReactNode } from "react";
  */
 export const PagesLayout = ({
 	children,
-	hideHeader,
-	hideFooter,
 }: {
 	children: ReactNode;
 	hideHeader?: boolean;

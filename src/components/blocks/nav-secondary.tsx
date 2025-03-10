@@ -5,15 +5,11 @@ import { Link } from "@/components/primitives/link-with-transition";
 import { Button } from "@/components/ui/button";
 import { FeedbackDialog } from "@/components/ui/feedback-dialog";
 import { useSidebar } from "@/components/ui/sidebar";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
-import { LifeBuoy, LucideIcon, Send, Settings2 } from "lucide-react";
-import React from "react";
+import { LifeBuoy, type LucideIcon, Send, Settings2 } from "lucide-react";
+import type React from "react";
 const data = [
 	{
 		title: "Documentation",
@@ -31,7 +27,7 @@ const data = [
 		Icon: Settings2,
 		url: routes.app.settings,
 	},
-]
+];
 
 interface NavSecondaryItem {
 	title: string;
@@ -54,9 +50,7 @@ interface NavItemWrapperProps {
 
 const NavItemWrapper = ({ title, open, children }: NavItemWrapperProps) => (
 	<Tooltip>
-		<TooltipTrigger asChild>
-			{children}
-		</TooltipTrigger>
+		<TooltipTrigger asChild>{children}</TooltipTrigger>
 		{!open && (
 			<TooltipContent side="right" sideOffset={20}>
 				{title}
@@ -69,7 +63,7 @@ const NavItemWrapper = ({ title, open, children }: NavItemWrapperProps) => (
 const getButtonProps = (open: boolean) => ({
 	variant: "ghost" as const,
 	size: "sm" as const,
-	className: cn("group justify-center", open && "w-full justify-start")
+	className: cn("group justify-center", open && "w-full justify-start"),
 });
 
 export function NavSecondary({ items, className }: NavSecondaryProps) {
@@ -90,11 +84,9 @@ export function NavSecondary({ items, className }: NavSecondaryProps) {
 							key={item.title}
 							trigger={
 								<NavItemWrapper title={item.title} open={open}>
-									<Button {...buttonProps}>
+									<Button {...buttonProps} className="w-full justify-start group-data-[collapsible=icon]:px-2">
 										<Icon className="h-4 w-4 shrink-0" />
-										{open && <span className="ml-2 transition">
-											{item.title}
-										</span>}
+										{open && <span className="ml-2 transition-all duration-200 group-data-[collapsible=icon]:opacity-0">{item.title}</span>}
 									</Button>
 								</NavItemWrapper>
 							}
@@ -108,9 +100,11 @@ export function NavSecondary({ items, className }: NavSecondaryProps) {
 						<Button {...buttonProps} asChild>
 							<Link href={item.url}>
 								<Icon className="h-4 w-4 shrink-0" />
-								{open && <span className="ml-2 transition-all duration-200 group-data-[collapsible=icon]:opacity-0">
-									{item.title}
-								</span>}
+								{open && (
+									<span className="ml-2 transition-all duration-200 group-data-[collapsible=icon]:opacity-0">
+										{item.title}
+									</span>
+								)}
 							</Link>
 						</Button>
 					</NavItemWrapper>

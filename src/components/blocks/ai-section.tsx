@@ -79,7 +79,7 @@ export function ${prompt.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice
 				</h1>
 
 				<div className="relative">
-					<div className="relative bg-[#1C1C1C] rounded-xl border border-white/[0.08] shadow-[0_0_1px_1px_rgba(0,0,0,0.3)]">
+					<div className="relative bg-[#1C1C1C] rounded-rounded border border-white/[0.08] shadow-[0_0_1px_1px_rgba(0,0,0,0.3)]">
 						<Input
 							value={prompt}
 							onChange={(e) => setPrompt(e.target.value)}

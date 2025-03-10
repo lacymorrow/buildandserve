@@ -36,7 +36,7 @@ const data = [
 	// 	icon: Download,
 	// },
 	{
-		title: "Manage",
+		title: "Management",
 		icon: Settings2,
 		items: [
 			{ title: "Projects", url: routes.app.projects },
@@ -45,9 +45,16 @@ const data = [
 		],
 	},
 	{
-		title: "Examples",
+		title: "Demos",
 		icon: FileTerminalIcon,
 		items: [
+
+			{ title: "UI Examples", url: routes.examples.root },
+			{ title: "TRPC Demo", url: routes.demo.trpc },
+			{ title: "Pages Router", url: routes.pages.root },
+			{ title: "Markdown", url: routes.pages.markdown },
+			{ title: "File Upload", url: routes.demo.fileUpload },
+
 			{
 				title: "AI", items: [
 					// Core AI Features
@@ -126,6 +133,7 @@ export function NavMain({
 
 	// Recursive function to render menu items
 	const renderMenuItem = (item: NavItem | { title: string; url: string }) => {
+		if (!pathname) return null;
 		const isActive = 'url' in item && item.url ? isRouteActive(pathname, item.url) : false;
 		const hasActiveChild = 'items' in item && item.items?.some((subItem) =>
 			'url' in subItem && subItem.url ? isRouteActive(pathname, subItem.url) : false,

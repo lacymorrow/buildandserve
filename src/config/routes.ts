@@ -151,14 +151,16 @@ export const routes = {
 	demo: {
 		network: "/network",
 		trpc: "/trpc",
+		fileUpload: "/file-upload",
 	},
 
 	// Pages Router demo routes
-	pagesDemo: {
+	pages: {
 		root: "/pages",
 		static: "/pages/static",
 		dynamic: "/pages/dynamic",
 		apiExample: "/pages/api-example",
+		markdown: "/pages/markdown",
 	},
 
 	// External links
