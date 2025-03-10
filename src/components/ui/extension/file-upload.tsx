@@ -271,7 +271,7 @@ export const FileUploaderContent = forwardRef<
 				{...props}
 				ref={ref}
 				className={cn(
-					"flex gap-1 rounded-rounded",
+					"flex gap-1 rounded-xl",
 					orientation === "horizontal" ? "flex-raw flex-wrap" : "flex-col",
 					className,
 				)}
