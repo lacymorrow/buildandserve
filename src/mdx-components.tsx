@@ -12,7 +12,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
 	return {
 		// ...fumadocsComponents,
 		wrapper: ({ children }) => (
-			<TypographyProvider id="sk-mdx-wrapper" className="container mx-auto">
+			<TypographyProvider id="sk-mdx-wrapper" className="container mx-auto py-10">
 				{children}
 			</TypographyProvider>
 		),

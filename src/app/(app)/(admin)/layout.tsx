@@ -25,6 +25,7 @@ export default async function AdminLayout({
 		session?.user?.email && siteConfig.admin.isAdmin(session.user.email);
 
 	if (!isAdmin) {
+		console.warn("User is not an admin, redirecting to home", session?.user?.email, siteConfig.admin);
 		redirect(routes.home);
 	}
 

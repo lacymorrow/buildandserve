@@ -1,6 +1,6 @@
 'use client'
 
-import { CommandMenu } from "@/components/search/command-menu"
+import { SearchMenu } from "@/components/search/search-menu"
 import { Button } from "@/components/ui/button"
 import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
@@ -24,7 +24,7 @@ export function DocsHeader({ className, onToggleNav }: DocsHeaderProps) {
 				</div>
 				<div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
 					<div className="w-full flex-1 md:w-auto md:flex-none">
-						<CommandMenu />
+						<SearchMenu />
 					</div>
 					<nav className="flex items-center space-x-1">
 						<Button variant="ghost" size="icon" asChild>

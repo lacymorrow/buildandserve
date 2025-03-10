@@ -16,7 +16,7 @@ import type React from "react";
 import { useMemo } from "react";
 
 import { Logo } from "@/components/images/logo";
-import { Search } from "@/components/search/search";
+import { SearchMenu } from "@/components/search/search-menu";
 import { useSignInRedirectUrl } from "@/hooks/use-sign-in-redirect-url";
 import styles from "@/styles/header.module.css";
 import { BuyButton } from "../buttons/buy-button";
@@ -64,6 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
 	logoText = siteConfig.name,
 	navLinks = defaultNavLinks,
 	variant = "default",
+	searchPlaceholder = "Search...",
 }) => {
 	const signInRedirectUrl = useSignInRedirectUrl();
 	const [{ y }] = useWindowScroll();
@@ -92,7 +93,11 @@ export const Header: React.FC<HeaderProps> = ({
 							{logoIcon}
 							<span className="block whitespace-nowrap">{logoText}</span>
 						</Link>
-						<Search />
+						<SearchMenu
+							buttonText={searchPlaceholder}
+							minimal={true}
+							buttonClassName="w-full md:w-auto"
+						/>
 					</div>
 
 					<Sheet>

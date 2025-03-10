@@ -21,14 +21,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { type AvatarType, getAvatarUrl } from "@/lib/utils/avatar";
 import { createTeam, getUserTeams } from "@/server/actions/teams";
 import { CaretSortIcon, CheckIcon } from "@radix-ui/react-icons";
 import { PlusIcon } from "lucide-react";
@@ -36,31 +33,12 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-const getAvatarUrl = (name: string, type: "personal" | "workspace" = "workspace") => {
-	// Create a consistent hash for the team name
-	const hash = name.split("").reduce((acc, char) => {
-		return char.charCodeAt(0) + ((acc << 5) - acc);
-	}, 0);
-
-	// Use different styles for personal vs workspace teams
-	// @see https://www.dicebear.com/styles/
-	const style = type === "personal" ? "glass" : "pixel-art";
-
-	// Generate a color based on the hash
-	const colors = ["2ecc71", "3498db", "9b59b6", "f1c40f", "e74c3c", "1abc9c", "34495e"];
-	const color = colors[Math.abs(hash) % colors.length];
-
-	return `https://api.dicebear.com/9.x/${style}/svg?seed=${encodeURIComponent(name)}&backgroundColor=${color}`;
-};
-
 export function TeamSwitcher() {
 	const { open: sidebarOpen } = useSidebar();
 	const { data: session } = useSession();
 	const router = useRouter();
 	const { toast } = useToast();
-	const [teams, setTeams] = React.useState<
-		Awaited<ReturnType<typeof getUserTeams>>
-	>([]);
+	const [teams, setTeams] = React.useState<Awaited<ReturnType<typeof getUserTeams>>>([]);
 	const [activeTeam, setActiveTeam] = React.useState<(typeof teams)[0]>();
 	const [open, setOpen] = React.useState(false);
 	const [showNewTeamDialog, setShowNewTeamDialog] = React.useState(false);
@@ -71,9 +49,7 @@ export function TeamSwitcher() {
 		if (session?.user?.id) {
 			getUserTeams(session.user.id).then((fetchedTeams) => {
 				setTeams(fetchedTeams);
-				const personalTeam = fetchedTeams.find(
-					(t) => t.team.type === "personal",
-				);
+				const personalTeam = fetchedTeams.find((t) => t.team.type === "personal");
 				if (personalTeam) {
 					setActiveTeam(personalTeam);
 				}
@@ -118,29 +94,35 @@ export function TeamSwitcher() {
 					>
 						<Avatar className="h-6 w-6">
 							<AvatarImage
-								src={activeTeam?.team ? getAvatarUrl(activeTeam.team.name, activeTeam.team.type) : getAvatarUrl("team")}
+								src={
+									activeTeam?.team
+										? getAvatarUrl(activeTeam.team.name, activeTeam.team.type as AvatarType)
+										: getAvatarUrl("team")
+								}
 								alt={activeTeam?.team?.name || "Team"}
 							/>
-							<AvatarFallback>
-								{activeTeam?.team?.name?.charAt(0) || "T"}
-							</AvatarFallback>
+							<AvatarFallback>{activeTeam?.team?.name?.charAt(0) || "T"}</AvatarFallback>
 						</Avatar>
-						{sidebarOpen && <>
-							<div className="grid flex-1 text-left text-sm leading-tight">
-								<span className="truncate font-semibold">
-									{activeTeam?.team?.name || "Select Team"}
-								</span>
-								<span className="truncate text-xs capitalize text-muted-foreground">
-									{activeTeam?.role || "No team selected"}
-									{activeTeam?.team?.type === "personal" && " (Personal)"}
-								</span>
-							</div>
-							<CaretSortIcon className="h-4 w-4 shrink-0 opacity-50" />
-						</>
-						}
+						{sidebarOpen && (
+							<>
+								<div className="grid flex-1 text-left text-sm leading-tight">
+									<span className="truncate font-semibold">
+										{activeTeam?.team?.name || "Select Team"}
+									</span>
+									<span className="truncate text-xs capitalize text-muted-foreground">
+										{activeTeam?.role || "No team selected"}
+										{activeTeam?.team?.type === "personal" && " (Personal)"}
+									</span>
+								</div>
+								<CaretSortIcon className="h-4 w-4 shrink-0 opacity-50" />
+							</>
+						)}
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent className={cn("p-0", sidebarOpen && "w-[var(--radix-popover-trigger-width)]")} align="start">
+				<PopoverContent
+					className={cn("p-0", sidebarOpen && "w-[var(--radix-popover-trigger-width)]")}
+					align="start"
+				>
 					<Command>
 						<CommandInput placeholder="Search team..." />
 						<CommandList>
@@ -166,20 +148,16 @@ export function TeamSwitcher() {
 												>
 													<Avatar className="mr-2 h-5 w-5">
 														<AvatarImage
-															src={getAvatarUrl(team.team.name, team.team.type)}
+															src={getAvatarUrl(team.team.name, team.team.type as AvatarType)}
 															alt={team.team.name}
 														/>
-														<AvatarFallback>
-															{team.team.name.charAt(0)}
-														</AvatarFallback>
+														<AvatarFallback>{team.team.name.charAt(0)}</AvatarFallback>
 													</Avatar>
 													{team.team.name}
 													<CheckIcon
 														className={cn(
 															"ml-auto h-4 w-4",
-															activeTeam?.team.id === team.team.id
-																? "opacity-100"
-																: "opacity-0"
+															activeTeam?.team.id === team.team.id ? "opacity-100" : "opacity-0"
 														)}
 													/>
 												</CommandItem>
@@ -205,20 +183,16 @@ export function TeamSwitcher() {
 													>
 														<Avatar className="mr-2 h-5 w-5">
 															<AvatarImage
-																src={getAvatarUrl(team.team.name, team.team.type)}
+																src={getAvatarUrl(team.team.name, team.team.type as AvatarType)}
 																alt={team.team.name}
 															/>
-															<AvatarFallback>
-																{team.team.name.charAt(0)}
-															</AvatarFallback>
+															<AvatarFallback>{team.team.name.charAt(0)}</AvatarFallback>
 														</Avatar>
 														{team.team.name}
 														<CheckIcon
 															className={cn(
 																"ml-auto h-4 w-4",
-																activeTeam?.team.id === team.team.id
-																	? "opacity-100"
-																	: "opacity-0"
+																activeTeam?.team.id === team.team.id ? "opacity-100" : "opacity-0"
 															)}
 														/>
 													</CommandItem>
@@ -265,16 +239,10 @@ export function TeamSwitcher() {
 						</div>
 					</div>
 					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setShowNewTeamDialog(false)}
-						>
+						<Button variant="outline" onClick={() => setShowNewTeamDialog(false)}>
 							Cancel
 						</Button>
-						<Button
-							onClick={handleCreateTeam}
-							disabled={!newTeamName || isLoading}
-						>
+						<Button onClick={handleCreateTeam} disabled={!newTeamName || isLoading}>
 							Continue
 						</Button>
 					</DialogFooter>
