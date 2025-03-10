@@ -1,9 +1,7 @@
-import { VercelDeployButton } from "@/components/buttons/vercel-deploy-button";
 import { Link } from "@/components/primitives/link-with-transition";
 import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/primitives/page-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -12,23 +10,17 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { CodeWindow } from "@/components/ui/code-window";
-import { GitHubConnectButton } from "@/components/ui/github-connect-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BASE_URL } from "@/config/base-url";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
-import { downloadRepo } from "@/server/actions/github/download-repo";
 import { auth } from "@/server/auth";
-import { apiKeyService } from "@/server/services/api-key-service";
 import { checkGitHubConnection } from "@/server/services/github/github-service";
-import { PaymentService } from "@/server/services/payment-service";
 import {
 	ActivityIcon,
 	AlertCircle,
 	Box,
 	Download,
-	DownloadIcon,
 	GitBranch,
 	GitPullRequest,
 	Globe,
@@ -39,6 +31,7 @@ import {
 	Star,
 	Users
 } from "lucide-react";
+import { DownloadSection } from "../_components/download-section";
 
 // Recent activity type
 interface Activity {
@@ -125,25 +118,7 @@ export default async function DashboardPage() {
 	const userId = session?.user?.id ?? "";
 
 	// Run all async operations in parallel
-	const [hasPurchased, hasGitHubConnection, userApiKeys] = await Promise.all([
-		PaymentService.getUserPaymentStatus(userId),
-		checkGitHubConnection(userId),
-		userId ? apiKeyService.getUserApiKeys(userId) : Promise.resolve([])
-	]);
-
-	// Get the user's API key
-	let apiKey: string | undefined;
-	if (userApiKeys.length > 0) {
-		apiKey = userApiKeys[0].apiKey.key;
-	}
-
-	// Redirect after deploy to /vercel/deploy/${apiKey}
-	const deployUrl = new URL(routes.external.vercelImportShipkit);
-	const redirectUrl = deployUrl.searchParams.get("redirect-url");
-	if (apiKey) {
-		deployUrl.searchParams.set("redirect-url", encodeURIComponent(`${redirectUrl ?? BASE_URL}${routes.vercelDeploy}/${apiKey}`));
-	}
-	const vercelDeployHref = deployUrl.toString();
+	const hasGitHubConnection = await checkGitHubConnection(userId)
 
 	return (
 		<div className="container mx-auto py-6 space-y-4">
@@ -155,26 +130,7 @@ export default async function DashboardPage() {
 							Here's what's happening with your projects
 						</PageHeaderDescription>
 					</div>
-					<div className="flex flex-wrap items-stretch justify-stretch max-w-md gap-3">
-						<div className="flex flex-wrap items-stretch justify-stretch w-full gap-3">
-							{/* Download button */}
-							<form action={downloadRepo}>
-								<Button
-									type="submit"
-									size="lg"
-									variant="outline"
-									className="w-full"
-								>
-									<DownloadIcon className="mr-2 h-4 w-4" />
-									Download {siteConfig.name}
-								</Button>
-							</form>
-
-							<VercelDeployButton className="grow" href={vercelDeployHref} />
-						</div>
-						{/* GitHub connection section */}
-						<GitHubConnectButton className="w-full" />
-					</div>
+					<DownloadSection />
 				</div>
 			</PageHeader>
 

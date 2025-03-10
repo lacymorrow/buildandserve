@@ -38,6 +38,8 @@ export default buildConfig({
 	typescript: {
 		outputFile: path.resolve(dirname, "payload-types.ts"),
 	},
+	// ! Database
+	// This allows us to use the same database for Payload and the application, payload will use a different schema.
 	db: postgresAdapter({
 		schemaName: "payload",
 		pool: {
@@ -53,6 +55,7 @@ export default buildConfig({
 				 * 1. Users - for authentication and user management
 				 * 2. RBAC - for permissions and access control
 				 * 3. Media - for asset management
+				 * 4. Content - for content management
 				 */
 				return {
 					...schema,
@@ -63,7 +66,7 @@ export default buildConfig({
 							...schema.tables.users,
 							relationships: [
 								{
-									relationTo: "shipkit_user",
+									relationTo: "public.shipkit_user",
 									type: "oneToOne",
 									onDelete: "CASCADE", // Delete app user when Payload user is deleted
 								},
@@ -74,7 +77,32 @@ export default buildConfig({
 							...schema.tables.rbac,
 							relationships: [
 								{
-									relationTo: "shipkit_role",
+									relationTo: "public.shipkit_role",
+									type: "oneToMany",
+								},
+								// Enhanced relationship to permissions
+								{
+									relationTo: "public.shipkit_permission",
+									type: "oneToMany",
+								},
+							],
+						},
+						// Media relationship - for asset management
+						media: {
+							...schema.tables.media,
+							relationships: [
+								{
+									relationTo: "public.shipkit_user_file",
+									type: "oneToMany",
+								},
+							],
+						},
+						// Pages relationship - for content management
+						pages: {
+							...schema.tables.pages,
+							relationships: [
+								{
+									relationTo: "public.shipkit_post",
 									type: "oneToMany",
 								},
 							],

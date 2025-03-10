@@ -6,15 +6,18 @@ import { notFound } from "next/navigation";
 import { BlockRenderer } from "../payload-blocks";
 
 interface PageProps {
-	params: {
+	params: Promise<{
 		slug: string;
-	};
-	searchParams: {
+	}>;
+	searchParams: Promise<{
 		preview?: string;
-	};
+	}>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params: paramsPromise, searchParams: searchParamsPromise }: PageProps): Promise<Metadata> {
+	const params = await paramsPromise;
+	const searchParams = await searchParamsPromise;
+
 	const payload = await getPayloadClient();
 	const page = await payload?.find({
 		collection: "pages",
@@ -50,7 +53,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 	};
 }
 
-export default async function Page({ params, searchParams }: PageProps) {
+export default async function Page({ params: paramsPromise, searchParams: searchParamsPromise }: PageProps) {
+	const params = await paramsPromise;
+	const searchParams = await searchParamsPromise;
+
 	const payload = await getPayloadClient();
 	const isPreview = searchParams.preview === "true";
 
