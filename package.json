@@ -6,6 +6,7 @@
   "scripts": {
     "build": "next build",
     "clean": "rm next-env.d.ts && rm package-lock.json && rm pnpm-lock.yaml && rm bun.lockb && rm -rf .next && rm -rf node_modules && rm -rf .turbo",
+    "fix": "npm run clean && npm run payload generate:types && npm run payload generate:importmap",
     "dev": "next dev --turbo",
     "dev:legacy": "next dev",
     "dev:https": "next dev --experimental-https",

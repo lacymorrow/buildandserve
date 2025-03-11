@@ -1,6 +1,6 @@
 "use client";
 
-import { Icons } from "@/components/images/icons";
+import { Icons } from "@/components/assets/icons";
 import { Link } from "@/components/primitives/link-with-transition";
 import { buttonVariants } from "@/components/ui/button";
 import { Dock, DockIcon } from "@/components/ui/dock";
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
-import { IconBrandDiscord, IconBrandDiscordFilled } from "@tabler/icons-react";
+import { IconBrandDiscordFilled } from "@tabler/icons-react";
 import { useWindowScroll } from "@uidotdev/usehooks";
 import { Code2Icon, HomeIcon } from "lucide-react";
 

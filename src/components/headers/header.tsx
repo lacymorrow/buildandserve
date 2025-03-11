@@ -15,7 +15,7 @@ import { useSession } from "next-auth/react";
 import type React from "react";
 import { useMemo } from "react";
 
-import { Logo } from "@/components/images/logo";
+import { Icon } from "@/components/assets/icon";
 import { SearchMenu } from "@/components/search/search-menu";
 import { useSignInRedirectUrl } from "@/hooks/use-sign-in-redirect-url";
 import styles from "@/styles/header.module.css";
@@ -60,7 +60,7 @@ const headerVariants = cva(
 
 export const Header: React.FC<HeaderProps> = ({
 	logoHref = routes.home,
-	logoIcon = <Logo />,
+	logoIcon = <Icon />,
 	logoText = siteConfig.name,
 	navLinks = defaultNavLinks,
 	variant = "default",

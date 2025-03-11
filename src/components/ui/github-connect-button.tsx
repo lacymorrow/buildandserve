@@ -1,6 +1,6 @@
 "use client";
 
-import { Icons } from "@/components/images/icons";
+import { Icons } from "@/components/assets/icons";
 import { Link } from "@/components/primitives/link-with-transition";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";

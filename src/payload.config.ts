@@ -58,8 +58,8 @@ export default buildConfig({
 		components: {
 			// Use component paths for graphics
 			graphics: {
-				Logo: "./lib/payload/components/logo",
-				Icon: "./lib/payload/components/icon",
+				Logo: "./lib/payload/components/payload-logo",
+				Icon: "./lib/payload/components/payload-icon",
 			},
 		},
 	},
