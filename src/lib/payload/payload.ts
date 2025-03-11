@@ -5,6 +5,7 @@ import { getPayload } from "payload";
 // Initialize Payload
 export const getPayloadClient = async () => {
 	if (!env?.DATABASE_URL || env?.DISABLE_PAYLOAD === "true") {
+		console.warn("Payload CMS is not enabled");
 		return null;
 	}
 
@@ -13,7 +14,7 @@ export const getPayloadClient = async () => {
 		// Pass in the config
 		config: payloadConfig,
 	}).catch((error) => {
-		// console.warn("Error initializing Payload:", error);
+		console.warn("Payload failed to initialize", error);
 		return null;
 	});
 

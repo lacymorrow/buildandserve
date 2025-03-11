@@ -1,0 +1,88 @@
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --theme-elevation-100: #f8fafc;
+  --theme-elevation-150: #f1f5f9;
+  --theme-elevation-200: #e2e8f0;
+  --theme-elevation-300: #cbd5e1;
+  --theme-elevation-400: #94a3b8;
+  --theme-elevation-500: #64748b;
+  --theme-elevation-600: #475569;
+  --theme-elevation-700: #334155;
+  --theme-elevation-800: #1e293b;
+  --theme-elevation-900: #0f172a;
+  --theme-elevation-1000: #020617;
+
+  --theme-success: #10b981;
+  --theme-warning: #f59e0b;
+  --theme-error: #ef4444;
+
+  --theme-bg: var(--theme-elevation-100);
+  --theme-input-bg: white;
+  --theme-text: var(--theme-elevation-900);
+  --theme-border-color: var(--theme-elevation-200);
+
+  --theme-brand-primary: #0f172a;
+  --theme-brand-secondary: #334155;
+  --theme-brand-accent: #3b82f6;
+}
+
+/* Style the nav bar */
+nav.nav {
+  background-color: var(--theme-brand-primary);
+}
+
+/* Style buttons */
+.btn.btn--style-primary {
+  background-color: var(--theme-brand-primary);
+}
+
+.btn.btn--style-primary:hover {
+  background-color: var(--theme-brand-secondary);
+}
+
+/* Style the login page */
+.login .logo svg path {
+  fill: var(--theme-brand-accent);
+}
+
+/* Style the nav brand icon */
+.nav__brand .icon svg path {
+  fill: var(--theme-brand-accent);
+}
+
+/* Add space-themed styles */
+.shipkit-logo, .shipkit-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Add a subtle animation to the stars in dark mode */
+@keyframes twinkle {
+  0% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0.3; }
+}
+
+html[data-theme="dark"] .shipkit-logo svg circle,
+html[data-theme="dark"] .shipkit-icon svg circle {
+  animation: twinkle 3s infinite;
+  animation-delay: calc(var(--star-delay, 0) * 1s);
+}
+
+.shipkit-logo svg circle:nth-child(2) { --star-delay: 0; }
+.shipkit-logo svg circle:nth-child(3) { --star-delay: 0.5; }
+.shipkit-logo svg circle:nth-child(4) { --star-delay: 1; }
+.shipkit-logo svg circle:nth-child(5) { --star-delay: 1.5; }
+.shipkit-logo svg circle:nth-child(6) { --star-delay: 2; }
+.shipkit-logo svg circle:nth-child(7) { --star-delay: 2.5; }
+.shipkit-logo svg circle:nth-child(8) { --star-delay: 3; }
+
+.shipkit-icon svg circle:nth-child(2) { --star-delay: 0; }
+.shipkit-icon svg circle:nth-child(3) { --star-delay: 0.7; }
+.shipkit-icon svg circle:nth-child(4) { --star-delay: 1.4; }
+.shipkit-icon svg circle:nth-child(5) { --star-delay: 2.1; }
+
+/* Add more custom styles as needed */

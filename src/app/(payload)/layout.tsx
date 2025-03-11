@@ -6,7 +6,7 @@ import { RootLayout, handleServerFunctions } from "@payloadcms/next/layouts";
 import type { ServerFunctionClient } from "payload";
 import type React from "react";
 import { importMap } from "./cms/importMap.js";
-import "./custom.scss";
+
 
 interface Args {
 	children: React.ReactNode;

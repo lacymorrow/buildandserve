@@ -10,6 +10,8 @@ import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { buildConfig } from "payload";
 import sharp from "sharp";
 
+// Import components using path strings for Payload 3.0
+// We'll use component paths instead of direct imports
 import { FAQs } from "./lib/payload/collections/FAQs";
 import { Features } from "./lib/payload/collections/Features";
 import { Media } from "./lib/payload/collections/Media";
@@ -31,6 +33,34 @@ export default buildConfig({
 		user: Users.slug,
 		importMap: {
 			baseDir: path.resolve(dirname),
+		},
+		// Add custom branding configuration
+		meta: {
+			titleSuffix: "- ShipKit CMS",
+			// Use the new icons format for favicon
+			icons: [
+				{
+					rel: "icon",
+					type: "image/x-icon",
+					url: "/favicon.ico",
+				},
+			],
+			// Use the new openGraph format for ogImage
+			openGraph: {
+				images: [
+					{
+						url: "/og",
+					},
+				],
+				siteName: "ShipKit CMS",
+			},
+		},
+		components: {
+			// Use component paths for graphics
+			graphics: {
+				Logo: "./lib/payload/components/logo",
+				Icon: "./lib/payload/components/icon",
+			},
 		},
 	},
 	collections: [Users, Media, Features, FAQs, Testimonials, RBAC, Pages],
