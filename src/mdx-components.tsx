@@ -3,6 +3,7 @@ import { CardGroup } from "@/components/mdx/card-group";
 import { SecretGenerator } from "@/components/mdx/secret-generator";
 import { TypographyProvider } from "@/components/providers/typography-provider";
 import * as AlertComponents from "@/components/ui/alert";
+import { FileTree } from "@/components/ui/file-tree";
 import { siteConfig } from "@/config/site";
 import type { MDXComponents } from "mdx/types";
 
@@ -20,6 +21,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
 		...AlertComponents,
 		Card,
 		CardGroup,
+		FileTree,
 		SecretGenerator,
 		SiteName: () => <>{siteConfig.name}</>,
 		...components,

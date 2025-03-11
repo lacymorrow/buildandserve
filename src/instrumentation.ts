@@ -1,4 +1,4 @@
-import { displayLaunchMessage } from "@/lib/utils/launch-message";
+import { displayLaunchMessage } from "@/lib/utils/shipkit-launch-message";
 import { registerOTel } from "@vercel/otel";
 import type { Instrumentation } from "next";
 
