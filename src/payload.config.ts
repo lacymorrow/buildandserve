@@ -2,11 +2,13 @@
 import path from "path";
 import { fileURLToPath } from "url";
 
-// storage-adapter-import-placeholder
 import { postgresAdapter } from "@payloadcms/db-postgres";
 import { resendAdapter } from "@payloadcms/email-resend";
 import { payloadCloudPlugin } from "@payloadcms/payload-cloud";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
+// storage-adapter-import-placeholder
+import { s3Storage } from "@payloadcms/storage-s3";
+import { vercelBlobStorage } from "@payloadcms/storage-vercel-blob";
 import { buildConfig } from "payload";
 import sharp from "sharp";
 
@@ -146,7 +148,41 @@ export default buildConfig({
 	sharp,
 	plugins: [
 		payloadCloudPlugin(),
-		// storage-adapter-placeholder
+
+		// S3 storage
+		...(process.env.S3_BUCKET &&
+		process.env.S3_ACCESS_KEY_ID &&
+		process.env.S3_SECRET_ACCESS_KEY &&
+		process.env.S3_REGION
+			? [
+					s3Storage({
+						collections: {
+							media: true,
+						},
+						bucket: process.env.S3_BUCKET,
+						config: {
+							credentials: {
+								accessKeyId: process.env.S3_ACCESS_KEY_ID,
+								secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+							},
+							region: process.env.S3_REGION,
+							// ... Other S3 configuration
+						},
+					}),
+				]
+			: []),
+
+		// Vercel Blob storage
+		...(process.env.BLOB_READ_WRITE_TOKEN
+			? [
+					vercelBlobStorage({
+						collections: {
+							media: true,
+						},
+						token: process.env.BLOB_READ_WRITE_TOKEN,
+					}),
+				]
+			: []),
 	],
 	telemetry: false,
 
