@@ -39,7 +39,7 @@
   },
   // Exclude demo folder from search and IntelliSense
   "search.exclude": {
-    "**/src/app/(app)/(demo)": true
+    // "**/src/app/(app)/(demo)": true
   },
   "files.watcherExclude": {
     "**/src/app/(app)/(demo)/**": true

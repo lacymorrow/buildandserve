@@ -1,6 +1,6 @@
 "use client";
 
-import { Icons } from "@/components/images/icons";
+import { Icons } from "@/components/assets/icons";
 import { Button } from "@/components/ui/button";
 import {
 	CommandDialog,

@@ -61,7 +61,7 @@
     "src/components/ui/**/*.ts",
     "src/components/ui/**/*.tsx",
     "src/app/(app)/ai/**/*",
-    "src/app/(app)/(demo)/examples/**/*",
+    // "src/app/(app)/(demo)/examples/**/*",
     "src/workers/**/*.ts"
   ]
 }
