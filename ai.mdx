@@ -236,3 +236,51 @@ This implementation:
 - Follows the same pattern as the GitHub connection functionality for consistency
 - Provides detailed error messages and success notifications
 - Opens the Vercel dashboard after successful deployment initiation
+
+# ShipKit AI Development Log
+
+## Authentication Refactoring
+
+### Completed Tasks
+
+- [x] Created `AuthProviderService` to handle auth provider logic on the server side
+- [x] Refactored `OAuthButtons` component to accept auth providers as props instead of importing them directly
+- [x] Updated `AuthForm` (renamed from `login-form`) to fetch auth providers from the server
+- [x] Updated sign-in and sign-up pages to use the new `AuthForm` component
+- [x] Implemented Resend magic link authentication
+- [x] Implemented Payload CMS credentials authentication
+- [x] Fixed Bitbucket provider implementation
+- [x] Fixed client/server boundary violation by creating server actions and hooks for auth providers
+
+### Authentication Flow
+
+The authentication system now supports multiple providers:
+
+1. OAuth providers (Google, GitHub, Discord, etc.)
+2. Magic link authentication via Resend
+3. Username/password authentication via Payload CMS
+
+The refactored architecture properly separates server and client components:
+
+- Server components fetch auth provider data using `AuthProviderService`
+- Client components use server actions via hooks to access auth provider data
+- No server-side code is imported directly into client components
+
+### Client/Server Boundary Fixes
+
+We identified and fixed a client/server boundary violation where client components were directly importing server-only code:
+
+1. Added `server-only` to `AuthProviderService` to prevent client imports
+2. Created server actions in `auth-providers.ts` to expose server data to clients
+3. Implemented hooks in `use-auth-providers.ts` for client components to access server data
+4. Updated `OAuthButtons` to use the hooks instead of direct imports
+5. Ensured proper typing throughout the codebase
+
+This approach maintains a clean separation between server and client code while allowing client components to access necessary data from the server.
+
+### Next Steps
+
+- [ ] Add comprehensive error handling for all authentication methods
+- [ ] Implement user profile management
+- [ ] Add account linking functionality (connect multiple auth providers to one account)
+- [ ] Implement role-based access control

@@ -1,5 +1,6 @@
 "use client";
 
+import { Link } from "@/components/primitives/link-with-transition";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -9,6 +10,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { routes } from "@/config/routes";
 import { useState } from "react";
 import { seedCMSAction } from "./actions";
 
@@ -46,6 +48,8 @@ export default function CMSPage() {
 		<div className="container mx-auto py-10">
 			<h1 className="mb-8 text-3xl font-bold">CMS Management</h1>
 
+			<Link href={routes.cms.index}>CMS Dashboard</Link>
+
 			<Card className="max-w-md">
 				<CardHeader>
 					<CardTitle>Seed CMS Data</CardTitle>
@@ -74,9 +78,8 @@ export default function CMSPage() {
 
 						{message && (
 							<p
-								className={`mt-2 text-sm ${
-									message.type === "success" ? "text-green-600" : "text-red-600"
-								}`}
+								className={`mt-2 text-sm ${message.type === "success" ? "text-green-600" : "text-red-600"
+									}`}
 							>
 								{message.text}
 							</p>

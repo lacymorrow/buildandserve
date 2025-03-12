@@ -2,7 +2,7 @@ import { Icon } from "@/components/assets/icon";
 import { Link } from "@/components/primitives/link-with-transition";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
-import { AuthForm } from "../_components/login-form";
+import { AuthForm } from "../_components/auth-form";
 import { SignUpForm } from "./_components/sign-up-form";
 
 export default function SignUpPage() {

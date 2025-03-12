@@ -110,7 +110,7 @@ export default function manifest(): MetadataRoute.Manifest {
 		// 		name: "Examples",
 		// 		short_name: "Examples",
 		// 		description: `View ${siteConfig.branding.projectName} examples`,
-		// 		url: routes.examples.root,
+		// 		url: routes.examples.index,
 		// 		icons: [{ src: "/icons/examples.png", sizes: "192x192" }],
 		// 	},
 		// ],

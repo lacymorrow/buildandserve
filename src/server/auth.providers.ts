@@ -1,11 +1,13 @@
 import Bitbucket from "@auth/core/providers/bitbucket";
 import type { NextAuthConfig } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
 import Discord from "next-auth/providers/discord";
 import GitHub from "next-auth/providers/github";
 import GitLab from "next-auth/providers/gitlab";
 import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
 import Twitter from "next-auth/providers/twitter";
+import { AuthService } from "./services/auth-service";
 
 // Define types for Vercel OAuth
 interface VercelTokens {
@@ -36,7 +38,15 @@ interface VercelUserProfile {
 export const EXCLUDED_PROVIDERS = ["credentials", "resend", "vercel"];
 
 // Order providers buttons - These will be shown first
-export const ORDERED_PROVIDERS = ["google", "twitter", "discord", "github", "gitlab", "bitbucket"];
+export const ORDERED_PROVIDERS = [
+	"credentials",
+	"google",
+	"twitter",
+	"discord",
+	"github",
+	"gitlab",
+	"bitbucket",
+];
 
 export const providers: NextAuthConfig["providers"] = [
 	/***
@@ -59,18 +69,21 @@ export const providers: NextAuthConfig["providers"] = [
 	 * @see https://authjs.dev/getting-started/providers/credentials
 	 */
 
-	// Credentials({
-	// 	name: "credentials", // Used by Oauth buttons to determine the active sign-in options
-	// 	credentials: {
-	// 		email: { label: "Email", type: "email" },
-	// 		password: { label: "Password", type: "password" },
-	// 	},
-	// 	async authorize(credentials, request) {
-	// 		// TODO: Implement credentials auth
-	// 		// return await AuthService.validateCredentials(credentials);
-	// 		return null;
-	// 	},
-	// }),
+	Credentials({
+		name: "credentials", // Used by Oauth buttons to determine the active sign-in options
+		credentials: {
+			email: { label: "Email", type: "email" },
+			password: { label: "Password", type: "password" },
+		},
+		async authorize(credentials) {
+			if (!credentials?.email || !credentials?.password) {
+				return null;
+			}
+
+			// Use AuthService to validate credentials against Payload CMS
+			return await AuthService.validateCredentials(credentials);
+		},
+	}),
 
 	/**
 	 * OAuth Providers
@@ -177,8 +190,25 @@ export const authProvidersArray = authProviders.map(
 	(provider) => provider.id ?? provider.name.trim().toLowerCase()
 );
 
-export const orderedProviders = new Set(
-	[...ORDERED_PROVIDERS, ...authProvidersArray].filter(
-		(providerId) => !EXCLUDED_PROVIDERS.includes(providerId)
+export const orderedProviders =
+	// First, remove duplicates by...
+	Array.from(
+		// ...creating a set of the ordered providers and the auth providers (sets are unique)
+		new Set(
+			[...ORDERED_PROVIDERS, ...authProvidersArray]
+			// ...filtering out excluded providers
+		)
 	)
-);
+		// Finally, back to an array and map the providers to their data
+		.map((providerId) => {
+			const provider = authProviders.find((provider) => provider.id === providerId);
+			if (!provider) {
+				return null;
+			}
+
+			if (EXCLUDED_PROVIDERS.includes(provider.id)) {
+				return { ...provider, isExcluded: true };
+			}
+
+			return provider;
+		});

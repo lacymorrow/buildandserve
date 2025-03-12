@@ -1,10 +1,9 @@
 import { routes } from "@/config/routes";
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
 import { STATUS_CODES } from "@/config/status-codes";
+import { payload } from "@/lib/payload/payload";
 import { signInSchema } from "@/lib/schemas/auth";
 import { signIn, signOut } from "@/server/auth";
-import { db } from "@/server/db";
-import { users } from "@/server/db/schema";
 import type { UserRole } from "@/types/user";
 import crypto from "node:crypto";
 import { promisify } from "node:util";
@@ -93,7 +92,7 @@ export const AuthService = {
 	},
 
 	/**
-	 * Sign in with email and password
+	 * Sign in with email and password using Payload CMS
 	 */
 	async signInWithCredentials({
 		email,
@@ -106,6 +105,9 @@ export const AuthService = {
 		redirect?: boolean;
 		redirectTo?: string;
 	}) {
+		// Use NextAuth's signIn method with credentials provider
+		// This will call the authorize function in the credentials provider
+		// which uses our validateCredentials method that connects to Payload CMS
 		await signIn("credentials", {
 			redirect,
 			redirectTo,
@@ -115,7 +117,7 @@ export const AuthService = {
 	},
 
 	/**
-	 * Sign up with email and password
+	 * Sign up with email and password using Payload CMS
 	 */
 	async signUpWithCredentials({
 		email,
@@ -129,28 +131,35 @@ export const AuthService = {
 		redirectTo?: string;
 	}) {
 		try {
-			// Check if user already exists
-			const existingUser = await db?.query.users.findFirst({
-				where: (users, { eq }) => eq(users.email, email),
+			if (!payload) {
+				console.error("Payload CMS is not initialized");
+				throw new Error("Authentication service unavailable");
+			}
+
+			// Check if user already exists in Payload CMS
+			const existingUsers = await payload.find({
+				collection: "users",
+				where: {
+					email: {
+						equals: email,
+					},
+				},
 			});
 
-			if (existingUser) {
+			if (existingUsers.docs.length > 0) {
 				throw new Error("User already exists with this email");
 			}
 
-			// Hash password using scrypt
-			const hashedPassword = await hashPassword(password);
+			// Create new user in Payload CMS
+			const newUser = await payload.create({
+				collection: "users",
+				data: {
+					email,
+					password,
+				},
+			});
 
-			// Create new user
-			const newUser = {
-				email,
-				password: hashedPassword,
-				role: "user",
-			};
-
-			const [result] = (await db?.insert(users).values(newUser).returning()) ?? [];
-
-			if (!result) {
+			if (!newUser) {
 				throw new Error("Failed to create user");
 			}
 
@@ -183,7 +192,7 @@ export const AuthService = {
 	},
 
 	/**
-	 * Validate user credentials
+	 * Validate user credentials against Payload CMS
 	 */
 	async validateCredentials(credentials: unknown) {
 		try {
@@ -195,30 +204,38 @@ export const AuthService = {
 
 			const { email, password } = parsedCredentials.data;
 
-			const user = await db?.query.users.findFirst({
-				where: (users, { eq }) => eq(users.email, email),
-			});
-
-			if (!user?.password) {
-				throw new Error("Invalid credentials");
+			// Use Payload CMS for authentication
+			if (!payload) {
+				console.error("Payload CMS is not initialized");
+				throw new Error("Authentication service unavailable");
 			}
 
-			const isValidPassword = await verifyPassword(password, user.password);
+			try {
+				// Attempt to login with Payload CMS
+				const result = await payload.login({
+					collection: "users",
+					data: {
+						email,
+						password,
+					},
+				});
 
-			if (!isValidPassword) {
+				if (!result?.user) {
+					throw new Error("Invalid credentials");
+				}
+
+				// Return the user data in the format expected by NextAuth
+				return {
+					id: result.user.id,
+					name: result.user.email,
+					email: result.user.email,
+					emailVerified: null,
+					image: null,
+				};
+			} catch (error) {
+				console.error("Payload login error:", error);
 				throw new Error("Invalid credentials");
 			}
-
-			return {
-				id: user.id,
-				name: user.name,
-				email: user.email,
-				emailVerified: null,
-				image: user.image,
-				bio: user.bio,
-				githubUsername: user.githubUsername,
-				theme: user.theme as "system" | "light" | "dark" | undefined,
-			};
 		} catch (error) {
 			console.error("Auth error:", error);
 			return null;

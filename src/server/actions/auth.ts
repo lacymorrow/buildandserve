@@ -1,5 +1,6 @@
 "use server";
 
+import { routes } from "@/config/routes";
 import { forgotPasswordSchema, signInActionSchema, signUpSchema } from "@/lib/schemas/auth";
 import { validatedAction } from "@/lib/utils/middleware";
 import { AuthService } from "@/server/services/auth-service";
@@ -45,17 +46,24 @@ export const signInAction = createServerAction()
 		return null;
 	});
 
-export const signInWithCredentialsAction = validatedAction(
-	signInActionSchema,
-	async (data: SignUpInData, _formData: FormData) => {
-		await AuthService.signInWithCredentials({
-			email: data.email,
-			password: data.password,
-			redirect: data.redirect,
-			redirectTo: data.redirectTo,
-		});
-	}
-);
+export const signInWithCredentialsAction = async ({
+	email,
+	password,
+	redirect = true,
+	redirectTo = routes.home,
+}: {
+	email: string;
+	password: string;
+	redirect?: boolean;
+	redirectTo?: string;
+}) => {
+	return await AuthService.signInWithCredentials({
+		email,
+		password,
+		redirect,
+		redirectTo,
+	});
+};
 
 export const signUpWithCredentialsAction = validatedAction(
 	signUpSchema,

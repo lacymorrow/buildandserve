@@ -43,7 +43,13 @@ export const routes = {
 	// Integration routes
 	vercelDeploy: "/connect/vercel/deploy",
 	vercelDeployWebhook: "/connect/vercel/deploy/webhook",
-	// Auth routes
+
+	// CMS routes
+	cms: {
+		index: "/cms",
+		signIn: "/cms/sign-in",
+	},
+
 	// Auth routes
 	auth: {
 		signIn: "/sign-in",
@@ -74,7 +80,7 @@ export const routes = {
 
 	// Admin routes
 	admin: {
-		root: "/admin",
+		index: "/admin",
 		activity: "/admin/activity",
 		users: "/admin/users",
 		github: "/admin/github",
@@ -86,7 +92,7 @@ export const routes = {
 
 	// Example routes
 	examples: {
-		root: "/examples",
+		index: "/examples",
 		dashboard: "/examples/dashboard",
 		forms: "/examples/forms",
 		authentication: "/examples/authentication",
@@ -95,7 +101,7 @@ export const routes = {
 		vercelDeploy: "/examples/vercel-deploy",
 	},
 	ai: {
-		root: "/ai",
+		index: "/ai",
 		codeCompletion: "/ai/code-completion",
 		crossEncoder: "/ai/cross-encoder",
 		spam: "/ai/spam",
@@ -164,7 +170,7 @@ export const routes = {
 
 	// Pages Router demo routes
 	pages: {
-		root: "/pages",
+		index: "/pages",
 		static: "/pages/static",
 		dynamic: "/pages/dynamic",
 		apiExample: "/pages/api-example",

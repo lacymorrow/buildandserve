@@ -2,8 +2,7 @@ import { Icon } from "@/components/assets/icon";
 import { Link } from "@/components/primitives/link-with-transition";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
-import { AuthForm } from "../_components/login-form";
-import { SignInForm } from "./_components/sign-in-form";
+import { AuthForm } from "../_components/auth-form";
 
 export default function SignInPage() {
 	return (
@@ -14,9 +13,7 @@ export default function SignInPage() {
 				</div>
 				{siteConfig.name}
 			</Link>
-			<AuthForm mode="sign-in">
-				<SignInForm />
-			</AuthForm>
-		</div>
+			<AuthForm mode="sign-in" />
+		</div >
 	);
 }

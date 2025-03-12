@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { routes } from "../routes";
 
 describe("Routes Configuration", () => {
@@ -36,7 +36,7 @@ describe("Routes Configuration", () => {
 	describe("AI Routes Validation", () => {
 		it("should have all required AI route properties", () => {
 			expect(routes.ai).toBeDefined();
-			expect(routes.ai.root).toBe("/ai");
+			expect(routes.ai.index).toBe("/ai");
 
 			// Test specific AI routes
 			const requiredAiRoutes = [

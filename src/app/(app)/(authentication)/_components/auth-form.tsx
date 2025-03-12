@@ -1,22 +1,21 @@
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { type ComponentPropsWithoutRef, type ReactNode, Suspense } from "react";
 
 import { OAuthButtons } from "@/app/(app)/(authentication)/_components/oauth-buttons";
 import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
-import { authProvidersArray } from "@/server/auth.providers";
+import { AuthProviderService } from "@/server/services/auth-provider-service";
 import Link from "next/link";
-import { Suspense } from "react";
 
 interface AuthFormProps extends ComponentPropsWithoutRef<"div"> {
 	mode: "sign-in" | "sign-up";
-	children: ReactNode;
+	children?: ReactNode;
 	title?: string;
 	description?: string;
 }
 
-export function AuthForm({
+export async function AuthForm({
 	mode = "sign-in",
 	className,
 	children,
@@ -33,6 +32,9 @@ export function AuthForm({
 		? { text: "Don't have an account?", href: routes.auth.signUp, label: "Sign up" }
 		: { text: "Already have an account?", href: routes.auth.signIn, label: "Sign in" };
 
+	// Fetch auth providers data
+	const orderedProviders = await AuthProviderService.getOrderedProviders();
+
 	return (
 		<div className={cn("flex flex-col gap-6", className)} {...props}>
 			<Card>
@@ -42,19 +44,14 @@ export function AuthForm({
 				</CardHeader>
 				<CardContent>
 					<div className="grid gap-6">
-						<OAuthButtons variant="icons" />
-						{/* Only show email sign-in if credentials provider is enabled */}
-						{authProvidersArray.includes("credentials") && (
-							<>
-								<div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
-									<span className="relative z-10 bg-background px-2 text-muted-foreground">
-										Or continue with email
-									</span>
-								</div>
-								<Suspense fallback={<SuspenseFallback />}>
-									{children}
-								</Suspense>							</>
-						)}
+						<OAuthButtons
+							variant="icons"
+							providers={orderedProviders}
+						/>
+
+						<Suspense fallback={<SuspenseFallback />}>
+							{children}
+						</Suspense>
 						<div className="text-center text-sm">
 							{alternateLink.text}{" "}
 							<Link href={alternateLink.href} className="underline underline-offset-4">

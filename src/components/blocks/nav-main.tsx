@@ -49,11 +49,11 @@ const data = [
 		icon: FileTerminalIcon,
 		items: [
 
-			{ title: "UI Demo", url: routes.examples.root },
-			{ title: "Builder.io", url: routes.pages.builderio },
-			{ title: "Payload CMS", url: routes.pages.payloadCms },
+			{ title: "UI Demo", url: routes.examples.index },
+			{ title: "Builder.io", url: routes.demo.builderio },
+			{ title: "Payload CMS", url: routes.demo.payloadCms },
 			{ title: "Markdown Content", url: routes.pages.markdown },
-			{ title: "Pages Router", url: routes.pages.root },
+			{ title: "Pages Router", url: routes.pages.index },
 			{ title: "TRPC Example", url: routes.demo.trpc },
 
 			{

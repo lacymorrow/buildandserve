@@ -141,6 +141,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className 
 					aria-label="User menu"
 				>
 					<Avatar className={cn(size === "sm" ? "h-6 w-6" : "h-8 w-8")}>
+						HD
 						<AvatarImage
 							src={session?.user?.image || ""}
 							alt={session?.user?.name || "User avatar"}
@@ -167,7 +168,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className 
 				<DropdownMenuGroup>
 					{isAdmin && (
 						<DropdownMenuItem asChild>
-							<Link href={routes.admin.root}>
+							<Link href={routes.admin.index}>
 								Admin
 								<DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
 							</Link>

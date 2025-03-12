@@ -5,14 +5,7 @@ import type { MetadataRoute } from "next";
 interface SitemapEntry {
 	url: string;
 	lastModified?: string | Date;
-	changeFrequency?:
-		| "always"
-		| "hourly"
-		| "daily"
-		| "weekly"
-		| "monthly"
-		| "yearly"
-		| "never";
+	changeFrequency?: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
 	priority?: number;
 }
 
@@ -20,17 +13,14 @@ export async function generateSitemapEntries(): Promise<SitemapEntry[]> {
 	const entries: SitemapEntry[] = [];
 
 	// High priority static routes
-	const highPriorityRoutes = [
-		routes.home,
-		routes.docs,
-		routes.features,
-		routes.pricing,
-	].map((route) => ({
-		url: `${siteConfig.url}${route}`,
-		lastModified: new Date().toISOString(),
-		changeFrequency: "daily" as const,
-		priority: 1,
-	}));
+	const highPriorityRoutes = [routes.home, routes.docs, routes.features, routes.pricing].map(
+		(route) => ({
+			url: `${siteConfig.url}${route}`,
+			lastModified: new Date().toISOString(),
+			changeFrequency: "daily" as const,
+			priority: 1,
+		})
+	);
 
 	// Medium priority static routes
 	const mediumPriorityRoutes = [
@@ -57,8 +47,7 @@ export async function generateSitemapEntries(): Promise<SitemapEntry[]> {
 	// Example routes
 	const exampleRoutes = Object.values(routes.examples)
 		.filter(
-			(route): route is string =>
-				typeof route === "string" && route !== routes.examples.root,
+			(route): route is string => typeof route === "string" && route !== routes.examples.index
 		)
 		.map((route) => ({
 			url: `${siteConfig.url}${route}`,
@@ -72,7 +61,7 @@ export async function generateSitemapEntries(): Promise<SitemapEntry[]> {
 		...highPriorityRoutes,
 		...mediumPriorityRoutes,
 		...lowPriorityRoutes,
-		...exampleRoutes,
+		...exampleRoutes
 	);
 
 	return entries;

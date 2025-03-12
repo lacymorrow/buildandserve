@@ -1,3 +1,5 @@
+import { BASE_URL } from "@/config/base-url";
+
 /**
  * Simple color functions using ANSI escape codes
  * These are defined inline to avoid import issues during Next.js config compilation
@@ -90,13 +92,9 @@ export function displayLaunchMessage(): void {
 	// Print a divider
 	console.info(`${colors.dim("=".repeat(50))}`);
 
-	// Get the port from environment variables or use default port 3000
-	const port = process.env.PORT || 3000;
-	const host = process.env.HOST || "localhost";
-
 	// Display the local URL where the application is running
 
 	console.info(
-		`${colors.dim("=".repeat(12))}  ${colors.green(`${colors.bold(`http://${host}:${port}`)}`)} ➜ ${colors.dim("=".repeat(13))}`
+		`${colors.dim("=".repeat(12))}  ${colors.green(`${colors.bold(BASE_URL)}`)} ➜ ${colors.dim("=".repeat(12))}`
 	);
 }

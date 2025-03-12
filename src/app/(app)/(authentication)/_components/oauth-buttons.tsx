@@ -1,12 +1,12 @@
 "use client";
 
+import { CredentialsForm } from "@/app/(app)/(authentication)/_components/credentials-form";
 import { Icons } from "@/components/assets/icons";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
 import { cn } from "@/lib/utils";
 import { signInWithOAuthAction } from "@/server/actions/auth";
-import { authProviders, orderedProviders } from "@/server/auth.providers";
 import { DiscordLogoIcon, GitHubLogoIcon, TwitterLogoIcon } from "@radix-ui/react-icons";
 import { IconBrandBitbucket, IconBrandGitlab } from "@tabler/icons-react";
 import { cva } from "class-variance-authority";
@@ -28,28 +28,29 @@ const oauthButtonVariants = cva("flex items-center justify-center gap-sm", {
 interface OAuthButtonsProps {
 	variant?: "default" | "icons";
 	className?: string;
+	providers: Provider[];
 }
 
 interface Provider {
 	id: string;
 	name: string;
+	isExcluded?: boolean;
 }
 
-export function OAuthButtons({ variant = "default", className }: OAuthButtonsProps) {
+export function OAuthButtons({ variant = "default", className, providers }: OAuthButtonsProps) {
 	// Redirect back to the page that the user was on before signing in
 	const searchParams = useSearchParams();
 	const nextUrl = searchParams?.get(SEARCH_PARAM_KEYS.nextUrl);
 	const options = nextUrl ? { redirectTo: nextUrl } : {};
+
+	const hasResendProvider = providers.some((provider) => provider.id === "resend");
+	const hasCredentialsProvider = providers.some((provider) => provider.id === "credentials");
 
 	const handleSignIn = (providerId: string) => {
 		void signInWithOAuthAction({ providerId, options });
 	};
 
 	const MagicLinkContent = () => {
-		if (!authProviders.find((provider) => provider.id === "resend")) {
-			return null;
-		}
-
 		return (
 			<div className="space-y-4 pt-4">
 				<div className="relative">
@@ -76,14 +77,12 @@ export function OAuthButtons({ variant = "default", className }: OAuthButtonsPro
 					className
 				)}
 			>
-				{Array.from(orderedProviders).map((providerId: string) => {
-					const provider = authProviders.find((provider) => provider.id === providerId);
+				{providers.map((provider) => {
+					const { id, name, isExcluded } = provider;
 
-					if (!provider) {
+					if (isExcluded) {
 						return null;
 					}
-
-					const { id, name } = provider;
 
 					const button = (
 						<Button variant={"outline"} type="submit" className={oauthButtonVariants({ variant })}>
@@ -118,7 +117,10 @@ export function OAuthButtons({ variant = "default", className }: OAuthButtonsPro
 					);
 				})}
 			</div>
-			<MagicLinkContent />
+
+			{hasResendProvider && <MagicLinkContent />}
+
+			{hasCredentialsProvider && <CredentialsForm />}
 		</>
 	);
 }

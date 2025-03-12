@@ -9,6 +9,7 @@ import {
 	FormMessage
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { routes } from "@/config/routes";
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
 import { signInWithOAuthAction } from "@/server/actions/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,7 +49,7 @@ export function MagicLinkForm({ className }: MagicLinkFormProps) {
 			await signInWithOAuthAction({
 				providerId: "resend",
 				options: {
-					redirectTo: nextUrl || undefined,
+					redirectTo: nextUrl || routes.home,
 					email: values.email,
 				}
 			});
