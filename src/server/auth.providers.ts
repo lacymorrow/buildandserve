@@ -1,4 +1,4 @@
-import { siteConfig } from "@/config/site";
+import Bitbucket from "@auth/core/providers/bitbucket";
 import type { NextAuthConfig } from "next-auth";
 import Discord from "next-auth/providers/discord";
 import GitHub from "next-auth/providers/github";
@@ -32,13 +32,33 @@ interface VercelUserProfile {
 	};
 }
 
+// Prevent these providers from being shown as buttons
+export const EXCLUDED_PROVIDERS = ["credentials", "resend", "vercel"];
+
+// Order providers buttons - These will be shown first
+export const ORDERED_PROVIDERS = ["google", "twitter", "discord", "github", "gitlab", "bitbucket"];
+
 export const providers: NextAuthConfig["providers"] = [
-	// Magic Link Provider
-	process.env.AUTH_RESEND_KEY &&
-		process.env.DATABASE_URL &&
-		Resend({
-			from: siteConfig.email.support,
-		}),
+	/***
+	 * Magic Link Provider - Resend
+	 * @see https://authjs.dev/getting-started/providers/resend
+	 */
+
+	Resend({
+		apiKey: process.env.AUTH_RESEND_KEY ?? "",
+		from: process.env.RESEND_FROM ?? "",
+		// Customizae the sign in email
+		server: process.env.EMAIL_SERVER ?? "",
+		sendVerificationRequest({ identifier: email, url, provider: { server, from } }) {
+			// your function
+		},
+	}),
+
+	/**
+	 * Credentials Provider - Username/Password
+	 * @see https://authjs.dev/getting-started/providers/credentials
+	 */
+
 	// Credentials({
 	// 	name: "credentials", // Used by Oauth buttons to determine the active sign-in options
 	// 	credentials: {
@@ -51,27 +71,17 @@ export const providers: NextAuthConfig["providers"] = [
 	// 		return null;
 	// 	},
 	// }),
-	// Custom Bitbucket Provider
-	{
-		id: "bitbucket",
-		name: "Bitbucket",
-		type: "oauth",
-		authorization: "https://bitbucket.org/site/oauth2/authorize",
-		token: "https://bitbucket.org/site/oauth2/access_token",
-		userinfo: "https://api.bitbucket.org/2.0/user",
+
+	/**
+	 * OAuth Providers
+	 * @see https://authjs.dev/getting-started/providers
+	 */
+
+	Bitbucket({
 		clientId: process.env.AUTH_BITBUCKET_ID ?? "",
 		clientSecret: process.env.AUTH_BITBUCKET_SECRET ?? "",
-		profile(profile: any) {
-			return {
-				id: profile.uuid,
-				name: profile.display_name,
-				email: profile.email,
-				image: profile.links?.avatar?.href,
-				emailVerified: null,
-			};
-		},
 		allowDangerousEmailAccountLinking: true,
-	},
+	}),
 	Discord({
 		clientId: process.env.AUTH_DISCORD_ID ?? "",
 		clientSecret: process.env.AUTH_DISCORD_SECRET ?? "",
@@ -164,5 +174,11 @@ export const authProviders = providers.map((provider: NextAuthConfig["providers"
 });
 
 export const authProvidersArray = authProviders.map(
-	(provider) => provider.id ?? provider.name.toLowerCase()
+	(provider) => provider.id ?? provider.name.trim().toLowerCase()
+);
+
+export const orderedProviders = new Set(
+	[...ORDERED_PROVIDERS, ...authProvidersArray].filter(
+		(providerId) => !EXCLUDED_PROVIDERS.includes(providerId)
+	)
 );

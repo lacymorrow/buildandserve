@@ -1,13 +1,13 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 import { OAuthButtons } from "@/app/(app)/(authentication)/_components/oauth-buttons";
+import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import { authProvidersArray } from "@/server/auth.providers";
 import Link from "next/link";
 import { Suspense } from "react";
-import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
 
 interface AuthFormProps extends ComponentPropsWithoutRef<"div"> {
 	mode: "sign-in" | "sign-up";
@@ -42,7 +42,7 @@ export function AuthForm({
 				</CardHeader>
 				<CardContent>
 					<div className="grid gap-6">
-						<OAuthButtons />
+						<OAuthButtons variant="icons" />
 						{/* Only show email sign-in if credentials provider is enabled */}
 						{authProvidersArray.includes("credentials") && (
 							<>

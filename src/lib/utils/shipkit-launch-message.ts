@@ -97,6 +97,6 @@ export function displayLaunchMessage(): void {
 	// Display the local URL where the application is running
 
 	console.info(
-		`${colors.dim("=".repeat(13))} ${colors.green(`${colors.bold(`http://${host}:${port}`)}`)} ➜${colors.dim("=".repeat(13))}`
+		`${colors.dim("=".repeat(12))}  ${colors.green(`${colors.bold(`http://${host}:${port}`)}`)} ➜ ${colors.dim("=".repeat(13))}`
 	);
 }
