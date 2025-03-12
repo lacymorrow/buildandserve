@@ -251,22 +251,6 @@ const config = {
 						transform: "translateY(0)",
 					},
 				},
-				float: {
-					"0%, 100%": {
-						transform: "translateY(0)",
-					},
-					"50%": {
-						transform: "translateY(-5px)",
-					},
-				},
-				"spin-slow": {
-					"0%": {
-						transform: "rotate(0deg)",
-					},
-					"100%": {
-						transform: "rotate(360deg)",
-					},
-				},
 			},
 			animation: {
 				"accordion-down": "accordion-down 0.2s ease-out",
@@ -287,8 +271,6 @@ const config = {
 				"galaxy-shimmer": "galaxy-shimmer 20s ease-in-out infinite 3s",
 				aurora: "aurora 60s linear infinite",
 				fadeDown: "fadeDown 0.2s ease-out",
-				float: "float 3s ease-in-out infinite",
-				"spin-slow": "spin-slow 20s linear infinite",
 			},
 			spacing: {
 				"2xs": "0.25rem",
