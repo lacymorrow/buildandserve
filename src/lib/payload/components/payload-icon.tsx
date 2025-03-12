@@ -1,10 +1,10 @@
-import { Icon } from "@/components/assets/icon";
+import { ShipkitIcon } from "@/components/assets/shipkit-icon";
 
 // Simple component that returns JSX
 export default function PayloadIcon() {
 	return (
 		<>
-			<Icon className="size-[18px]" />
+			<ShipkitIcon className="size-[18px]" />
 		</>
 	);
 };
