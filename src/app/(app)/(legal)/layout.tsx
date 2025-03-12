@@ -6,6 +6,7 @@ const navLinks = [
 	{ href: routes.home, label: "Home" },
 	{ href: routes.privacy, label: "Privacy Policy" },
 	{ href: routes.terms, label: "Terms of Service" },
+	{ href: routes.eula, label: "EULA" },
 ]
 
 interface DocsLayoutProps {

@@ -87,9 +87,16 @@ export function displayLaunchMessage(): void {
 	// Print the ASCII art logo
 	console.info(shipArt);
 
-	// Print the launch messages with emojis and colors
-	console.info(`${colors.green(colors.bold("🚀 Shipkit is taking off..."))}`);
-
 	// Print a divider
-	console.info(`\n${colors.dim("=".repeat(50))}\n`);
+	console.info(`${colors.dim("=".repeat(50))}`);
+
+	// Get the port from environment variables or use default port 3000
+	const port = process.env.PORT || 3000;
+	const host = process.env.HOST || "localhost";
+
+	// Display the local URL where the application is running
+
+	console.info(
+		`${colors.dim("=".repeat(13))} ${colors.green(`${colors.bold(`http://${host}:${port}`)}`)} ➜${colors.dim("=".repeat(13))}`
+	);
 }

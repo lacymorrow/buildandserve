@@ -6,13 +6,14 @@ import { AuthService } from "@/server/services/auth-service";
 import type { UserRole } from "@/types/user";
 import { createServerAction } from "zsa";
 
-interface AuthOptions {
+export interface AuthOptions {
 	redirectTo?: string;
 	redirect?: boolean;
 	protect?: boolean;
 	role?: UserRole;
 	nextUrl?: string;
 	errorCode?: string;
+	email?: string;
 }
 
 interface SignUpInData {

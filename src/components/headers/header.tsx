@@ -17,7 +17,7 @@ import { useMemo } from "react";
 
 import { Icon } from "@/components/assets/icon";
 import { SearchMenu } from "@/components/search/search-menu";
-import { useSignInRedirectUrl } from "@/hooks/use-sign-in-redirect-url";
+import { useSignInRedirectUrl } from "@/hooks/use-auth-redirect";
 import styles from "@/styles/header.module.css";
 import { BuyButton } from "../buttons/buy-button";
 

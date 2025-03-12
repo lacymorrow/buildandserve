@@ -1,6 +1,5 @@
 "use client";
 
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -15,6 +14,7 @@ import {
 	Pencil2Icon,
 	TrashIcon
 } from "@radix-ui/react-icons";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ProjectDialog } from "./project-dialog";
 
@@ -36,6 +36,7 @@ export const ProjectMenu = ({
 }: ProjectMenuProps) => {
 	const { toast } = useToast();
 	const router = useRouter();
+	const { data: session } = useSession();
 
 	const handleDelete = async () => {
 		try {
@@ -68,15 +69,12 @@ export const ProjectMenu = ({
 				</SidebarMenuAction>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent className="w-48" align="start">
-				<Dialog>
-					<DialogTrigger asChild>
-						<DropdownMenuItem className="flex items-center gap-2 px-2 py-1.5">
-							<Pencil2Icon className="h-4 w-4" />
-							<span className="text-sm">Rename Project</span>
-						</DropdownMenuItem>
-					</DialogTrigger>
-					<ProjectDialog mode="edit" project={project} teamId={teamId} />
-				</Dialog>
+				<ProjectDialog mode="edit" project={project} userId={session?.user?.id || ""}>
+					<DropdownMenuItem className="flex items-center gap-2 px-2 py-1.5">
+						<Pencil2Icon className="h-4 w-4" />
+						<span className="text-sm">Rename Project</span>
+					</DropdownMenuItem>
+				</ProjectDialog>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
 					onClick={handleDelete}

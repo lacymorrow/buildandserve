@@ -7,3 +7,9 @@ export function useSignInRedirectUrl() {
 	const url = `${routes.auth.signIn}?${SEARCH_PARAM_KEYS.nextUrl}=${pathname}`;
 	return url;
 }
+
+export function useSignOutRedirectUrl() {
+	const pathname = usePathname();
+	const url = `${routes.auth.signOut}?${SEARCH_PARAM_KEYS.nextUrl}=${pathname}`;
+	return url;
+}

@@ -1,5 +1,6 @@
-// This happens when the authentication token expires or there is an error refreshing.
 // This will log the user out, then redirect to the sign in page
+
+// This happens when the authentication token expires or there is an error refreshing.
 
 // This is a Route Handler, not a Next.js page, because signOut needs to be called by a server action or Route Handler
 import { routes } from "@/config/routes";
@@ -30,7 +31,7 @@ export const GET = async (request: NextRequest): Promise<NextResponse> => {
 	});
 
 	await signOut({ redirect: false }).catch((error: Error) => {
-		logger.error(`sign-out-in/route.ts - Sign out error: ${error.message}`);
+		logger.error(`sign-out/route.ts - Sign out error: ${error.message}`);
 	});
 
 	// If the parameters are not valid, redirect to the sign in page
@@ -43,7 +44,7 @@ export const GET = async (request: NextRequest): Promise<NextResponse> => {
 
 	const { code = STATUS_CODES.AUTH_REFRESH.code, nextUrl } = result.data;
 
-	logger.info(`sign-out-in/route.ts - Signing out with code: ${code}`);
+	logger.info(`sign-out/route.ts - Signing out with code: ${code}`);
 
 	return routeRedirectWithCode(nextUrl ?? routes.auth.signIn, {
 		code,

@@ -44,3 +44,195 @@ This approach ensures that:
 - There's a clear separation between services and actions
 - Server components use services directly for data fetching
 - Client components use server actions via hooks
+
+## Default Team Selection in Create Project Dialog
+
+- [x] Updated `src/app/(app)/(dashboard)/projects/_components/create-project-dialog.tsx` to set a default team when creating a project
+
+### Problem
+
+When clicking the create project button in the app-sidebar, no team was selected by default in the team dropdown, requiring users to manually select a team every time.
+
+### Solution
+
+Modified the `CreateProjectDialog` component to:
+1. Add a state variable to track the default team ID
+2. Set the first team as the default when teams are loaded
+3. Pass the default team ID to the Select component
+
+This improvement enhances the user experience by:
+- Reducing the number of clicks required to create a project
+- Providing a sensible default selection
+- Maintaining the ability for users to change the team if needed
+
+## Unified Project Dialog Component
+
+- [x] Created a new unified `ProjectDialog` component that combines the functionality of `CreateProjectDialog` and `CreateProjectAndTeamDialog`
+- [x] Updated `ProjectsList` to use the new unified component
+- [x] Updated `ProjectMenu` to use the new unified component
+- [x] Deleted the old dialog components
+- [x] Enhanced the `ProjectDialog` component to support editing existing projects
+- [x] Updated the projects page to use the `ProjectDialog` component instead of `DataTableDialog`
+
+### Problem
+
+The codebase had multiple similar dialog components for creating projects:
+1. `CreateProjectDialog` - A simple dialog for creating projects with team selection
+2. `CreateProjectAndTeamDialog` - A more complex dialog that also allowed creating new teams
+3. These components had duplicated code and functionality, making maintenance difficult
+4. The unified component initially only supported creating projects, not editing them
+5. The projects page was using a generic `DataTableDialog` component for project operations, creating inconsistency in the UI
+
+### Solution
+
+Created a unified `ProjectDialog` component that:
+1. Uses class variance authority (CVA) to toggle features based on the `variant` prop
+2. Supports both simple project creation and project creation with team creation
+3. Handles default team selection automatically
+4. Uses React Hook Form for form management and validation
+5. Added a `mode` prop to support both "create" and "edit" operations
+6. Added a `project` prop to pass the project data when in edit mode
+7. Updated the UI to show appropriate titles, descriptions, and button text based on the mode
+8. Only shows team selection in create mode, as team can't be changed when editing
+9. Replaced the generic `DataTableDialog` in the projects page with the specialized `ProjectDialog`
+10. Simplified the projects page by removing redundant state and handlers
+
+This improvement:
+- Reduces code duplication and maintenance overhead
+- Provides a consistent user experience across the application
+- Makes it easier to add new features to the project creation flow in the future
+- Follows the DRY (Don't Repeat Yourself) principle
+- Supports the full lifecycle of project management (create, edit, delete)
+- Maintains a consistent UI pattern throughout the application
+- Improves code organization by centralizing project-related UI logic
+
+## Vercel Integration
+
+- [x] Added Vercel as an OAuth provider in `src/server/auth.providers.ts`
+- [x] Updated the session type in `src/server/auth.config.ts` to include accounts information
+- [x] Updated the session callback to fetch and include user's connected accounts
+- [x] Created a server action to disconnect provider accounts in `src/server/actions/settings.ts`
+- [x] Updated the account settings page to allow connecting and disconnecting Vercel accounts
+- [x] Implemented Vercel OAuth flow using the integration approach from the tutorial
+- [x] Created a dedicated callback route for handling Vercel OAuth redirects
+- [x] Added proper token exchange and database storage for Vercel credentials
+- [x] Updated the Vercel OAuth callback URL:
+  - Created a new callback route at `/connect/vercel/auth`
+  - Maintained the same integration approach but with the new callback URL
+  - Updated documentation in `.env.example` to reflect the new callback URL
+  - Added extensive logging for debugging OAuth issues
+- [x] Fixed OAuth redirect_uri issues:
+  - Updated the token exchange to include the redirect_uri parameter
+  - Ensured consistent redirect_uri parameter naming in authorization and token requests
+  - Updated documentation to emphasize the importance of matching redirect URIs
+- [x] Fixed token expiration handling:
+  - Added fallback for when expires_in is undefined in the token response
+  - Set a default expiration of 30 days when not provided
+  - Fixed database error related to invalid integer conversion
+- [x] Fixed rendering loop in account settings page:
+  - Added a ref to track if URL parameters have been processed
+  - Removed success/error parameters from URL after processing
+  - Prevented multiple session updates on the same page load
+
+### Problem
+
+Users needed a way to connect their Vercel accounts to deploy projects directly from ShipKit, but the existing implementation was incomplete:
+1. The Vercel OAuth provider was not properly configured
+2. The UI for connecting and disconnecting Vercel accounts was missing
+3. The session data didn't include information about connected accounts
+4. There was no way to disconnect a Vercel account once connected
+5. The initial implementation using NextAuth's built-in OAuth flow was encountering errors
+6. The "Invalid client_id" error indicated issues with the OAuth configuration
+7. The callback URL was not in the desired location
+8. The token exchange was failing with "Invalid request: `redirect_uri` is not a valid URI" error
+9. The database insertion was failing with "invalid input syntax for type integer: 'NaN'" error
+10. The account settings page was experiencing an infinite rendering loop after successful connection
+
+### Solution
+
+Implemented a complete Vercel integration that:
+1. Uses the Vercel Integration approach as described in the tutorial
+2. Redirects users directly to the Vercel integration page
+3. Uses the proper CSRF token approach for security
+4. Handles the OAuth callback with proper error handling
+5. Exchanges the authorization code for access tokens with the correct redirect_uri
+6. Securely stores the OAuth tokens in the database
+7. Provides proper error handling and user feedback via URL parameters
+8. Implements a clean UI for connecting and disconnecting Vercel accounts
+9. Uses the desired callback URL at `/connect/vercel/auth`
+10. Adds extensive logging for debugging OAuth issues
+11. Ensures consistent parameter naming between authorization and token requests
+12. Handles missing token expiration by setting a default value
+13. Prevents rendering loops by tracking processed URL parameters and cleaning up the URL
+
+This implementation:
+- Follows Vercel's recommended integration approach
+- Provides a seamless user experience with direct redirects
+- Securely handles authentication tokens
+- Properly stores connection information in the database
+- Enables users to easily connect and disconnect their Vercel accounts
+- Follows security best practices for OAuth implementations
+- Maintains a consistent UI with the rest of the application
+- Uses the preferred URL structure for the callback endpoint
+- Provides detailed logging for troubleshooting
+- Correctly implements the OAuth 2.0 specification requirements for redirect_uri
+- Handles edge cases like missing token expiration gracefully
+- Prevents UI issues like infinite rendering loops
+
+## Vercel OAuth Integration Improvements
+
+- [x] Fixed the Vercel OAuth integration to use the correct approach with integration slug
+- [x] Updated the `VercelConnectButton` component to use the correct redirect URI parameter
+- [x] Created a new callback route at `/connect/vercel/auth` to handle the OAuth flow
+- [x] Added comprehensive error handling and logging in the callback route
+- [x] Fixed rendering loop issue in the account settings page by properly tracking processed URL parameters
+- [x] Improved URL parameter handling to prevent re-processing on page refreshes
+- [x] Updated environment variables documentation to include the integration slug
+- [x] Added detailed logging of OAuth parameters and token data for debugging
+- [x] Created a dedicated EULA page for the Vercel ShipKit Integration
+- [x] Implemented Vercel deployment functionality with conditional UI
+
+### Problems Addressed
+
+1. **Incorrect OAuth Flow Implementation**: The initial implementation didn't follow the tutorial's approach using the integration slug.
+2. **Parameter Naming Inconsistency**: The `redirect_uri` parameter was incorrectly named in some places.
+3. **Rendering Loop**: The account settings page was continuously re-rendering due to URL parameters being processed on every render.
+4. **Insufficient Error Handling**: The callback route needed more comprehensive error handling and logging.
+5. **URL Parameter Persistence**: URL parameters weren't being properly cleared after processing, causing issues on page refreshes.
+
+### Solutions Implemented
+
+1. **Correct OAuth Flow**: Updated the `VercelConnectButton` to use the integration slug and proper redirect approach.
+2. **Consistent Parameter Naming**: Ensured consistent use of `redirect_uri` parameter throughout the codebase.
+3. **State-Based Parameter Tracking**: Implemented state-based tracking of processed URL parameters to prevent re-processing.
+4. **Enhanced Error Handling**: Added comprehensive error handling with specific error codes and messages.
+5. **URL Cleanup**: Implemented proper URL cleanup after processing parameters to prevent issues on page refreshes.
+6. **Detailed Logging**: Added detailed logging of all OAuth parameters and token data for better debugging.
+
+## Vercel Deployment Functionality
+
+- [x] Created a `VercelDeployButton` component that conditionally shows either a "Connect Vercel" button or a "Deploy to Vercel" button
+- [x] Implemented a server action for deploying projects to Vercel
+- [x] Added proper error handling and user feedback for deployment operations
+- [x] Integrated with the session data to detect if a user has connected their Vercel account
+
+### Problem
+
+Users needed a way to deploy projects to Vercel, but the UI didn't guide them through the necessary steps if they hadn't connected their Vercel account yet. This created a confusing experience where deployment attempts would fail without clear guidance on how to resolve the issue.
+
+### Solution
+
+Implemented a smart deployment button that:
+1. Checks if the user has connected their Vercel account using session data
+2. Shows a "Connect Vercel" button with explanatory text if the account is not connected
+3. Shows a "Deploy to Vercel" button if the account is connected
+4. Handles the deployment process through a server action with proper error handling
+5. Provides clear feedback to the user throughout the process
+
+This implementation:
+- Improves the user experience by providing clear guidance
+- Reduces failed deployment attempts
+- Streamlines the connection and deployment workflow
+- Follows the same pattern as the GitHub connection functionality for consistency
+- Provides detailed error messages and success notifications
+- Opens the Vercel dashboard after successful deployment initiation

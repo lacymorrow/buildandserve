@@ -123,7 +123,7 @@ let nextConfig: NextConfig = {
 		removeConsole:
 			process.env.DISABLE_LOGGING === "true"
 				? process.env.DISABLE_ERROR_LOGGING === "true"
-					? false
+					? true
 					: { exclude: ["error"] }
 				: false,
 	},

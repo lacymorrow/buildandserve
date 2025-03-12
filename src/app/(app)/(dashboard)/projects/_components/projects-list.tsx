@@ -1,4 +1,4 @@
-import { CreateProjectDialog } from "@/app/(app)/(dashboard)/projects/_components/create-project-dialog";
+import { ProjectDialog } from "@/app/(app)/(dashboard)/projects/_components/project-dialog";
 import { ProjectMenu } from "@/app/(app)/(dashboard)/projects/_components/project-menu";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -41,7 +41,7 @@ export async function ProjectsList() {
 		<SidebarGroup className="space-y-1 pb-10">
 			<div className="flex items-center justify-between py-2">
 				<SidebarGroupLabel>Projects</SidebarGroupLabel>
-				<CreateProjectDialog userId={session.user.id}>
+				<ProjectDialog userId={session.user.id} variant="default">
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
@@ -55,7 +55,7 @@ export async function ProjectsList() {
 						</TooltipTrigger>
 						<TooltipContent>Create Project</TooltipContent>
 					</Tooltip>
-				</CreateProjectDialog>
+				</ProjectDialog>
 			</div>
 
 			<SidebarMenu>

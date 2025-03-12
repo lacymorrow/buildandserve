@@ -28,9 +28,22 @@
   "[typescriptreact]": {
     "editor.defaultFormatter": "vscode.typescript-language-features"
   },
+
+  "typescript.updateImportsOnFileMove.enabled": "always",
+
+  // Import configuration
+  "typescript.preferences.preferTypeOnlyAutoImports": true,
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "typescript.preferences.importModuleSpecifierEnding": "minimal",
-  "typescript.preferences.preferTypeOnlyAutoImports": true,
+  "javascript.preferences.importModuleSpecifier": "non-relative",
+  "javascript.preferences.importModuleSpecifierEnding": "minimal",
+  "typescript.preferences.autoImportFileExcludePatterns": [],
+  "javascript.preferences.autoImportFileExcludePatterns": [],
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  "typescript.suggest.autoImports": true,
+  "javascript.suggest.autoImports": true,
   "[markdown]": {
     "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
   },
@@ -38,14 +51,8 @@
     "editor.defaultFormatter": "foxundermoon.shell-format"
   },
   // Exclude demo folder from search and IntelliSense
-  "search.exclude": {
-    // "**/src/app/(app)/(demo)": true
-  },
   "files.watcherExclude": {
     "**/src/app/(app)/(demo)/**": true
-  },
-  "[postcss]": {
-    "editor.defaultFormatter": "stylelint.vscode-stylelint"
   },
   "[mdx]": {
     "editor.defaultFormatter": "unifiedjs.vscode-mdx"

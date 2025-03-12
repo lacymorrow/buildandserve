@@ -1,6 +1,5 @@
 "use client";
 
-import { TextMorph } from "@/components/ui/text-morph";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -10,10 +9,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { GitHubConnectButton } from "@/components/ui/github-connect-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { TextMorph } from "@/components/ui/text-morph";
 import { Textarea } from "@/components/ui/textarea";
 import { updateProfile } from "@/server/actions/settings";
 import { useSession } from "next-auth/react";
@@ -167,17 +166,6 @@ export default function SettingsPage() {
 				</Card>
 			</form>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>GitHub Connection</CardTitle>
-					<CardDescription>
-						Connect your GitHub account to access the repository.
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<GitHubConnectButton />
-				</CardContent>
-			</Card>
 		</div>
 	);
 }

@@ -1,6 +1,7 @@
 import { routes } from "@/config/routes";
 import type { NextAuthConfig } from "next-auth";
 import { providers } from "./auth.providers";
+import { db } from "./db";
 
 // Extend the default session user type
 declare module "next-auth" {
@@ -14,6 +15,10 @@ declare module "next-auth" {
 			githubUsername: string | null;
 			theme?: "light" | "dark" | "system";
 			emailVerified: Date | null;
+			accounts?: {
+				provider: string;
+				providerAccountId: string;
+			}[];
 		};
 	}
 }
@@ -102,7 +107,7 @@ export const authOptions: NextAuthConfig = {
 		// 	}
 		// 	return token;
 		// },
-		session({ session, token }) {
+		async session({ session, token, user }) {
 			if (token) {
 				session.user.id = token.id as string;
 				session.user.name = token.name as string | null;
@@ -110,6 +115,27 @@ export const authOptions: NextAuthConfig = {
 				session.user.githubUsername = token.githubUsername as string | null;
 				session.user.theme = token.theme as "light" | "dark" | "system" | undefined;
 			}
+
+			// If we have a user object (from database adapter), include accounts
+			if (user) {
+				// Fetch user accounts from database
+				try {
+					const accounts = await db?.query.accounts.findMany({
+						where: (accounts, { eq }) => eq(accounts.userId, user.id),
+						columns: {
+							provider: true,
+							providerAccountId: true,
+						},
+					});
+
+					if (accounts) {
+						session.user.accounts = accounts;
+					}
+				} catch (error) {
+					console.error("Error fetching user accounts:", error);
+				}
+			}
+
 			return session;
 		},
 	},

@@ -1,9 +1,10 @@
 "use server";
 
+import { capitalize } from "@/lib/utils/capitalize";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
-import { users } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { accounts, users } from "@/server/db/schema";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 interface ProfileData {
@@ -113,5 +114,26 @@ export async function updateTheme(theme: "light" | "dark" | "system") {
 	} catch (error) {
 		console.error("Failed to update theme:", error);
 		return { success: false, error: "Failed to update theme" };
+	}
+}
+
+export async function disconnectAccount(provider: string) {
+	try {
+		const session = await auth();
+		if (!session?.user?.id) {
+			return { success: false, error: "Not authenticated" };
+		}
+
+		await db
+			?.delete(accounts)
+			.where(and(eq(accounts.userId, session.user.id), eq(accounts.provider, provider)));
+
+		return {
+			success: true,
+			message: `${capitalize(provider)} account disconnected successfully`,
+		};
+	} catch (error) {
+		console.error(`Failed to disconnect ${provider} account:`, error);
+		return { success: false, error: `Failed to disconnect ${provider} account` };
 	}
 }

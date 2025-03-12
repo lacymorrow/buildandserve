@@ -2,68 +2,44 @@
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import crypto from "crypto";
 import { useState } from "react";
 
 export const VercelConnectButton = () => {
 	const [isLoading, setIsLoading] = useState(false);
 	const { toast } = useToast();
 
+	if (!process.env.NEXT_PUBLIC_VERCEL_INTEGRATION_SLUG) {
+		return null;
+	}
+
 	const handleConnect = async () => {
 		try {
 			setIsLoading(true);
 
-			// Get the OAuth URL from our backend
-			const response = await fetch("/api/setup/vercel-auth-url");
-			if (!response.ok) {
-				throw new Error(await response.text());
-			}
+			// the integration URL slug from vercel
+			const client_slug = process.env.NEXT_PUBLIC_VERCEL_INTEGRATION_SLUG;
 
-			const { url } = await response.json();
+			// create a CSRF token and store it locally
+			const state = crypto.randomBytes(16).toString("hex");
+			localStorage.setItem("latestCSRFToken", state);
 
-			// Open Vercel OAuth page in a popup
-			const width = 600;
-			const height = 700;
-			const left = window.screenX + (window.outerWidth - width) / 2;
-			const top = window.screenY + (window.outerHeight - height) / 2;
+			// Get the origin for the callback URL
+			const origin = window.location.origin;
 
-			const popup = window.open(
-				url,
-				"Connect to Vercel",
-				`width=${width},height=${height},left=${left},top=${top}`
-			);
+			// Create the redirect URI
+			const redirectUri = `${origin}/connect/vercel/auth`;
 
-			// Listen for the OAuth callback
-			window.addEventListener("message", async (event) => {
-				// Verify origin
-				if (event.origin !== window.location.origin) return;
-
-				// Handle the OAuth callback
-				if (event.data?.type === "vercel-oauth-success") {
-					popup?.close();
-					toast({
-						title: "Success",
-						description: "Successfully connected to Vercel!",
-					});
-					// Refresh the page to update the auth state
-					window.location.reload();
-				}
-
-				if (event.data?.type === "vercel-oauth-error") {
-					popup?.close();
-					toast({
-						title: "Error",
-						description: event.data.error || "Failed to connect to Vercel",
-						variant: "destructive",
-					});
-				}
-			});
+			// redirect the user to vercel with the callback URL
+			// Use redirectUri as the parameter name for consistency with the OAuth spec
+			const link = `https://vercel.com/integrations/${client_slug}/new?state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+			window.location.assign(link);
 		} catch (error) {
 			toast({
 				title: "Error",
 				description: error instanceof Error ? error.message : "Failed to connect to Vercel",
 				variant: "destructive",
 			});
-		} finally {
 			setIsLoading(false);
 		}
 	};

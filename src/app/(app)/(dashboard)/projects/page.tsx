@@ -168,6 +168,7 @@ export default function ProjectsPage() {
 			cell: ({ row }) => (
 				<div className="flex items-center gap-4">
 					<button
+						type="button"
 						onClick={() => {
 							setSelectedProject(row.original);
 							setNewProjectName(row.original.name);
@@ -179,7 +180,7 @@ export default function ProjectsPage() {
 					</button>
 					<AlertDialog>
 						<AlertDialogTrigger asChild>
-							<button className="text-sm text-red-600 hover:text-red-900">
+							<button type="button" className="text-sm text-red-600 hover:text-red-900">
 								Delete
 							</button>
 						</AlertDialogTrigger>

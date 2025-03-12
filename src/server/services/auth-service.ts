@@ -17,6 +17,7 @@ interface AuthOptions {
 	role?: UserRole;
 	nextUrl?: string;
 	errorCode?: string;
+	email?: string;
 }
 
 // Constants for password hashing
@@ -84,7 +85,9 @@ export const AuthService = {
 				redirectTo: options?.redirectTo ?? routes.home,
 				...options,
 			},
-			{ prompt: "select_account" }
+			providerId === "resend" && options?.email
+				? { email: options.email }
+				: { prompt: "select_account" }
 		);
 		return { success: STATUS_CODES.LOGIN.message };
 	},
