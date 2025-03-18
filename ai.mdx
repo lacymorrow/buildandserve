@@ -251,6 +251,9 @@ This implementation:
 - [x] Implemented Payload CMS credentials authentication
 - [x] Fixed Bitbucket provider implementation
 - [x] Fixed client/server boundary violation by creating server actions and hooks for auth providers
+- [x] Fixed credentials authentication error by correctly passing parameters to NextAuth signIn function
+- [x] Fixed NEXT_REDIRECT error by properly handling client-side and server-side redirects
+- [x] Fixed authentication result handling to support different response formats
 
 ### Authentication Flow
 
@@ -278,9 +281,132 @@ We identified and fixed a client/server boundary violation where client componen
 
 This approach maintains a clean separation between server and client code while allowing client components to access necessary data from the server.
 
+### Credentials Authentication Fixes
+
+We identified and fixed issues with the credentials authentication flow:
+
+1. Fixed how credentials are passed to the NextAuth `signIn` function
+2. Added proper error logging to help diagnose authentication issues
+3. Fixed type errors in the `validateCredentials` method
+4. Ensured the user ID is returned as a string to match the NextAuth User type
+5. Added detailed logging throughout the authentication flow for better debugging
+
+These fixes ensure that users can successfully sign in with their email and password using Payload CMS as the authentication backend.
+
+### NEXT_REDIRECT Error Fixes
+
+We identified and fixed a NEXT_REDIRECT error that was occurring during the authentication flow:
+
+1. Updated the `signInWithCredentialsAction` to set `redirect: false` to prevent automatic server-side redirects
+2. Modified the `CredentialsForm` component to handle client-side redirects after successful authentication
+3. Added proper error handling and logging to diagnose authentication issues
+4. Used the Next.js router for client-side navigation after successful authentication
+5. Added a success toast notification to provide feedback to the user
+
+These changes ensure that the authentication flow properly handles redirects and prevents the NEXT_REDIRECT error that was occurring when mixing server-side and client-side redirects.
+
+### Authentication Result Handling Fixes
+
+We identified and fixed issues with how authentication results are handled:
+
+1. Updated the `CredentialsForm` component to handle different result formats from NextAuth
+2. Added support for string URL results, which are returned by NextAuth in some cases
+3. Improved error handling to provide better feedback to users
+4. Updated the sign-up flow to use the same approach as the sign-in flow for consistency
+5. Added fallback handling for unexpected result formats to ensure a smooth user experience
+
+These changes ensure that the authentication flow works correctly regardless of the format of the result returned by NextAuth.
+
 ### Next Steps
 
 - [ ] Add comprehensive error handling for all authentication methods
 - [ ] Implement user profile management
 - [ ] Add account linking functionality (connect multiple auth providers to one account)
 - [ ] Implement role-based access control
+
+## Authentication Flow Fixes
+
+### Foreign Key Constraint Error Fix
+
+- [x] Updated `src/server/services/auth-service.ts` to ensure users are created in both Payload CMS and Shipkit databases
+- [x] Modified `signUpWithCredentials` to create a user in the Shipkit database after creating in Payload CMS
+- [x] Updated `validateCredentials` to ensure users exist in the Shipkit database during sign-in
+- [x] Modified the `signIn` callback in `src/server/auth.config.ts` to ensure OAuth users exist in the Shipkit database
+
+This fixes the error: "insert or update on table 'shipkit_team_member' violates foreign key constraint 'shipkit_team_member_user_id_shipkit_user_id_fk'".
+
+The problem was that users created in the Payload CMS database were not being created in the Shipkit database, causing foreign key constraint violations when trying to associate users with teams.
+
+## Session Synchronization Between NextAuth and Payload CMS
+
+- [x] Created a custom hook `useSynchronizedSession` in `src/hooks/use-synchronized-session.ts` to manage sessions across systems
+- [x] Implemented a `SessionStatus` component in `src/app/(app)/_components/session-status.tsx` to demonstrate the hook usage
+- [x] Added methods to validate Payload CMS tokens and refresh sessions when needed
+- [x] Created a refresh-session API route in `src/app/api/auth/refresh-session/route.ts` to handle session refreshes
+- [x] Fixed type errors when using database session strategy instead of JWT
+
+### Implementation Details
+
+The session synchronization system consists of several components:
+
+1. **`useSynchronizedSession` Hook**:
+   - Provides a unified interface for client components to access authentication state
+   - Tracks both NextAuth session and Payload CMS authentication status
+   - Offers methods to refresh sessions and validate tokens
+   - Simplifies working with dual authentication systems
+
+2. **`SessionStatus` Component**:
+   - Demonstrates how to use the `useSynchronizedSession` hook
+   - Displays the current authentication status for both systems
+   - Provides UI controls to refresh sessions and validate tokens
+   - Serves as a reference implementation for other components
+
+3. **Refresh Session API Route**:
+   - Handles session refreshes by redirecting to the sign-in page
+   - Preserves the current URL as the callback destination
+   - Ensures users return to their previous location after re-authentication
+   - Logs session refresh attempts for debugging
+
+4. **Database Session Strategy Fixes**:
+   - Added type checking for `payloadToken` in session and token objects
+   - Updated middleware to handle both JWT and database session strategies
+   - Fixed type errors in the session callback
+   - Ensured consistent handling of the Payload token across the application
+   - Added proper error handling for cases where the token is not a string
+
+This implementation ensures that:
+- Client components can easily access authentication state from both systems
+- Users remain authenticated in both NextAuth and Payload CMS
+- Sessions can be refreshed when tokens expire
+- The authentication state is synchronized between the two systems
+- Developers have a clear pattern to follow for authentication in client components
+- The application works correctly with both JWT and database session strategies
+
+## User Onboarding Flow
+
+- [x] Created an onboarding wizard component to guide users through setting up their Next.js starter kit
+- [x] Implemented a multi-step onboarding flow with the following steps:
+  - Welcome & Introduction
+  - Connect GitHub Account
+  - Configure Project Settings
+  - Deploy to Vercel
+  - Next Steps & Resources
+- [x] Added local storage persistence to remember onboarding progress
+- [x] Integrated the onboarding flow into the dashboard
+- [x] Added ability to skip or complete onboarding
+
+The onboarding flow is designed to help users quickly get started with their purchased Next.js starter kit. It guides them through the essential steps of setting up their project and deploying it to Vercel. The flow is implemented using Shadcn UI components and Framer Motion for smooth transitions between steps.
+
+### Implementation Details
+
+1. **OnboardingWizard Component**: A modal-based wizard that guides users through the setup process
+2. **useLocalStorage Hook**: A custom hook to persist onboarding progress in local storage
+3. **OnboardingCheck Component**: A component that determines whether to show the onboarding wizard
+4. **Dashboard Integration**: The onboarding flow is integrated into the dashboard page
+
+### Future Improvements
+
+- [ ] Add analytics to track onboarding completion rates
+- [ ] Implement more interactive elements in the onboarding steps
+- [ ] Add ability to revisit onboarding steps after completion
+- [ ] Create a dedicated onboarding page for users who want to restart the process

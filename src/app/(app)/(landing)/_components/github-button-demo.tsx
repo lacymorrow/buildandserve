@@ -1,6 +1,6 @@
 "use client";
 
-import { GithubStarsButton } from "@/components/ui/github-stars-button";
+import { GithubStarsButton } from "@/components/buttons/github-stars-button";
 import { siteConfig } from "@/config/site";
 import { useEffect, useState } from "react";
 import "./github-button.css";

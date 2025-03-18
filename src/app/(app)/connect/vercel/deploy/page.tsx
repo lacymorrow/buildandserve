@@ -1,9 +1,8 @@
-import { ConfettiSideCannons } from "@/components/magicui/confetti/confetti-side-cannons";
 import { Link } from "@/components/primitives/link-with-transition";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfettiSideCannons } from "@/components/ui/magicui/confetti/confetti-side-cannons";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
 import { ArrowUpRight, CheckCircle } from "lucide-react";
 
 interface DeploymentInfo {

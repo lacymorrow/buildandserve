@@ -3,8 +3,10 @@ import { Suspense } from "react";
 import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/primitives/page-header";
 import { DataTable } from "@/components/ui/data-table/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getUsersWithPayments } from "@/lib/lemonsqueezy";
-import { columns } from "../_components/columns";
+
+import { PaymentService } from "@/server/services/payment-service";
+import { ImportPayments } from "../payments/_components/import-payments";
+import { columns } from "./_components/columns";
 
 function UsersTableSkeleton() {
 	return (
@@ -18,7 +20,7 @@ function UsersTableSkeleton() {
 }
 
 async function UsersTableContent() {
-	const users = await getUsersWithPayments();
+	const users = await PaymentService.getUsersWithPayments();
 
 	return (
 		<DataTable
@@ -34,15 +36,22 @@ async function UsersTableContent() {
  */
 export default function AdminPage() {
 	return (
-		<div className="container mx-auto py-10">
-			<PageHeader>
-				<PageHeaderHeading>User Management</PageHeaderHeading>
-				<PageHeaderDescription>
-					View and manage all users in your database.
-				</PageHeaderDescription>
-			</PageHeader>			<Suspense fallback={<UsersTableSkeleton />}>
+		<>
+			<div className="flex justify-between items-center mb-6">
+
+				<PageHeader>
+					<PageHeaderHeading>User Management</PageHeaderHeading>
+					<PageHeaderDescription>
+						View and manage all users in your database.
+					</PageHeaderDescription>
+				</PageHeader>
+
+				<ImportPayments />
+
+			</div>
+			<Suspense fallback={<UsersTableSkeleton />}>
 				<UsersTableContent />
 			</Suspense>
-		</div>
+		</>
 	);
 }

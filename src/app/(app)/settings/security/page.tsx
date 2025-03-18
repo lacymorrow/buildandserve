@@ -12,13 +12,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { useSession } from "next-auth/react";
 import * as React from "react";
 import { toast } from "sonner";
 
 export default function SecurityPage() {
-	const [isPending, startTransition] = React.useTransition();
-	const { data: session } = useSession();
 
 	const [passwords, setPasswords] = React.useState({
 		current: "",
@@ -31,29 +28,6 @@ export default function SecurityPage() {
 		setPasswords((prev) => ({ ...prev, [name]: value }));
 	};
 
-	function onSubmit(formData: FormData) {
-		// Password change will be implemented in a future update
-		toast.info("Password changes will be available in a future update");
-	}
-
-	const connectedAccounts = [
-		{
-			name: "GitHub",
-			connected: !!session?.user?.githubUsername,
-			username: session?.user?.githubUsername,
-		},
-		{
-			name: "GitLab",
-			connected: false,
-			username: null,
-		},
-		{
-			name: "Bitbucket",
-			connected: false,
-			username: null,
-		},
-		// Add more providers here as they become available
-	];
 
 	return (
 		<div className="space-y-6">
@@ -152,46 +126,6 @@ export default function SecurityPage() {
 			</Card>
 
 
-			{/* Connected Accounts */}
-			<Card>
-				<CardHeader>
-					<CardTitle>Connected Accounts</CardTitle>
-					<CardDescription>
-						Manage your connected accounts and authentication methods.
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					{connectedAccounts.map((account) => (
-						<div
-							key={account.name}
-							className="flex items-center justify-between space-x-4"
-						>
-							<div className="flex flex-col space-y-1">
-								<span className="font-medium">{account.name}</span>
-								{account.connected ? (
-									<span className="text-sm text-muted-foreground">
-										Connected as {account.username}
-									</span>
-								) : (
-									<span className="text-sm text-muted-foreground">
-										Not connected
-									</span>
-								)}
-							</div>
-							<Button
-								variant={account.connected ? "outline" : "default"}
-								onClick={() =>
-									toast.info(
-										`${account.name} connection management will be available in a future update`,
-									)
-								}
-							>
-								{account.connected ? "Disconnect" : "Connect"}
-							</Button>
-						</div>
-					))}
-				</CardContent>
-			</Card>
 		</div>
 	);
 }

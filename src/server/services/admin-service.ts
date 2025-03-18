@@ -1,4 +1,7 @@
 import { adminConfig } from "@/config/admin-config";
+import { db } from "@/server/db";
+import { users } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
 
 /**
  * Admin service for server-side admin checking
@@ -11,12 +14,24 @@ import { adminConfig } from "@/config/admin-config";
  * @param email The email address to check
  * @returns Boolean indicating if the email belongs to an admin
  */
-export function isAdmin(email?: string | null): boolean {
+export async function isAdmin(email?: string | null): Promise<boolean> {
 	if (!email) {
 		return false;
 	}
 
-	return adminConfig.isAdmin(email);
+	if (adminConfig.isAdmin(email)) {
+		return true;
+	}
+
+	// Check if user is admin by querying the database directly
+	const user = await db?.query.users.findFirst({
+		where: eq(users.email, email),
+		columns: {
+			role: true,
+		},
+	});
+
+	return user?.role === "admin";
 }
 
 /**

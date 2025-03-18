@@ -2,6 +2,7 @@ import { routes } from "@/config/routes";
 import type { NextAuthConfig } from "next-auth";
 import { providers } from "./auth.providers";
 import { db } from "./db";
+import { userService } from "./services/user-service";
 
 // Extend the default session user type
 declare module "next-auth" {
@@ -19,7 +20,13 @@ declare module "next-auth" {
 				provider: string;
 				providerAccountId: string;
 			}[];
+			payloadToken?: string; // Add Payload CMS token to session
 		};
+	}
+
+	// Extend the JWT type to include Payload token
+	interface JWT {
+		payloadToken?: string;
 	}
 }
 
@@ -36,11 +43,11 @@ export const authOptions: NextAuthConfig = {
 		signIn: routes.auth.signIn,
 		signOut: routes.auth.signOut,
 	},
-	// session: {
-	// 	strategy: "database",
-	// 	maxAge: 30 * 24 * 60 * 60, // 30 days
-	// 	updateAge: 24 * 60 * 60, // 24 hours
-	// },
+	session: {
+		strategy: "jwt",
+		maxAge: 30 * 24 * 60 * 60, // 30 days
+		updateAge: 24 * 60 * 60, // 24 hours
+	},
 	// cookies: {
 	// 	sessionToken: {
 	// 		name:
@@ -71,53 +78,117 @@ export const authOptions: NextAuthConfig = {
 			}
 
 			console.log("signIn callback", { user, account, profile });
+
+			// Special handling for credentials provider
+			// This ensures the user exists in both databases and handles session creation properly
+			if (account?.provider === "credentials") {
+				console.log("Credentials provider detected in signIn callback");
+				// The user should already exist in both databases from validateCredentials
+				// Just return true to allow sign in
+				return true;
+			}
+
+			// Ensure the user exists in the Shipkit database
+			// This handles cases where a user was created through OAuth but not in Shipkit
+			try {
+				await userService.ensureUserExists({
+					id: user.id,
+					email: user.email as string,
+					name: user.name,
+					image: user.image,
+				});
+				console.log("Ensured user exists in Shipkit database:", user.id);
+			} catch (error) {
+				console.error("Error ensuring user exists in Shipkit database:", error);
+				// Don't fail the sign-in if this fails, just log the error
+			}
+
 			// Log the sign in activity
 			return true;
 		},
-		// jwt({ token, user, account, trigger, session }) {
-		// 	console.log("jwt callback", { token, user, account, trigger, session });
-		// 	// Save user data to the token
-		// 	if (user) {
-		// 		token.id = user.id;
-		// 		token.name = user.name;
-		// 		token.bio = user.bio;
-		// 		token.githubUsername = user.githubUsername;
-		// 		token.theme = user.theme;
-		// 		token.emailNotifications = user.emailNotifications;
-		// 	}
+		jwt({ token, user, account, trigger, session }) {
+			console.log("jwt callback", { token, user, account, trigger, session });
+			// Save user data to the token
+			if (user) {
+				token.id = user.id;
+				token.name = user.name;
+				token.email = user.email;
 
-		// 	// Save GitHub access token
-		// 	if (account?.provider === "github") {
-		// 		token.githubAccessToken = account.access_token;
-		// 	}
+				// Safely access optional properties
+				if ("bio" in user) token.bio = user.bio as string | null;
+				if ("githubUsername" in user) token.githubUsername = user.githubUsername as string | null;
+				if ("theme" in user) token.theme = user.theme as "light" | "dark" | "system" | undefined;
+				if ("emailVerified" in user) token.emailVerified = user.emailVerified as Date | null;
 
-		// 	if ("githubUsername" in session) {
-		// 		token.githubUsername = session.githubUsername;
-		// 	}
+				// Store Payload CMS token if available
+				if ("payloadToken" in user && typeof user.payloadToken === "string") {
+					token.payloadToken = user.payloadToken;
+				}
+			}
 
-		// 	// Handle updates
-		// 	if (trigger === "update" && session) {
-		// 		if (session.theme) token.theme = session.theme;
-		// 		if ("emailNotifications" in session)
-		// 			token.emailNotifications = session.emailNotifications;
-		// 		if ("name" in session) token.name = session.name;
-		// 		if ("bio" in session) token.bio = session.bio;
-		// 		if ("githubUsername" in session)
-		// 			token.githubUsername = session.githubUsername;
-		// 	}
-		// 	return token;
-		// },
+			// Save GitHub access token
+			if (account?.provider === "github") {
+				token.githubAccessToken = account.access_token;
+			}
+
+			// Handle direct GitHub username updates passed from session update
+			// This is critical for UI updates when connecting or disconnecting GitHub
+			if (session?.user?.githubUsername !== undefined) {
+				console.log(
+					"Updating token GitHub username from session update:",
+					session.user.githubUsername
+				);
+				token.githubUsername = session.user.githubUsername;
+			}
+
+			// Handle account updates directly from session
+			if (session?.user?.accounts) {
+				console.log("Updating token with accounts from session update", session.user.accounts);
+				token.accounts = session.user.accounts;
+			}
+
+			// Handle Payload token updates in session
+			if (session?.payloadToken && typeof session.payloadToken === "string") {
+				token.payloadToken = session.payloadToken;
+			}
+
+			// Handle updates
+			if (trigger === "update" && session) {
+				if (session.theme) token.theme = session.theme;
+				if (session.name) token.name = session.name;
+				if (session.bio) token.bio = session.bio;
+				if (session.payloadToken && typeof session.payloadToken === "string")
+					token.payloadToken = session.payloadToken;
+			}
+			return token;
+		},
 		async session({ session, token, user }) {
 			if (token) {
 				session.user.id = token.id as string;
 				session.user.name = token.name as string | null;
+				session.user.email = token.email as string;
 				session.user.bio = token.bio as string | null;
 				session.user.githubUsername = token.githubUsername as string | null;
 				session.user.theme = token.theme as "light" | "dark" | "system" | undefined;
+				session.user.emailVerified = token.emailVerified as Date | null;
+
+				// Include Payload token in session
+				if (token.payloadToken && typeof token.payloadToken === "string") {
+					session.user.payloadToken = token.payloadToken;
+				}
+
+				// Copy accounts from token to session if they exist
+				if (token.accounts) {
+					console.log("Copying accounts from token to session:", token.accounts);
+					session.user.accounts = token.accounts as {
+						provider: string;
+						providerAccountId: string;
+					}[];
+				}
 			}
 
-			// If we have a user object (from database adapter), include accounts
-			if (user) {
+			// If token didn't have accounts and we have a user from database, fetch accounts
+			if (!session.user.accounts && user) {
 				// Fetch user accounts from database
 				try {
 					const accounts = await db?.query.accounts.findMany({
@@ -129,6 +200,7 @@ export const authOptions: NextAuthConfig = {
 					});
 
 					if (accounts) {
+						console.log("Setting accounts from database query:", accounts);
 						session.user.accounts = accounts;
 					}
 				} catch (error) {
@@ -136,6 +208,7 @@ export const authOptions: NextAuthConfig = {
 				}
 			}
 
+			console.log("Session callback returning session:", session);
 			return session;
 		},
 	},

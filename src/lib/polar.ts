@@ -1,0 +1,473 @@
+import { env } from "@/env";
+import { logger } from "@/lib/logger";
+import { db } from "@/server/db";
+import { payments, users } from "@/server/db/schema";
+import { Polar } from "@polar-sh/sdk";
+import { eq } from "drizzle-orm";
+
+// Define interfaces for Polar types
+export interface PolarPaymentData {
+	id: string;
+	orderId: string;
+	userEmail: string;
+	userName: string | null;
+	amount: number;
+	status: "paid" | "refunded" | "pending";
+	productName: string;
+	purchaseDate: Date;
+}
+
+// Helper type for Polar orders
+interface PolarOrder {
+	id: string;
+	orderId: string;
+	userEmail: string;
+	userName: string | null;
+	amount: number;
+	status: "paid" | "refunded" | "pending";
+	productName: string;
+	purchaseDate: Date;
+	attributes: Record<string, any>;
+}
+
+/**
+ * Initialize Polar API client
+ * This will be called whenever the Polar API is used to ensure the API key is set
+ */
+const initializePolarClient = (): Polar | null => {
+	if (!env?.POLAR_ACCESS_TOKEN) {
+		logger.error("POLAR_ACCESS_TOKEN is not set in the environment.");
+		return null;
+	}
+
+	// Initialize the Polar client
+	try {
+		const polarClient = new Polar({
+			accessToken: env.POLAR_ACCESS_TOKEN,
+			// Use sandbox for development, production for production
+			server: process.env.NODE_ENV === "production" ? "production" : "sandbox",
+		});
+
+		logger.debug("Polar client initialized");
+		return polarClient;
+	} catch (error) {
+		logger.error("Failed to initialize Polar client:", error);
+		return null;
+	}
+};
+
+/**
+ * Fetches orders for a specific email from Polar
+ */
+export const getOrdersByEmail = async (email: string): Promise<PolarOrder[]> => {
+	try {
+		const polarClient = initializePolarClient();
+		if (!polarClient) {
+			return [];
+		}
+
+		logger.debug("Fetching Polar orders by email", { email });
+
+		// Call the Polar API to fetch orders by email
+		// Using a more generic approach to handle potential SDK differences
+		const response = await polarClient.orders.list({} as any);
+
+		// Extract orders from the response
+		const orders = extractOrdersFromResponse(response);
+
+		// Filter orders by email
+		const userOrders = orders.filter(
+			(order) => order.customer?.email?.toLowerCase() === email.toLowerCase()
+		);
+
+		// Transform the Polar orders to our PolarOrder interface
+		return userOrders.map((order) => mapToPolarOrder(order));
+	} catch (error) {
+		logger.error("Error fetching Polar orders by email:", error);
+		return [];
+	}
+};
+
+/**
+ * Fetches all orders from Polar
+ */
+export const getAllOrders = async (): Promise<PolarOrder[]> => {
+	try {
+		const polarClient = initializePolarClient();
+		if (!polarClient) {
+			return [];
+		}
+
+		logger.debug("Fetching all Polar orders");
+
+		// Call the Polar API to fetch all orders
+		// Using a more generic approach to handle potential SDK differences
+		const response = await polarClient.orders.list({} as any);
+
+		// Extract orders from the response
+		const orders = extractOrdersFromResponse(response);
+
+		// Transform the Polar orders to our PolarOrder interface
+		return orders.map((order) => mapToPolarOrder(order));
+	} catch (error) {
+		logger.error("Error fetching all Polar orders:", error);
+		return [];
+	}
+};
+
+/**
+ * Helper function to extract orders from various response formats
+ */
+const extractOrdersFromResponse = (response: any): any[] => {
+	if (!response) return [];
+
+	// Try different response formats
+	if (Array.isArray(response)) {
+		return response;
+	}
+
+	if (response.items && Array.isArray(response.items)) {
+		return response.items;
+	}
+
+	if (response.data?.items && Array.isArray(response.data.items)) {
+		return response.data.items;
+	}
+
+	if (response.result?.items && Array.isArray(response.result.items)) {
+		return response.result.items;
+	}
+
+	// If we can't find orders in the expected formats, log and return empty array
+	logger.debug("Unknown Polar orders response format", { response });
+	return [];
+};
+
+/**
+ * Convert any price format to integer cents
+ * Handles: integer cents, float dollars, string representations
+ */
+const convertPriceToIntegerCents = (price: any): number => {
+	if (price === null || price === undefined) return 0;
+
+	// If it's already an integer, assume it's already in cents
+	if (Number.isInteger(price)) return price;
+
+	// If it's a number but not an integer, assume it's in dollars and convert to cents
+	if (typeof price === "number") {
+		return Math.round(price * 100);
+	}
+
+	// If it's a string, parse it and convert to cents
+	if (typeof price === "string") {
+		const parsedPrice = Number.parseFloat(price);
+		if (!Number.isNaN(parsedPrice)) {
+			return Math.round(parsedPrice * 100);
+		}
+	}
+
+	// If we can't determine the format, log a warning and return 0
+	logger.warn("Unable to parse price value, defaulting to 0", { price });
+	return 0;
+};
+
+/**
+ * Map a Polar order object to our PolarOrder interface
+ */
+const mapToPolarOrder = (order: any): PolarOrder => {
+	// Extract amount from order, handling different possible formats
+	let amount = 0;
+	if (order.amount !== undefined) {
+		// If amount is provided directly
+		amount = convertPriceToIntegerCents(order.amount);
+	} else if (order.totalAmount !== undefined) {
+		// Try totalAmount if amount is not available
+		amount = convertPriceToIntegerCents(order.totalAmount);
+	} else if (order.total) {
+		// Try total if totalAmount is not available
+		amount = convertPriceToIntegerCents(order.total);
+	}
+
+	return {
+		id: order.id || "",
+		orderId: order.id || "",
+		userEmail: order.customer?.email || "Unknown",
+		userName: order.customer?.name || null,
+		amount: amount / 100, // Convert from cents to dollars for display
+		status: mapPolarOrderStatus(order.status),
+		productName: order.product?.name || "Unknown Product",
+		purchaseDate: new Date(order.createdAt || Date.now()),
+		attributes: order,
+	};
+};
+
+/**
+ * Helper function to map Polar order status to our simplified status
+ */
+const mapPolarOrderStatus = (status: string | undefined): "paid" | "refunded" | "pending" => {
+	if (!status) return "pending";
+
+	switch (status.toLowerCase()) {
+		case "paid":
+		case "succeeded":
+		case "completed":
+			return "paid";
+		case "refunded":
+			return "refunded";
+		default:
+			return "pending";
+	}
+};
+
+/**
+ * Gets the payment status for a user by checking both their ID and email
+ */
+export const getPolarPaymentStatus = async (userId: string): Promise<boolean> => {
+	try {
+		const polarClient = initializePolarClient();
+		if (!polarClient) {
+			return false;
+		}
+
+		logger.debug("Checking Polar payment status", { userId });
+
+		// First check the database for existing payment records
+		const payment = await db?.query.payments.findFirst({
+			where: eq(payments.userId, userId),
+			// Only look for Polar payments
+			columns: {
+				id: true,
+				processor: true,
+				status: true,
+			},
+		});
+
+		// If we have a payment record with Polar as the processor, return true
+		if (payment && payment.processor === "polar" && payment.status === "completed") {
+			return true;
+		}
+
+		// If not found in the database, get the user's email
+		const user = await db?.query.users.findFirst({
+			where: eq(users.id, userId),
+			columns: {
+				email: true,
+			},
+		});
+
+		if (!user?.email) return false;
+
+		// Check Polar orders by email
+		const orders = await getOrdersByEmail(user.email);
+		const hasPaid = orders.some((order) => order.status === "paid");
+
+		// Removed database insertion to avoid foreign key constraint violation
+
+		return hasPaid;
+	} catch (error) {
+		logger.error("Error checking Polar payment status:", error);
+		return false;
+	}
+};
+
+/**
+ * Fetch products from Polar
+ */
+export const fetchPolarProducts = async () => {
+	try {
+		const polarClient = initializePolarClient();
+		if (!polarClient) {
+			return [];
+		}
+
+		logger.debug("Fetching Polar products");
+
+		// Call the Polar API to fetch products
+		// Using a more generic approach to handle potential SDK differences
+		const response = await polarClient.products.list({} as any);
+
+		// Extract products from the response
+		const products = extractProductsFromResponse(response);
+
+		// Filter out archived products
+		return products.filter((product) => !product.isArchived);
+	} catch (error) {
+		logger.error("Error fetching Polar products:", error);
+		return [];
+	}
+};
+
+/**
+ * Helper function to extract products from various response formats
+ */
+const extractProductsFromResponse = (response: any): any[] => {
+	if (!response) return [];
+
+	// Try different response formats
+	if (Array.isArray(response)) {
+		return response;
+	}
+
+	if (response.items && Array.isArray(response.items)) {
+		return response.items;
+	}
+
+	if (response.data?.items && Array.isArray(response.data.items)) {
+		return response.data.items;
+	}
+
+	if (response.result?.items && Array.isArray(response.result.items)) {
+		return response.result.items;
+	}
+
+	// If we can't find products in the expected formats, log and return empty array
+	logger.debug("Unknown Polar products response format", { response });
+	return [];
+};
+
+/**
+ * Get a single order by ID
+ */
+export const getOrderById = async (orderId: string): Promise<PolarOrder | null> => {
+	try {
+		const polarClient = initializePolarClient();
+		if (!polarClient) {
+			return null;
+		}
+
+		logger.debug("Fetching Polar order by ID", { orderId });
+
+		// Call the Polar API to fetch an order by ID
+		const response = await polarClient.orders.get({
+			id: orderId,
+		});
+
+		// Extract order from response
+		const order = response as any;
+
+		if (!order || !order.id) {
+			return null;
+		}
+
+		// Transform the Polar order to our PolarOrder interface
+		return mapToPolarOrder(order);
+	} catch (error) {
+		logger.error("Error fetching Polar order by ID:", error);
+		return null;
+	}
+};
+
+/**
+ * Process a webhook event from Polar
+ */
+export const processPolarWebhook = async (event: any) => {
+	try {
+		const polarClient = initializePolarClient();
+		if (!polarClient) {
+			return;
+		}
+
+		logger.debug("Processing Polar webhook", { eventType: event?.type });
+
+		// TODO: Implement webhook handling based on the Polar documentation
+		// Handle different event types (checkout.updated, subscription.created, etc.)
+		// Update database records as needed
+
+		switch (event?.type) {
+			case "checkout.created":
+				// Handle checkout created
+				break;
+			case "checkout.updated":
+				if (event.data.status === "succeeded") {
+					// Convert amount to integer cents
+					const amountInCents = convertPriceToIntegerCents(event.data.amount);
+
+					// Create payment record
+					// Similar to:
+					// await PaymentService.createPayment({
+					//   userId: event.data.custom_data?.user_id,
+					//   orderId: event.data.id,
+					//   amount: amountInCents,
+					//   status: "completed",
+					//   processor: "polar",
+					//   metadata: event.data,
+					// });
+				}
+				break;
+			case "subscription.created":
+			case "subscription.updated":
+			case "subscription.active":
+			case "subscription.revoked":
+			case "subscription.canceled":
+				// Handle subscription events
+				break;
+			default:
+				logger.debug("Unknown Polar webhook event type", { type: event?.type });
+		}
+	} catch (error) {
+		logger.error("Error processing Polar webhook:", error);
+	}
+};
+
+/**
+ * Create a checkout URL for a product
+ */
+export const createCheckoutUrl = async (options: {
+	productId: string;
+	email?: string;
+	userId?: string;
+	metadata?: Record<string, any>;
+}): Promise<string | null> => {
+	try {
+		const polarClient = initializePolarClient();
+		if (!polarClient) {
+			return null;
+		}
+
+		logger.debug("Creating Polar checkout URL", { options });
+
+		// Create a checkout session with type assertion to handle potential SDK differences
+		const response = await polarClient.checkouts.create({
+			productId: options.productId,
+			customerEmail: options.email,
+			metadata: options.metadata || {},
+		} as any);
+
+		// Extract URL from response
+		const url = extractCheckoutUrl(response, options.productId);
+
+		if (!url) {
+			logger.error("Failed to create Polar checkout URL", { options, response });
+			return null;
+		}
+
+		return url;
+	} catch (error) {
+		logger.error("Error creating Polar checkout URL:", error);
+		return null;
+	}
+};
+
+/**
+ * Helper function to extract checkout URL from various response formats
+ */
+const extractCheckoutUrl = (response: any, productId: string): string | null => {
+	if (!response) return null;
+
+	// Try different response formats
+	if (typeof response === "string") {
+		return response;
+	}
+
+	if (response.url) {
+		return response.url;
+	}
+
+	if (response.data?.url) {
+		return response.data.url;
+	}
+
+	// Fallback to a generated URL if we can't find it in the response
+	logger.debug("Unknown Polar checkout response format, using fallback URL", { response });
+	return `https://checkout.polar.sh/checkout?product=${productId}`;
+};

@@ -68,6 +68,7 @@ ${createGradient("   ╚══════╝╚═╝  ╚═╝╚═╝╚═
 `;
 
 // Track if the message has been displayed in this session
+// Use a module-level variable that persists across imports
 let hasDisplayedMessage = false;
 
 /**
@@ -79,11 +80,12 @@ let hasDisplayedMessage = false;
  * The message will only be displayed once per process.
  */
 export function displayLaunchMessage(): void {
-	// Only display once per session
+	// Only display once per process
 	if (hasDisplayedMessage) {
 		return;
 	}
 
+	// Mark as displayed
 	hasDisplayedMessage = true;
 
 	// Print the ASCII art logo
@@ -93,7 +95,6 @@ export function displayLaunchMessage(): void {
 	console.info(`${colors.dim("=".repeat(50))}`);
 
 	// Display the local URL where the application is running
-
 	console.info(
 		`${colors.dim("=".repeat(12))}  ${colors.green(`${colors.bold(BASE_URL)}`)} ➜ ${colors.dim("=".repeat(12))}`
 	);

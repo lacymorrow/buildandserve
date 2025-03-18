@@ -1,9 +1,9 @@
 "use client";
 
+import { VercelDeployButton } from "@/components/shipkit/vercel-deploy-button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { VercelDeployButton } from "@/components/ui/vercel-deploy-button";
 import { useState } from "react";
 
 export default function VercelDeployExample() {

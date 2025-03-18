@@ -2,6 +2,8 @@
 
 import { signUpSchema } from "@/lib/schemas/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 
@@ -22,6 +24,8 @@ import { signUpWithCredentialsAction } from "@/server/actions/auth";
 
 export const SignUpForm = () => {
 	const { toast } = useToast();
+	const router = useRouter();
+	const { update: updateSession } = useSession();
 	const form = useForm<z.infer<typeof signUpSchema>>({
 		resolver: zodResolver(signUpSchema),
 		defaultValues: {
@@ -33,19 +37,57 @@ export const SignUpForm = () => {
 
 	async function onSubmit(values: z.infer<typeof signUpSchema>) {
 		try {
-			const formData = new FormData();
-			for (const [key, value] of Object.entries(values)) {
-				if (value !== undefined && value !== null) {
-					formData.append(key, value.toString());
-				}
+			const result = await signUpWithCredentialsAction({
+				email: values.email,
+				password: values.password,
+				redirect: false,
+				redirectTo: routes.home,
+			});
+
+			console.log("Sign up result:", result);
+
+			// Check if the sign-up was successful
+			if (typeof result === 'string') {
+				// If result is a string, it's likely a URL to redirect to
+				toast({
+					title: "Success",
+					description: "Account created successfully.",
+				});
+				// Update the session before redirecting
+				await updateSession();
+				router.push(routes.home);
+				router.refresh(); // Refresh to update the session
+				return;
 			}
 
-			await signUpWithCredentialsAction(values, formData);
+			if (result?.error) {
+				// Handle error from result object
+				throw new Error(result.error);
+			}
 
+			if (result?.url) {
+				// Handle successful sign-up with client-side redirect
+				toast({
+					title: "Success",
+					description: "Account created successfully.",
+				});
+				// Update the session before redirecting
+				await updateSession();
+				router.push(result.url);
+				router.refresh(); // Refresh to update the session
+				return;
+			}
+
+			// If we get here, something unexpected happened but we'll try to handle it gracefully
+			console.warn("Unexpected authentication result:", result);
+			// Still try to update the session and redirect
+			await updateSession();
 			toast({
 				title: "Success",
 				description: "Account created successfully.",
 			});
+			router.push(routes.home);
+			router.refresh(); // Refresh to update the session
 		} catch (error) {
 			if (error instanceof Error) {
 				if (error.message.includes("User already exists")) {

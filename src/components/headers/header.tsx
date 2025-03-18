@@ -1,10 +1,10 @@
 "use client";
 
 import { Link } from "@/components/primitives/link-with-transition";
+import { UserMenu } from "@/components/shipkit/user-menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/ui/theme";
-import { UserMenu } from "@/components/ui/user-menu";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
 import { cn } from "@/lib/utils";

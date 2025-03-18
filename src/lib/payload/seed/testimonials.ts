@@ -39,13 +39,10 @@ export const seedTestimonials = async () => {
 					});
 					return created;
 				} catch (error) {
-					console.error(
-						`Error creating testimonial: ${testimonial.name}`,
-						error,
-					);
+					console.error(`Error creating testimonial: ${testimonial.name}`, error);
 					throw error;
 				}
-			}),
+			})
 		);
 
 		console.info(`✅ Created ${createdTestimonials.length} testimonials`);

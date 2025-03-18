@@ -18,6 +18,17 @@ import { cache } from "react";
  * @see https://next-auth.js.org/getting-started/typescript#module-augmentation
  */
 
+/**
+ * Using database session strategy with credentials provider requires special handling:
+ * 1. The credentials provider must create a user in the database
+ * 2. The user must be properly linked between Payload CMS and Shipkit
+ * 3. The session must be created in the database
+ *
+ * This is handled in:
+ * - auth.providers.ts: The credentials provider's authorize function
+ * - auth-service.ts: The validateCredentials and ensureUserSynchronized methods
+ * - auth.config.ts: The signIn callback
+ */
 const {
 	auth: nextAuthAuth,
 	handlers,
@@ -37,9 +48,18 @@ const {
 				})
 			: undefined,
 	logger: {
-		error: (code: Error, ...message: unknown[]) => logger.error(code, message),
-		warn: (code: string, ...message: unknown[]) => logger.warn(code, message),
-		debug: (code: string, ...message: unknown[]) => logger.debug(code, message),
+		error: (code: Error, ...message: unknown[]) => {
+			logger.error(code, message);
+			console.error("NextAuth Error:", code, message);
+		},
+		warn: (code: string, ...message: unknown[]) => {
+			logger.warn(code, message);
+			console.warn("NextAuth Warning:", code, message);
+		},
+		debug: (code: string, ...message: unknown[]) => {
+			logger.debug(code, message);
+			console.debug("NextAuth Debug:", code, message);
+		},
 	},
 });
 interface AuthProps {

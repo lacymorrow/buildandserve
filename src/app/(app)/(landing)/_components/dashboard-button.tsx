@@ -1,29 +1,15 @@
-"use client";
-
+import { Link } from "@/components/primitives/link-with-transition";
+import { buttonVariants } from "@/components/ui/button";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
-
-import { buttonVariants } from "@/components/ui/button";
-
-import { Link } from "@/components/primitives/link-with-transition";
 import { getOrdersByEmail } from "@/lib/lemonsqueezy";
 import { cn } from "@/lib/utils";
-import type { Order } from "@lemonsqueezy/lemonsqueezy.js";
-import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { auth } from "@/server/auth";
 
-export const DashboardButton = () => {
-	const { data: session } = useSession();
-	const [orders, setOrders] = useState<unknown[]>([]);
+export const DashboardButton = async () => {
+	const session = await auth();
 
-	useEffect(() => {
-		if (!session?.user?.email) return;
-		void getOrdersByEmail(session.user.email).then((data) => {
-			setOrders(data);
-		});
-	}, [session]);
-
-	if (!session) {
+	if (!session?.user) {
 		return (
 			<Link
 				href={routes.auth.signIn}
@@ -33,6 +19,8 @@ export const DashboardButton = () => {
 			</Link>
 		);
 	}
+
+	const orders = session.user.email ? await getOrdersByEmail(session.user.email) : [];
 
 	if (orders.length === 0) {
 		return (

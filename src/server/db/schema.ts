@@ -48,6 +48,7 @@ export const payments = createTable("payment", {
 	orderId: varchar("order_id", { length: 255 }),
 	amount: integer("amount"),
 	status: varchar("status", { length: 255 }).notNull(),
+	processor: varchar("processor", { length: 50 }),
 	metadata: text("metadata").default("{}"),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)

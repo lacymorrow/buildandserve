@@ -1,6 +1,6 @@
+import { GitHubConnectButton } from "@/components/buttons/github-connect-button";
 import { VercelDeployButton } from "@/components/buttons/vercel-deploy-button";
 import { Button } from "@/components/ui/button";
-import { GitHubConnectButton } from "@/components/ui/github-connect-button";
 import { BASE_URL } from "@/config/base-url";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";

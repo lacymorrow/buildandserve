@@ -20,8 +20,8 @@ import { StrikethroughFeatureClient as StrikethroughFeatureClient_e70f5e05f09f93
 import { UnderlineFeatureClient as UnderlineFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
-import { default as default_0ee5949d9899ab9534d74505b4ac7c16 } from 'src/lib/payload/components/payload-icon'
-import { default as default_329722cde64353467c2ed984abd6e719 } from 'src/lib/payload/components/payload-logo'
+import { default as default_0ee5949d9899ab9534d74505b4ac7c16 } from '../../../lib/payload/components/payload-icon'
+import { default as default_329722cde64353467c2ed984abd6e719 } from '../../../lib/payload/components/payload-logo'
 
 export const importMap = {
   "@payloadcms/richtext-lexical/rsc#RscEntryLexicalCell": RscEntryLexicalCell_44fe37237e0ebf4470c9990d8cb7b07e,

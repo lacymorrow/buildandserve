@@ -67,6 +67,10 @@ export const env = createEnv({
 		LEMONSQUEEZY_STORE_ID: z.string().optional(),
 		LEMONSQUEEZY_WEBHOOK_SECRET: z.string().optional(),
 
+		// Polar
+		POLAR_ACCESS_TOKEN: z.string().optional(),
+		POLAR_PLATFORM_URL: z.string().optional(),
+
 		// Storage
 		AWS_REGION: z.string().optional(),
 		AWS_ACCESS_KEY_ID: z.string().optional(),
@@ -145,6 +149,10 @@ export const env = createEnv({
 		LEMONSQUEEZY_API_KEY: process.env.LEMONSQUEEZY_API_KEY,
 		LEMONSQUEEZY_STORE_ID: process.env.LEMONSQUEEZY_STORE_ID,
 		LEMONSQUEEZY_WEBHOOK_SECRET: process.env.LEMONSQUEEZY_WEBHOOK_SECRET,
+
+		// Polar
+		POLAR_ACCESS_TOKEN: process.env.POLAR_ACCESS_TOKEN,
+		POLAR_PLATFORM_URL: process.env.POLAR_PLATFORM_URL,
 
 		// Storage
 		AWS_REGION: process.env.AWS_REGION,

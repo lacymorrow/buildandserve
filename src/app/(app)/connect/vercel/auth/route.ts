@@ -135,6 +135,21 @@ export async function GET(request: Request) {
 
 		console.log("Account data stored in database for user:", session.user.id);
 
+		// Try to update the session directly - this won't always work in a server route
+		// but can help in some cases by signaling the auth system that accounts have changed
+		try {
+			const { update } = await import("@/server/auth");
+			await update({
+				user: {
+					accounts: [{ provider: "vercel", providerAccountId: vercelUserId }],
+				},
+			});
+			console.log("Auth session updated with Vercel account");
+		} catch (error) {
+			console.warn("Could not update session directly:", error);
+			// This is non-fatal, the UI will handle updating via updateSession
+		}
+
 		// Redirect back to the account settings page with success message
 		return NextResponse.redirect(
 			new URL("/settings/account?success=vercel_connected", request.url)

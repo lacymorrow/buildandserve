@@ -18,6 +18,9 @@ DATABASE_URL=your_postgres_database_url
 
 # Optional - Disable Payload in development
 DISABLE_PAYLOAD=true
+
+# Optional - Control automatic data seeding
+PAYLOAD_AUTO_SEED=false
 ```
 
 ### Generate a Secure Secret
@@ -42,6 +45,38 @@ Payload CMS in ShipKit is configured with the following collections:
 4. Create a new page with a unique slug
 5. Add content blocks to build your page
 6. Publish the page when ready
+
+## Automatic Data Seeding
+
+ShipKit is configured to automatically seed Payload CMS with initial data when it initializes. This happens only if the collections are empty, ensuring that your existing data is never overwritten.
+
+The seeding process includes:
+- RBAC (Roles and Permissions)
+- Features
+- FAQs
+- Testimonials
+
+### Controlling Automatic Seeding
+
+You can control the automatic seeding behavior with the `PAYLOAD_AUTO_SEED` environment variable:
+
+```env
+# Disable automatic seeding
+PAYLOAD_AUTO_SEED=false
+```
+
+By default, automatic seeding is enabled. Set this to `false` if you want to manually control when seeding occurs, such as in production environments.
+
+### Manual Seeding
+
+You can also manually trigger seeding through the admin interface or by using the server action:
+
+```typescript
+import { seedCMSAction } from "@/app/(app)/(admin)/admin/cms/actions";
+
+// Seed the CMS with initial data
+await seedCMSAction(process.env.PAYLOAD_SECRET);
+```
 
 ## Accessing Content
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { GitHubConnectButton } from "@/components/buttons/github-connect-button";
+import { VercelConnectButton } from "@/components/shipkit/vercel-connect-button";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -21,7 +23,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { VercelConnectButton } from "@/components/ui/vercel-connect-button";
+import { routes } from "@/config/routes";
 import { deleteAccount, disconnectAccount } from "@/server/actions/settings";
 import { signOut, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -36,6 +38,25 @@ export default function AccountPage() {
 	const [isDisconnecting, setIsDisconnecting] = React.useState(false);
 	const searchParams = useSearchParams();
 	const router = useRouter();
+
+	const connectedAccounts = [
+		{
+			name: "GitHub",
+			connected: !!session?.user?.githubUsername,
+			username: session?.user?.githubUsername,
+		},
+		{
+			name: "GitLab",
+			connected: false,
+			username: null,
+		},
+		{
+			name: "Bitbucket",
+			connected: false,
+			username: null,
+		},
+		// Add more providers here as they become available
+	];
 
 	// Use state to track if we've already processed the URL parameters
 	// This ensures the state persists across re-renders
@@ -57,7 +78,8 @@ export default function AccountPage() {
 
 		if (success === "vercel_connected") {
 			toast.success("Successfully connected to Vercel");
-			updateSession();
+			// Force a full session update to ensure the UI reflects the Vercel connection
+			updateSession({ force: true });
 		}
 
 		if (error) {
@@ -88,7 +110,7 @@ export default function AccountPage() {
 		}
 
 		// Remove the parameters from the URL to prevent re-processing
-		router.replace("/settings/account");
+		router.replace(routes.settings.account);
 
 		// Mark that we've processed the URL parameters
 		setHasProcessedParams(true);
@@ -109,7 +131,7 @@ export default function AccountPage() {
 				toast.success(result.message);
 
 				// Sign out and redirect to home page
-				await signOut({ callbackUrl: "/" });
+				await signOut({ callbackUrl: routes.home });
 			} catch (error) {
 				console.error("Delete account error:", error);
 				toast.error("An unexpected error occurred");
@@ -133,8 +155,8 @@ export default function AccountPage() {
 
 			toast.success(result.message);
 
-			// Update the session to reflect the change
-			await updateSession();
+			// Force a full session update to ensure the UI reflects the change
+			await updateSession({ force: true });
 		} catch (error) {
 			console.error("Disconnect Vercel error:", error);
 			toast.error("An unexpected error occurred");
@@ -150,6 +172,17 @@ export default function AccountPage() {
 				<p className="text-sm text-muted-foreground">
 					Manage your account settings.
 				</p>
+				{/* Debug button for manual session refresh */}
+				<div className="mt-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => updateSession({ force: true })}
+						className="text-xs"
+					>
+						Refresh Session Data
+					</Button>
+				</div>
 			</div>
 			<Separator />
 
@@ -162,11 +195,35 @@ export default function AccountPage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<p className="">
-						{hasVercelConnection
-							? "Your Vercel account is connected. You can now deploy projects directly to Vercel."
-							: "Connect your Vercel account to deploy projects directly from Shipkit."}
-					</p>
+					<div className="space-y-2">
+						<p>
+							{hasVercelConnection
+								? "Your Vercel account is connected. You can now deploy projects directly to Vercel."
+								: "Connect your Vercel account to deploy projects directly from Shipkit."}
+						</p>
+						{hasVercelConnection && (
+							<div className="flex items-center space-x-2 text-sm text-green-600 dark:text-green-500">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									strokeWidth="2"
+									strokeLinecap="round"
+									strokeLinejoin="round"
+								>
+									<path d="M20 6 9 17l-5-5" />
+								</svg>
+								<span>
+									Connected to Vercel
+									{session?.user?.accounts?.find(a => a.provider === "vercel")?.providerAccountId &&
+										` (${session.user.accounts.find(a => a.provider === "vercel")?.providerAccountId.substring(0, 8)}...)`}
+								</span>
+							</div>
+						)}
+					</div>
 				</CardContent>
 				<CardFooter>
 					{hasVercelConnection ? (
@@ -181,6 +238,60 @@ export default function AccountPage() {
 						<VercelConnectButton />
 					)}
 				</CardFooter>
+			</Card>
+
+
+			<Card>
+				<CardHeader>
+					<CardTitle>GitHub Connection</CardTitle>
+					<CardDescription>
+						Connect your GitHub account to access the repository.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<GitHubConnectButton />
+				</CardContent>
+			</Card>
+
+			{/* Connected Accounts */}
+			<Card>
+				<CardHeader>
+					<CardTitle>Connected Accounts</CardTitle>
+					<CardDescription>
+						Manage your connected accounts and authentication methods.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					{connectedAccounts.map((account) => (
+						<div
+							key={account.name}
+							className="flex items-center justify-between space-x-4"
+						>
+							<div className="flex flex-col space-y-1">
+								<span className="font-medium">{account.name}</span>
+								{account.connected ? (
+									<span className="text-sm text-muted-foreground">
+										Connected as {account.username}
+									</span>
+								) : (
+									<span className="text-sm text-muted-foreground">
+										Not connected
+									</span>
+								)}
+							</div>
+							<Button
+								variant={account.connected ? "outline" : "default"}
+								onClick={() =>
+									toast.info(
+										`${account.name} connection management will be available in a future update`,
+									)
+								}
+							>
+								{account.connected ? "Disconnect" : "Connect"}
+							</Button>
+						</div>
+					))}
+				</CardContent>
 			</Card>
 
 			{/* Delete Account */}

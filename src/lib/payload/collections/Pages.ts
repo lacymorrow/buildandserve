@@ -1,6 +1,6 @@
 import type { CollectionConfig } from "payload";
-import { blocks } from "../../../app/(payload)/blocks/index";
 import { BASE_URL } from "../../../config/base-url";
+import { blocks } from "../blocks/index";
 
 /*
  * Pages Collection

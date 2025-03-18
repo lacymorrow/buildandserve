@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader } from "@/components/primitives/loader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -12,7 +13,6 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Loading } from "@/components/ui/loading";
 import {
 	Table,
 	TableBody,
@@ -275,7 +275,7 @@ export function EnhancedLogDatatable() {
 			</div>
 			<div className="relative min-h-[500px] rounded-lg bg-gray-50 p-4">
 				{isLoading ? (
-					<Loading />
+					<Loader />
 				) : (
 					<div>
 						<div className="flex items-center py-4">

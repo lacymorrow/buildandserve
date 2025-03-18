@@ -21,6 +21,8 @@ import { Pages } from "./lib/payload/collections/Pages";
 import { RBAC } from "./lib/payload/collections/RBAC";
 import { Testimonials } from "./lib/payload/collections/Testimonials";
 import { Users } from "./lib/payload/collections/Users";
+// Import globals
+import { Settings } from "./lib/payload/globals/Settings";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -66,6 +68,7 @@ export default buildConfig({
 		},
 	},
 	collections: [Users, Media, Features, FAQs, Testimonials, RBAC, Pages],
+	globals: [Settings],
 	editor: lexicalEditor(),
 	typescript: {
 		outputFile: path.resolve(dirname, "payload-types.ts"),
@@ -146,6 +149,43 @@ export default buildConfig({
 		migrationDir: path.resolve(dirname, "migrations"),
 	}),
 	sharp,
+	// Add onInit hook to seed data when Payload initializes
+	async onInit(payload) {
+		console.info("⏭️  Payload CMS initialized");
+		try {
+			// Skip seeding if PAYLOAD_AUTO_SEED is explicitly set to "false"
+			if (process.env.PAYLOAD_AUTO_SEED === "false") {
+				console.info("⏭️ Automatic Payload CMS seeding is disabled");
+				return;
+			}
+
+			// Check if we should seed by looking for a marker in the database
+			// We'll use the RBAC collection as a marker since it's always seeded first
+			const shouldSeed = await checkIfSeedingNeeded(payload);
+
+			// If force seeding is enabled, override the check
+			if (process.env.PAYLOAD_SEED_FORCE === "true") {
+				console.info("🔄 Force seeding is enabled, proceeding with seed");
+			}
+
+			// Only seed if needed or forced
+			if (shouldSeed || process.env.PAYLOAD_SEED_FORCE === "true") {
+				console.info("🌱 Seeding Payload CMS with initial data...");
+
+				// Import the seedAllDirect function from seed-utils
+				// This avoids circular dependencies by not importing from files that import payload
+				const { seedAllDirect } = await import("./lib/payload/seed-utils");
+				await seedAllDirect(payload);
+
+				// Mark seeding as completed by setting a flag in the database
+				await markSeedingCompleted(payload);
+
+				console.info("✅ Seeding completed and flag set");
+			}
+		} catch (error) {
+			console.error("❌ Error in Payload CMS onInit hook:", error);
+		}
+	},
 	plugins: [
 		payloadCloudPlugin(),
 
@@ -197,3 +237,50 @@ export default buildConfig({
 			}
 		: {}),
 });
+
+/**
+ * Check if seeding is needed by looking for a marker in the database
+ * We'll use the RBAC collection as a marker since it's always seeded first
+ */
+async function checkIfSeedingNeeded(payload: any): Promise<boolean> {
+	try {
+		// Check if the RBAC collection has any data
+		const rbacResult = await payload.find({
+			collection: "rbac",
+			limit: 1,
+		});
+
+		// If we have RBAC data, no need to seed
+		if (rbacResult?.docs?.length > 0) {
+			return false;
+		}
+
+		// No data exists, seeding is needed
+		return true;
+	} catch (error) {
+		console.error("Error checking if seeding is needed:", error);
+		// If there's an error, assume seeding is needed
+		return true;
+	}
+}
+
+/**
+ * Mark seeding as completed by setting a flag in the database
+ */
+async function markSeedingCompleted(payload: any): Promise<void> {
+	try {
+		// Create a new RBAC entry to mark seeding as completed
+		await payload.create({
+			collection: "rbac",
+			data: {
+				name: "seed-marker",
+				type: "permission",
+				description: "Marker to indicate seeding has been completed",
+				resource: "settings",
+				action: "read",
+			},
+		});
+	} catch (error) {
+		console.error("Error marking seeding as completed:", error);
+	}
+}

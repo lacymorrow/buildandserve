@@ -139,6 +139,15 @@ const tools: Tool[] = [
 		keywords: ["form", "shadcn", "ui", "library", "component"],
 	},
 	{
+		title: "Indie Form Builder",
+		description: "A visual form builder for creating forms with Shadcn UI components.",
+		icon: LayoutTemplate,
+		href: "https://ui.indie-starter.dev/form-builder",
+		isExternal: true,
+		category: "Generators",
+		keywords: ["form", "builder", "shadcn", "ui", "visual", "generator", "indie"],
+	},
+	{
 		title: "CSS Easing",
 		description: "Visual easing function generator for animations",
 		icon: LineChart,
@@ -161,6 +170,30 @@ const tools: Tool[] = [
 			"keyframes",
 			"smooth",
 			"interpolation",
+		],
+	},
+	{
+		title: "CSS Springs",
+		description: "Generate spring easing for CSS animations with real-world physics",
+		icon: LineChart,
+		href: "https://www.kvin.me/css-springs",
+		isExternal: true,
+		category: "Design",
+		keywords: [
+			"animation",
+			"transition",
+			"spring",
+			"physics",
+			"css",
+			"motion",
+			"easing",
+			"bounce",
+			"damping",
+			"stiffness",
+			"oscillation",
+			"animation-timing",
+			"smooth",
+			"natural",
 		],
 	},
 	{
@@ -326,6 +359,9 @@ export const ToolsSection = () => {
 
 	// Filter tools based on search query, category, and starred status
 	const filteredTools = tools.filter((tool) => {
+		// If the tool doesn't have a href, don't show it
+		if (!tool?.href) return false;
+
 		const searchTerms = searchQuery.toLowerCase().split(" ");
 		const matchesSearch = searchTerms.every(term =>
 			tool.title.toLowerCase().includes(term) ||

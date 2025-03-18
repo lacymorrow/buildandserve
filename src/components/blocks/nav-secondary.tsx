@@ -2,8 +2,8 @@
 
 import { Link } from "@/components/primitives/link-with-transition";
 
+import { FeedbackDialog } from "@/components/shipkit/feedback-dialog";
 import { Button } from "@/components/ui/button";
-import { FeedbackDialog } from "@/components/ui/feedback-dialog";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { routes } from "@/config/routes";
@@ -14,24 +14,24 @@ const data = [
 	{
 		title: "Documentation",
 		Icon: LifeBuoy,
-		url: routes.docs,
+		href: routes.docs,
 	},
 	{
 		title: "Feedback",
 		Icon: Send,
-		url: "#feedback",
+		href: "#feedback",
 		component: FeedbackDialog,
 	},
 	{
 		title: "Settings",
 		Icon: Settings2,
-		url: routes.app.settings,
+		href: routes.settings.index,
 	},
 ];
 
 interface NavSecondaryItem {
 	title: string;
-	url: string;
+	href: string;
 	Icon: LucideIcon;
 	component?: React.ComponentType<{ trigger?: React.ReactNode }>;
 }
@@ -98,7 +98,7 @@ export function NavSecondary({ items, className }: NavSecondaryProps) {
 				return (
 					<NavItemWrapper key={item.title} title={item.title} open={open}>
 						<Button {...buttonProps} asChild>
-							<Link href={item.url}>
+							<Link href={item?.href ?? "#"}>
 								<Icon className="h-4 w-4 shrink-0" />
 								{open && (
 									<span className="ml-2 transition-all duration-200 group-data-[collapsible=icon]:opacity-0">

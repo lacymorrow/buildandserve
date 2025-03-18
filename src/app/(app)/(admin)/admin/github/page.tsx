@@ -1,13 +1,13 @@
-import { Suspense } from "react";
 import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/primitives/page-header";
 import { DataTable } from "@/components/ui/data-table/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { db } from "@/server/db";
-import { users } from "@/server/db/schema";
 import { getCollaboratorDetails } from "@/server/services/github/github-service";
-import { columns } from "./_components/columns";
-import type { GitHubUserData } from "./_components/columns";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import { columns } from "./_components/columns";
+import RepoInfo, { RepoInfoSkeleton } from "./_components/repo-info";
+import RepoMetrics, { RepoMetricsSkeleton } from "./_components/repo-metrics";
 
 function GitHubUsersTableSkeleton() {
 	return (
@@ -61,11 +61,35 @@ export default function GitHubUsersPage() {
 	return (
 		<div className="container mx-auto py-10">
 			<PageHeader>
-				<PageHeaderHeading>GitHub Users</PageHeaderHeading>
+				<PageHeaderHeading>GitHub Integration</PageHeaderHeading>
 				<PageHeaderDescription>
-					View and manage users with GitHub repository access.
+					Manage GitHub repository access and view connected users.
 				</PageHeaderDescription>
 			</PageHeader>
+
+			{/* Repository Information Card */}
+			<div className="mb-8">
+				<Suspense fallback={<RepoInfoSkeleton />}>
+					<RepoInfo />
+				</Suspense>
+			</div>
+
+			{/* Repository Metrics */}
+			<div className="mb-10">
+				<h2 className="text-xl font-semibold tracking-tight mb-4">Repository Metrics</h2>
+				<Suspense fallback={<RepoMetricsSkeleton />}>
+					<RepoMetrics />
+				</Suspense>
+			</div>
+
+			{/* GitHub Users Section */}
+			<div className="mb-6">
+				<h2 className="text-xl font-semibold tracking-tight">Repository Collaborators</h2>
+				<p className="text-sm text-muted-foreground">
+					Users with access to the GitHub repository.
+				</p>
+			</div>
+
 			<Suspense fallback={<GitHubUsersTableSkeleton />}>
 				<GitHubUsersTableContent />
 			</Suspense>

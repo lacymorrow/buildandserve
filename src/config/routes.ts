@@ -48,6 +48,7 @@ export const routes = {
 	cms: {
 		index: "/cms",
 		signIn: "/cms/sign-in",
+		api: "/cms-api",
 	},
 
 	// Auth routes
@@ -69,7 +70,6 @@ export const routes = {
 		logs: "/logs",
 		network: "/network",
 		live: "/live",
-		settings: "/settings",
 		tools: "/tools",
 		downloads: "/downloads",
 		admin: "/admin",
@@ -90,6 +90,28 @@ export const routes = {
 		payments: "/admin/payments",
 	},
 
+	settings: {
+		index: "/settings",
+		account: "/settings/account",
+		profile: "/settings/profile",
+		appearance: "/settings/appearance",
+		security: "/settings/security",
+	},
+
+	// API routes
+	api: {
+		download: "/api/download",
+		apiKeys: "/api/api-keys",
+		apiKey: createRoute("/api/api-keys/:key", { key: null }),
+		live: "/api/live-logs",
+		sse: "/api/sse-logs",
+		sendTestLog: "/api/send-test-log",
+		activityStream: "/api/activity/stream",
+		logger: "/v1",
+		githubConnect: "/api/github/connect",
+		githubDisconnect: "/api/github/disconnect",
+	},
+
 	// Example routes
 	examples: {
 		index: "/examples",
@@ -100,6 +122,16 @@ export const routes = {
 		profile: "/examples/forms/profile",
 		vercelDeploy: "/examples/vercel-deploy",
 	},
+
+	// Pages Router demo routes
+	pages: {
+		index: "/pages",
+		static: "/pages/static",
+		dynamic: "/pages/dynamic",
+		apiExample: "/pages/api-example",
+		markdown: "/pages/markdown",
+	},
+
 	ai: {
 		index: "/ai",
 		codeCompletion: "/ai/code-completion",
@@ -137,20 +169,6 @@ export const routes = {
 		deepseekWeb: "/ai/deepseek-web",
 	},
 
-	// API routes
-	api: {
-		download: "/api/download",
-		apiKeys: "/api/api-keys",
-		apiKey: createRoute("/api/api-keys/:key", { key: null }),
-		live: "/api/live-logs",
-		sse: "/api/sse-logs",
-		sendTestLog: "/api/send-test-log",
-		activityStream: "/api/activity/stream",
-		logger: "/v1",
-		githubConnect: "/api/github/connect",
-		githubDisconnect: "/api/github/disconnect",
-	},
-
 	// Worker routes
 	workers: {
 		logger: "/workers/workers/logger-worker.js",
@@ -166,15 +184,6 @@ export const routes = {
 
 		// TRPC example from T3.gg
 		trpc: "/trpc",
-	},
-
-	// Pages Router demo routes
-	pages: {
-		index: "/pages",
-		static: "/pages/static",
-		dynamic: "/pages/dynamic",
-		apiExample: "/pages/api-example",
-		markdown: "/pages/markdown",
 	},
 
 	// External links

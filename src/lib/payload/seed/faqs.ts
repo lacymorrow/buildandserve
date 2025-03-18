@@ -1,4 +1,4 @@
-import { content } from "@/content/faq/faq-content";
+import { content } from "@/content/faq/faq-content.tsx";
 import type { Faq } from "@/payload-types";
 import { payload } from "../payload";
 
@@ -56,7 +56,7 @@ export const seedFAQs = async () => {
 					console.error(`Error creating FAQ: ${faq.question}`, error);
 					throw error;
 				}
-			}),
+			})
 		);
 
 		console.info(`✅ Created ${createdFAQs.length} FAQs`);

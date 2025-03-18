@@ -42,12 +42,13 @@ import { z } from "zod";
 const projectDialogVariants = cva("", {
 	variants: {
 		variant: {
-			default: "",
-			withTeamCreation: "",
+			create: "",
+			createWithTeam: "",
+			edit: "",
 		},
 	},
 	defaultVariants: {
-		variant: "default",
+		variant: "create",
 	},
 });
 
@@ -76,27 +77,23 @@ interface ProjectDialogProps extends VariantProps<typeof projectDialogVariants> 
 	userId: string;
 	children?: React.ReactNode;
 	className?: string;
-	mode?: "create" | "edit";
 	project?: Project;
 }
 
 /**
- * Unified project dialog component that can be used for both creating and editing projects,
- * with an optional ability to create a new team.
+ * Unified project dialog component that can be used for both creating and editing projects.
  *
- * @param variant - "default" for basic project creation, "withTeamCreation" to enable team creation
+ * @param variant - "create" for basic project creation, "createWithTeam" to enable team creation, or "edit" for editing projects
  * @param userId - The ID of the current user
  * @param children - Optional trigger element
  * @param className - Optional additional classes
- * @param mode - "create" (default) or "edit" mode
- * @param project - The project to edit (required when mode is "edit")
+ * @param project - The project to edit (required when variant is "edit")
  */
 export function ProjectDialog({
-	variant = "default",
+	variant = "create",
 	userId,
 	children,
 	className,
-	mode = "create",
 	project,
 }: ProjectDialogProps) {
 	const { toast } = useToast();
@@ -107,15 +104,18 @@ export function ProjectDialog({
 	const [defaultTeamId, setDefaultTeamId] = useState<string>("");
 	const { selectedTeamId } = useTeam();
 
-	// Team creation specific state (only used when variant is "withTeamCreation")
+	// Team creation specific state (only used when variant is "createWithTeam")
 	const [showNewTeamInput, setShowNewTeamInput] = useState(false);
 	const [newTeamName, setNewTeamName] = useState("");
+
+	const isEditMode = variant === "edit";
+	const canCreateTeam = variant === "createWithTeam";
 
 	const form = useForm<z.infer<typeof formSchema>>({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
-			name: mode === "edit" && project ? project.name : "",
-			teamId: mode === "edit" && project?.teamId
+			name: isEditMode && project ? project.name : "",
+			teamId: isEditMode && project?.teamId
 				? project.teamId
 				: selectedTeamId || defaultTeamId || "",
 		},
@@ -123,13 +123,13 @@ export function ProjectDialog({
 
 	// Update form values when project changes in edit mode
 	useEffect(() => {
-		if (mode === "edit" && project) {
+		if (isEditMode && project) {
 			form.setValue("name", project.name);
 			if (project.teamId) {
 				form.setValue("teamId", project.teamId);
 			}
 		}
-	}, [form, mode, project]);
+	}, [form, isEditMode, project]);
 
 	// Load teams when dialog opens
 	useEffect(() => {
@@ -144,7 +144,7 @@ export function ProjectDialog({
 					setDefaultTeamId(firstTeamId);
 
 					// Set form value if not already set and in create mode
-					if (mode === "create" && !form.getValues("teamId")) {
+					if (!isEditMode && !form.getValues("teamId")) {
 						// Prioritize selectedTeamId from context if available
 						form.setValue("teamId", selectedTeamId || firstTeamId);
 					}
@@ -162,9 +162,9 @@ export function ProjectDialog({
 		if (isOpen) {
 			loadTeams();
 		}
-	}, [isOpen, userId, selectedTeamId, form, toast, mode]);
+	}, [isOpen, userId, selectedTeamId, form, toast, isEditMode]);
 
-	// Handle team creation (only for withTeamCreation variant)
+	// Handle team creation (only for createWithTeam variant)
 	const handleCreateTeam = async () => {
 		if (!newTeamName) return;
 		setIsLoading(true);
@@ -198,13 +198,13 @@ export function ProjectDialog({
 	const onSubmit = async (values: z.infer<typeof formSchema>) => {
 		setIsLoading(true);
 		try {
-			if (mode === "create") {
+			if (!isEditMode) {
 				await createProject(values.name, values.teamId, userId);
 				toast({
 					title: "Success",
 					description: `Project "${values.name}" has been created.`,
 				});
-			} else if (mode === "edit" && project) {
+			} else if (project) {
 				await updateProject(project.id, values.name);
 				toast({
 					title: "Success",
@@ -215,10 +215,10 @@ export function ProjectDialog({
 			form.reset();
 			router.refresh();
 		} catch (error) {
-			console.error(`Failed to ${mode} project:`, error);
+			console.error(`Failed to ${isEditMode ? "update" : "create"} project:`, error);
 			toast({
 				title: "Error",
-				description: `Failed to ${mode} project. Please try again.`,
+				description: `Failed to ${isEditMode ? "update" : "create"} project. Please try again.`,
 				variant: "destructive",
 			});
 		} finally {
@@ -226,14 +226,14 @@ export function ProjectDialog({
 		}
 	};
 
-	// Determine dialog title and button text based on mode
-	const dialogTitle = mode === "create" ? "Create Project" : "Edit Project";
-	const dialogDescription = mode === "create"
-		? "Create a new project to organize your work."
-		: "Update your project details.";
+	// Determine dialog title and button text based on variant
+	const dialogTitle = isEditMode ? "Edit Project" : "Create Project";
+	const dialogDescription = isEditMode
+		? "Update your project details."
+		: "Create a new project to organize your work.";
 	const submitButtonText = isLoading
-		? (mode === "create" ? "Creating..." : "Updating...")
-		: (mode === "create" ? "Create Project" : "Update Project");
+		? (isEditMode ? "Updating..." : "Creating...")
+		: (isEditMode ? "Update Project" : "Create Project");
 
 	return (
 		<Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -243,7 +243,7 @@ export function ProjectDialog({
 				) : (
 					<Button>
 						<Plus className="mr-2 h-4 w-4" />
-						{mode === "create" ? "Create Project" : "Edit Project"}
+						{isEditMode ? "Edit Project" : "Create Project"}
 					</Button>
 				)}
 			</DialogTrigger>
@@ -275,8 +275,8 @@ export function ProjectDialog({
 						/>
 
 						{/* Only show team selection in create mode */}
-						{mode === "create" && (
-							variant === "withTeamCreation" && showNewTeamInput ? (
+						{!isEditMode && (
+							canCreateTeam && showNewTeamInput ? (
 								<div className="space-y-2">
 									<FormLabel>New Team Name</FormLabel>
 									<div className="flex gap-2">
@@ -318,7 +318,7 @@ export function ProjectDialog({
 													</SelectTrigger>
 												</FormControl>
 												<SelectContent>
-													{variant === "withTeamCreation" && (
+													{canCreateTeam && (
 														<Button
 															type="button"
 															variant="ghost"

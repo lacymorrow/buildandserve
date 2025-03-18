@@ -1,6 +1,6 @@
 "use client";
 
-import { Loading } from "@/components/ui/loading";
+import { Loader } from "@/components/primitives/loader";
 import {
 	Table,
 	TableBody,
@@ -19,7 +19,6 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle, Info } from "lucide-react";
 import { useEffect, useState } from "react";
-import { routes } from "@/config/routes";
 
 type LogLevel = "info" | "warning" | "error" | "success";
 
@@ -125,7 +124,7 @@ export function AppLoggingDashboardComponent({
 			</div>
 			<div className="relative min-h-[500px] rounded-lg bg-gray-50 p-4">
 				{isLoading ? (
-					<Loading />
+					<Loader />
 				) : (
 					<div className="rounded-md border">
 						<Table>

@@ -28,9 +28,7 @@ export async function GET(request: NextRequest) {
 
 	if (email && orderId) {
 		const orders = await getOrdersByEmail(email as string);
-		const order = orders?.find(
-			(order) => order.attributes.identifier === orderId,
-		);
+		const order = orders?.find((order) => order.attributes.identifier === orderId);
 
 		if (!order) {
 			logger.warn("Invalid order");
@@ -80,8 +78,6 @@ export async function GET(request: NextRequest) {
 			userId: session?.user?.id,
 		});
 
-		return NextResponse.redirect(
-			new URL(`${routes.docs}?error=download-failed`, siteConfig.url),
-		);
+		return NextResponse.redirect(new URL(`${routes.docs}?error=download-failed`, siteConfig.url));
 	}
 }

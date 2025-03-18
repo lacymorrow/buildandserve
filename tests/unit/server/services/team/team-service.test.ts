@@ -1,8 +1,8 @@
-import { db, isDatabaseInitialized } from "@/server/db";
+import { db } from "@/server/db";
 import { teamMembers, teams, users } from "@/server/db/schema";
 import { TeamService } from "@/server/services/team-service";
 import { eq } from "drizzle-orm";
-import { afterEach, beforeAll, afterAll, describe, expect, test, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, test } from "vitest";
 
 const TEST_USER = {
 	id: "test-user-id",
@@ -11,16 +11,9 @@ const TEST_USER = {
 	createdAt: new Date("2025-02-16T00:14:11.560Z"),
 };
 
-let hasDatabase = false;
-
-// Check database availability before running tests
-beforeAll(async () => {
-	hasDatabase = await isDatabaseInitialized();
-});
-
 // Skip all tests if database is not available
 const testSuite = () => {
-	if (!hasDatabase) {
+	if (!db) {
 		return describe.skip("Team Service (skipped - database not available)", () => {
 			it("dummy test", () => {});
 		});
@@ -103,7 +96,7 @@ const testSuite = () => {
 
 				// Act & Assert
 				await expect(teamService.deleteTeam(personalTeam!.id)).rejects.toThrow(
-					"Cannot delete personal team",
+					"Cannot delete personal team"
 				);
 
 				// Verify team still exists
@@ -115,9 +108,7 @@ const testSuite = () => {
 
 			test("should throw error when team not found", async () => {
 				// Act & Assert
-				await expect(teamService.deleteTeam("non-existent-id")).rejects.toThrow(
-					"Team not found",
-				);
+				await expect(teamService.deleteTeam("non-existent-id")).rejects.toThrow("Team not found");
 			});
 		});
 

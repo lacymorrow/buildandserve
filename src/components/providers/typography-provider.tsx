@@ -7,6 +7,7 @@ interface TypographyProviderProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export function TypographyProvider({ children, className, unstyled, ...props }: TypographyProviderProps) {
+	// For some reason the body font class in the pages router doesn't get the font, so we need to wrap the children in a font provider
 	return (
 		<FontProvider
 			className={cn(

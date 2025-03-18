@@ -43,7 +43,8 @@ const nebulaClouds = Array.from({ length: 5 }, (_, index) => ({
 	][index % 5], // Use index instead of random to ensure consistency
 }));
 
-export const runtime = 'edge'; // Use edge runtime for better performance
+// Set to 'nodejs' runtime for better compatibility with bots
+export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
 	try {
@@ -58,6 +59,10 @@ export async function GET(req: NextRequest) {
 
 		const isDark = mode === "dark";
 		const bgColor = isDark ? "#000000" : "#ffffff";
+
+		// Log the request for debugging
+		console.log(`Generating OG image: ${cacheKey}`);
+		console.log(`User-Agent: ${req.headers.get('user-agent')}`);
 
 		const response = new ImageResponse(
 			<div
@@ -266,7 +271,7 @@ export async function GET(req: NextRequest) {
 									? "linear-gradient(to right, #fff, #94A3B8)"
 									: "linear-gradient(to right, #000, #1E293B)",
 								backgroundClip: "text",
-								color: "transparent",
+								color: isDark ? "#ffffff" : "#000000", // Fallback color for bots that don't support backgroundClip
 								textShadow: isDark
 									? "0 2px 20px rgba(255, 255, 255, 0.2)"
 									: "0 2px 20px rgba(0, 0, 0, 0.1)",
@@ -314,29 +319,46 @@ export async function GET(req: NextRequest) {
 			{
 				width: 1200,
 				height: 630,
-				// fonts: [
-				// 	{
-				// 		name: "Inter",
-				// 		data: interRegularData,
-				// 		weight: 400,
-				// 		style: "normal",
-				// 	},
-				// 	{
-				// 		name: "Inter",
-				// 		data: interBoldData,
-				// 		weight: 700,
-				// 		style: "normal",
-				// 	},
-				// ],
+				// Simplified styling for better bot compatibility
+				debug: false,
 			}
 		);
 
-		// Add caching headers
+		// Add proper headers
+		response.headers.set('Content-Type', 'image/png');
 		response.headers.set('Cache-Control', 'public, immutable, no-transform, max-age=31536000');
 
 		return response;
 	} catch (e) {
-		console.error(e);
-		return new Response("Failed to generate image", { status: 500 });
+		console.error('OG Image Generation Error:', e);
+
+		// Return a simple fallback image with error details
+		return new ImageResponse(
+			<div
+				style={{
+					height: "100%",
+					width: "100%",
+					display: "flex",
+					flexDirection: "column",
+					alignItems: "center",
+					justifyContent: "center",
+					backgroundColor: "#000000",
+					color: "#ffffff",
+					padding: "40px",
+				}}
+			>
+				<h1 style={{ fontSize: 60, marginBottom: 20 }}>Shipkit</h1>
+				<p style={{ fontSize: 30 }}>Image generation failed</p>
+			</div>,
+			{
+				width: 1200,
+				height: 630,
+				status: 500,
+				headers: {
+					'Content-Type': 'image/png',
+					'Cache-Control': 'no-cache, no-store',
+				},
+			}
+		);
 	}
 }

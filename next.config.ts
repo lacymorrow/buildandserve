@@ -97,9 +97,9 @@ let nextConfig: NextConfig = {
 	/*
 	 * Miscellaneous configuration
 	 */
-	// devIndicators: {
-	// buildActivityPosition: "bottom-right" as const,
-	// },
+	devIndicators: {
+		position: "bottom-right" as const,
+	},
 
 	/*
 	 * Logging configuration

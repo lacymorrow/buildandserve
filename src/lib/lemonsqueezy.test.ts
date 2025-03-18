@@ -4,7 +4,7 @@ import { users } from "@/server/db/schema";
 import type { LemonSqueezyOrderAttributes } from "@/types/lemonsqueezy";
 import { listOrders } from "@lemonsqueezy/lemonsqueezy.js";
 import { eq } from "drizzle-orm";
-import { getPaymentStatus } from "./lemonsqueezy";
+import { getLemonSqueezyPaymentStatus } from "./lemonsqueezy";
 
 /**
  * Creates a test user in the database
@@ -71,14 +71,12 @@ export async function testPaymentLinking() {
 
 		// Test Scenario 1: User pays with registered email
 		console.log("\nScenario 1: Testing payment with registered email");
-		const hasPaidWithEmail = await getPaymentStatus(testUser.id);
+		const hasPaidWithEmail = await getLemonSqueezyPaymentStatus(testUser.id);
 		console.log("Has paid with registered email:", hasPaidWithEmail);
 
 		// Test Scenario 2: User pays with different email but includes user ID
-		console.log(
-			"\nScenario 2: Testing payment with different email but linked by ID",
-		);
-		const hasPaidWithId = await getPaymentStatus(testUser.id);
+		console.log("\nScenario 2: Testing payment with different email but linked by ID");
+		const hasPaidWithId = await getLemonSqueezyPaymentStatus(testUser.id);
 		console.log("Has paid with different email (linked by ID):", hasPaidWithId);
 
 		// Clean up

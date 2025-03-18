@@ -1,3 +1,4 @@
+import { STATUS_CODES } from "@/config/status-codes";
 import Bitbucket from "@auth/core/providers/bitbucket";
 import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
@@ -76,12 +77,40 @@ export const providers: NextAuthConfig["providers"] = [
 			password: { label: "Password", type: "password" },
 		},
 		async authorize(credentials) {
+			console.log("Credentials in authorize:", credentials);
+
 			if (!credentials?.email || !credentials?.password) {
+				console.error("Missing email or password in credentials");
 				return null;
 			}
 
-			// Use AuthService to validate credentials against Payload CMS
-			return await AuthService.validateCredentials(credentials);
+			try {
+				// Use AuthService to validate credentials against Payload CMS
+				const user = await AuthService.validateCredentials(credentials);
+
+				if (!user) {
+					console.error("User validation failed");
+					throw new Error(STATUS_CODES.CREDENTIALS.message);
+				}
+
+				console.log("User validated successfully:", user);
+
+				// For database session strategy, we need to ensure the user exists in the database
+				// This is handled in validateCredentials via ensureUserSynchronized
+
+				// Return the user object in the format expected by NextAuth
+				return {
+					id: user.id,
+					name: user.name,
+					email: user.email,
+					image: user.image,
+					emailVerified: user.emailVerified,
+				};
+			} catch (error) {
+				console.error("Error in authorize callback:", error);
+				// Rethrow the error to be handled by NextAuth
+				throw error;
+			}
 		},
 	}),
 

@@ -1,8 +1,8 @@
 "use server";
 
 import { routes } from "@/config/routes";
-import { forgotPasswordSchema, signInActionSchema, signUpSchema } from "@/lib/schemas/auth";
-import { validatedAction } from "@/lib/utils/middleware";
+import { STATUS_CODES } from "@/config/status-codes";
+import { forgotPasswordSchema, signInActionSchema } from "@/lib/schemas/auth";
 import { AuthService } from "@/server/services/auth-service";
 import type { UserRole } from "@/types/user";
 import { createServerAction } from "zsa";
@@ -57,25 +57,66 @@ export const signInWithCredentialsAction = async ({
 	redirect?: boolean;
 	redirectTo?: string;
 }) => {
-	return await AuthService.signInWithCredentials({
-		email,
-		password,
-		redirect,
-		redirectTo,
-	});
+	try {
+		console.log("signInWithCredentialsAction called with:", { email, redirect, redirectTo });
+
+		// Call the AuthService to handle the sign-in
+		const result = await AuthService.signInWithCredentials({
+			email,
+			password,
+			redirect: false, // Important: Set to false to prevent automatic redirects from the server
+			redirectTo,
+		});
+
+		console.log("Sign in result:", result);
+
+		// Return the result for client-side handling
+		return result;
+	} catch (error) {
+		console.error("Error in signInWithCredentialsAction:", error);
+
+		// Propagate the error to the client
+		if (error instanceof Error) {
+			// Return an error object that can be handled by the client
+			return {
+				error: error.message,
+				ok: false,
+			};
+		}
+
+		// For unknown errors, return a generic error
+		return {
+			error: STATUS_CODES.AUTH_ERROR.message,
+			ok: false,
+		};
+	}
 };
 
-export const signUpWithCredentialsAction = validatedAction(
-	signUpSchema,
-	async (data: SignUpInData) => {
-		return await AuthService.signUpWithCredentials({
+export const signUpWithCredentialsAction = async (data: SignUpInData) => {
+	try {
+		console.log("signUpWithCredentialsAction called with:", {
 			email: data.email,
-			password: data.password,
 			redirect: data.redirect,
 			redirectTo: data.redirectTo,
 		});
+
+		// Call the AuthService to handle the sign-up
+		const result = await AuthService.signUpWithCredentials({
+			email: data.email,
+			password: data.password,
+			redirect: false, // Important: Set to false to prevent automatic redirects from the server
+			redirectTo: data.redirectTo, // Use redirectTo as expected by the method signature
+		});
+
+		console.log("Sign up result:", result);
+
+		// Return the result for client-side handling
+		return result;
+	} catch (error) {
+		console.error("Error in signUpWithCredentialsAction:", error);
+		throw error;
 	}
-);
+};
 
 export const signOutAction = async (options?: AuthOptions) => {
 	return await AuthService.signOut(options);

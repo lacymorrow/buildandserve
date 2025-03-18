@@ -1,9 +1,9 @@
-import { AuthForm } from "@/app/(app)/(authentication)/_components/login-form";
+import { AuthForm } from "@/app/(app)/(authentication)/_components/auth-form";
 import { SignInForm } from "@/app/(app)/(authentication)/sign-in/_components/sign-in-form";
-import { ConfettiSideCannons } from "@/components/magicui/confetti/confetti-side-cannons";
 import { Link } from "@/components/primitives/link-with-transition";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfettiSideCannons } from "@/components/ui/magicui/confetti/confetti-side-cannons";
 import { SparklesCore } from "@/components/ui/sparkles";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
@@ -141,6 +141,7 @@ export default async function CheckoutSuccessPage({ searchParams: searchParamsPr
 					orderId: orderId,
 					status: status,
 					amount: 0,
+					processor: paymentProcessor,
 					metadata: JSON.stringify({
 						searchParams,
 						customData,

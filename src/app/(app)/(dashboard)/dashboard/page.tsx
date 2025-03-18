@@ -32,6 +32,7 @@ import {
 	Users
 } from "lucide-react";
 import { DownloadSection } from "../_components/download-section";
+import { OnboardingCheck, RestartOnboardingButton } from "../_components/onboarding-check";
 
 // Recent activity type
 interface Activity {
@@ -118,10 +119,21 @@ export default async function DashboardPage() {
 	const userId = session?.user?.id ?? "";
 
 	// Run all async operations in parallel
-	const hasGitHubConnection = await checkGitHubConnection(userId)
+	const hasGitHubConnection = await checkGitHubConnection(userId);
+
+	// Check if user has purchased the starter kit
+	// This is a placeholder - you would need to implement the actual check
+	const hasPurchased = true; // Replace with actual purchase check
 
 	return (
 		<div className="container mx-auto py-6 space-y-4">
+			{/* Onboarding Check */}
+			<OnboardingCheck
+				userId={userId}
+				hasGitHubConnection={hasGitHubConnection}
+				hasPurchased={hasPurchased}
+			/>
+
 			<PageHeader>
 				<div className="w-full flex flex-wrap items-center justify-between gap-2">
 					<div>
@@ -130,12 +142,19 @@ export default async function DashboardPage() {
 							Here's what's happening with your projects
 						</PageHeaderDescription>
 					</div>
-					<DownloadSection />
+					<div className="flex items-center gap-2">
+						<RestartOnboardingButton
+							userId={userId}
+							hasGitHubConnection={hasGitHubConnection}
+							hasPurchased={hasPurchased}
+						/>
+						<DownloadSection />
+					</div>
 				</div>
 			</PageHeader>
 
 			{/* Main Grid */}
-			< div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4" >
+			<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
 				{/* Stats Cards */}
 				<Card>
 					<CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -189,7 +208,7 @@ export default async function DashboardPage() {
 						</div>
 					</CardContent>
 				</Card>
-			</div >
+			</div>
 
 			{/* Tabs Section */}
 			<Tabs defaultValue="overview" className="space-y-4">

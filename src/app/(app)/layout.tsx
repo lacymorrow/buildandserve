@@ -3,7 +3,6 @@ import type React from "react";
 
 import { AppLayout } from "@/components/layouts/app-layout";
 import { BodyProvider } from "@/components/providers/body-provider";
-import { ShipkitProvider } from "@/components/providers/shipkit-provider";
 import { metadata as defaultMetadata } from "@/config/metadata";
 
 export const metadata: Metadata = defaultMetadata;
@@ -12,11 +11,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<BodyProvider>
-				<ShipkitProvider>
-					<AppLayout>
-						<main>{children}</main>
-					</AppLayout>
-				</ShipkitProvider>
+				<AppLayout>
+					<main>{children}</main>
+				</AppLayout>
 			</BodyProvider>
 		</html>
 	);

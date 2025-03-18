@@ -1,6 +1,5 @@
 import { AppSidebar } from "@/components/blocks/app-sidebar";
 import { SidebarLayout } from "@/components/layouts/sidebar-layout";
-import { getTeamData } from "@/components/providers/team-data";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
@@ -21,10 +20,8 @@ export const DashboardLayout = async ({
 		redirect(routes.auth.signIn);
 	}
 
-	const teams = await getTeamData();
-
 	return (
-		<SidebarLayout initialTeams={teams}>
+		<SidebarLayout>
 			<AppSidebar />
 			<SidebarInset>
 				<header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
@@ -37,7 +34,7 @@ export const DashboardLayout = async ({
 							pathLabels={{
 								[routes.app.dashboard]: "Dashboard",
 								[routes.app.apiKeys]: "API Keys",
-								[routes.app.settings]: "Settings",
+								[routes.settings.index]: "Settings",
 								[routes.app.tools]: "Tools",
 							}}
 						/>

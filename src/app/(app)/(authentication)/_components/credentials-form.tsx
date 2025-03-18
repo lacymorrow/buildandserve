@@ -12,11 +12,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { routes } from "@/config/routes";
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
+import { STATUS_CODES } from "@/config/status-codes";
 import { signInWithCredentialsAction } from "@/server/actions/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LockClosedIcon } from "@radix-ui/react-icons";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -36,7 +38,9 @@ interface CredentialsFormProps {
 export function CredentialsForm({ className }: CredentialsFormProps) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const searchParams = useSearchParams();
+	const router = useRouter();
 	const nextUrl = searchParams?.get(SEARCH_PARAM_KEYS.nextUrl);
+	const { update: updateSession } = useSession();
 
 	const form = useForm<CredentialsFormValues>({
 		resolver: zodResolver(credentialsSchema),
@@ -49,12 +53,71 @@ export function CredentialsForm({ className }: CredentialsFormProps) {
 	async function onSubmit(values: CredentialsFormValues) {
 		setIsSubmitting(true);
 		try {
-			await signInWithCredentialsAction({
+			// Call the server action with redirect set to false
+			const result = await signInWithCredentialsAction({
 				email: values.email,
 				password: values.password,
-				redirect: true,
+				redirect: false,
 				redirectTo: nextUrl || routes.home,
 			});
+
+			console.log("Sign in result:", result);
+
+			// Check if the result is an error object from our server action
+			if (result && typeof result === 'object' && 'error' in result && !result.ok) {
+				// Handle the error returned by the server action
+				let errorMessage = result.error;
+
+				// Check if the error matches our known error codes
+				if (result.error === STATUS_CODES.CREDENTIALS.message) {
+					errorMessage = STATUS_CODES.CREDENTIALS.message;
+				}
+
+				toast.error("Failed to sign in", {
+					description: errorMessage,
+				});
+				return;
+			}
+
+			// Check if the sign-in was successful
+			if (typeof result === 'string') {
+				// If result is a string, it's likely a URL to redirect to
+				toast.success("Signed in successfully");
+				// Update the session before redirecting
+				await updateSession();
+				router.push(nextUrl || routes.home);
+				router.refresh(); // Refresh to update the session
+				return;
+			}
+
+			if (result?.error) {
+				// Handle specific error codes from NextAuth
+				if (result.error === "CredentialsSignin") {
+					toast.error("Failed to sign in", {
+						description: STATUS_CODES.CREDENTIALS.message,
+					});
+					return;
+				}
+				throw new Error(result.error);
+			}
+
+			if (result?.url) {
+				// Handle successful sign-in with client-side redirect
+				toast.success("Signed in successfully");
+				// Update the session before redirecting
+				await updateSession();
+				router.push(result.url);
+				router.refresh(); // Refresh to update the session
+				return;
+			}
+
+			// If we get here, something unexpected happened but we'll try to handle it gracefully
+			console.warn("Unexpected authentication result:", result);
+			// Still try to update the session and redirect
+			await updateSession();
+			toast.success("Signed in successfully");
+			router.push(nextUrl || routes.home);
+			router.refresh(); // Refresh to update the session
 		} catch (error) {
 			console.error("Error signing in:", error);
 
@@ -62,8 +125,10 @@ export function CredentialsForm({ className }: CredentialsFormProps) {
 
 			if (error instanceof Error) {
 				if (error.message.includes("Invalid credentials") ||
-					error.message.includes("User not found")) {
-					errorMessage = "Invalid email or password.";
+					error.message.includes("User not found") ||
+					error.message.includes("CredentialsSignin") ||
+					error.message === STATUS_CODES.CREDENTIALS.message) {
+					errorMessage = STATUS_CODES.CREDENTIALS.message;
 				} else if (error.message.includes("Authentication service unavailable")) {
 					errorMessage = "Authentication service is currently unavailable. Please try again later.";
 				} else {
@@ -74,6 +139,7 @@ export function CredentialsForm({ className }: CredentialsFormProps) {
 			toast.error("Failed to sign in", {
 				description: errorMessage,
 			});
+		} finally {
 			setIsSubmitting(false);
 		}
 	}

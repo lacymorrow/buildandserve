@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/server/auth";
+import { auth, update as updateSession } from "@/server/auth";
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
 import {
@@ -84,8 +84,7 @@ export async function disconnectGitHub() {
 		const userRoles = await getUserRoles(session.user.id);
 		// const isOwner = userRoles.includes("owner");
 		const isOwner = false;
-		const isCritical =
-			userRoles.includes("admin") || userRoles.includes("developer");
+		const isCritical = userRoles.includes("admin") || userRoles.includes("developer");
 
 		if (isOwner) {
 			throw new Error("Cannot disconnect GitHub for organization owner");
@@ -95,7 +94,7 @@ export async function disconnectGitHub() {
 			// For critical roles, require additional verification or approval
 			// This could be implemented based on your security requirements
 			throw new Error(
-				"Additional verification required to disconnect GitHub for admin/developer roles",
+				"Additional verification required to disconnect GitHub for admin/developer roles"
 			);
 		}
 
@@ -110,6 +109,13 @@ export async function disconnectGitHub() {
 				updatedAt: new Date(),
 			})
 			.where(eq(users.id, session.user.id));
+
+		// Update the session directly with null GitHub username
+		await updateSession({
+			user: {
+				githubUsername: null,
+			},
+		});
 
 		revalidatePath("/settings");
 		revalidatePath("/");
@@ -129,14 +135,35 @@ export async function disconnectGitHub() {
  */
 export async function verifyGitHubUsername(username: string) {
 	try {
+		console.log("Starting GitHub username verification for:", username);
 		const session = await auth();
+		console.log("Auth session in verifyGitHubUsername:", {
+			isAuthenticated: !!session?.user?.id,
+			sessionStrategy: process.env.NEXTAUTH_SESSION_STRATEGY || "default (jwt)",
+			userId: session?.user?.id,
+		});
+
 		if (!session?.user?.id) {
-			throw new Error("Not authenticated");
+			const error = new Error("Not authenticated");
+			console.error("Authentication error:", error);
+			throw error;
 		}
 
-		await verifyAndStoreGitHubUsername(session.user.id, username);
+		console.log("Calling verifyAndStoreGitHubUsername with userId:", session.user.id);
+		const success = await verifyAndStoreGitHubUsername(session.user.id, username);
+		console.log("GitHub username verification successful");
+
+		// Update the session directly with the new GitHub username
+		// This creates a custom payload that will be passed to the session update
+		// without requiring a database query in the JWT callback
+		await updateSession({
+			user: {
+				githubUsername: username,
+			},
+		});
+
 		revalidatePath("/settings");
-		return { success: true };
+		return { success: true, githubUsername: username };
 	} catch (error) {
 		console.error("Failed to verify GitHub username:", error);
 		if (error instanceof Error) {

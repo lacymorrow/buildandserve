@@ -1,31 +1,32 @@
 import { Separator } from "@/components/ui/separator";
 import { SidebarNav } from "@/components/ui/sidebar-nav";
+import { routes } from "@/config/routes";
+import { auth } from "@/server/auth";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { Header } from "../../../components/headers/header";
-import { auth } from "@/server/auth";
 
 const sidebarNavItems = [
 	{
 		title: "Profile",
-		href: "/settings",
+		href: routes.settings.profile,
 	},
 	{
 		title: "Appearance",
-		href: "/settings/appearance",
+		href: routes.settings.appearance,
 	},
 	{
 		title: "Security",
-		href: "/settings/security",
+		href: routes.settings.security,
 	},
 	// Todo: Add notifications
 	// {
 	// 	title: "Notifications",
-	// 	href: "/settings/notifications",
+	// 	href: routes.settings.notifications,
 	// },
 	{
 		title: "Account",
-		href: "/settings/account",
+		href: routes.settings.account,
 	},
 ] as const;
 
@@ -37,7 +38,7 @@ export default async function SettingsLayout({ children }: SettingsLayoutProps) 
 	const session = await auth();
 
 	if (!session) {
-		redirect("/sign-in");
+		redirect(routes.auth.signIn);
 	}
 
 	// Convert readonly array to mutable array for SidebarNav

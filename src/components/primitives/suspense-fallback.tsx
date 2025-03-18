@@ -1,5 +1,5 @@
-import { Loading } from "@/components/ui/loading";
+import { Loader } from "@/components/primitives/loader";
 
 export const SuspenseFallback = () => {
-  return <Loading />;
+	return <Loader />;
 };
