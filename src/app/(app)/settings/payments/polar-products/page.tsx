@@ -60,7 +60,7 @@ export default async function PolarProductsPage() {
 								<CardContent className="flex flex-col gap-4">
 									<p className="font-medium">{product.price}</p>
 
-									{session?.user ? (
+									{session?.user && product.id ? (
 										<PolarProductStatus
 											productId={product.id}
 											productPrice={product.price}

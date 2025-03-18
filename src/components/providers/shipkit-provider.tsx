@@ -10,8 +10,6 @@ import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 
-import { getTeamData } from "@/components/providers/team-data";
-import { TeamProvider } from "@/components/providers/team-provider";
 import '@/styles/globals.css';
 
 interface ShipkitProviderProps {
@@ -35,7 +33,6 @@ export async function ShipkitProvider({
 	session,
 	pageProps,
 }: ShipkitProviderProps) {
-	const teams = await getTeamData();
 	return (
 		<>
 			<JsonLd organization website />
@@ -49,19 +46,17 @@ export async function ShipkitProvider({
 					<ThemeProvider attribute="class" defaultTheme="system">
 						<TooltipProvider delayDuration={100}>
 							<AnalyticsProvider>
-								<TeamProvider initialTeams={teams}>
 
-									{/* Content */}
-									{children}
+								{/* Content */}
+								{children}
 
-									{/* Toast - Display messages to the user */}
-									<Toaster />
+								{/* Toast - Display messages to the user */}
+								<Toaster />
 
-									{/* Error Toast - Display error messages to the user based on search params */}
-									<Suspense>
-										<ErrorToast />
-									</Suspense>
-								</TeamProvider>
+								{/* Error Toast - Display error messages to the user based on search params */}
+								<Suspense>
+									<ErrorToast />
+								</Suspense>
 							</AnalyticsProvider>
 						</TooltipProvider>
 					</ThemeProvider>

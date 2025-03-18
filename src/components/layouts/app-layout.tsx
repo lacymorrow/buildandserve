@@ -1,4 +1,6 @@
 import { ShipkitProvider } from "@/components/providers/shipkit-provider";
+import { getTeamData } from "@/components/providers/team-data";
+import { TeamProvider } from "@/components/providers/team-provider";
 import { ViewTransitions } from "next-view-transitions";
 import Head from "next/head";
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
@@ -9,7 +11,9 @@ import { PageTracker } from "react-page-tracker";
  * Root layout component that wraps the entire application
  * Uses ShipkitProvider to manage all core providers
  */
-export function AppLayout({ children }: { children: ReactNode }) {
+export async function AppLayout({ children }: { children: ReactNode }) {
+	const teams = await getTeamData();
+
 	return (
 		<ViewTransitions>
 
@@ -24,7 +28,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
 			{/* ShipkitProvider - Manage all core providers */}
 			<ShipkitProvider>
 				<NuqsAdapter>
-					{children}
+					<TeamProvider initialTeams={teams}>
+						{children}
+					</TeamProvider>
 				</NuqsAdapter>
 			</ShipkitProvider>
 		</ViewTransitions>

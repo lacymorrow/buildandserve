@@ -50,15 +50,12 @@ const {
 	logger: {
 		error: (code: Error, ...message: unknown[]) => {
 			logger.error(code, message);
-			console.error("NextAuth Error:", code, message);
 		},
 		warn: (code: string, ...message: unknown[]) => {
 			logger.warn(code, message);
-			console.warn("NextAuth Warning:", code, message);
 		},
 		debug: (code: string, ...message: unknown[]) => {
 			logger.debug(code, message);
-			console.debug("NextAuth Debug:", code, message);
 		},
 	},
 });
