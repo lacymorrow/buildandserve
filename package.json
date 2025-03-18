@@ -31,7 +31,7 @@
     "lint:fix:eslint": "next lint --fix",
     "lint:fix:prettier": "prettier --write \"**/*.{ts,tsx,md,mdx,json}\"",
     "start": "next start",
-    "pull": "node --experimental-strip-types ./scripts/sync-upstream.ts",
+    "pull": "tsx scripts/sync-upstream.ts",
     "workers:build": "tsc -p ./tsconfig.workers.json",
     "workers:dev": "concurrently \"npm run workers:build\" \"tsc -p ./tsconfig.workers.json --watch\"",
     "test": "vitest run",
@@ -42,7 +42,6 @@
     "typecheck": "tsc --noEmit",
     "build:registry": "tsx src/registry/generate-registry.ts",
     "build:blocks": "tsx scripts/generate-registry.ts -i src/registry/blocks -o public/registry -t",
-    "sync-upstream": "tsx scripts/sync-upstream.ts",
     "payload": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts payload"
   },
   "dependencies": {
@@ -230,6 +229,7 @@
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "cursor-tools": "latest",
+    "dotenv": "^16.4.7",
     "dotenv-cli": "^8.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.2.2",

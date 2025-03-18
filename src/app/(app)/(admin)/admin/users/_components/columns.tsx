@@ -30,18 +30,12 @@ export const columns: ColumnDef<UserData>[] = [
 		header: "Payment Status",
 		cell: ({ row }) => {
 			const hasPaid = Boolean(row.getValue("hasPaid"));
-			const lemonSqueezyStatus = Boolean(row.getValue("lemonSqueezyStatus"));
-			const polarStatus = Boolean(row.getValue("polarStatus"));
+			// const lemonSqueezyStatus = Boolean(row.getValue("lemonSqueezyStatus"));
+			// const polarStatus = Boolean(row.getValue("polarStatus"));
 
 			return (
 				<div className="flex flex-col gap-1 items-start justify-center">
 					<Badge variant={hasPaid ? "default" : "secondary"}>{hasPaid ? "Paid" : "Not Paid"}</Badge>
-					{hasPaid && (
-						<div className="flex flex-col gap-1 mt-1 text-xs text-muted-foreground">
-							{lemonSqueezyStatus && <span>Lemon Squeezy ✓</span>}
-							{polarStatus && <span>Polar ✓</span>}
-						</div>
-					)}
 				</div>
 			);
 		},

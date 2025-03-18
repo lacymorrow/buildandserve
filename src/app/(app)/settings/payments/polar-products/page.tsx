@@ -19,14 +19,14 @@ export default async function PolarProductsPage() {
 			name: "One-Time Purchase",
 			description: "Get lifetime access to our core features and support",
 			price: "$49",
-			checkoutUrl: `https://polar.sh/yourusername/products/${env.NEXT_PUBLIC_POLAR_ONE_TIME_PRICE_ID}`,
+			checkoutUrl: `https://polar.sh/lacy/products/${env.NEXT_PUBLIC_POLAR_ONE_TIME_PRICE_ID}`,
 		},
 		{
 			id: env.NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID,
 			name: "Monthly Subscription",
 			description: "Get monthly access to all premium features and updates",
 			price: "$9.99/month",
-			checkoutUrl: `https://polar.sh/yourusername/subscriptions/${env.NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID}`,
+			checkoutUrl: `https://polar.sh/lacy/subscriptions/${env.NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID}`,
 		},
 	].filter(product => !!product.id); // Only include products with valid IDs
 

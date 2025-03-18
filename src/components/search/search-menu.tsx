@@ -120,7 +120,7 @@ export function SearchMenu({
 				)}
 			</Button>
 			<CommandDialog open={open} onOpenChange={setOpen}>
-				<DialogTitle>{title}</DialogTitle>
+				<DialogTitle className="sr-only">{title}</DialogTitle>
 				<CommandInput placeholder="Type a command or search..." />
 				<CommandList>
 					<CommandEmpty>No results found.</CommandEmpty>

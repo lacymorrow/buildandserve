@@ -1,6 +1,6 @@
 import { GitHubConnectButton } from "@/components/buttons/github-connect-button";
+import { DeleteAccountCard } from "@/components/settings/delete-account-card";
 import { VercelConnectButton } from "@/components/shipkit/vercel-connect-button";
-import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -10,7 +10,6 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { handleDeleteAccount } from "@/server/actions/account-actions";
 import { auth } from "@/server/auth";
 import { checkVercelConnection } from "@/server/services/vercel/vercel-service";
 import { redirect } from "next/navigation";
@@ -89,7 +88,7 @@ export default async function AccountPage() {
 			</Card>
 
 			{/* Connected Accounts */}
-			<Card>
+			{/* <Card>
 				<CardHeader>
 					<CardTitle>Connected Accounts</CardTitle>
 					<CardDescription>
@@ -115,6 +114,9 @@ export default async function AccountPage() {
 								)}
 							</div>
 							<Button
+								onClick={() => {
+
+								}}
 								variant={account.connected ? "outline" : "default"}
 								disabled={!account.name.toLowerCase().includes("github")}
 							>
@@ -123,30 +125,10 @@ export default async function AccountPage() {
 						</div>
 					))}
 				</CardContent>
-			</Card>
+			</Card> */}
 
 			{/* Delete Account */}
-			<Card>
-				<CardHeader>
-					<CardTitle>Delete Account</CardTitle>
-					<CardDescription>
-						Permanently delete your account and all associated data.
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<p className="text-sm text-muted-foreground">
-						This action cannot be undone. All your data will be permanently
-						deleted.
-					</p>
-				</CardContent>
-				<CardFooter>
-					<form action={handleDeleteAccount}>
-						<Button variant="destructive" type="submit">
-							Delete Account
-						</Button>
-					</form>
-				</CardFooter>
-			</Card>
+			<DeleteAccountCard />
 		</div>
 	);
 }
