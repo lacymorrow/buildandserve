@@ -3,7 +3,6 @@
 import { Button } from "@/components/ui/button";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { ResetIcon } from "@radix-ui/react-icons";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { OnboardingWizard } from "./onboarding-wizard";
 
@@ -63,7 +62,6 @@ export function RestartOnboardingButton({
 	hasVercelConnection = false,
 	className = ""
 }: OnboardingCheckProps & { className?: string }) {
-	const router = useRouter();
 	const [onboardingState, setOnboardingState] = useLocalStorage<{
 		completed: boolean;
 		currentStep: number;

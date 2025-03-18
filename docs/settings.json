@@ -51,8 +51,14 @@
     "editor.defaultFormatter": "foxundermoon.shell-format"
   },
   // Exclude demo folder from search and IntelliSense
+  // "search.exclude": {
+  //   // "**/src/app/(app)/(demo)": true
+  // },
   "files.watcherExclude": {
     "**/src/app/(app)/(demo)/**": true
+  },
+  "[postcss]": {
+    "editor.defaultFormatter": "stylelint.vscode-stylelint"
   },
   "[mdx]": {
     "editor.defaultFormatter": "unifiedjs.vscode-mdx"

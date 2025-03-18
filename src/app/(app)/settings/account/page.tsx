@@ -1,5 +1,5 @@
+import { DeleteAccountCard } from "@/app/(app)/settings/_components/delete-account-card";
 import { GitHubConnectButton } from "@/components/buttons/github-connect-button";
-import { DeleteAccountCard } from "@/components/settings/delete-account-card";
 import { VercelConnectButton } from "@/components/shipkit/vercel-connect-button";
 import {
 	Card,

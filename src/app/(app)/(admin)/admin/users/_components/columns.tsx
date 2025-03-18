@@ -30,8 +30,6 @@ export const columns: ColumnDef<UserData>[] = [
 		header: "Payment Status",
 		cell: ({ row }) => {
 			const hasPaid = Boolean(row.getValue("hasPaid"));
-			// const lemonSqueezyStatus = Boolean(row.getValue("lemonSqueezyStatus"));
-			// const polarStatus = Boolean(row.getValue("polarStatus"));
 
 			return (
 				<div className="flex flex-col gap-1 items-start justify-center">
