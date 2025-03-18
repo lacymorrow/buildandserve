@@ -191,6 +191,7 @@
     "tailwindcss-animate": "1.0.7",
     "three": "^0.174.0",
     "tsx": "4.19.3",
+    "tw-animate-css": "^1.2.2",
     "usehooks-ts": "^3.1.1",
     "uuid": "^11.1.0",
     "vaul": "^1.1.2",
@@ -228,6 +229,7 @@
     "autoprefixer": "10.4.21",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
+    "cursor-tools": "latest",
     "dotenv-cli": "^8.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.2.2",
@@ -242,8 +244,7 @@
     "tailwindcss": "3.4.17",
     "typescript": "^5",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.0.8",
-    "cursor-tools": "latest"
+    "vitest": "^3.0.8"
   },
   "shipkit": {
     "bones": "0.2.0"

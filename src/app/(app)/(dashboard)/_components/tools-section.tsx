@@ -15,13 +15,14 @@ import { LOCAL_STORAGE_KEYS } from "@/config/local-storage-keys";
 import { cn } from "@/lib/utils";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { DialogTitle } from "@radix-ui/react-dialog";
-import { StarFilledIcon, StarIcon } from "@radix-ui/react-icons";
+import { CursorTextIcon, LinkBreak1Icon, StarFilledIcon, StarIcon } from "@radix-ui/react-icons";
+import { IconBrandSpeedtest } from "@tabler/icons-react";
 import {
 	ArrowUpRight, BoxSelectIcon, DollarSign, FileIcon, Hash,
 	ImageIcon,
 	KeyRound,
 	LayoutTemplate,
-	LineChart, Palette, Ruler,
+	LineChart, PaintBucket, Palette, Ruler,
 	Search, TerminalIcon,
 	Timer
 } from "lucide-react";
@@ -48,6 +49,36 @@ interface Tool {
 }
 
 const tools: Tool[] = [
+	// https://broken-link-checker.vercel.app/
+	{
+		title: "Broken Link Checker",
+		description: "Check your links for broken links",
+		icon: LinkBreak1Icon,
+		href: "https://broken-link-checker.vercel.app/",
+		isExternal: true,
+		category: "Testing",
+		keywords: ["broken", "link", "checker", "test", "link", "check"],
+	},
+	// https://www.radix-ui.com/colors/custom
+	{
+		title: "Radix UI Colors",
+		description: "Customize your Radix UI colors",
+		icon: Palette,
+		href: "https://www.radix-ui.com/colors/custom",
+		isExternal: true,
+		category: "Design",
+		keywords: ["radix", "ui", "colors", "custom"],
+	},
+	// https://tweakcn.com/
+	{
+		title: "TweakCN",
+		description: "Tweak Shadcn UI Themes",
+		icon: PaintBucket,
+		href: "https://tweakcn.com/",
+		isExternal: true,
+		category: "Design",
+		keywords: ["shadcn", "ui", "theme", "tweak"],
+	},
 	// https://www.openstatus.dev/play/curl
 	{
 		title: "cURL Builder",
@@ -62,7 +93,7 @@ const tools: Tool[] = [
 	{
 		title: "Global Speed Checker",
 		description: "Is your endpoint globally fast? Test your website and API performance across all continents.",
-		icon: TerminalIcon,
+		icon: IconBrandSpeedtest,
 		href: "https://www.openstatus.dev/play/checker",
 		isExternal: true,
 		category: "Testing",
@@ -102,7 +133,7 @@ const tools: Tool[] = [
 	{
 		title: "Cursor Directory",
 		description: "Find the best cursor rules for your framework and language",
-		icon: TerminalIcon,
+		icon: CursorTextIcon,
 		href: "https://cursor.directory/",
 		isExternal: true,
 		category: "AI",
@@ -113,7 +144,7 @@ const tools: Tool[] = [
 	{
 		title: "Cursor List",
 		description: "Find the best cursor rules for your framework and language",
-		icon: TerminalIcon,
+		icon: CursorTextIcon,
 		href: "https://cursorlist.com/",
 		isExternal: true,
 		category: "AI",

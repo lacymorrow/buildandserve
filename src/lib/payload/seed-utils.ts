@@ -340,7 +340,7 @@ export const seedDemoPageDirect = async (payload: Payload) => {
 			collection: "pages",
 			where: {
 				slug: {
-					equals: "demo",
+					equals: "payload",
 				},
 			},
 		});

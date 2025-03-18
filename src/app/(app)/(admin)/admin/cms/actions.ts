@@ -1,20 +1,22 @@
 "use server";
 
-import { env } from "@/env";
 import { getPayloadClient } from "@/lib/payload/payload";
 import { seedAllDirect } from "@/lib/payload/seed-utils";
+import { auth } from "@/server/auth";
+import { isAdmin } from "@/server/services/admin-service";
 
 /**
  * Server action to seed the CMS with initial data
  * Only works in production with a valid admin secret
  */
-export async function seedCMSAction(adminSecret: string) {
-	try {
-		// Verify admin secret
-		if (!adminSecret || adminSecret !== env.PAYLOAD_SECRET) {
-			throw new Error("Invalid admin secret");
-		}
+export async function seedCMSAction() {
+	const session = await auth();
 
+	if (!isAdmin({ email: session?.user?.email })) {
+		throw new Error("Unauthorized");
+	}
+
+	try {
 		// Get the payload client
 		const payload = await getPayloadClient();
 		if (!payload) {

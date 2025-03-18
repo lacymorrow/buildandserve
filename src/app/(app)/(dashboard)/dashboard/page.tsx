@@ -15,7 +15,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
 import { auth } from "@/server/auth";
+import { isAdmin } from "@/server/services/admin-service";
 import { checkGitHubConnection } from "@/server/services/github/github-service";
+import { PaymentService } from "@/server/services/payment-service";
+import { checkVercelConnection } from "@/server/services/vercel/vercel-service";
 import {
 	ActivityIcon,
 	AlertCircle,
@@ -32,8 +35,7 @@ import {
 	Users
 } from "lucide-react";
 import { DownloadSection } from "../_components/download-section";
-import { OnboardingCheck, RestartOnboardingButton } from "../_components/onboarding-check";
-
+import { OnboardingCheck } from "../_components/onboarding-check";
 // Recent activity type
 interface Activity {
 	id: string;
@@ -119,35 +121,56 @@ export default async function DashboardPage() {
 	const userId = session?.user?.id ?? "";
 
 	// Run all async operations in parallel
-	const hasGitHubConnection = await checkGitHubConnection(userId);
-
-	// Check if user has purchased the starter kit
-	// This is a placeholder - you would need to implement the actual check
-	const hasPurchased = true; // Replace with actual purchase check
+	const [isUserAdmin, hasGitHubConnection, hasVercelConnection, hasPurchased, isCustomer, isSubscribed] = await Promise.all([
+		isAdmin({ email: session?.user?.email }),
+		checkGitHubConnection(userId),
+		checkVercelConnection(userId),
+		PaymentService.getUserPaymentStatus(userId),
+		PaymentService.hasUserPurchasedProduct({ userId, productId: siteConfig.store.products.shipkit, provider: "lemonsqueezy" }),
+		PaymentService.hasUserActiveSubscription({ userId, provider: "lemonsqueezy" }),
+	]);
 
 	return (
 		<div className="container mx-auto py-6 space-y-4">
 			{/* Onboarding Check */}
 			<OnboardingCheck
-				userId={userId}
+				user={session?.user}
 				hasGitHubConnection={hasGitHubConnection}
+				hasVercelConnection={hasVercelConnection}
 				hasPurchased={hasPurchased}
 			/>
 
 			<PageHeader>
 				<div className="w-full flex flex-wrap items-center justify-between gap-2">
 					<div>
-						<PageHeaderHeading>Hello, {session?.user?.name ?? session?.user?.email ?? "friend"}</PageHeaderHeading>
+						<div className="flex items-center gap-2">
+
+							<PageHeaderHeading>Hello, {session?.user?.name ?? session?.user?.email ?? "friend"}
+
+							</PageHeaderHeading>
+							{isCustomer && (
+								<Badge variant="outline">
+									Customer
+								</Badge>
+							)}
+
+							{isSubscribed && (
+								<Badge variant="outline">
+									Active Subscription
+								</Badge>
+							)}
+
+							{isUserAdmin && (
+								<Badge variant="outline">
+									Admin
+								</Badge>
+							)}
+						</div>
 						<PageHeaderDescription>
 							Here's what's happening with your projects
 						</PageHeaderDescription>
 					</div>
 					<div className="flex items-center gap-2">
-						<RestartOnboardingButton
-							userId={userId}
-							hasGitHubConnection={hasGitHubConnection}
-							hasPurchased={hasPurchased}
-						/>
 						<DownloadSection />
 					</div>
 				</div>

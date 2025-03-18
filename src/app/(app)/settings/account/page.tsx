@@ -24,18 +24,28 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { routes } from "@/config/routes";
-import { deleteAccount, disconnectAccount } from "@/server/actions/settings";
+import { deleteAccount } from "@/server/actions/settings";
+import { auth } from "@/server/auth";
+import { checkVercelConnection } from "@/server/services/vercel/vercel-service";
 import { signOut, useSession } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { redirect, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-export default function AccountPage() {
-	const { data: session, update: updateSession } = useSession();
+export default async function AccountPage() {
+	const session = await auth();
+	if (!session?.user) redirect("/login");
+
+	const userId = session.user.id;
+
+	// Check if user has connected Vercel using our server-side function
+	const hasVercelConnection = await checkVercelConnection(userId);
+
+	// Use client-side session for real-time updates
+	const { update: updateSession } = useSession();
 	const [isPending, startTransition] = React.useTransition();
 	const [isOpen, setIsOpen] = React.useState(false);
-	const [isDisconnecting, setIsDisconnecting] = React.useState(false);
 	const searchParams = useSearchParams();
 	const router = useRouter();
 
@@ -61,9 +71,6 @@ export default function AccountPage() {
 	// Use state to track if we've already processed the URL parameters
 	// This ensures the state persists across re-renders
 	const [hasProcessedParams, setHasProcessedParams] = useState(false);
-
-	// Check if user has connected Vercel
-	const hasVercelConnection = session?.user?.accounts?.some(account => account.provider === "vercel");
 
 	// Handle URL parameters for OAuth callback
 	useEffect(() => {
@@ -141,29 +148,6 @@ export default function AccountPage() {
 		});
 	}
 
-	const handleDisconnectVercel = async () => {
-		if (isDisconnecting) return;
-
-		setIsDisconnecting(true);
-		try {
-			const result = await disconnectAccount("vercel");
-
-			if (!result.success) {
-				toast.error(result.error ?? "Failed to disconnect Vercel account");
-				return;
-			}
-
-			toast.success(result.message);
-
-			// Force a full session update to ensure the UI reflects the change
-			await updateSession({ force: true });
-		} catch (error) {
-			console.error("Disconnect Vercel error:", error);
-			toast.error("An unexpected error occurred");
-		} finally {
-			setIsDisconnecting(false);
-		}
-	};
 
 	return (
 		<div className="space-y-6">
@@ -172,17 +156,6 @@ export default function AccountPage() {
 				<p className="text-sm text-muted-foreground">
 					Manage your account settings.
 				</p>
-				{/* Debug button for manual session refresh */}
-				<div className="mt-2">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => updateSession({ force: true })}
-						className="text-xs"
-					>
-						Refresh Session Data
-					</Button>
-				</div>
 			</div>
 			<Separator />
 
@@ -201,42 +174,10 @@ export default function AccountPage() {
 								? "Your Vercel account is connected. You can now deploy projects directly to Vercel."
 								: "Connect your Vercel account to deploy projects directly from Shipkit."}
 						</p>
-						{hasVercelConnection && (
-							<div className="flex items-center space-x-2 text-sm text-green-600 dark:text-green-500">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									width="16"
-									height="16"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									strokeWidth="2"
-									strokeLinecap="round"
-									strokeLinejoin="round"
-								>
-									<path d="M20 6 9 17l-5-5" />
-								</svg>
-								<span>
-									Connected to Vercel
-									{session?.user?.accounts?.find(a => a.provider === "vercel")?.providerAccountId &&
-										` (${session.user.accounts.find(a => a.provider === "vercel")?.providerAccountId.substring(0, 8)}...)`}
-								</span>
-							</div>
-						)}
 					</div>
 				</CardContent>
 				<CardFooter>
-					{hasVercelConnection ? (
-						<Button
-							variant="outline"
-							onClick={handleDisconnectVercel}
-							disabled={isDisconnecting}
-						>
-							{isDisconnecting ? "Disconnecting..." : "Disconnect Vercel"}
-						</Button>
-					) : (
-						<VercelConnectButton />
-					)}
+					<VercelConnectButton user={session?.user} className="w-full" />
 				</CardFooter>
 			</Card>
 

@@ -10,6 +10,7 @@ import {
 	SidebarMenuItem,
 	useSidebar,
 } from "@/components/ui/sidebar";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { cn } from "@/lib/utils";
 import { CaretSortIcon } from "@radix-ui/react-icons";
 import { useState } from "react";
@@ -23,9 +24,8 @@ export function NavUser({ className, showUpgrade = true }: NavUserProps) {
 	const { isMobile } = useSidebar();
 	const { data: session, status } = useSession();
 	const [isOpen, setIsOpen] = useState(false);
-
+	const isAdmin = useIsAdmin();
 	const isLoading = status === "loading";
-	const isAuthenticated = !!session?.user;
 
 	const userInitials = session?.user?.name
 		?.split(" ")
@@ -37,10 +37,12 @@ export function NavUser({ className, showUpgrade = true }: NavUserProps) {
 		<SidebarMenu className={className}>
 			<SidebarMenuItem>
 				<UserMenuDropdown
+					isAdmin={isAdmin}
 					isOpen={isOpen}
 					setIsOpen={setIsOpen}
 					session={session}
 					showUpgrade={showUpgrade}
+					showOnboarding={true}
 					side={isMobile ? "bottom" : "right"}
 					align="end"
 					sideOffset={4}

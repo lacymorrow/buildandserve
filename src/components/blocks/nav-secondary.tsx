@@ -12,15 +12,15 @@ import { LifeBuoy, type LucideIcon, Send, Settings2 } from "lucide-react";
 import type React from "react";
 const data = [
 	{
-		title: "Documentation",
-		Icon: LifeBuoy,
-		href: routes.docs,
-	},
-	{
 		title: "Feedback",
 		Icon: Send,
 		href: "#feedback",
 		component: FeedbackDialog,
+	},
+	{
+		title: "Documentation",
+		Icon: LifeBuoy,
+		href: routes.docs,
 	},
 	{
 		title: "Settings",
@@ -48,16 +48,20 @@ interface NavItemWrapperProps {
 	children: React.ReactNode;
 }
 
-const NavItemWrapper = ({ title, open, children }: NavItemWrapperProps) => (
-	<Tooltip>
-		<TooltipTrigger asChild>{children}</TooltipTrigger>
-		{!open && (
+const NavItemWrapper = ({ title, open, children }: NavItemWrapperProps) => {
+	if (open) {
+		return children;
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>{children}</TooltipTrigger>
 			<TooltipContent side="right" sideOffset={20}>
 				{title}
 			</TooltipContent>
-		)}
-	</Tooltip>
-);
+		</Tooltip>
+	);
+};
 
 // Extract common button props
 const getButtonProps = (open: boolean) => ({

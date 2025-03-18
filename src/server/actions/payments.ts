@@ -55,7 +55,7 @@ export async function importPayments(
 			},
 		});
 
-		if (!user || !isAdmin(email)) {
+		if (!user || !isAdmin({ email })) {
 			logger.warn("Unauthorized payment import attempt", {
 				userId,
 				role: user?.role,

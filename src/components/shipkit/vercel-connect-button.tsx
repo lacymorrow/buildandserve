@@ -1,13 +1,45 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Link } from "@/components/primitives/link-with-transition";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger
+} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { disconnectAccount } from "@/server/actions/settings";
+import { IconBrandVercelFilled } from "@tabler/icons-react";
 import crypto from "crypto";
-import { useState } from "react";
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
-export const VercelConnectButton = () => {
+interface VercelConnectButtonProps {
+	className?: string;
+	user?: {
+		accounts?: Array<{
+			provider: string;
+			providerAccountId: string;
+		}>;
+	};
+}
+
+export const VercelConnectButton = ({
+	className,
+	user
+}: VercelConnectButtonProps) => {
 	const [isLoading, setIsLoading] = useState(false);
-	const { toast } = useToast();
+	const [isConnected, setIsConnected] = useState(false);
+	const { update: updateSession } = useSession();
+	const { toast: legacyToast } = useToast();
+
+	useEffect(() => {
+		// Check if the user has a Vercel account
+		const hasVercelAccount = user?.accounts?.some(account => account.provider === "vercel");
+		setIsConnected(!!hasVercelAccount);
+	}, [user]);
 
 	if (!process.env.NEXT_PUBLIC_VERCEL_INTEGRATION_SLUG) {
 		return null;
@@ -35,7 +67,7 @@ export const VercelConnectButton = () => {
 			const link = `https://vercel.com/integrations/${client_slug}/new?state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 			window.location.assign(link);
 		} catch (error) {
-			toast({
+			legacyToast({
 				title: "Error",
 				description: error instanceof Error ? error.message : "Failed to connect to Vercel",
 				variant: "destructive",
@@ -44,29 +76,70 @@ export const VercelConnectButton = () => {
 		}
 	};
 
+	const handleDisconnect = async () => {
+		if (isLoading) return;
+
+		setIsLoading(true);
+		try {
+			const result = await disconnectAccount("vercel");
+
+			if (!result.success) {
+				toast.error(result.error ?? "Failed to disconnect Vercel account");
+				return;
+			}
+
+			toast.success(result.message);
+
+			// Force a full session update to ensure the UI reflects the change
+			await updateSession({ force: true });
+		} catch (error) {
+			console.error("Disconnect Vercel error:", error);
+			toast.error("An unexpected error occurred");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
 	return (
-		<Button
-			onClick={handleConnect}
-			disabled={isLoading}
-			className="bg-black hover:bg-gray-900 text-white"
-		>
-			{isLoading ? (
-				"Connecting..."
-			) : (
-				<div className="flex items-center space-x-2">
-					<svg
-						aria-hidden="true"
-						width="16"
-						height="16"
-						viewBox="0 0 76 65"
-						fill="none"
-						xmlns="http://www.w3.org/2000/svg"
+		<>
+			{isConnected ? (
+				<div className={cn("flex flex-col items-center justify-center gap-1", className)}>
+					<Link
+						href="https://vercel.com/dashboard"
+						className={cn(buttonVariants({ variant: "outline", size: "lg" }), "w-full")}
+						target="_blank"
+						rel="noopener noreferrer"
 					>
-						<path d="M37.5274 0L75.0548 65H0L37.5274 0Z" fill="white" />
-					</svg>
-					<span>Connect to Vercel</span>
+						<IconBrandVercelFilled className="mr-2 h-4 w-4" />
+						View Vercel Dashboard
+					</Link>
+					<Tooltip delayDuration={200}>
+						<TooltipTrigger asChild>
+							<Button
+								onClick={() => void handleDisconnect()}
+								variant="link"
+								size="sm"
+								disabled={isLoading}
+								className="text-muted-foreground"
+							>
+								Connected - Click to disconnect
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							<p>Remove Vercel account connection</p>
+						</TooltipContent>
+					</Tooltip>
 				</div>
+			) : (
+				<Button
+					onClick={handleConnect}
+					disabled={isLoading}
+					className={cn("", className)}
+				>
+					<IconBrandVercelFilled className="mr-2 h-4 w-4" />
+					{isLoading ? "Connecting..." : "Connect Vercel"}
+				</Button>
 			)}
-		</Button>
+		</>
 	);
 };

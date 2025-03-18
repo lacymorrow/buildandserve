@@ -153,11 +153,11 @@ export function NavMain({
 							"data-[active=true]:bg-muted data-[active=true]:before:opacity-100",
 						)}
 					>
-						<Link href={item?.url ?? "#"}>
+						<Link href={item?.url ?? "#"} className="w-full max-w-full">
 							{'icon' in item && item.icon && (
 								<item.icon
 									className={cn(
-										"text-muted-foreground transition-colors",
+										"text-muted-foreground transition-colors shrink-0",
 										"group-hover:text-foreground",
 										isActive && "text-foreground",
 									)}
@@ -165,7 +165,7 @@ export function NavMain({
 							)}
 							<span
 								className={cn(
-									"text-muted-foreground transition-colors",
+									"text-muted-foreground transition-colors truncate",
 									"group-hover:text-foreground",
 									isActive && "font-medium text-foreground",
 								)}
@@ -192,11 +192,11 @@ export function NavMain({
 							data-active={isActive || hasActiveChild}
 							asChild
 						>
-							<Link href={item?.url ?? "#"}>
+							<Link href={item?.url ?? "#"} className="w-full max-w-full">
 								{item.icon && (
 									<item.icon
 										className={cn(
-											"text-muted-foreground transition-colors",
+											"text-muted-foreground transition-colors shrink-0",
 											"group-hover:text-foreground",
 											(isActive || hasActiveChild) && "text-foreground",
 										)}
@@ -204,7 +204,7 @@ export function NavMain({
 								)}
 								<span
 									className={cn(
-										"text-muted-foreground transition-colors",
+										"text-muted-foreground transition-colors truncate",
 										"group-hover:text-foreground",
 										(isActive || hasActiveChild) &&
 										"font-medium text-foreground",
@@ -219,7 +219,7 @@ export function NavMain({
 						</SidebarMenuButton>
 					</CollapsibleTrigger>
 					<CollapsibleContent>
-						<SidebarMenuSub className="pr-0 mr-0">
+						<SidebarMenuSub className="pr-0 mr-0 max-w-full">
 							{item.items?.map((subItem) => renderMenuItem(subItem))}
 						</SidebarMenuSub>
 					</CollapsibleContent>
@@ -230,17 +230,18 @@ export function NavMain({
 
 	return (
 		<>
-			<SidebarGroup className={cn("relative pl-0", "opacity-50 hover:opacity-100 transition-opacity")}>
+			<SidebarGroup className={cn("relative pl-0 max-w-full", "opacity-50 hover:opacity-100 transition-opacity")}>
 				<SidebarGroupLabel className="p-0">
-					<Link href={routes.home} className={cn(buttonVariants({ variant: "link", size: "sm" }), "flex items-center justify-start gap-2 w-full")}>
-						<ArrowLeftFromLineIcon className="h-4 w-4" /> {siteConfig.name} Home
+					<Link href={routes.home} className={cn(buttonVariants({ variant: "link", size: "sm" }), "flex items-center justify-start gap-2 w-full max-w-full")}>
+						<ArrowLeftFromLineIcon className="h-4 w-4 shrink-0" />
+						<span className="truncate">{siteConfig.name} Home</span>
 					</Link>
 				</SidebarGroupLabel>
 			</SidebarGroup>
 
-			<SidebarGroup>
+			<SidebarGroup className="max-w-full">
 				<SidebarGroupLabel>Platform</SidebarGroupLabel>
-				<SidebarMenu>
+				<SidebarMenu className="max-w-full">
 					{items.map((item) => renderMenuItem(item))}
 				</SidebarMenu>
 			</SidebarGroup>

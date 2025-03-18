@@ -115,23 +115,58 @@ export async function GET(request: Request) {
 		}
 
 		// Store the access token and user info in the database
-		await db
-			?.delete(accounts)
-			.where(and(eq(accounts.provider, "vercel"), eq(accounts.userId, session.user.id)));
+		try {
+			// First, check if this Vercel account (by providerAccountId) already exists
+			const existingAccount = await db
+				?.select()
+				.from(accounts)
+				.where(and(eq(accounts.provider, "vercel"), eq(accounts.providerAccountId, vercelUserId)))
+				.limit(1);
 
-		await db?.insert(accounts).values({
-			userId: session.user.id,
-			type: "oauth",
-			provider: "vercel",
-			providerAccountId: vercelUserId,
-			access_token,
-			refresh_token,
-			expires_at: expiresAt,
-			token_type: "bearer",
-			scope: "user team",
-			id_token: null,
-			session_state: null,
-		});
+			if (existingAccount && existingAccount.length > 0) {
+				// If exists, update instead of insert
+				await db
+					?.update(accounts)
+					.set({
+						userId: session.user.id, // Update to current user if account exists but belongs to another user
+						access_token,
+						refresh_token,
+						expires_at: expiresAt,
+						token_type: "bearer",
+						scope: "user team",
+					})
+					.where(
+						and(eq(accounts.provider, "vercel"), eq(accounts.providerAccountId, vercelUserId))
+					);
+
+				console.log("Updated existing Vercel account for user:", session.user.id);
+			} else {
+				// Delete any existing Vercel connections for this user (different providerAccountId)
+				await db
+					?.delete(accounts)
+					.where(and(eq(accounts.provider, "vercel"), eq(accounts.userId, session.user.id)));
+
+				// Insert new account
+				await db?.insert(accounts).values({
+					userId: session.user.id,
+					type: "oauth",
+					provider: "vercel",
+					providerAccountId: vercelUserId,
+					access_token,
+					refresh_token,
+					expires_at: expiresAt,
+					token_type: "bearer",
+					scope: "user team",
+					id_token: null,
+					session_state: null,
+				});
+
+				console.log("Inserted new Vercel account for user:", session.user.id);
+			}
+		} catch (dbError) {
+			console.error("Database error handling Vercel account:", dbError);
+			throw dbError;
+		}
 
 		console.log("Account data stored in database for user:", session.user.id);
 

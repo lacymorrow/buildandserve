@@ -7,8 +7,6 @@ import { siteConfig } from "@/config/site";
 import { downloadRepo } from "@/server/actions/github/download-repo";
 import { auth } from "@/server/auth";
 import { apiKeyService } from "@/server/services/api-key-service";
-import { checkGitHubConnection } from "@/server/services/github/github-service";
-import { PaymentService } from "@/server/services/payment-service";
 import { DownloadIcon } from "lucide-react";
 
 export const DownloadSection = async () => {
@@ -16,11 +14,7 @@ export const DownloadSection = async () => {
 	const userId = session?.user?.id ?? "";
 
 	// Run all async operations in parallel
-	const [hasPurchased, hasGitHubConnection, userApiKeys] = await Promise.all([
-		PaymentService.getUserPaymentStatus(userId),
-		checkGitHubConnection(userId),
-		userId ? apiKeyService.getUserApiKeys(userId) : Promise.resolve([])
-	]);
+	const userApiKeys = await apiKeyService.getUserApiKeys(userId);
 
 	// Get the user's API key
 	let apiKey: string | undefined;

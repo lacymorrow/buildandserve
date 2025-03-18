@@ -74,15 +74,6 @@ return (
 );
 ```
 
-### Using the useIsAdmin Hook
-
-```tsx
-import { useIsAdmin } from '@/hooks/use-is-admin';
-
-// In your component:
-const { isAdmin, isLoading } = useIsAdmin(session?.user?.email);
-```
-
 ## Security Considerations
 
 - Admin checking is performed server-side for security

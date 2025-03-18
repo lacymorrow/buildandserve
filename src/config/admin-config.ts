@@ -11,7 +11,7 @@
 export interface AdminConfig {
 	emails: string[];
 	domains: string[];
-	isAdmin: (email?: string | null) => boolean;
+	isAdminByEmailConfig: (email?: string | null) => boolean;
 }
 
 /**
@@ -30,8 +30,8 @@ export const adminConfig: AdminConfig = {
 		? process.env.ADMIN_DOMAINS.split(",").map((domain) => domain.trim())
 		: ["lacymorrow.com"],
 
-	// Check if an email is an admin
-	isAdmin: (email?: string | null): boolean => {
+	// Check if an email is an admin based on config
+	isAdminByEmailConfig: (email?: string | null): boolean => {
 		if (!email) return false;
 
 		return (

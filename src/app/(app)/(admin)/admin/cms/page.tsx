@@ -1,7 +1,7 @@
 "use client";
 
 import { Link } from "@/components/primitives/link-with-transition";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -9,13 +9,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { routes } from "@/config/routes";
 import { useState } from "react";
 import { seedCMSAction } from "./actions";
 
 export default function CMSPage() {
-	const [adminSecret, setAdminSecret] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [message, setMessage] = useState<{
 		type: "success" | "error";
@@ -28,7 +26,7 @@ export default function CMSPage() {
 			setLoading(true);
 			setMessage(null);
 
-			const result = await seedCMSAction(adminSecret);
+			const result = await seedCMSAction();
 
 			setMessage({
 				type: result.success ? "success" : "error",
@@ -48,7 +46,10 @@ export default function CMSPage() {
 		<div className="container mx-auto py-10">
 			<h1 className="mb-8 text-3xl font-bold">CMS Management</h1>
 
-			<Link href={routes.cms.index}>CMS Dashboard</Link>
+			<div className="mb-6 flex gap-4">
+				<Link className={buttonVariants({ variant: "link" })} href={routes.cms.index}>CMS Dashboard</Link>
+				<Link className={buttonVariants({ variant: "link" })} href="/cms">Payload CMS Admin</Link>
+			</div>
 
 			<Card className="max-w-md">
 				<CardHeader>
@@ -59,18 +60,10 @@ export default function CMSPage() {
 				</CardHeader>
 				<CardContent className="space-y-4">
 					<form onSubmit={handleSeed} className="space-y-4">
-						<div className="space-y-2">
-							<Input
-								type="password"
-								placeholder="Admin Secret"
-								value={adminSecret}
-								onChange={(e) => setAdminSecret(e.target.value)}
-							/>
-						</div>
 
 						<Button
 							type="submit"
-							disabled={loading || !adminSecret}
+							disabled={loading}
 							className="w-full"
 						>
 							{loading ? "Seeding..." : "Seed CMS"}

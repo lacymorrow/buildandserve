@@ -226,24 +226,25 @@ export const hasUserActiveSubscription = async (userId: string): Promise<boolean
 		try {
 			// We need to use the Lemon Squeezy SDK to get subscriptions
 			// Type assertion here since the SDK types may not be complete
-			const lemonClient = lemonSqueezySetup({ 
-				apiKey: env.LEMONSQUEEZY_API_KEY ?? '' 
+			const lemonClient = lemonSqueezySetup({
+				apiKey: env.LEMONSQUEEZY_API_KEY ?? "",
 			}) as any;
-			
+
 			const response = await lemonClient.subscriptions?.list();
 
 			// Filter subscriptions for this user
-			const userSubscriptions = response.data?.data?.filter((subscription: any) => {
-				const attributes = subscription.attributes as any;
-				const customData = attributes.custom_data || {};
-				
-				// Check if either the user ID matches or the email matches
-				return (
-					(typeof customData === "object" && customData?.user_id === userId) ||
-					attributes.user_email?.toLowerCase() === user.email.toLowerCase()
-				);
-			}) ?? [];
-			
+			const userSubscriptions =
+				response?.data?.data?.filter((subscription: any) => {
+					const attributes = subscription.attributes as any;
+					const customData = attributes.custom_data || {};
+
+					// Check if either the user ID matches or the email matches
+					return (
+						(typeof customData === "object" && customData?.user_id === userId) ||
+						attributes.user_email?.toLowerCase() === user.email.toLowerCase()
+					);
+				}) ?? [];
+
 			// Check if any subscription is active
 			const hasActiveSubscription = userSubscriptions.some((subscription: any) => {
 				const attributes = subscription.attributes as any;
@@ -302,11 +303,11 @@ export const getUserPurchasedProducts = async (userId: string): Promise<any[]> =
 		// Use for...of loop instead of forEach
 		for (const order of userOrders) {
 			const attributes = order.attributes as LemonSqueezyOrderAttributes;
-			
+
 			// Only consider paid orders
 			if (attributes.status === "paid" && attributes.first_order_item) {
 				const variantId = attributes.first_order_item.variant_id;
-				
+
 				// Only add each variant once
 				if (!purchasedVariantIds.has(variantId)) {
 					purchasedVariantIds.add(variantId);
@@ -316,7 +317,7 @@ export const getUserPurchasedProducts = async (userId: string): Promise<any[]> =
 						name: attributes.first_order_item.product_name,
 						variant_name: attributes.first_order_item.variant_name,
 						price: attributes.first_order_item.price,
-						purchaseDate: new Date(attributes.created_at)
+						purchaseDate: new Date(attributes.created_at),
 					});
 				}
 			}

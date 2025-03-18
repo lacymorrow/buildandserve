@@ -1,3 +1,4 @@
+import { siteConfig } from "@/config/site";
 import { STATUS_CODES } from "@/config/status-codes";
 import Bitbucket from "@auth/core/providers/bitbucket";
 import type { NextAuthConfig } from "next-auth";
@@ -57,12 +58,10 @@ export const providers: NextAuthConfig["providers"] = [
 
 	Resend({
 		apiKey: process.env.AUTH_RESEND_KEY ?? "",
-		from: process.env.RESEND_FROM ?? "",
-		// Customizae the sign in email
-		server: process.env.EMAIL_SERVER ?? "",
-		sendVerificationRequest({ identifier: email, url, provider: { server, from } }) {
-			// your function
-		},
+		from: process.env.RESEND_FROM ?? siteConfig.email.support,
+		// sendVerificationRequest({ identifier: email, url, provider: { server, from } }) {
+		// 	// your function
+		// },
 	}),
 
 	/**
@@ -223,10 +222,7 @@ export const orderedProviders =
 	// First, remove duplicates by...
 	Array.from(
 		// ...creating a set of the ordered providers and the auth providers (sets are unique)
-		new Set(
-			[...ORDERED_PROVIDERS, ...authProvidersArray]
-			// ...filtering out excluded providers
-		)
+		new Set([...ORDERED_PROVIDERS, ...authProvidersArray])
 	)
 		// Finally, back to an array and map the providers to their data
 		.map((providerId) => {
@@ -235,6 +231,7 @@ export const orderedProviders =
 				return null;
 			}
 
+			// Filter out excluded providers
 			if (EXCLUDED_PROVIDERS.includes(provider.id)) {
 				return { ...provider, isExcluded: true };
 			}

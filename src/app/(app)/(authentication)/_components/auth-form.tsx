@@ -34,6 +34,11 @@ export async function AuthForm({
 
 	// Fetch auth providers data
 	const orderedProviders = await AuthProviderService.getOrderedProviders();
+	const filteredProviders = orderedProviders.filter(Boolean) as Array<{
+		id: string;
+		name: string;
+		isExcluded?: boolean;
+	}>;
 
 	return (
 		<div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -46,7 +51,7 @@ export async function AuthForm({
 					<div className="grid gap-6">
 						<OAuthButtons
 							variant="icons"
-							providers={orderedProviders}
+							providers={filteredProviders}
 						/>
 
 						<Suspense fallback={<SuspenseFallback />}>

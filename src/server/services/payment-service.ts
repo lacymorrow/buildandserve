@@ -87,11 +87,15 @@ const PaymentService = {
 	 * @param provider Optional payment provider to check (lemonsqueezy or polar)
 	 * @returns True if the user has purchased the product
 	 */
-	async hasUserPurchasedProduct(
-		userId: string,
-		productId: string,
-		provider?: "lemonsqueezy" | "polar"
-	): Promise<boolean> {
+	async hasUserPurchasedProduct({
+		userId,
+		productId,
+		provider = "lemonsqueezy",
+	}: {
+		userId: string;
+		productId: string;
+		provider?: "lemonsqueezy" | "polar";
+	}): Promise<boolean> {
 		try {
 			// Check if the database is initialized
 			if (!isDatabaseInitialized() || !db) {
@@ -137,10 +141,13 @@ const PaymentService = {
 	 * @param provider Optional payment provider to check (lemonsqueezy or polar)
 	 * @returns True if the user has an active subscription
 	 */
-	async hasUserActiveSubscription(
-		userId: string,
-		provider?: "lemonsqueezy" | "polar"
-	): Promise<boolean> {
+	async hasUserActiveSubscription({
+		userId,
+		provider = "lemonsqueezy",
+	}: {
+		userId: string;
+		provider?: "lemonsqueezy" | "polar";
+	}): Promise<boolean> {
 		try {
 			// Check if the database is initialized
 			if (!isDatabaseInitialized() || !db) {

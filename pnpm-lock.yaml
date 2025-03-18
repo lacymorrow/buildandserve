@@ -447,6 +447,9 @@ importers:
       tsx:
         specifier: 4.19.3
         version: 4.19.3
+      tw-animate-css:
+        specifier: ^1.2.2
+        version: 1.2.2
       usehooks-ts:
         specifier: ^3.1.1
         version: 3.1.1(react@19.0.0)
@@ -9755,6 +9758,9 @@ packages:
 
   tunnel-rat@0.1.2:
     resolution: {integrity: sha512-lR5VHmkPhzdhrM092lI2nACsLO4QubF0/yoOhzX7c+wIpbN1GjHNzCc91QlpxBi+cnx8vVJ+Ur6vL5cEoQPFpQ==}
+
+  tw-animate-css@1.2.2:
+    resolution: {integrity: sha512-TdSaQcV+V8MypECoXr6Nnv3EQFz05kxfTUaOHtpWTQZp8r5Bx2OmTnkSZVlOTaRiS20a6wYw0RaAnNX2D8ywrQ==}
 
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
@@ -21066,6 +21072,8 @@ snapshots:
       - '@types/react'
       - immer
       - react
+
+  tw-animate-css@1.2.2: {}
 
   type-check@0.4.0:
     dependencies:

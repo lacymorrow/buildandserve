@@ -5,7 +5,6 @@ import { DataTable } from "@/components/ui/data-table/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { PaymentService } from "@/server/services/payment-service";
-import { ImportPayments } from "../payments/_components/import-payments";
 import { columns } from "./_components/columns";
 
 function UsersTableSkeleton() {
@@ -46,7 +45,8 @@ export default function AdminPage() {
 					</PageHeaderDescription>
 				</PageHeader>
 
-				<ImportPayments />
+				{/* Todo: This breaks the page [Table] Column with id 'lemonSqueezyStatus' does not exist. */}
+				{/* <ImportPayments /> */}
 
 			</div>
 			<Suspense fallback={<UsersTableSkeleton />}>

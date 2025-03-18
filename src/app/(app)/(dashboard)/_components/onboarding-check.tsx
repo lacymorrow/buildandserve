@@ -2,22 +2,25 @@
 
 import { Button } from "@/components/ui/button";
 import { useLocalStorage } from "@/hooks/use-local-storage";
+import { ResetIcon } from "@radix-ui/react-icons";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { OnboardingWizard } from "./onboarding-wizard";
 
 interface OnboardingCheckProps {
-	userId: string;
+	user: User;
 	hasGitHubConnection?: boolean;
 	hasVercelConnection?: boolean;
 	hasPurchased?: boolean;
 }
 
 export function OnboardingCheck({
-	userId,
+	user,
 	hasGitHubConnection = false,
 	hasVercelConnection = false,
 	hasPurchased = false
 }: OnboardingCheckProps) {
+	const userId = user?.id ?? "";
 	const [showOnboarding, setShowOnboarding] = useState(false);
 	const [onboardingState, setOnboardingState] = useLocalStorage<{
 		completed: boolean;
@@ -45,7 +48,7 @@ export function OnboardingCheck({
 
 	return (
 		<OnboardingWizard
-			userId={userId}
+			user={user}
 			hasGitHubConnection={hasGitHubConnection}
 			hasVercelConnection={hasVercelConnection}
 			onComplete={handleOnboardingComplete}
@@ -55,17 +58,17 @@ export function OnboardingCheck({
 
 // Separate component for the restart button
 export function RestartOnboardingButton({
-	userId,
+	user,
 	hasGitHubConnection = false,
 	hasVercelConnection = false,
-	hasPurchased = false,
 	className = ""
 }: OnboardingCheckProps & { className?: string }) {
+	const router = useRouter();
 	const [onboardingState, setOnboardingState] = useLocalStorage<{
 		completed: boolean;
 		currentStep: number;
 		steps: Record<string, boolean>;
-	} | null>(`onboarding-${userId}`, null);
+	} | null>(`onboarding-${user?.id}`, null);
 
 	const restartOnboarding = () => {
 		// Reset the onboarding state to initial values
@@ -78,6 +81,7 @@ export function RestartOnboardingButton({
 				deploy: false,
 			},
 		});
+		window?.location?.reload();
 	};
 
 	// Only show the button if onboarding has been completed before
@@ -87,11 +91,12 @@ export function RestartOnboardingButton({
 
 	return (
 		<Button
-			variant="outline"
-			size="sm"
+			type="button"
+			variant="ghost"
 			onClick={restartOnboarding}
 			className={className}
 		>
+			<ResetIcon className="mr-2 size-4" />
 			Restart Onboarding
 		</Button>
 	);

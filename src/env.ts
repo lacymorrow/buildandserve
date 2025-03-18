@@ -37,6 +37,7 @@ export const env = createEnv({
 		// Email and Magic login
 		AUTH_RESEND_KEY: z.string().optional(),
 		RESEND_AUDIENCE_ID: z.string().optional(),
+		RESEND_FROM: z.string().optional(),
 
 		// OAuth Providers
 		AUTH_DISCORD_ID: z.string().optional(),
@@ -127,8 +128,8 @@ export const env = createEnv({
 		AUTH_SECRET: process.env.AUTH_SECRET,
 		AUTH_URL: process.env.AUTH_URL,
 		AUTH_RESEND_KEY: process.env.AUTH_RESEND_KEY,
+		RESEND_FROM: process.env.RESEND_FROM,
 		RESEND_AUDIENCE_ID: process.env.RESEND_AUDIENCE_ID,
-
 		// OAuth Providers
 		AUTH_DISCORD_ID: process.env.AUTH_DISCORD_ID,
 		AUTH_DISCORD_SECRET: process.env.AUTH_DISCORD_SECRET,

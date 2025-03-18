@@ -34,7 +34,7 @@ export const columns: ColumnDef<UserData>[] = [
 			const polarStatus = Boolean(row.getValue("polarStatus"));
 
 			return (
-				<div className="flex flex-col gap-1">
+				<div className="flex flex-col gap-1 items-start justify-center">
 					<Badge variant={hasPaid ? "default" : "secondary"}>{hasPaid ? "Paid" : "Not Paid"}</Badge>
 					{hasPaid && (
 						<div className="flex flex-col gap-1 mt-1 text-xs text-muted-foreground">

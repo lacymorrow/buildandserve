@@ -8,12 +8,11 @@ import type React from "react";
 
 const navLinks = [
 	// { href: routes.admin.cms, label: "Setup" },
-	{ href: routes.admin.cms, label: "CMS" },
 	{ href: routes.admin.users, label: "Users" },
 	{ href: routes.admin.github, label: "GitHub" },
 	{ href: routes.admin.feedback, label: "Feedback" },
 	{ href: routes.admin.payments, label: "Payments" },
-	{ href: routes.admin.ai, label: "AI" },
+	{ href: routes.admin.cms, label: "CMS" },
 ];
 
 
@@ -23,7 +22,7 @@ export default async function AdminLayout({
 	children: React.ReactNode;
 }) {
 	const session = await auth();
-	const userIsAdmin = isAdmin(session?.user?.email);
+	const userIsAdmin = isAdmin({ email: session?.user?.email });
 
 	if (!userIsAdmin) {
 		console.warn("User is not an admin, redirecting to home", session?.user?.email);

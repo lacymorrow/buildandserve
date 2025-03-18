@@ -1,6 +1,10 @@
 "use server";
 
-import { adminConfig } from "@/config/admin-config";
+import {
+	getAdminDomains as getAdminDomainsService,
+	getAdminEmails as getAdminEmailsService,
+	isAdmin,
+} from "@/server/services/admin-service";
 
 /**
  * Server action to check if a user is an admin
@@ -10,7 +14,7 @@ import { adminConfig } from "@/config/admin-config";
  * @returns Boolean indicating if the email belongs to an admin
  */
 export async function checkIsAdmin(email?: string | null): Promise<boolean> {
-	return adminConfig.isAdmin(email);
+	return isAdmin({ email });
 }
 
 /**
@@ -21,11 +25,7 @@ export async function checkIsAdmin(email?: string | null): Promise<boolean> {
  * @returns Array of admin emails if requester is admin, empty array otherwise
  */
 export async function getAdminEmails(requestingEmail?: string | null): Promise<string[]> {
-	if (!adminConfig.isAdmin(requestingEmail)) {
-		return [];
-	}
-
-	return adminConfig.emails;
+	return getAdminEmailsService(requestingEmail);
 }
 
 /**
@@ -36,9 +36,5 @@ export async function getAdminEmails(requestingEmail?: string | null): Promise<s
  * @returns Array of admin domains if requester is admin, empty array otherwise
  */
 export async function getAdminDomains(requestingEmail?: string | null): Promise<string[]> {
-	if (!adminConfig.isAdmin(requestingEmail)) {
-		return [];
-	}
-
-	return adminConfig.domains;
+	return getAdminDomainsService(requestingEmail);
 }

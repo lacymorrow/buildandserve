@@ -1,3 +1,4 @@
+import { RestartOnboardingButton } from "@/app/(app)/(dashboard)/_components/onboarding-check";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -16,13 +17,13 @@ import {
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import {
-	DashboardIcon,
 	DesktopIcon,
 	ExitIcon,
 	GearIcon,
 	LockClosedIcon,
 	MoonIcon,
 	PersonIcon,
+	RocketIcon,
 	SunIcon
 } from "@radix-ui/react-icons";
 import { Sparkles } from "lucide-react";
@@ -46,6 +47,7 @@ interface UserMenuDropdownProps {
 	session: Session | null;
 	isAdmin?: boolean;
 	showUpgrade?: boolean;
+	showOnboarding?: boolean;
 	theme?: string;
 	handleThemeChange?: (value: string) => void;
 	children: React.ReactNode;
@@ -63,6 +65,7 @@ export function UserMenuDropdown({
 	session,
 	isAdmin = false,
 	showUpgrade = false,
+	showOnboarding = false,
 	theme,
 	handleThemeChange,
 	children,
@@ -73,11 +76,6 @@ export function UserMenuDropdown({
 	contentClassName,
 	additionalMenuItems = [],
 }: UserMenuDropdownProps) {
-	const userInitials = session?.user?.name
-		?.split(" ")
-		.map((n) => n[0])
-		.join("")
-		.toUpperCase();
 
 	const handleSignOut = () => {
 		setIsOpen(false);
@@ -131,7 +129,7 @@ export function UserMenuDropdown({
 					)}
 					<DropdownMenuItem asChild>
 						<Link href={routes.app.dashboard}>
-							<DashboardIcon className="mr-2 size-4" />
+							<RocketIcon className="mr-2 size-4" />
 							Dashboard
 							<DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
 						</Link>
@@ -150,6 +148,12 @@ export function UserMenuDropdown({
 							<DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
 						</Link>
 					</DropdownMenuItem>
+
+					{showOnboarding && (
+						<DropdownMenuItem asChild>
+							<RestartOnboardingButton user={session?.user} className="w-full justify-start" />
+						</DropdownMenuItem>
+					)}
 
 					{additionalMenuItems.map((item) => (
 						<DropdownMenuItem

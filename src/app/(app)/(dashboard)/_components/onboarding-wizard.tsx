@@ -1,16 +1,18 @@
 "use client";
 
 import { GitHubConnectButton } from "@/components/buttons/github-connect-button";
+import { VercelDeployButton } from "@/components/buttons/vercel-deploy-button";
+import { VercelConnectButton } from "@/components/shipkit/vercel-connect-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { CodeWindow } from "@/components/ui/code-window";
 import { Progress } from "@/components/ui/progress";
 import { siteConfig } from "@/config/site";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useToast } from "@/hooks/use-toast";
+import { IconBrandVercelFilled } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckIcon, GithubIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // Define the onboarding steps
 const STEPS = [
@@ -52,14 +54,14 @@ pnpm build
 vercel deploy`;
 
 interface OnboardingWizardProps {
-	userId: string;
+	user: User;
 	hasGitHubConnection?: boolean;
 	hasVercelConnection?: boolean;
 	onComplete?: () => void;
 }
 
 export function OnboardingWizard({
-	userId,
+	user,
 	hasGitHubConnection = false,
 	hasVercelConnection = false,
 	onComplete
@@ -69,7 +71,7 @@ export function OnboardingWizard({
 		completed: boolean;
 		currentStep: number;
 		steps: Record<string, boolean>;
-	}>(`onboarding-${userId}`, {
+	}>(`onboarding-${user.id}`, {
 		completed: false,
 		currentStep: 0,
 		steps: {
@@ -82,6 +84,25 @@ export function OnboardingWizard({
 	// Initialize currentStep from onboardingState only once
 	const [currentStep, setCurrentStep] = useState(onboardingState.currentStep);
 	const { toast } = useToast();
+
+	// Update the steps when connection status changes
+	useEffect(() => {
+		setOnboardingState(prev => {
+			// Only update if the values are different to prevent infinite loop
+			if (prev.steps.github === hasGitHubConnection && prev.steps.vercel === hasVercelConnection) {
+				return prev;
+			}
+
+			return {
+				...prev,
+				steps: {
+					...prev.steps,
+					github: hasGitHubConnection,
+					vercel: hasVercelConnection,
+				},
+			};
+		});
+	}, [hasGitHubConnection, hasVercelConnection, setOnboardingState]);
 
 	// Update onboardingState when step changes, but avoid the useEffect for this
 	const updateStep = (newStep: number) => {
@@ -162,7 +183,7 @@ export function OnboardingWizard({
 
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-			<Card className="w-full max-w-3xl shadow-lg">
+			<Card className="w-full max-w-3xl shadow-lg min-h-[500px]">
 				<CardHeader>
 					<div className="flex items-center justify-between">
 						<div>
@@ -206,24 +227,19 @@ export function OnboardingWizard({
 													and deploy your site directly from your repository.
 												</p>
 
-												{hasGitHubConnection ? (
+												{hasGitHubConnection && (
 													<div className="mt-4 flex items-center gap-2 text-sm text-green-600 dark:text-green-500">
 														<CheckIcon className="h-4 w-4" />
 														<span>GitHub account connected</span>
 													</div>
-												) : (
-													<GitHubConnectButton className="mt-4" />
-												)}
-											</div>
-										</div>
-									</div>
 
-									<div className="rounded-lg border">
-										<div className="p-4 border-b">
-											<h4 className="font-medium">Clone the repository</h4>
-										</div>
-										<div className="p-4">
-											<CodeWindow language="bash" code={installationCode} />
+												)}
+
+												<div className="mx-auto">
+
+													<GitHubConnectButton className="mt-4" />
+												</div>
+											</div>
 										</div>
 									</div>
 								</div>
@@ -232,23 +248,10 @@ export function OnboardingWizard({
 							{/* Vercel Connection Step */}
 							{currentStep === 1 && (
 								<div className="space-y-6">
-									<div className="rounded-lg border p-6">
+									<div className="rounded-lg border p-6 flex flex-col gap-4">
 										<div className="flex items-start gap-4">
 											<div className="rounded-full bg-muted p-2">
-												<svg
-													width="16"
-													height="16"
-													viewBox="0 0 116 100"
-													fill="currentColor"
-													xmlns="http://www.w3.org/2000/svg"
-													className="h-6 w-6"
-												>
-													<path
-														fillRule="evenodd"
-														clipRule="evenodd"
-														d="M57.5 0L115 100H0L57.5 0Z"
-													/>
-												</svg>
+												<IconBrandVercelFilled className="h-6 w-6" />
 											</div>
 											<div>
 												<h3 className="font-semibold">Connect your Vercel account</h3>
@@ -257,17 +260,13 @@ export function OnboardingWizard({
 													and continuous integration.
 												</p>
 
-												{hasVercelConnection ? (
-													<div className="mt-4 flex items-center gap-2 text-sm text-green-600 dark:text-green-500">
-														<CheckIcon className="h-4 w-4" />
-														<span>Vercel account connected</span>
-													</div>
-												) : (
-													<Button className="mt-4" variant="outline">
-														Connect Vercel
-													</Button>
-												)}
 											</div>
+										</div>
+										<div className="mx-auto">
+											<VercelConnectButton
+												className="mt-4"
+												user={user}
+											/>
 										</div>
 									</div>
 
@@ -294,23 +293,10 @@ export function OnboardingWizard({
 							{/* Deploy Step */}
 							{currentStep === 2 && (
 								<div className="space-y-6">
-									<div className="rounded-lg border p-6">
+									<div className="rounded-lg border p-6 flex flex-col gap-4">
 										<div className="flex items-start gap-4">
 											<div className="rounded-full bg-muted p-2">
-												<svg
-													width="16"
-													height="16"
-													viewBox="0 0 116 100"
-													fill="currentColor"
-													xmlns="http://www.w3.org/2000/svg"
-													className="h-6 w-6"
-												>
-													<path
-														fillRule="evenodd"
-														clipRule="evenodd"
-														d="M57.5 0L115 100H0L57.5 0Z"
-													/>
-												</svg>
+												<IconBrandVercelFilled className="h-6 w-6" />
 											</div>
 											<div>
 												<h3 className="font-semibold">Deploy your project</h3>
@@ -319,19 +305,11 @@ export function OnboardingWizard({
 													Your project will be live and accessible to everyone instantly.
 												</p>
 
-												<Button className="mt-4" variant="outline">
-													Deploy to Vercel
-												</Button>
 											</div>
 										</div>
-									</div>
+										<div className="mx-auto">
 
-									<div className="rounded-lg border">
-										<div className="p-4 border-b">
-											<h4 className="font-medium">Manual deployment</h4>
-										</div>
-										<div className="p-4">
-											<CodeWindow language="bash" code={deploymentCode} />
+											<VercelDeployButton />
 										</div>
 									</div>
 

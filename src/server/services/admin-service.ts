@@ -1,37 +1,96 @@
 import { adminConfig } from "@/config/admin-config";
+import { getPayloadClient } from "@/lib/payload/payload";
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
+import { rbacService } from "@/server/services/rbac";
 import { eq } from "drizzle-orm";
 
 /**
  * Admin service for server-side admin checking
- * This service should be used by server components to check admin status
+ * This service is the single source of truth for admin status
  */
 
 /**
- * Check if a user is an admin based on their email
+ * Check if a user is an admin based on:
+ * 1. Email configuration (admin emails and domains)
+ * 2. Database role check
+ * 3. RBAC permissions
+ * 4. Payload CMS admin status
  *
  * @param email The email address to check
- * @returns Boolean indicating if the email belongs to an admin
+ * @param userId Optional user ID for RBAC check
+ * @returns Boolean indicating if the user is an admin
  */
-export async function isAdmin(email?: string | null): Promise<boolean> {
-	if (!email) {
+export async function isAdmin({
+	email,
+	userId,
+}: {
+	email?: string | null;
+	userId?: string;
+}): Promise<boolean> {
+	if (!email && !userId) {
 		return false;
 	}
 
-	if (adminConfig.isAdmin(email)) {
+	// 1. Check admin config (static configuration)
+	if (adminConfig.isAdminByEmailConfig(email)) {
 		return true;
 	}
 
-	// Check if user is admin by querying the database directly
+	// 2. Check if user is admin by querying the database directly
 	const user = await db?.query.users.findFirst({
 		where: eq(users.email, email),
 		columns: {
 			role: true,
+			id: true,
 		},
 	});
 
-	return user?.role === "admin";
+	if (user?.role === "admin") {
+		return true;
+	}
+
+	// 3. Check RBAC permissions if userId is provided
+	const userIdToCheck = userId || user?.id;
+	if (userIdToCheck) {
+		try {
+			const hasRbacPermission = await rbacService.hasPermission(userIdToCheck, "system", "admin");
+
+			if (hasRbacPermission) {
+				return true;
+			}
+		} catch (error) {
+			console.error("Error checking RBAC admin permission:", error);
+		}
+	}
+
+	// 4. Check Payload CMS admin status
+	try {
+		const payload = await getPayloadClient();
+		if (payload) {
+			// Try to find the user in Payload by email
+			const payloadUser = await payload.find({
+				collection: "users",
+				where: {
+					email: {
+						equals: email,
+					},
+				},
+			});
+
+			// If the user exists in Payload and has admin role or collection access
+			if (payloadUser?.docs?.length > 0) {
+				// In Payload CMS, all authenticated users with admin panel access are considered admins
+				// No additional role check needed as the existence in Payload users collection
+				// with valid authentication implies admin panel access
+				return true;
+			}
+		}
+	} catch (error) {
+		console.error("Error checking Payload CMS admin status:", error);
+	}
+
+	return false;
 }
 
 /**
@@ -41,8 +100,8 @@ export async function isAdmin(email?: string | null): Promise<boolean> {
  * @param requestingEmail The email of the user requesting the admin list
  * @returns Array of admin emails if requester is admin, empty array otherwise
  */
-export function getAdminEmails(requestingEmail?: string | null): string[] {
-	if (!isAdmin(requestingEmail)) {
+export async function getAdminEmails(requestingEmail?: string | null): Promise<string[]> {
+	if (!(await isAdmin({ email: requestingEmail }))) {
 		return [];
 	}
 
@@ -56,8 +115,8 @@ export function getAdminEmails(requestingEmail?: string | null): string[] {
  * @param requestingEmail The email of the user requesting the admin domains
  * @returns Array of admin domains if requester is admin, empty array otherwise
  */
-export function getAdminDomains(requestingEmail?: string | null): string[] {
-	if (!isAdmin(requestingEmail)) {
+export async function getAdminDomains(requestingEmail?: string | null): Promise<string[]> {
+	if (!(await isAdmin({ email: requestingEmail }))) {
 		return [];
 	}
 

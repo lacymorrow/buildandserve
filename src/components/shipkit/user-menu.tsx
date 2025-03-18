@@ -29,7 +29,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className 
 	const { toast } = useToast();
 	const [isOpen, setIsOpen] = React.useState(false);
 
-	const { isAdmin } = useIsAdmin(session?.user?.email);
+	const isAdmin = useIsAdmin();
 
 	const handleThemeChange = React.useCallback(
 		async (value: string) => {
