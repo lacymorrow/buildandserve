@@ -471,3 +471,144 @@ const extractCheckoutUrl = (response: any, productId: string): string | null => 
 	logger.debug("Unknown Polar checkout response format, using fallback URL", { response });
 	return `https://checkout.polar.sh/checkout?product=${productId}`;
 };
+
+/**
+ * Checks if a user has purchased a specific Polar product
+ * @param userId User ID to check
+ * @param productId Polar product ID to check
+ * @returns True if the user has purchased the product
+ */
+export const hasUserPurchasedProduct = async (
+	userId: string,
+	productId: string
+): Promise<boolean> => {
+	try {
+		// Check if the user has any payment
+		const hasPayment = await getPolarPaymentStatus(userId);
+		if (!hasPayment) {
+			return false;
+		}
+
+		// First get the user email
+		const user = await db?.query.users.findFirst({
+			where: eq(users.id, userId),
+			columns: {
+				email: true,
+			},
+		});
+
+		if (!user?.email) return false;
+
+		// Get user orders
+		const orders = await getOrdersByEmail(user.email);
+
+		// Check if any order contains the product
+		return orders.some(
+			(order) =>
+				order.status === "paid" &&
+				(order.attributes?.product?.id === productId || order.productName.includes(productId))
+		);
+	} catch (error) {
+		console.error("Error checking if user purchased Polar product:", error);
+		return false;
+	}
+};
+
+/**
+ * Checks if a user has an active subscription with Polar
+ * @param userId User ID to check
+ * @returns True if the user has an active subscription
+ */
+export const hasUserActiveSubscription = async (userId: string): Promise<boolean> => {
+	try {
+		// Check if the user has any payment
+		const hasPayment = await getPolarPaymentStatus(userId);
+		if (!hasPayment) {
+			return false;
+		}
+
+		// First get the user email
+		const user = await db?.query.users.findFirst({
+			where: eq(users.id, userId),
+			columns: {
+				email: true,
+			},
+		});
+
+		if (!user?.email) return false;
+
+		// Get user orders
+		const orders = await getOrdersByEmail(user.email);
+
+		// Check if any order is a subscription and is active
+		return orders.some((order) => {
+			const attr = order.attributes as any;
+			return (
+				order.status === "paid" &&
+				(attr.isSubscription === true ||
+					attr.is_recurring === true ||
+					attr.subscription_status === "active")
+			);
+		});
+	} catch (error) {
+		console.error("Error checking if user has active Polar subscription:", error);
+		return false;
+	}
+};
+
+/**
+ * Gets all products a user has purchased from Polar
+ * @param userId User ID to check
+ * @returns Array of purchased products
+ */
+export const getUserPurchasedProducts = async (userId: string): Promise<any[]> => {
+	try {
+		// Check if the user has any payment
+		const hasPayment = await getPolarPaymentStatus(userId);
+		if (!hasPayment) {
+			return [];
+		}
+
+		// First get the user email
+		const user = await db?.query.users.findFirst({
+			where: eq(users.id, userId),
+			columns: {
+				email: true,
+			},
+		});
+
+		if (!user?.email) return [];
+
+		// Get user orders
+		const orders = await getOrdersByEmail(user.email);
+
+		// Extract unique products from paid orders
+		const purchasedProductIds = new Set<string>();
+		const purchasedProducts: any[] = [];
+
+		// Process each order
+		for (const order of orders) {
+			// Only consider paid orders
+			if (order.status === "paid") {
+				const productId = order.attributes?.product?.id || "";
+
+				// Only add each product once
+				if (productId && !purchasedProductIds.has(productId)) {
+					purchasedProductIds.add(productId);
+					purchasedProducts.push({
+						id: productId,
+						name: order.productName,
+						orderId: order.id,
+						purchaseDate: order.purchaseDate,
+						provider: "polar",
+					});
+				}
+			}
+		}
+
+		return purchasedProducts;
+	} catch (error) {
+		console.error("Error getting user purchased Polar products:", error);
+		return [];
+	}
+};

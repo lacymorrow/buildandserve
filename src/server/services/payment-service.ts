@@ -1,9 +1,18 @@
 import {
 	getAllOrders as getLemonSqueezyOrders,
 	getLemonSqueezyPaymentStatus,
+	getUserPurchasedProducts as getUserPurchasedLemonsqueezyProducts,
+	hasUserActiveSubscription as hasUserActiveLemonsqueezySubscription,
+	hasUserPurchasedProduct as hasUserPurchasedLemonsqueezyProduct,
 } from "@/lib/lemonsqueezy";
 import { logger } from "@/lib/logger";
-import { getAllOrders as getPolarOrders, getPolarPaymentStatus } from "@/lib/polar";
+import {
+	getAllOrders as getPolarOrders,
+	getPolarPaymentStatus,
+	getUserPurchasedProducts as getUserPurchasedPolarProducts,
+	hasUserActiveSubscription as hasUserActivePolarSubscription,
+	hasUserPurchasedProduct as hasUserPurchasedPolarProduct,
+} from "@/lib/polar";
 import { db, isDatabaseInitialized } from "@/server/db";
 import { type Payment, payments, users } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
@@ -69,6 +78,156 @@ const PaymentService = {
 		});
 
 		return status;
+	},
+
+	/**
+	 * Checks if a user has purchased a specific product
+	 * @param userId The user ID
+	 * @param productId The product ID
+	 * @param provider Optional payment provider to check (lemonsqueezy or polar)
+	 * @returns True if the user has purchased the product
+	 */
+	async hasUserPurchasedProduct(
+		userId: string,
+		productId: string,
+		provider?: "lemonsqueezy" | "polar"
+	): Promise<boolean> {
+		try {
+			// Check if the database is initialized
+			if (!isDatabaseInitialized() || !db) {
+				logger.warn("Database not initialized when checking purchase");
+				return false;
+			}
+
+			// Check if the user exists
+			const user = await db.query.users.findFirst({
+				where: eq(users.id, userId),
+			});
+
+			if (!user) {
+				return false;
+			}
+
+			// If provider is specified, only check that provider
+			if (provider === "lemonsqueezy") {
+				return await hasUserPurchasedLemonsqueezyProduct(userId, productId);
+			}
+
+			if (provider === "polar") {
+				return await hasUserPurchasedPolarProduct(userId, productId);
+			}
+
+			// Otherwise, check both providers
+			const lemonsqueezyPurchased = await hasUserPurchasedLemonsqueezyProduct(userId, productId);
+			if (lemonsqueezyPurchased) {
+				return true;
+			}
+
+			const polarPurchased = await hasUserPurchasedPolarProduct(userId, productId);
+			return polarPurchased;
+		} catch (error) {
+			console.error("Error checking if user purchased product:", error);
+			return false;
+		}
+	},
+
+	/**
+	 * Checks if a user has an active subscription
+	 * @param userId The user ID
+	 * @param provider Optional payment provider to check (lemonsqueezy or polar)
+	 * @returns True if the user has an active subscription
+	 */
+	async hasUserActiveSubscription(
+		userId: string,
+		provider?: "lemonsqueezy" | "polar"
+	): Promise<boolean> {
+		try {
+			// Check if the database is initialized
+			if (!isDatabaseInitialized() || !db) {
+				logger.warn("Database not initialized when checking subscription");
+				return false;
+			}
+
+			// Check if the user exists
+			const user = await db.query.users.findFirst({
+				where: eq(users.id, userId),
+			});
+
+			if (!user) {
+				return false;
+			}
+
+			// If provider is specified, only check that provider
+			if (provider === "lemonsqueezy") {
+				return await hasUserActiveLemonsqueezySubscription(userId);
+			}
+
+			if (provider === "polar") {
+				return await hasUserActivePolarSubscription(userId);
+			}
+
+			// Otherwise, check both providers
+			const lemonsqueezyActive = await hasUserActiveLemonsqueezySubscription(userId);
+			if (lemonsqueezyActive) {
+				return true;
+			}
+
+			const polarActive = await hasUserActivePolarSubscription(userId);
+			return polarActive;
+		} catch (error) {
+			console.error("Error checking if user has active subscription:", error);
+			return false;
+		}
+	},
+
+	/**
+	 * Gets all products a user has purchased
+	 * @param userId The user ID
+	 * @param provider Optional payment provider to check (lemonsqueezy or polar)
+	 * @returns Array of purchased products
+	 */
+	async getUserPurchasedProducts(
+		userId: string,
+		provider?: "lemonsqueezy" | "polar"
+	): Promise<any[]> {
+		try {
+			// Check if the database is initialized
+			if (!isDatabaseInitialized() || !db) {
+				logger.warn("Database not initialized when getting purchased products");
+				return [];
+			}
+
+			// Check if the user exists
+			const user = await db.query.users.findFirst({
+				where: eq(users.id, userId),
+			});
+
+			if (!user) {
+				return [];
+			}
+
+			let products: any[] = [];
+
+			// If provider is specified, only check that provider
+			if (provider === "lemonsqueezy" || !provider) {
+				const lemonsqueezyProducts = await getUserPurchasedLemonsqueezyProducts(userId);
+				products = [
+					...products,
+					...lemonsqueezyProducts.map((p) => ({ ...p, provider: "lemonsqueezy" })),
+				];
+			}
+
+			if (provider === "polar" || !provider) {
+				const polarProducts = await getUserPurchasedPolarProducts(userId);
+				// Polar products already have provider: "polar" added
+				products = [...products, ...polarProducts];
+			}
+
+			return products;
+		} catch (error) {
+			console.error("Error getting user purchased products:", error);
+			return [];
+		}
 	},
 
 	/**
