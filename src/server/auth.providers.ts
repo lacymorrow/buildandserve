@@ -56,6 +56,7 @@ export const providers: NextAuthConfig["providers"] = [
 	 * @see https://authjs.dev/getting-started/providers/resend
 	 */
 
+	// TODO: Enable this in productio
 	...(process.env.NODE_ENV !== "production" && process.env.AUTH_RESEND_KEY
 		? [
 				Resend({

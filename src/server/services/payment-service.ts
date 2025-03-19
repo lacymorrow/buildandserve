@@ -49,6 +49,7 @@ export interface UserData {
 	hasPaid: boolean;
 	lemonSqueezyStatus: boolean;
 	polarStatus: boolean;
+	hasActiveSubscription: boolean;
 	createdAt: Date;
 	lastPurchaseDate: Date | null;
 	totalPurchases: number;
@@ -509,6 +510,7 @@ const PaymentService = {
 					let lemonSqueezyStatus = false;
 					let polarStatus = false;
 					let hasPaid = false;
+					let hasActiveSubscription = false;
 					let lastPurchaseDate: Date | null = null;
 					const purchases: Purchase[] = [];
 
@@ -526,7 +528,8 @@ const PaymentService = {
 					// Check Lemon Squeezy
 					try {
 						// Import dynamically to avoid circular dependencies
-						const { getAllOrders } = await import("@/lib/lemonsqueezy");
+						const { getAllOrders, hasUserActiveSubscription: hasLemonSqueezyActiveSubscription } =
+							await import("@/lib/lemonsqueezy");
 						const lemonSqueezyOrders = await getAllOrders();
 
 						// Filter orders for this user
@@ -537,6 +540,14 @@ const PaymentService = {
 						if (userOrders.some((order) => order.status === "paid")) {
 							hasPaid = true;
 							lemonSqueezyStatus = true;
+						}
+
+						// Check if user has an active subscription
+						if (user.id) {
+							const hasLemonSubscription = await hasLemonSqueezyActiveSubscription(user.id);
+							if (hasLemonSubscription) {
+								hasActiveSubscription = true;
+							}
 						}
 
 						// Get the last purchase date
@@ -576,12 +587,21 @@ const PaymentService = {
 					// Check Polar
 					try {
 						// Import dynamically to avoid circular dependencies
-						const { getOrdersByEmail } = await import("@/lib/polar");
+						const { getOrdersByEmail, hasUserActiveSubscription: hasPolarActiveSubscription } =
+							await import("@/lib/polar");
 						const polarOrders = await getOrdersByEmail(user.email);
 
 						if (polarOrders.some((order) => order.status === "paid")) {
 							hasPaid = true;
 							polarStatus = true;
+						}
+
+						// Check if user has an active subscription
+						if (user.id) {
+							const hasPolarSubscription = await hasPolarActiveSubscription(user.id);
+							if (hasPolarSubscription) {
+								hasActiveSubscription = true;
+							}
 						}
 
 						// Get the last purchase date if newer than Lemon Squeezy
@@ -629,6 +649,7 @@ const PaymentService = {
 						hasPaid,
 						lemonSqueezyStatus,
 						polarStatus,
+						hasActiveSubscription,
 						lastPurchaseDate,
 						totalPurchases: purchases.length,
 						purchases,

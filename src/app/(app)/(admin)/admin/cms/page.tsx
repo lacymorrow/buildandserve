@@ -9,7 +9,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import { routes } from "@/config/routes";
 import { useState } from "react";
 import { seedCMSAction } from "./actions";
 
@@ -47,8 +46,7 @@ export default function CMSPage() {
 			<h1 className="mb-8 text-3xl font-bold">CMS Management</h1>
 
 			<div className="mb-6 flex gap-4">
-				<Link className={buttonVariants({ variant: "link" })} href={routes.cms.index}>CMS Dashboard</Link>
-				<Link className={buttonVariants({ variant: "link" })} href="/cms">Payload CMS Admin</Link>
+				<Link className={buttonVariants({ variant: "default" })} href="/cms">Payload CMS Admin</Link>
 			</div>
 
 			<Card className="max-w-md">

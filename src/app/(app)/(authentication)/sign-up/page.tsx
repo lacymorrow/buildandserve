@@ -1,4 +1,5 @@
 import { Icon } from "@/components/assets/icon";
+import { Divider } from "@/components/primitives/divider";
 import { Link } from "@/components/primitives/link-with-transition";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
@@ -15,14 +16,7 @@ export default function SignUpPage() {
 				{siteConfig.name}
 			</Link>
 			<AuthForm mode="sign-up">
-				<div className="absolute inset-0 flex items-center">
-					<span className="w-full border-t" />
-				</div>
-				<div className="relative flex justify-center text-xs uppercase">
-					<span className="bg-background px-2 text-muted-foreground">
-						Or continue with email
-					</span>
-				</div>
+				<Divider text="Or continue with email" />
 				<SignUpForm />
 			</AuthForm>
 		</div>

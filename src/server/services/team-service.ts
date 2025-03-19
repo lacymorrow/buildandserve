@@ -1,3 +1,5 @@
+import { routes } from "@/config/routes";
+import { STATUS_CODES } from "@/config/status-codes";
 import { logger } from "@/lib/logger";
 import { db } from "@/server/db";
 import { teamMembers, teams, users } from "@/server/db/schema";
@@ -48,6 +50,20 @@ export class TeamService extends BaseService<typeof teams> {
 
 			if (!user) {
 				logger.error("Cannot create personal team: user not found", { userId });
+
+				// Since session appears to be corrupted, sign the user out silently
+				try {
+					const { signOut } = await import("@/server/auth");
+					await signOut({
+						redirectTo: `${routes.auth.signIn}?code=${STATUS_CODES.AUTH_REFRESH.code}`,
+					});
+				} catch (signOutError) {
+					logger.error("Failed to sign out user with invalid session", {
+						userId,
+						error: signOutError instanceof Error ? signOutError.message : String(signOutError),
+					});
+				}
+
 				return null;
 			}
 
@@ -87,7 +103,9 @@ export class TeamService extends BaseService<typeof teams> {
 	private async getAllPersonalTeams(userId: string) {
 		try {
 			if (!db) {
-				logger.debug("Database not initialized when getting personal teams", { userId });
+				logger.debug("Database not initialized when getting personal teams", {
+					userId,
+				});
 				return [];
 			}
 
@@ -140,7 +158,7 @@ export class TeamService extends BaseService<typeof teams> {
 			if (db) {
 				await Promise.all(
 					teamsToDelete.map((team) =>
-						db.update(teams).set({ deletedAt: new Date() }).where(eq(teams.id, team.id))
+						db?.update(teams).set({ deletedAt: new Date() }).where(eq(teams.id, team.id))
 					)
 				);
 			}
@@ -288,8 +306,8 @@ export class TeamService extends BaseService<typeof teams> {
 	 * @returns The created team member.
 	 */
 	async addTeamMember(teamId: string, userId: string, role: string) {
-		const [member] = await db
-			.insert(teamMembers)
+		const result = await db
+			?.insert(teamMembers)
 			.values({
 				id: randomUUID(),
 				teamId,
@@ -298,7 +316,7 @@ export class TeamService extends BaseService<typeof teams> {
 			})
 			.returning();
 
-		return member;
+		return result?.[0];
 	}
 
 	/**
@@ -308,10 +326,11 @@ export class TeamService extends BaseService<typeof teams> {
 	 * @returns True if removed successfully.
 	 */
 	async removeTeamMember(teamId: string, userId: string) {
-		const [member] = await db
-			.delete(teamMembers)
+		const result = await db
+			?.delete(teamMembers)
 			.where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
 			.returning();
+		const member = result?.[0];
 
 		return !!member;
 	}
@@ -324,15 +343,15 @@ export class TeamService extends BaseService<typeof teams> {
 	 * @returns The updated team member.
 	 */
 	async updateTeamMemberRole(teamId: string, userId: string, role: string) {
-		const [member] = await db
-			.update(teamMembers)
+		const result = await db
+			?.update(teamMembers)
 			.set({
 				role,
 			})
 			.where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
 			.returning();
 
-		return member;
+		return result?.[0];
 	}
 
 	/**
@@ -341,7 +360,7 @@ export class TeamService extends BaseService<typeof teams> {
 	 * @returns The team members with their user details.
 	 */
 	async getTeamMembers(teamId: string) {
-		return db.query.teamMembers.findMany({
+		return db?.query.teamMembers.findMany({
 			where: eq(teamMembers.teamId, teamId),
 			with: {
 				user: true,
@@ -362,7 +381,7 @@ export class TeamService extends BaseService<typeof teams> {
 			return null;
 		}
 
-		return db.query.teams.findFirst({
+		return db?.query.teams.findFirst({
 			where: eq(teams.id, teamId),
 			with: {
 				members: {
@@ -392,13 +411,13 @@ export class TeamService extends BaseService<typeof teams> {
 			throw ErrorService.createError("FORBIDDEN", "Cannot delete personal team");
 		}
 
-		const [record] = await db
-			.update(teams)
+		const result = await db
+			?.update(teams)
 			.set({ deletedAt: new Date() })
 			.where(eq(teams.id, teamId))
 			.returning();
 
-		return !!record;
+		return !!result?.[0];
 	}
 
 	/**

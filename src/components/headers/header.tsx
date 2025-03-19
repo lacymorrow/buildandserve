@@ -64,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
 	logoText = siteConfig.name,
 	navLinks = defaultNavLinks,
 	variant = "default",
-	searchPlaceholder = "Search...",
+	searchPlaceholder = `Search ${siteConfig.name}...`,
 }) => {
 	const signInRedirectUrl = useSignInRedirectUrl();
 	const [{ y }] = useWindowScroll();
@@ -94,7 +94,12 @@ export const Header: React.FC<HeaderProps> = ({
 							<span className="block whitespace-nowrap">{logoText}</span>
 						</Link>
 						<SearchMenu
-							buttonText={searchPlaceholder}
+							buttonText={
+								<>
+									<span className="hidden md:block">{searchPlaceholder}</span>
+									<span className="block md:hidden">Search</span>
+								</>
+							}
 							minimal={true}
 							buttonClassName="w-full md:w-auto"
 						/>

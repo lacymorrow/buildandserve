@@ -1,6 +1,7 @@
 import { ShipkitProvider } from "@/components/providers/shipkit-provider";
 import { getTeamData } from "@/components/providers/team-data";
 import { TeamProvider } from "@/components/providers/team-provider";
+import { logger } from "@/lib/logger";
 import { ViewTransitions } from "next-view-transitions";
 import Head from "next/head";
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
@@ -12,7 +13,12 @@ import { PageTracker } from "react-page-tracker";
  * Uses ShipkitProvider to manage all core providers
  */
 export async function AppLayout({ children }: { children: ReactNode }) {
-	const teams = await getTeamData();
+	const teams = await getTeamData().catch((error) => {
+		logger.warn("Error getting team data", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return [];
+	});
 
 	return (
 		<ViewTransitions>

@@ -17,7 +17,7 @@ export function PricingSectionSingle() {
 
 					<CardHeader className="relative space-y-4 p-8 text-center sm:p-12">
 						<div className="flex items-center justify-center gap-2">
-							<h2 className="text-3xl font-bold sm:text-4xl">Shipkit</h2>
+							<h2 className="text-3xl font-bold sm:text-4xl">{siteConfig.name}</h2>
 							<Sparkles className="h-6 w-6 text-purple-400" />
 						</div>
 

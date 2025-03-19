@@ -237,7 +237,7 @@ export async function GET(req: NextRequest) {
 								textShadow: "0 2px 10px rgba(59, 130, 246, 0.3)",
 							}}
 						>
-							Shipkit
+							{siteConfig.name}
 						</div>
 					</div>
 
@@ -347,7 +347,7 @@ export async function GET(req: NextRequest) {
 					padding: "40px",
 				}}
 			>
-				<h1 style={{ fontSize: 60, marginBottom: 20 }}>Shipkit</h1>
+				<h1 style={{ fontSize: 60, marginBottom: 20 }}>{siteConfig.name}</h1>
 				<p style={{ fontSize: 30 }}>Image generation failed</p>
 			</div>,
 			{

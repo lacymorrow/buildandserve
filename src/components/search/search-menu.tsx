@@ -37,7 +37,7 @@ export interface SearchMenuProps extends DialogProps {
 	 * Custom button text
 	 * @default "Search..."
 	 */
-	buttonText?: string;
+	buttonText?: string | React.ReactNode;
 
 	/**
 	 * Whether to show the keyboard shortcut

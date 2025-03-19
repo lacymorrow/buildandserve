@@ -39,6 +39,19 @@ export const columns: ColumnDef<UserData>[] = [
 		},
 	},
 	{
+		accessorKey: "hasActiveSubscription",
+		header: "Subscription",
+		cell: ({ row }) => {
+			const hasActiveSubscription = Boolean(row.getValue("hasActiveSubscription"));
+
+			return (
+				<div className="flex flex-col gap-1 items-start justify-center">
+					<Badge variant={hasActiveSubscription ? "default" : "outline"}>{hasActiveSubscription ? "Active" : "None"}</Badge>
+				</div>
+			);
+		},
+	},
+	{
 		accessorKey: "lastPurchaseDate",
 		header: "Last Purchase",
 		cell: ({ row }) => formatDate(row.original?.lastPurchaseDate ?? null),

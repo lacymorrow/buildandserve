@@ -4,6 +4,7 @@ import { OAuthButtons } from "@/app/(app)/(authentication)/_components/oauth-but
 import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { routes } from "@/config/routes";
+import { siteConfig } from "@/config/site";
 import { cn } from "@/lib/utils";
 import { AuthProviderService } from "@/server/services/auth-provider-service";
 import Link from "next/link";
@@ -24,7 +25,7 @@ export async function AuthForm({
 	...props
 }: AuthFormProps) {
 	const isSignIn = mode === "sign-in";
-	const cardTitle = typeof title === "string" ? title : (isSignIn ? "Welcome to Shipkit" : "Create an account");
+	const cardTitle = typeof title === "string" ? title : (isSignIn ? `Welcome to ${siteConfig.name}` : "Create an account");
 	const cardDescription = typeof description === "string" ? description : isSignIn
 		? "Login to get started"
 		: "Sign up to get started";
@@ -50,6 +51,7 @@ export async function AuthForm({
 				<CardContent>
 					<div className="grid gap-6 relative">
 						<OAuthButtons
+							collapsible
 							variant="icons"
 							providers={filteredProviders}
 						/>

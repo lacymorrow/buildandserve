@@ -1,5 +1,6 @@
 import { CredentialsForm } from "@/app/(app)/(authentication)/_components/credentials-form";
 import { Icon } from "@/components/assets/icon";
+import { Divider } from "@/components/primitives/divider";
 import { Link } from "@/components/primitives/link-with-transition";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site";
@@ -15,6 +16,7 @@ export default function SignInPage() {
 				{siteConfig.name}
 			</Link>
 			<AuthForm mode="sign-in" >
+				<Divider text="Or continue with email" />
 				<CredentialsForm />
 			</AuthForm>
 		</div >
