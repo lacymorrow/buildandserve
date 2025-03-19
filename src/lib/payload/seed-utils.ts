@@ -416,7 +416,7 @@ You can edit this page in the Payload CMS admin panel at /cms
 			collection: "pages",
 			data: {
 				title: "Payload CMS Demo",
-				slug: "demo",
+				slug: "payload",
 				meta: {
 					title: "Payload CMS Demo | ShipKit",
 					description: "A demonstration of Payload CMS capabilities in ShipKit",

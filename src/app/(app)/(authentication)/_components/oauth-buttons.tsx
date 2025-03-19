@@ -1,6 +1,5 @@
 "use client";
 
-import { CredentialsForm } from "@/app/(app)/(authentication)/_components/credentials-form";
 import { Icons } from "@/components/assets/icons";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -59,7 +58,7 @@ export function OAuthButtons({ variant = "default", className, providers }: OAut
 					</div>
 					<div className="relative flex justify-center text-xs uppercase">
 						<span className="bg-background px-2 text-muted-foreground">
-							Or continue with email
+							Get a magic link
 						</span>
 					</div>
 				</div>
@@ -119,8 +118,6 @@ export function OAuthButtons({ variant = "default", className, providers }: OAut
 			</div>
 
 			{hasResendProvider && <MagicLinkContent />}
-
-			{hasCredentialsProvider && <CredentialsForm />}
 		</>
 	);
 }

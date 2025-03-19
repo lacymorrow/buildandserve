@@ -56,108 +56,136 @@ export const providers: NextAuthConfig["providers"] = [
 	 * @see https://authjs.dev/getting-started/providers/resend
 	 */
 
-	Resend({
-		apiKey: process.env.AUTH_RESEND_KEY ?? "",
-		from: process.env.RESEND_FROM ?? siteConfig.email.support,
-		// sendVerificationRequest({ identifier: email, url, provider: { server, from } }) {
-		// 	// your function
-		// },
-	}),
+	...(process.env.NODE_ENV !== "production" && process.env.AUTH_RESEND_KEY
+		? [
+				Resend({
+					apiKey: process.env.AUTH_RESEND_KEY ?? "",
+					from: process.env.RESEND_FROM ?? siteConfig.email.support,
+					// sendVerificationRequest({ identifier: email, url, provider: { server, from } }) {
+					// 	// your function
+					// },
+				}),
+			]
+		: []),
 
 	/**
 	 * Credentials Provider - Username/Password
 	 * @see https://authjs.dev/getting-started/providers/credentials
 	 */
 
-	Credentials({
-		name: "credentials", // Used by Oauth buttons to determine the active sign-in options
-		credentials: {
-			email: { label: "Email", type: "email" },
-			password: { label: "Password", type: "password" },
-		},
-		async authorize(credentials) {
-			console.log("Credentials in authorize:", credentials);
+	...(process.env.DATABASE_URL
+		? [
+				Credentials({
+					name: "credentials", // Used by Oauth buttons to determine the active sign-in options
+					credentials: {
+						email: { label: "Email", type: "email" },
+						password: { label: "Password", type: "password" },
+					},
+					async authorize(credentials) {
+						console.log("Credentials in authorize:", credentials);
 
-			if (!credentials?.email || !credentials?.password) {
-				console.error("Missing email or password in credentials");
-				return null;
-			}
+						if (!credentials?.email || !credentials?.password) {
+							console.error("Missing email or password in credentials");
+							return null;
+						}
 
-			try {
-				// Use AuthService to validate credentials against Payload CMS
-				const user = await AuthService.validateCredentials(credentials);
+						try {
+							// Use AuthService to validate credentials against Payload CMS
+							const user = await AuthService.validateCredentials(credentials);
 
-				if (!user) {
-					console.error("User validation failed");
-					throw new Error(STATUS_CODES.CREDENTIALS.message);
-				}
+							if (!user) {
+								console.error("User validation failed");
+								throw new Error(STATUS_CODES.CREDENTIALS.message);
+							}
 
-				console.log("User validated successfully:", user);
+							console.log("User validated successfully:", user);
 
-				// For database session strategy, we need to ensure the user exists in the database
-				// This is handled in validateCredentials via ensureUserSynchronized
+							// For database session strategy, we need to ensure the user exists in the database
+							// This is handled in validateCredentials via ensureUserSynchronized
 
-				// Return the user object in the format expected by NextAuth
-				return {
-					id: user.id,
-					name: user.name,
-					email: user.email,
-					image: user.image,
-					emailVerified: user.emailVerified,
-				};
-			} catch (error) {
-				console.error("Error in authorize callback:", error);
-				// Rethrow the error to be handled by NextAuth
-				throw error;
-			}
-		},
-	}),
+							// Return the user object in the format expected by NextAuth
+							return {
+								id: user.id,
+								name: user.name,
+								email: user.email,
+								image: user.image,
+								emailVerified: user.emailVerified,
+							};
+						} catch (error) {
+							console.error("Error in authorize callback:", error);
+							// Rethrow the error to be handled by NextAuth
+							throw error;
+						}
+					},
+				}),
+			]
+		: []),
 
 	/**
 	 * OAuth Providers
 	 * @see https://authjs.dev/getting-started/providers
 	 */
 
-	Bitbucket({
-		clientId: process.env.AUTH_BITBUCKET_ID ?? "",
-		clientSecret: process.env.AUTH_BITBUCKET_SECRET ?? "",
-		allowDangerousEmailAccountLinking: true,
-	}),
-	Discord({
-		clientId: process.env.AUTH_DISCORD_ID ?? "",
-		clientSecret: process.env.AUTH_DISCORD_SECRET ?? "",
-		allowDangerousEmailAccountLinking: true,
-	}),
-	GitHub({
-		clientId: process.env.AUTH_GITHUB_ID ?? "",
-		clientSecret: process.env.AUTH_GITHUB_SECRET ?? "",
-		authorization: {
-			params: {
-				scope: "read:user user:email repo",
-			},
-		},
-		profile(profile) {
-			return {
-				id: profile.login,
-				name: profile.name ?? profile.login,
-				email: profile.email,
-				emailVerified: null,
-				image: profile.avatar_url,
-				githubUsername: profile.login,
-			};
-		},
-		allowDangerousEmailAccountLinking: true,
-	}),
-	GitLab({
-		clientId: process.env.AUTH_GITLAB_ID ?? "",
-		clientSecret: process.env.AUTH_GITLAB_SECRET ?? "",
-		allowDangerousEmailAccountLinking: true,
-	}),
-	Google({
-		clientId: process.env.AUTH_GOOGLE_ID ?? "",
-		clientSecret: process.env.AUTH_GOOGLE_SECRET ?? "",
-		allowDangerousEmailAccountLinking: true,
-	}),
+	...(process.env.AUTH_BITBUCKET_ID && process.env.AUTH_BITBUCKET_SECRET
+		? [
+				Bitbucket({
+					clientId: process.env.AUTH_BITBUCKET_ID ?? "",
+					clientSecret: process.env.AUTH_BITBUCKET_SECRET ?? "",
+					allowDangerousEmailAccountLinking: true,
+				}),
+			]
+		: []),
+	...(process.env.AUTH_DISCORD_ID && process.env.AUTH_DISCORD_SECRET
+		? [
+				Discord({
+					clientId: process.env.AUTH_DISCORD_ID ?? "",
+					clientSecret: process.env.AUTH_DISCORD_SECRET ?? "",
+					allowDangerousEmailAccountLinking: true,
+				}),
+			]
+		: []),
+	...(process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET
+		? [
+				GitHub({
+					clientId: process.env.AUTH_GITHUB_ID ?? "",
+					clientSecret: process.env.AUTH_GITHUB_SECRET ?? "",
+					authorization: {
+						params: {
+							scope: "read:user user:email repo",
+						},
+					},
+					profile(profile) {
+						return {
+							id: profile.login,
+							name: profile.name ?? profile.login,
+							email: profile.email,
+							emailVerified: null,
+							image: profile.avatar_url,
+							githubUsername: profile.login,
+						};
+					},
+					allowDangerousEmailAccountLinking: true,
+				}),
+			]
+		: []),
+	...(process.env.AUTH_GITLAB_ID && process.env.AUTH_GITLAB_SECRET
+		? [
+				GitLab({
+					clientId: process.env.AUTH_GITLAB_ID ?? "",
+					clientSecret: process.env.AUTH_GITLAB_SECRET ?? "",
+					allowDangerousEmailAccountLinking: true,
+				}),
+			]
+		: []),
+	...(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET
+		? [
+				Google({
+					clientId: process.env.AUTH_GOOGLE_ID ?? "",
+					clientSecret: process.env.AUTH_GOOGLE_SECRET ?? "",
+					allowDangerousEmailAccountLinking: true,
+				}),
+			]
+		: []),
 
 	Twitter({
 		clientId: process.env.AUTH_TWITTER_ID ?? "",

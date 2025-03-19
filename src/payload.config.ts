@@ -246,7 +246,7 @@ async function checkIfSeedingNeeded(payload: any): Promise<boolean> {
 	try {
 		// Check if the RBAC collection has any data
 		const rbacResult = await payload.find({
-			collection: "rbac",
+			collection: "settings",
 			limit: 1,
 		});
 
@@ -269,15 +269,12 @@ async function checkIfSeedingNeeded(payload: any): Promise<boolean> {
  */
 async function markSeedingCompleted(payload: any): Promise<void> {
 	try {
-		// Create a new RBAC entry to mark seeding as completed
+		// Create a new entry to mark seeding as completed
 		await payload.create({
-			collection: "rbac",
+			collection: "settings",
 			data: {
-				name: "seed-marker",
-				type: "permission",
-				description: "Marker to indicate seeding has been completed",
-				resource: "settings",
-				action: "read",
+				seedCompleted: true,
+				seedCompletedAt: new Date().toISOString(),
 			},
 		});
 	} catch (error) {

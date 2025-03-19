@@ -1,3 +1,4 @@
+import { CredentialsForm } from "@/app/(app)/(authentication)/_components/credentials-form";
 import { Icon } from "@/components/assets/icon";
 import { Link } from "@/components/primitives/link-with-transition";
 import { routes } from "@/config/routes";
@@ -13,7 +14,9 @@ export default function SignInPage() {
 				</div>
 				{siteConfig.name}
 			</Link>
-			<AuthForm mode="sign-in" />
+			<AuthForm mode="sign-in" >
+				<CredentialsForm />
+			</AuthForm>
 		</div >
 	);
 }

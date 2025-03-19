@@ -48,7 +48,7 @@ export async function AuthForm({
 					<CardDescription>{cardDescription}</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<div className="grid gap-6">
+					<div className="grid gap-6 relative">
 						<OAuthButtons
 							variant="icons"
 							providers={filteredProviders}
