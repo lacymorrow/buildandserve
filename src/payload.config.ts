@@ -240,22 +240,21 @@ export default buildConfig({
 
 /**
  * Check if seeding is needed by looking for a marker in the database
- * We'll use the RBAC collection as a marker since it's always seeded first
+ * We'll use the settings global as a marker for seed status
  */
 async function checkIfSeedingNeeded(payload: any): Promise<boolean> {
 	try {
-		// Check if the RBAC collection has any data
-		const rbacResult = await payload.find({
-			collection: "settings",
-			limit: 1,
+		// Check if the settings global has the seedCompleted flag
+		const settings = await payload.findGlobal({
+			slug: "settings",
 		});
 
-		// If we have RBAC data, no need to seed
-		if (rbacResult?.docs?.length > 0) {
+		// If seedCompleted is true, no need to seed
+		if (settings?.seedCompleted) {
 			return false;
 		}
 
-		// No data exists, seeding is needed
+		// No data exists or seedCompleted is false, seeding is needed
 		return true;
 	} catch (error) {
 		console.error("Error checking if seeding is needed:", error);
@@ -269,9 +268,9 @@ async function checkIfSeedingNeeded(payload: any): Promise<boolean> {
  */
 async function markSeedingCompleted(payload: any): Promise<void> {
 	try {
-		// Create a new entry to mark seeding as completed
-		await payload.create({
-			collection: "settings",
+		// Update the settings global to mark seeding as completed
+		await payload.updateGlobal({
+			slug: "settings",
 			data: {
 				seedCompleted: true,
 				seedCompletedAt: new Date().toISOString(),
