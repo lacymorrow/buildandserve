@@ -1,7 +1,7 @@
 import { Link } from "@/components/primitives/link-with-transition";
 import { buttonVariants } from "@/components/ui/button";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { getOrdersByEmail } from "@/lib/lemonsqueezy";
 import { cn } from "@/lib/utils";
 import { auth } from "@/server/auth";

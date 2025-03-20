@@ -26,22 +26,35 @@ export function ForgotPasswordForm() {
 	});
 
 	async function onSubmit(values: z.infer<typeof forgotPasswordSchema>) {
-		await forgotPasswordAction(values)
-			.then(() => {
-				toast.success("Email sent", {
-					description: "Please check your email for a link to reset your password.",
-				});
-			})
-			.catch(() => {
+		try {
+			const [result, formError] = await forgotPasswordAction(values);
+
+			if (formError) {
 				toast.error("Error sending password reset email", {
 					description: "Please try again.",
 				});
+				return;
+			}
+
+			if (result) {
+				toast.success("Email sent", {
+					description: "Please check your email for a link to reset your password.",
+				});
+			} else {
+				toast.error("Error sending password reset email", {
+					description: "Please try again.",
+				});
+			}
+		} catch (error) {
+			toast.error("Error sending password reset email", {
+				description: "Please try again.",
 			});
+		}
 	}
 
 	return (
 		<Form {...form}>
-			<form onSubmit={() => void form.handleSubmit(onSubmit)} className="flex flex-col gap-sm">
+			<form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-sm">
 				<FormField
 					control={form.control}
 					name="email"

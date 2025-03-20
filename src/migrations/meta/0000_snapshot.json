@@ -1,5 +1,5 @@
 {
-  "id": "23508e67-48c0-4741-8a7a-a051e656772a",
+  "id": "68b062be-f544-4ef4-a968-4970687ec8dc",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -409,6 +409,12 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
+        },
+        "processor": {
+          "name": "processor",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
         },
         "metadata": {
           "name": "metadata",

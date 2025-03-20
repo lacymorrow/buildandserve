@@ -1,5 +1,6 @@
 import { routes } from "@/config/routes";
 import type { NextAuthConfig } from "next-auth";
+import { connectGitHub } from "./actions/github";
 import { providers } from "./auth.providers";
 import { db } from "./db";
 import { userService } from "./services/user-service";
@@ -66,15 +67,26 @@ export const authOptions: NextAuthConfig = {
 		async signIn({ user, account, profile }) {
 			if (!user.id) return false;
 
-			if (account?.provider === "github-verify") {
-				console.log("github-verify signIn callback", {
+			// Handle GitHub OAuth connection
+			if (account?.provider === "github" && account.access_token) {
+				console.log("GitHub OAuth signIn callback", {
 					user,
 					account,
-					profile,
 				});
-				// Store the GitHub username but don't actually sign in
-				// You might want to store this in a temporary session or return it to the client
-				return false; // Prevent actual sign in
+
+				try {
+					// Connect GitHub account to the user
+					await connectGitHub({
+						githubId: account.providerAccountId,
+						githubUsername: (user as any).githubUsername || (profile?.login as string),
+						accessToken: account.access_token,
+					});
+					console.log("GitHub account connected successfully");
+					return true;
+				} catch (error) {
+					console.error("Error connecting GitHub account:", error);
+					// Don't fail the sign-in if GitHub connection fails
+				}
 			}
 
 			console.log("signIn callback", { user, account, profile });
@@ -126,9 +138,15 @@ export const authOptions: NextAuthConfig = {
 				}
 			}
 
-			// Save GitHub access token
-			if (account?.provider === "github") {
+			// Save GitHub access token when signing in with GitHub
+			if (account?.provider === "github" && account.access_token) {
 				token.githubAccessToken = account.access_token;
+
+				// If we have a GitHub username from the profile, store it directly
+				// This is important for handling first-time GitHub OAuth logins
+				if (user && (user as any).githubUsername) {
+					token.githubUsername = (user as any).githubUsername;
+				}
 			}
 
 			// Handle direct GitHub username updates passed from session update

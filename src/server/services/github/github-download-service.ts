@@ -5,7 +5,7 @@
  * and caches it for 1 hour
  */
 
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { env } from "@/env";
 import { logger } from "@/lib/logger";
 import { createWriteStream } from "fs";
@@ -232,9 +232,7 @@ async function downloadFile(url: string, filePath: string): Promise<void> {
 								});
 							}
 							reject(
-								new Error(
-									`Failed to download: ${response.statusCode} - ${response.statusMessage}`,
-								),
+								new Error(`Failed to download: ${response.statusCode} - ${response.statusMessage}`)
 							);
 						});
 						return;
@@ -270,7 +268,7 @@ async function downloadLatestRelease(): Promise<{
 		throw new Error(
 			`GitHub token verification failed: ${error}. Required scopes: repo. Current scopes: ${
 				scopes?.join(", ") || "none"
-			}`,
+			}`
 		);
 	}
 
@@ -315,8 +313,7 @@ async function downloadLatestRelease(): Promise<{
  */
 export async function getLatestReleaseFile(): Promise<string> {
 	const metadata = await readMetadata();
-	const cacheExpired =
-		!metadata || Date.now() - metadata.timestamp > CACHE_DURATION;
+	const cacheExpired = !metadata || Date.now() - metadata.timestamp > CACHE_DURATION;
 
 	if (cacheExpired) {
 		logger.info("Cache expired, downloading new archive");

@@ -57,6 +57,7 @@ CREATE TABLE "shipkit_payment" (
 	"order_id" varchar(255),
 	"amount" integer,
 	"status" varchar(255) NOT NULL,
+	"processor" varchar(50),
 	"metadata" text DEFAULT '{}',
 	"created_at" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	"updated_at" timestamp with time zone

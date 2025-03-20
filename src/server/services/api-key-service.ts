@@ -1,4 +1,4 @@
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { db } from "@/server/db";
 import { apiKeys, users } from "@/server/db/schema";
 import crypto from "crypto";
@@ -16,8 +16,7 @@ export class ApiKeyService {
 		crypto.getRandomValues(array);
 
 		// Convert to base62 (alphanumeric only, no special chars)
-		const base62Chars =
-			"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+		const base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 		let result = "";
 
 		for (const byte of array) {
@@ -131,10 +130,7 @@ export class ApiKeyService {
 		}
 
 		// Check if key is expired
-		if (
-			result.apiKey.expiresAt &&
-			new Date(result.apiKey.expiresAt) < new Date()
-		) {
+		if (result.apiKey.expiresAt && new Date(result.apiKey.expiresAt) < new Date()) {
 			throw new Error("API key has expired");
 		}
 
@@ -146,10 +142,7 @@ export class ApiKeyService {
 	 * @param keyId - The ID of the API key
 	 */
 	async updateLastUsed(keyId: string) {
-		await db
-			.update(apiKeys)
-			.set({ lastUsedAt: new Date() })
-			.where(eq(apiKeys.id, keyId));
+		await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, keyId));
 	}
 
 	/**

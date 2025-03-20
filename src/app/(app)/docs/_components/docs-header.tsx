@@ -2,7 +2,7 @@
 
 import { SearchMenu } from "@/components/search/search-menu"
 import { Button } from "@/components/ui/button"
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/config/site-config"
 import { cn } from "@/lib/utils"
 import { Github, Menu } from "lucide-react"
 import Link from "next/link"

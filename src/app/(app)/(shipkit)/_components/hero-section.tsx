@@ -4,7 +4,7 @@ import { Link } from "@/components/primitives/link-with-transition";
 import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/primitives/page-header";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { buttonVariants } from "@/components/ui/button";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { ArrowRight, Box, Code, Zap } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { HeroGraphic } from "./hero-graphic";

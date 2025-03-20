@@ -1,5 +1,5 @@
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 
 export interface ProjectStructure {
 	root: string;

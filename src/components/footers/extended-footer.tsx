@@ -6,7 +6,7 @@ import RetroGrid from "@/components/ui/retro-grid";
 import SparklesText from "@/components/ui/sparkles-text";
 import { TextHoverEffect } from "@/components/ui/text-hover-effect";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
 import { type VariantProps, cva } from "class-variance-authority";
 import type React from "react";

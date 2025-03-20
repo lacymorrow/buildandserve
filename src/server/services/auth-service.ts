@@ -498,6 +498,82 @@ export const AuthService = {
 	},
 
 	/**
+	 * Initiate the forgot password process
+	 * @param email Email of the user who forgot their password
+	 * @returns Success object or throws an error
+	 */
+	async forgotPassword(email: string): Promise<{ success: true }> {
+		try {
+			// Validate email exists in Payload CMS first
+			if (!payload) {
+				console.error("Payload CMS is not initialized");
+				throw new Error("Authentication service unavailable");
+			}
+
+			// Check if the user exists in Payload CMS
+			const existingUsers = await payload.find({
+				collection: "users",
+				where: {
+					email: {
+						equals: email,
+					},
+				},
+			});
+
+			if (existingUsers.docs.length === 0) {
+				console.warn(`No user found with email: ${email}`);
+				// Return success even when the email doesn't exist to prevent email enumeration
+				return { success: true };
+			}
+
+			// Call Payload forgotPassword method
+			await payload.forgotPassword({
+				collection: "users",
+				data: {
+					email,
+				},
+			});
+
+			console.log(`Password reset email sent to ${email}`);
+			return { success: true };
+		} catch (error) {
+			console.error("Error in forgotPassword:", error);
+			throw error;
+		}
+	},
+
+	/**
+	 * Reset password using Payload CMS
+	 * @param token Reset password token
+	 * @param password New password
+	 * @returns Success object or throws an error
+	 */
+	async resetPassword(token: string, password: string): Promise<{ success: true }> {
+		try {
+			if (!payload) {
+				console.error("Payload CMS is not initialized");
+				throw new Error("Authentication service unavailable");
+			}
+
+			// Call Payload resetPassword method
+			await payload.resetPassword({
+				collection: "users",
+				data: {
+					token,
+					password,
+				},
+				overrideAccess: true,
+			});
+
+			console.log("Password reset successful");
+			return { success: true };
+		} catch (error) {
+			console.error("Error in resetPassword:", error);
+			throw error;
+		}
+	},
+
+	/**
 	 * Validate user credentials against Payload CMS
 	 * This method ensures the user exists in the Shipkit database after successful authentication
 	 */

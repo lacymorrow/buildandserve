@@ -1,5 +1,5 @@
 import { constructMetadata } from "@/config/metadata";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import type { Metadata } from "next";
 import { FAQ } from "../_components/faq";
 import { FeaturesTable } from "../_components/features-table";

@@ -4,7 +4,7 @@ import { SecretGenerator } from "@/components/mdx/secret-generator";
 import { TypographyProvider } from "@/components/providers/typography-provider";
 import * as AlertComponents from "@/components/ui/alert";
 import { FileTree } from "@/components/ui/file-tree";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import type { MDXComponents } from "mdx/types";
 
 // const fumadocsComponents = await import('fumadocs-ui/mdx');

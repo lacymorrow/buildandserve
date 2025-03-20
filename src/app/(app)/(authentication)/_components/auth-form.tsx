@@ -4,7 +4,7 @@ import { OAuthButtons } from "@/app/(app)/(authentication)/_components/oauth-but
 import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
 import { AuthProviderService } from "@/server/services/auth-provider-service";
 import Link from "next/link";

@@ -1,5 +1,5 @@
 import type { Route } from "next";
-import { siteConfig } from "./site";
+import { siteConfig } from "./site-config";
 type ParamValue = string | number | null;
 export type RouteParams = Record<string, ParamValue>;
 
@@ -40,10 +40,6 @@ export const routes = {
 
 	checkoutSuccess: "/checkout/success",
 
-	// Integration routes
-	vercelDeploy: "/connect/vercel/deploy",
-	vercelDeployWebhook: "/connect/vercel/deploy/webhook",
-
 	// CMS routes
 	cms: {
 		index: "/cms",
@@ -57,6 +53,7 @@ export const routes = {
 		signUp: "/sign-up",
 		signOut: "/sign-out",
 		forgotPassword: "/forgot-password",
+		resetPassword: "/reset-password",
 		signInPage: "/api/auth/signin",
 		signOutPage: "/api/auth/signout",
 		signOutIn: "/sign-out-in",
@@ -108,9 +105,12 @@ export const routes = {
 		sendTestLog: "/api/send-test-log",
 		activityStream: "/api/activity/stream",
 		logger: "/v1",
-		githubConnect: "/api/github/connect",
-		githubDisconnect: "/api/github/disconnect",
 	},
+
+	// Integration routes
+	githubConnect: "/connect/github",
+	vercelDeploy: "/connect/vercel/deploy",
+	vercelDeployWebhook: "/connect/vercel/deploy/webhook",
 
 	// Example routes
 	examples: {

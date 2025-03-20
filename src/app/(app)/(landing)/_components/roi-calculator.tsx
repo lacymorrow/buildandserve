@@ -3,11 +3,11 @@
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { siteConfig } from "@/config/site-config";
+import { oneTimePlans } from "@/content/pricing/pricing-content";
 import { motion } from "framer-motion";
 import { Calculator, Clock, DollarSign, Users } from "lucide-react";
 import { useState } from "react";
-import { oneTimePlans } from "@/content/pricing/pricing-content";
-import { siteConfig } from "@/config/site";
 
 const formatCurrency = (value: number) => {
 	return new Intl.NumberFormat('en-US', {

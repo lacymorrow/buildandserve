@@ -1,4 +1,4 @@
-import { siteConfig } from "@/config/site";
+import { RESEND_FROM } from "@/config/constants";
 import { STATUS_CODES } from "@/config/status-codes";
 import Bitbucket from "@auth/core/providers/bitbucket";
 import type { NextAuthConfig } from "next-auth";
@@ -61,7 +61,7 @@ export const providers: NextAuthConfig["providers"] = [
 		? [
 				Resend({
 					apiKey: process.env.AUTH_RESEND_KEY ?? "",
-					from: process.env.RESEND_FROM ?? siteConfig.email.support,
+					from: RESEND_FROM,
 					// sendVerificationRequest({ identifier: email, url, provider: { server, from } }) {
 					// 	// your function
 					// },
@@ -157,7 +157,7 @@ export const providers: NextAuthConfig["providers"] = [
 					},
 					profile(profile) {
 						return {
-							id: profile.login,
+							id: profile.id.toString(),
 							name: profile.name ?? profile.login,
 							email: profile.email,
 							emailVerified: null,
@@ -165,6 +165,7 @@ export const providers: NextAuthConfig["providers"] = [
 							githubUsername: profile.login,
 						};
 					},
+					checks: ["state", "pkce"],
 					allowDangerousEmailAccountLinking: true,
 				}),
 			]

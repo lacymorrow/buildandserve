@@ -1,4 +1,4 @@
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { env } from "@/env";
 import { logger } from "@/lib/logger";
 import { db } from "@/server/db";

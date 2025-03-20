@@ -1,8 +1,9 @@
 "use server";
 
+import { RESEND_FROM } from "@/config/constants";
 import { routes } from "@/config/routes";
 import { STATUS_CODES } from "@/config/status-codes";
-import { forgotPasswordSchema, signInActionSchema } from "@/lib/schemas/auth";
+import { forgotPasswordSchema, resetPasswordSchema, signInActionSchema } from "@/lib/schemas/auth";
 import { AuthService } from "@/server/services/auth-service";
 import type { UserRole } from "@/types/user";
 import { createServerAction } from "zsa";
@@ -122,9 +123,33 @@ export const signOutAction = async (options?: AuthOptions) => {
 	return await AuthService.signOut(options);
 };
 
-// Todo: Implement forgot password
 export const forgotPasswordAction = createServerAction()
 	.input(forgotPasswordSchema)
-	.handler(async ({ input: _input }) => {
-		// return await forgotPassword(input);
+	.handler(async ({ input }) => {
+		try {
+			await AuthService.forgotPassword(input.email);
+			return { success: true };
+		} catch (error) {
+			console.log(RESEND_FROM);
+			console.error("Error in forgotPasswordAction:", error);
+			return {
+				success: false,
+				error: error instanceof Error ? error.message : STATUS_CODES.AUTH_ERROR.message,
+			};
+		}
+	});
+
+export const resetPasswordAction = createServerAction()
+	.input(resetPasswordSchema)
+	.handler(async ({ input }) => {
+		try {
+			await AuthService.resetPassword(input.token, input.password);
+			return { success: true };
+		} catch (error) {
+			console.error("Error in resetPasswordAction:", error);
+			return {
+				success: false,
+				error: error instanceof Error ? error.message : STATUS_CODES.AUTH_ERROR.message,
+			};
+		}
 	});

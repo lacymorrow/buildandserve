@@ -1,7 +1,7 @@
 import { Icon } from "@/components/assets/icon";
 import { RainbowButton } from "@/components/ui/rainbow-button";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 
 export default function PrimaryCta() {
 	return (

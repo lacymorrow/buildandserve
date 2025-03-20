@@ -1,16 +1,10 @@
+import { PricingSectionSingle } from "@/components/blocks/pricing-section-single";
+import { Link } from "@/components/primitives/link-with-transition";
 import { constructMetadata } from "@/config/metadata";
-import { siteConfig } from "@/config/site";
-import { oneTimePlans, singlePlan, subscriptionPlans } from "@/content/pricing/pricing-content";
+import { routes } from "@/config/routes";
+import { singlePlan } from "@/content/pricing/pricing-content";
 import type { Metadata } from "next";
 import { FAQ } from "../_components/faq";
-import { PricingSectionSubtle } from "../_components/pricing-section-subtle";
-import { PricingSectionSingle } from "@/components/blocks/pricing-section-single";
-import { PricingSectionBold } from "@/app/(app)/(landing)/_components/pricing-section-bold";
-import { PricingSection } from "@/app/(app)/(landing)/_components/pricing-section";
-import { PricingSectionSubscription } from "@/app/(app)/(landing)/_components/pricing-section-subscription";
-import advancedGradient from "@/app/(app)/(landing)/_components/advanced-gradient.jpg";
-import { routes } from "@/config/routes";
-import { Link } from "@/components/primitives/link-with-transition";
 export const metadata: Metadata = constructMetadata({
 	title: "Pricing & Plans - Start Building Today | Shipkit",
 	description: "Transparent, flexible pricing for teams of all sizes. Launch your app with confidence using Shipkit's powerful features. Free tier available, no credit card required.",

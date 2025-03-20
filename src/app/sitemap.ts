@@ -1,5 +1,5 @@
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import type { Buffer } from "buffer";
 import { readdir, stat } from "fs/promises";
 import type { MetadataRoute } from "next";

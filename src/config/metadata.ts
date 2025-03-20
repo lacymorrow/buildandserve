@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { OpenGraph } from "next/dist/lib/metadata/types/opengraph-types";
 import type { Twitter } from "next/dist/lib/metadata/types/twitter-types";
-import { siteConfig } from "./site";
+import { siteConfig } from "./site-config";
 
 const defaultOpenGraph: OpenGraph = {
 	type: "website",
@@ -155,22 +155,18 @@ export const constructMetadata = ({
 export const routeMetadata = {
 	home: {
 		title: `${siteConfig.branding.projectName} - ${siteConfig.title}`,
-		description:
-			`Transform your app idea into reality with ${siteConfig.branding.projectName}'s all-in-one development platform. Built with Next.js, TypeScript, and modern tools for rapid, production-ready deployment.`,
+		description: `Transform your app idea into reality with ${siteConfig.branding.projectName}'s all-in-one development platform. Built with Next.js, TypeScript, and modern tools for rapid, production-ready deployment.`,
 	},
 	features: {
 		title: `Features - Modern App Development Made Simple | ${siteConfig.branding.projectName}`,
-		description:
-			`Discover how ${siteConfig.branding.projectName} accelerates app development with Builder.io, Payload CMS, Auth.js, and more. Get enterprise-grade features without the complexity.`,
+		description: `Discover how ${siteConfig.branding.projectName} accelerates app development with Builder.io, Payload CMS, Auth.js, and more. Get enterprise-grade features without the complexity.`,
 	},
 	pricing: {
 		title: `Simple, Transparent Pricing | ${siteConfig.branding.projectName}`,
-		description:
-			`Choose the perfect plan for your app. Start free, scale as you grow. All plans include core features, world-class support, and automatic updates.`,
+		description: `Choose the perfect plan for your app. Start free, scale as you grow. All plans include core features, world-class support, and automatic updates.`,
 	},
 	docs: {
 		title: `Documentation - Build Better Apps Faster | ${siteConfig.branding.projectName}`,
-		description:
-			`Comprehensive guides, API references, and examples to help you build production-ready apps with ${siteConfig.branding.projectName}. From quick starts to advanced topics.`,
+		description: `Comprehensive guides, API references, and examples to help you build production-ready apps with ${siteConfig.branding.projectName}. From quick starts to advanced topics.`,
 	},
 };

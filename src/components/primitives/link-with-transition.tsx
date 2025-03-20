@@ -5,7 +5,7 @@
  * @see https://nextjs.org/docs/app/api-reference/components/link
  */
 
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { Link as TransitionsLink } from "next-view-transitions";
 import { default as NextLink } from "next/link";
 import type React from "react";

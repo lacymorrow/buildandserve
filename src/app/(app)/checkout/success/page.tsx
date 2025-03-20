@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { ConfettiSideCannons } from "@/components/ui/magicui/confetti/confetti-side-cannons";
 import { SparklesCore } from "@/components/ui/sparkles";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { logger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
 import { downloadRepoAnonymously } from "@/server/actions/github/download-repo";

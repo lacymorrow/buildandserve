@@ -19,7 +19,7 @@ import {
 	SidebarMenuSub
 } from "@/components/ui/sidebar";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
 import { ChevronRightIcon } from "@radix-ui/react-icons";
 import { ArrowLeftFromLineIcon, FileTerminalIcon, Settings2, SquareTerminal, Wrench } from "lucide-react";

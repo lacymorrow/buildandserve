@@ -1,7 +1,35 @@
+import { auth } from "@/auth";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { hasUserActiveSubscription, hasUserPurchasedProduct } from "@/lib/polar";
 import { SubscriptionButton } from "./subscription-button";
 
-export default function SubscriptionsPage() {
+export default async function SubscriptionsPage() {
+	// Get current user session
+	const session = await auth();
+	const userId = session?.user?.id;
+
+	// Set up subscription and purchase checks
+	let hasSubscription = false;
+	const purchasedProducts: Record<string, boolean> = {};
+
+	if (userId) {
+		// Check if user has an active subscription
+		hasSubscription = await hasUserActiveSubscription(userId);
+
+		// Check subscription tiers
+		const subscriptionId = process.env.NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID || "";
+		if (subscriptionId) {
+			purchasedProducts[subscriptionId] = hasSubscription;
+		}
+
+		// Check one-time product
+		const oneTimeId = process.env.NEXT_PUBLIC_POLAR_ONE_TIME_PRICE_ID || "";
+		if (oneTimeId) {
+			purchasedProducts[oneTimeId] = await hasUserPurchasedProduct(userId, oneTimeId);
+		}
+	}
+
 	const subscriptionTiers = [
 		{
 			id: process.env.NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID || "",
@@ -27,9 +55,18 @@ export default function SubscriptionsPage() {
 			<div className="grid grid-cols-1 md:grid-cols-3 gap-8">
 				{tiers.map((tier) => (
 					<Card key={tier.id} className="flex flex-col">
-						<CardHeader>
+						<CardHeader className="relative">
 							<CardTitle>{tier.name}</CardTitle>
 							<CardDescription>{tier.description}</CardDescription>
+							{userId && purchasedProducts[tier.id] && (
+								<div className="absolute top-4 right-4">
+									{tier.id === process.env.NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID ? (
+										<Badge variant="success" className="bg-green-500">Active</Badge>
+									) : (
+										<Badge variant="default" className="bg-blue-500">Purchased</Badge>
+									)}
+								</div>
+							)}
 						</CardHeader>
 						<CardContent className="flex-grow">
 							<p className="text-3xl font-bold">{tier.price}</p>
@@ -37,7 +74,8 @@ export default function SubscriptionsPage() {
 						<CardFooter>
 							<SubscriptionButton
 								tier={tier.id}
-								className="w-full"
+								className={`w-full ${userId && purchasedProducts[tier.id] ? "opacity-50" : ""}`}
+								disabled={userId && purchasedProducts[tier.id]}
 							/>
 						</CardFooter>
 					</Card>

@@ -1,5 +1,5 @@
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { getOrdersByEmail } from "@/lib/lemonsqueezy";
 import { logger } from "@/lib/logger";
 import { auth } from "@/server/auth";

@@ -1,12 +1,10 @@
 import { Link } from "@/components/primitives/link-with-transition"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
-import { routes } from "@/config/routes"
-import { siteConfig } from "@/config/site"
-import { cn } from "@/lib/utils"
-import { ArrowRight, Check, Sparkles } from 'lucide-react'
-import type { PricingPlan } from "@/content/pricing/pricing-content"
 import { Separator } from "@/components/ui/separator"
+import type { PricingPlan } from "@/content/pricing/pricing-content"
+import { cn } from "@/lib/utils"
+import { Check, Sparkles } from 'lucide-react'
 import type React from "react"
 
 interface PricingSectionSingleProps {

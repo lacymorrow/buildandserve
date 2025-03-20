@@ -30,6 +30,19 @@ interface PolarOrder {
 	attributes: Record<string, any>;
 }
 
+// Add this type definition for subscription attributes
+export interface PolarOrderAttributes {
+	product?: {
+		id: string;
+		name: string;
+	};
+	isSubscription?: boolean;
+	is_recurring?: boolean;
+	subscription_status?: string;
+	subscription_end_date?: string | Date; // ISO string or Date object
+	expiresAt?: string | Date; // Alternative field name for expiration
+}
+
 /**
  * Initialize Polar API client
  * This will be called whenever the Polar API is used to ensure the API key is set
@@ -502,14 +515,12 @@ export const hasUserPurchasedProduct = async (
 		// Get user orders
 		const orders = await getOrdersByEmail(user.email);
 
-		// Check if any order contains the product
+		// Check if any order contains the product with exact matching
 		return orders.some(
-			(order) =>
-				order.status === "paid" &&
-				(order.attributes?.product?.id === productId || order.productName.includes(productId))
+			(order) => order.status === "paid" && order.attributes?.product?.id === productId
 		);
 	} catch (error) {
-		console.error("Error checking if user purchased Polar product:", error);
+		logger.error("Error checking if user purchased Polar product:", error);
 		return false;
 	}
 };
@@ -540,18 +551,39 @@ export const hasUserActiveSubscription = async (userId: string): Promise<boolean
 		// Get user orders
 		const orders = await getOrdersByEmail(user.email);
 
+		// Get current date for subscription expiration comparison
+		const now = new Date();
+
 		// Check if any order is a subscription and is active
 		return orders.some((order) => {
-			const attr = order.attributes as any;
-			return (
+			const attr = order.attributes as PolarOrderAttributes;
+
+			// Check if subscription is active based on status and not expired
+			const isActive =
 				order.status === "paid" &&
-				(attr.isSubscription === true ||
-					attr.is_recurring === true ||
-					attr.subscription_status === "active")
-			);
+				(attr.subscription_status === "active" ||
+					attr.isSubscription === true ||
+					attr.is_recurring === true);
+
+			// If we have subscription status checks and it's active, verify expiration date
+			if (isActive) {
+				// Check expiration date if available
+				const endDate = attr.subscription_end_date || attr.expiresAt;
+
+				if (endDate) {
+					const expirationDate = new Date(endDate);
+					// Return true only if expiration date is in the future
+					return expirationDate > now;
+				}
+
+				// If no expiration date is available but status is active, assume it's valid
+				return true;
+			}
+
+			return false;
 		});
 	} catch (error) {
-		console.error("Error checking if user has active Polar subscription:", error);
+		logger.error("Error checking if user has active Polar subscription:", error);
 		return false;
 	}
 };
@@ -608,7 +640,7 @@ export const getUserPurchasedProducts = async (userId: string): Promise<any[]> =
 
 		return purchasedProducts;
 	} catch (error) {
-		console.error("Error getting user purchased Polar products:", error);
+		logger.error("Error getting user purchased Polar products:", error);
 		return [];
 	}
 };

@@ -4,6 +4,7 @@ import { auth, update as updateSession } from "@/server/auth";
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
 import {
+	grantGitHubAccess,
 	revokeGitHubAccess,
 	verifyAndStoreGitHubUsername,
 } from "@/server/services/github/github-service";
@@ -21,7 +22,7 @@ interface GitHubConnectionData {
  * Connects a GitHub account to the user's account.
  * This is called after successful GitHub OAuth flow.
  */
-export async function connectGitHub(data: GitHubConnectionData) {
+export async function connectGitHub(data?: GitHubConnectionData) {
 	try {
 		const session = await auth();
 		if (!session?.user?.id) {
@@ -33,8 +34,32 @@ export async function connectGitHub(data: GitHubConnectionData) {
 			where: eq(users.id, session.user.id),
 		});
 
+		if (!user) {
+			throw new Error("User not found");
+		}
+
+		// If data is passed, use it; otherwise try to get GitHub account from session
+		let githubData = data;
+
+		if (!githubData) {
+			// Look for GitHub account in session
+			const githubAccount = session.user.accounts?.find((account) => account.provider === "github");
+
+			if (!githubAccount) {
+				throw new Error("No GitHub account connected");
+			}
+
+			// We already have a GitHub account connected via OAuth
+			// The username should already be in the session
+			githubData = {
+				githubId: githubAccount.providerAccountId,
+				githubUsername: session.user.githubUsername || "",
+				accessToken: "", // We don't have direct access to the token here
+			};
+		}
+
 		// Parse existing metadata or create new object
-		const currentMetadata = user?.metadata ? JSON.parse(user.metadata) : {};
+		const currentMetadata = user.metadata ? JSON.parse(user.metadata) : {};
 
 		// Update metadata with GitHub info
 		const newMetadata = {
@@ -42,8 +67,8 @@ export async function connectGitHub(data: GitHubConnectionData) {
 			providers: {
 				...currentMetadata.providers,
 				github: {
-					id: data.githubId,
-					accessToken: data.accessToken,
+					id: githubData.githubId,
+					accessToken: githubData.accessToken,
 				},
 			},
 		};
@@ -52,11 +77,21 @@ export async function connectGitHub(data: GitHubConnectionData) {
 		await db
 			?.update(users)
 			.set({
-				githubUsername: data.githubUsername,
+				githubUsername: githubData.githubUsername,
 				metadata: JSON.stringify(newMetadata),
 				updatedAt: new Date(),
 			})
 			.where(eq(users.id, session.user.id));
+
+		// If we have a username, try to grant access to the repository
+		if (githubData.githubUsername) {
+			try {
+				await grantGitHubAccess({ githubUsername: githubData.githubUsername });
+			} catch (grantError) {
+				console.error("Error granting repository access:", grantError);
+				// Don't fail the connection if repo access fails
+			}
+		}
 
 		revalidatePath("/settings");
 		return { success: true };

@@ -1,5 +1,5 @@
-import { siteConfig } from "@/config/site";
-import { env } from "@/env";
+import { RESEND_FROM } from "@/config/constants";
+import { siteConfig } from "@/config/site-config";
 import { resend } from "@/lib/resend";
 
 export const sendFeedbackEmail = async (content: string): Promise<void> => {
@@ -10,7 +10,7 @@ export const sendFeedbackEmail = async (content: string): Promise<void> => {
 		}
 
 		const result = await resend.emails.send({
-			from: `🍱 ${siteConfig.name} <${env.RESEND_FROM ?? siteConfig.email.support}>`,
+			from: `🍱 ${siteConfig.name} <${RESEND_FROM}>`,
 			to: [siteConfig.creator.email],
 			subject: "New Feedback Received",
 			html: `<p>${content}</p>`,

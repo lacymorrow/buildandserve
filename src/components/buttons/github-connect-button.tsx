@@ -3,19 +3,15 @@
 import { Icons } from "@/components/assets/icons";
 import { Link } from "@/components/primitives/link-with-transition";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger
-} from "@/components/ui/tooltip";
-import { siteConfig } from "@/config/site";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { routes } from "@/config/routes";
+import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
+import { siteConfig } from "@/config/site-config";
+import { STATUS_CODES } from "@/config/status-codes";
 import { cn } from "@/lib/utils";
-import { disconnectGitHub, verifyGitHubUsername } from "@/server/actions/github";
-import { useSession } from "next-auth/react";
-import type { FormEvent } from "react";
+import { disconnectGitHub } from "@/server/actions/github";
+import { signIn, useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -28,35 +24,27 @@ interface GitHubSession {
 }
 
 export const GitHubConnectButton = ({ className }: { className?: string }) => {
+	const pathname = usePathname();
 	const { data: session, update: updateSession } = useSession();
 	const [isLoading, setIsLoading] = useState(false);
-	const [username, setUsername] = useState("");
-	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const user = (session as GitHubSession)?.user;
 	const githubUsername = user?.githubUsername;
 	const isConnected = !!githubUsername;
 
-	const handleConnect = async (e: FormEvent) => {
-		e.preventDefault();
-		if (!username) return;
-
+	const handleConnect = async () => {
 		try {
 			setIsLoading(true);
-			console.log("Verifying GitHub username:", username);
-			const result = await verifyGitHubUsername(username);
-			console.log("Verification result:", result);
-
-			// Update session with the returned GitHub username
-			console.log("Updating session with githubUsername:", result.githubUsername);
-			await updateSession();
-			console.log("Session updated");
-
-			setIsDialogOpen(false);
-			toast.success("GitHub username verified successfully");
+			// Use GitHub OAuth to connect account
+			await signIn("github", {
+				callbackUrl: `${routes.githubConnect}?${SEARCH_PARAM_KEYS.nextUrl}=${pathname}&${SEARCH_PARAM_KEYS.statusCode}=${STATUS_CODES.CONNECT_GITHUB.code}`,
+				redirect: true,
+				// The connection status will be determined from the callback URL
+				// since custom parameters can't be reliably passed through OAuth flow
+			});
+			// Note: The OAuth flow will redirect, so we won't reach this point until after the user returns
 		} catch (error) {
 			console.error("GitHub connect error:", error);
-			toast.error(error instanceof Error ? error.message : "Failed to verify GitHub username");
-		} finally {
+			toast.error(error instanceof Error ? error.message : "Failed to connect GitHub account");
 			setIsLoading(false);
 		}
 	};
@@ -107,43 +95,21 @@ export const GitHubConnectButton = ({ className }: { className?: string }) => {
 							<p>
 								{isConnected
 									? `Remove GitHub repository access for ${githubUsername}`
-									: "Enter your GitHub username"}
+									: "Connect your GitHub account"}
 							</p>
 						</TooltipContent>
 					</Tooltip>
 				</div>
 			) : (
-				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-					<DialogTrigger asChild>
-						<Button disabled={isLoading} className={cn(className)}>
-							<Icons.github className="mr-2 h-4 w-4" />
-							{isLoading ? "Connecting..." : "Connect GitHub"}
-						</Button>
-					</DialogTrigger>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>Connect GitHub Account</DialogTitle>
-						</DialogHeader>
-						<form onSubmit={handleConnect} className="space-y-4">
-							<div className="space-y-2">
-								<Label htmlFor="username">GitHub Username</Label>
-								<Input
-									id="username"
-									value={username}
-									onChange={(e) => setUsername(e.target.value)}
-									placeholder="Enter your GitHub username"
-									disabled={isLoading}
-									required
-								/>
-							</div>
-							<Button type="submit" disabled={isLoading} className="w-full">
-								{isLoading ? "Verifying..." : "Verify Username"}
-							</Button>
-						</form>
-					</DialogContent>
-				</Dialog>
+				<Button
+					onClick={() => void handleConnect()}
+					disabled={isLoading}
+					className={cn("w-full", className)}
+				>
+					<Icons.github className="mr-2 h-4 w-4" />
+					{isLoading ? "Connecting..." : "Connect GitHub"}
+				</Button>
 			)}
-
 		</>
 	);
 };

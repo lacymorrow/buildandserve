@@ -13,7 +13,7 @@ import { CodeWindow } from "@/components/ui/code-window";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { auth } from "@/server/auth";
 import { isAdmin } from "@/server/services/admin-service";
 import { checkGitHubConnection } from "@/server/services/github/github-service";

@@ -12,6 +12,7 @@ import { vercelBlobStorage } from "@payloadcms/storage-vercel-blob";
 import { buildConfig } from "payload";
 import sharp from "sharp";
 
+import { RESEND_FROM } from "@/config/constants";
 // Import components using path strings for Payload 3.0
 // We'll use component paths instead of direct imports
 import { FAQs } from "./lib/payload/collections/FAQs";
@@ -230,7 +231,7 @@ export default buildConfig({
 	...(process.env.AUTH_RESEND_KEY
 		? {
 				email: resendAdapter({
-					defaultFromAddress: "dev@payloadcms.com",
+					defaultFromAddress: RESEND_FROM,
 					defaultFromName: "Payload CMS",
 					apiKey: process.env.AUTH_RESEND_KEY || "",
 				}),

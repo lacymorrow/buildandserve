@@ -1,12 +1,12 @@
 "use client";
 
 import { GitHubConnectButton } from "@/components/buttons/github-connect-button";
-import { VercelDeployButton } from "@/components/buttons/vercel-deploy-button";
 import { VercelConnectButton } from "@/components/shipkit/vercel-connect-button";
+import { VercelDeployButton } from "@/components/shipkit/vercel-deploy-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { useToast } from "@/hooks/use-toast";
 import { IconBrandVercelFilled } from "@tabler/icons-react";
@@ -66,6 +66,7 @@ export function OnboardingWizard({
 	hasVercelConnection = false,
 	onComplete
 }: OnboardingWizardProps) {
+	const initialStep = hasGitHubConnection ? hasVercelConnection ? 2 : 1 : 0;
 	// Check if onboarding has been completed
 	const [onboardingState, setOnboardingState] = useLocalStorage<{
 		completed: boolean;
@@ -73,7 +74,7 @@ export function OnboardingWizard({
 		steps: Record<string, boolean>;
 	}>(`onboarding-${user.id}`, {
 		completed: false,
-		currentStep: 0,
+		currentStep: initialStep,
 		steps: {
 			github: hasGitHubConnection,
 			vercel: hasVercelConnection,
@@ -262,12 +263,11 @@ export function OnboardingWizard({
 
 											</div>
 										</div>
-										<div className="mx-auto">
-											<VercelConnectButton
-												className="mt-4"
-												user={user}
-											/>
-										</div>
+										<VercelConnectButton
+											className="mt-4 w-full"
+											user={user}
+										/>
+
 									</div>
 
 									<div className="rounded-lg bg-muted p-4">

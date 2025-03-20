@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { octokit } from "@/server/services/github/github-service";
 import { Clock, GitCommit, GitMerge, GitPullRequest } from "lucide-react";
 

@@ -4,7 +4,7 @@ import {
 	AccordionItem,
 	AccordionTrigger,
 } from "@/components/ui/accordion";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { getPayloadContent } from "@/lib/utils/get-payload-content";
 import type { Faq } from "@/payload-types";
 import { notFound } from "next/navigation";
