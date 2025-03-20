@@ -11,6 +11,7 @@ import {
 	useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { useSubscription } from "@/hooks/use-subscription";
 import { cn } from "@/lib/utils";
 import { CaretSortIcon } from "@radix-ui/react-icons";
 import { useState } from "react";
@@ -25,6 +26,7 @@ export function NavUser({ className, showUpgrade = true }: NavUserProps) {
 	const { data: session, status } = useSession();
 	const [isOpen, setIsOpen] = useState(false);
 	const isAdmin = useIsAdmin();
+	const { hasActiveSubscription } = useSubscription();
 	const isLoading = status === "loading";
 
 	const userInitials = session?.user?.name
@@ -42,6 +44,7 @@ export function NavUser({ className, showUpgrade = true }: NavUserProps) {
 					setIsOpen={setIsOpen}
 					session={session}
 					showUpgrade={showUpgrade}
+					hasActiveSubscription={hasActiveSubscription}
 					showOnboarding={true}
 					side={isMobile ? "bottom" : "right"}
 					align="end"

@@ -201,7 +201,32 @@ const mapToPolarOrder = (order: any): PolarOrder => {
 		amount = convertPriceToIntegerCents(order.total);
 	}
 
-	return {
+	// Extract subscription-related information
+	const isSubscription = !!(
+		order.isSubscription ||
+		order.is_recurring ||
+		order.subscriptionId ||
+		order.subscription_id ||
+		(order.subscription_status && order.subscription_status !== "canceled") ||
+		(order.attributes?.subscription_status && order.attributes.subscription_status !== "canceled")
+	);
+
+	// Log subscription detection
+	if (isSubscription) {
+		logger.debug("Detected subscription in order", {
+			orderId: order.id,
+			isSubscription,
+			subscriptionStatus: order.subscription_status || order.attributes?.subscription_status,
+			subscriptionEndDate:
+				order.subscription_end_date ||
+				order.expiresAt ||
+				order.attributes?.subscription_end_date ||
+				order.attributes?.expiresAt,
+		});
+	}
+
+	// Create the mapped order object with enhanced subscription data
+	const mappedOrder = {
 		id: order.id || "",
 		orderId: order.id || "",
 		userEmail: order.customer?.email || "Unknown",
@@ -210,8 +235,21 @@ const mapToPolarOrder = (order: any): PolarOrder => {
 		status: mapPolarOrderStatus(order.status),
 		productName: order.product?.name || "Unknown Product",
 		purchaseDate: new Date(order.createdAt || Date.now()),
-		attributes: order,
+		attributes: {
+			...order,
+			// Enhance attributes with subscription information
+			isSubscription,
+			is_recurring: isSubscription || order.is_recurring,
+			subscription_status: order.subscription_status || order.attributes?.subscription_status,
+			subscription_end_date:
+				order.subscription_end_date ||
+				order.expiresAt ||
+				order.attributes?.subscription_end_date ||
+				order.attributes?.expiresAt,
+		},
 	};
+
+	return mappedOrder;
 };
 
 /**
@@ -532,9 +570,12 @@ export const hasUserPurchasedProduct = async (
  */
 export const hasUserActiveSubscription = async (userId: string): Promise<boolean> => {
 	try {
+		logger.debug("Checking if user has active Polar subscription", { userId });
+
 		// Check if the user has any payment
 		const hasPayment = await getPolarPaymentStatus(userId);
 		if (!hasPayment) {
+			logger.debug("No Polar payment found for user", { userId });
 			return false;
 		}
 
@@ -546,42 +587,78 @@ export const hasUserActiveSubscription = async (userId: string): Promise<boolean
 			},
 		});
 
-		if (!user?.email) return false;
+		if (!user?.email) {
+			logger.debug("User email not found", { userId });
+			return false;
+		}
 
 		// Get user orders
 		const orders = await getOrdersByEmail(user.email);
+		logger.debug("Found orders for user", { userId, email: user.email, orderCount: orders.length });
 
 		// Get current date for subscription expiration comparison
 		const now = new Date();
 
 		// Check if any order is a subscription and is active
-		return orders.some((order) => {
-			const attr = order.attributes as PolarOrderAttributes;
+		const hasActiveSubscription = orders.some((order) => {
+			const attr = order.attributes;
 
-			// Check if subscription is active based on status and not expired
-			const isActive =
-				order.status === "paid" &&
-				(attr.subscription_status === "active" ||
-					attr.isSubscription === true ||
-					attr.is_recurring === true);
+			// Basic subscription indicators
+			const isSubscriptionType = !!(
+				attr.isSubscription ||
+				attr.is_recurring ||
+				attr.subscriptionId ||
+				attr.subscription_id
+			);
 
-			// If we have subscription status checks and it's active, verify expiration date
+			// Status indicators
+			const hasActiveStatus = !!(
+				attr.subscription_status === "active" || attr.subscription_status === "trialing"
+			);
+
+			// Combined check for subscription status
+			const isActive = order.status === "paid" && (isSubscriptionType || hasActiveStatus);
+
+			// Date validation when applicable
 			if (isActive) {
 				// Check expiration date if available
 				const endDate = attr.subscription_end_date || attr.expiresAt;
 
 				if (endDate) {
 					const expirationDate = new Date(endDate);
-					// Return true only if expiration date is in the future
-					return expirationDate > now;
+					const isNotExpired = expirationDate > now;
+
+					logger.debug("Subscription expiration check", {
+						orderId: order.id,
+						isActive,
+						expirationDate: expirationDate.toISOString(),
+						now: now.toISOString(),
+						isNotExpired,
+					});
+
+					return isNotExpired;
 				}
 
-				// If no expiration date is available but status is active, assume it's valid
+				// If no expiration date but status is active, consider valid
+				logger.debug("Active subscription without expiration date", {
+					orderId: order.id,
+					isActive,
+					status: order.status,
+					subscriptionStatus: attr.subscription_status,
+				});
 				return true;
 			}
 
 			return false;
 		});
+
+		logger.debug("Polar subscription check result", {
+			userId,
+			email: user.email,
+			hasActiveSubscription,
+		});
+
+		return hasActiveSubscription;
 	} catch (error) {
 		logger.error("Error checking if user has active Polar subscription:", error);
 		return false;

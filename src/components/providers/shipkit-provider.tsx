@@ -28,7 +28,7 @@ interface ShipkitProviderProps {
  * Main provider component that wraps all providers used in the application
  * Can be used in both App Router and Pages Router
  */
-export async function ShipkitProvider({
+export function ShipkitProvider({
 	children,
 	session,
 	pageProps,

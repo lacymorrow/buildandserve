@@ -222,3 +222,75 @@ export async function importPayments(
 		throw error;
 	}
 }
+
+/**
+ * Server action to check Polar subscription status in detail for debugging
+ */
+export async function debugPolarSubscription(): Promise<{
+	success: boolean;
+	details: any;
+	message?: string;
+}> {
+	try {
+		const session = await auth();
+		if (!session?.user?.id) {
+			return { success: false, details: null, message: "Not authenticated" };
+		}
+
+		// Import required modules
+		const polarModule = await import("@/lib/polar");
+		const hasUserActivePolarSubscription = polarModule.hasUserActiveSubscription;
+		const getOrdersByEmail = polarModule.getOrdersByEmail;
+		const { db } = await import("@/server/db");
+		const { users } = await import("@/server/db/schema");
+		const { eq } = await import("drizzle-orm");
+
+		// Get user email
+		const user = await db?.query.users.findFirst({
+			where: eq(users.id, session.user.id),
+			columns: {
+				email: true,
+			},
+		});
+
+		if (!user?.email) {
+			return { success: false, details: null, message: "User email not found" };
+		}
+
+		// Check subscription status
+		const hasSubscription = await hasUserActivePolarSubscription(session.user.id);
+
+		// Get user orders
+		const orders = await getOrdersByEmail(user.email);
+
+		// Prepare detailed response
+		const details = {
+			userId: session.user.id,
+			email: user.email,
+			hasActiveSubscription: hasSubscription,
+			ordersCount: orders.length,
+			orders: orders.map((order) => ({
+				id: order.id,
+				status: order.status,
+				amount: order.amount,
+				productName: order.productName,
+				purchaseDate: order.purchaseDate,
+				isSubscription:
+					order.attributes?.isSubscription ||
+					order.attributes?.is_recurring ||
+					order.attributes?.subscription_status === "active",
+				subscriptionStatus: order.attributes?.subscription_status,
+				subscriptionEndDate: order.attributes?.subscription_end_date || order.attributes?.expiresAt,
+			})),
+		};
+
+		return { success: true, details };
+	} catch (error) {
+		console.error("Error checking Polar subscription details:", error);
+		return {
+			success: false,
+			details: { error: String(error) },
+			message: "Failed to check Polar subscription details",
+		};
+	}
+}

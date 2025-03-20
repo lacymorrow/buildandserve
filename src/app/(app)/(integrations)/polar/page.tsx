@@ -1,7 +1,7 @@
-import { auth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasUserActiveSubscription, hasUserPurchasedProduct } from "@/lib/polar";
+import { auth } from "@/server/auth";
 import { SubscriptionButton } from "./subscription-button";
 
 export default async function SubscriptionsPage() {

@@ -7,6 +7,7 @@ import { BorderBeam } from "@/components/ui/border-beam";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useSignInRedirectUrl } from "@/hooks/use-auth-redirect";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { useSubscription } from "@/hooks/use-subscription";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { updateTheme } from "@/server/actions/settings";
@@ -20,14 +21,20 @@ type Theme = "light" | "dark" | "system";
 interface UserMenuProps {
 	size?: "default" | "sm";
 	className?: string;
+	showUpgrade?: boolean;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className }) => {
+export const UserMenu: React.FC<UserMenuProps> = ({
+	size = "default",
+	className,
+	showUpgrade = false
+}) => {
 	const { data: session, status } = useSession();
 	const signInRedirectUrl = useSignInRedirectUrl();
 	const { theme, setTheme } = useTheme();
 	const { toast } = useToast();
 	const [isOpen, setIsOpen] = React.useState(false);
+	const { hasActiveSubscription } = useSubscription();
 
 	const isAdmin = useIsAdmin();
 
@@ -108,6 +115,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className 
 					setIsOpen={setIsOpen}
 					session={session}
 					isAdmin={isAdmin}
+					showUpgrade={showUpgrade}
+					hasActiveSubscription={hasActiveSubscription}
 					theme={theme}
 					handleThemeChange={handleThemeChange}
 				>

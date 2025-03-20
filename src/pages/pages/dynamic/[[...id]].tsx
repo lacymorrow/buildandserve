@@ -56,6 +56,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
 								Try changing the ID in the URL to see how the page updates dynamically! For
 								example, try visiting{" "}
 								<Link
+									suppressHydrationWarning
 									href={dynamicExampleRoute.path}
 									className="text-primary hover:underline"
 								>

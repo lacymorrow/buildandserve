@@ -177,8 +177,8 @@ export const routes = {
 	// Demo routes
 	demo: {
 		// CMS Demo routes
-		builderio: "/builderio",
-		payloadCms: "/payload-cms",
+		builderio: "/builder",
+		payloadCms: "/payload",
 
 		network: "/network",
 

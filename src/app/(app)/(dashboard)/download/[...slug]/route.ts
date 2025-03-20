@@ -1,6 +1,6 @@
 import { auth } from "@/server/auth";
 import { getTemporaryLinkData } from "@/server/services/temporary-links";
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 export async function GET(
 	request: NextRequest,
@@ -10,7 +10,7 @@ export async function GET(
 		params: Promise<{
 			slug: string;
 		}>;
-	},
+	}
 ) {
 	const params = await paramsPromise;
 	const session = await auth();

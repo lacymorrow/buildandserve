@@ -14,10 +14,7 @@ export async function POST(request: Request) {
 		// Get Vercel access token
 		const vercelAccount = await db?.query.accounts.findFirst({
 			where: (accounts, { and, eq }) =>
-				and(
-					eq(accounts.userId, session.user.id),
-					eq(accounts.provider, "vercel")
-				),
+				and(eq(accounts.userId, session.user.id), eq(accounts.provider, "vercel")),
 		});
 
 		if (!vercelAccount?.access_token) {
@@ -25,24 +22,21 @@ export async function POST(request: Request) {
 		}
 
 		// Create project on Vercel
-		const createProjectResponse = await fetch(
-			"https://api.vercel.com/v9/projects",
-			{
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${vercelAccount.access_token}`,
-					"Content-Type": "application/json",
+		const createProjectResponse = await fetch("https://api.vercel.com/v9/projects", {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${vercelAccount.access_token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				name: projectName,
+				gitRepository: {
+					type: "github",
+					repo: repoUrl.split("github.com/")[1],
 				},
-				body: JSON.stringify({
-					name: projectName,
-					gitRepository: {
-						type: "github",
-						repo: repoUrl.split("github.com/")[1],
-					},
-					framework: "nextjs",
-				}),
-			}
-		);
+				framework: "nextjs",
+			}),
+		});
 
 		if (!createProjectResponse.ok) {
 			const error = await createProjectResponse.text();
@@ -55,27 +49,24 @@ export async function POST(request: Request) {
 		const { id: projectId } = await createProjectResponse.json();
 
 		// Deploy the project
-		const deployResponse = await fetch(
-			"https://api.vercel.com/v6/deployments",
-			{
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${vercelAccount.access_token}`,
-					"Content-Type": "application/json",
+		const deployResponse = await fetch("https://api.vercel.com/v6/deployments", {
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${vercelAccount.access_token}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				name: projectName,
+				project: projectId,
+				target: "production",
+				teamId,
+				gitSource: {
+					type: "github",
+					ref: "main",
+					repoId: repoUrl.split("github.com/")[1],
 				},
-				body: JSON.stringify({
-					name: projectName,
-					project: projectId,
-					target: "production",
-					teamId,
-					gitSource: {
-						type: "github",
-						ref: "main",
-						repoId: repoUrl.split("github.com/")[1],
-					},
-				}),
-			}
-		);
+			}),
+		});
 
 		if (!deployResponse.ok) {
 			const error = await deployResponse.text();
@@ -88,9 +79,8 @@ export async function POST(request: Request) {
 		return NextResponse.json({ deploymentId });
 	} catch (error) {
 		console.error("Error in deployment:", error);
-		return new NextResponse(
-			error instanceof Error ? error.message : "Failed to deploy",
-			{ status: 500 }
-		);
+		return new NextResponse(error instanceof Error ? error.message : "Failed to deploy", {
+			status: 500,
+		});
 	}
 }

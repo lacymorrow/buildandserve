@@ -3,7 +3,6 @@ import { Link } from "@/components/primitives/link-with-transition";
 import { Section } from "@/components/primitives/section";
 import { buttonVariants } from "@/components/ui/button";
 import { CodeWindow } from "@/components/ui/code-window";
-import { ParticlesHero } from "@/components/ui/particles-hero";
 import { routes } from "@/config/routes";
 import { auth } from "@/server/auth";
 import { RocketIcon } from "lucide-react";

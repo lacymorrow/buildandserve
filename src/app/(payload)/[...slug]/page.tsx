@@ -14,6 +14,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BlockRenderer } from "../payload-blocks";
 
+
+import { AppLayout } from "@/components/layouts/app-layout";
 import "@/styles/builder-io.css";
 
 // Initialize Builder only if API key is available
@@ -170,9 +172,9 @@ export default async function Page({ params: paramsPromise, searchParams: search
 	// If Payload page exists, render it
 	if (payloadPage) {
 		return (
-			<main>
+			<AppLayout>
 				<BlockRenderer blocks={(payloadPage?.layout as PageBlock[]) ?? []} />
-			</main>
+			</AppLayout>
 		);
 	}
 

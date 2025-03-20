@@ -30,7 +30,7 @@ export async function GET() {
 		console.error("Error generating Vercel auth URL:", error);
 		return new NextResponse(
 			error instanceof Error ? error.message : "Failed to generate auth URL",
-			{ status: 500 },
+			{ status: 500 }
 		);
 	}
 }

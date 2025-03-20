@@ -49,6 +49,16 @@ interface Tool {
 }
 
 const tools: Tool[] = [
+	// https://ui.jln.dev
+	{
+		title: "Shadcn UI Themes",
+		description: "10000+ Themes for Shadcn / UI",
+		icon: Palette,
+		href: "https://ui.jln.dev",
+		isExternal: true,
+		category: "Design",
+		keywords: ["shadcn", "ui", "theme", "design"],
+	},
 	// https://broken-link-checker.vercel.app/
 	{
 		title: "Broken Link Checker",

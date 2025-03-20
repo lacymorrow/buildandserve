@@ -33,16 +33,12 @@ export async function createApiKey(data: z.infer<typeof schemas.createApiKey>) {
 		// Ensure user is authenticated and has permission
 		const session = await auth();
 		if (!session?.user) {
-			ErrorService.throwUnauthorized(
-				"You must be logged in to create an API key",
-			);
+			ErrorService.throwUnauthorized("You must be logged in to create an API key");
 		}
 
 		// Ensure user can only create keys for themselves
 		if (session.user.id !== data.userId) {
-			ErrorService.throwUnauthorized(
-				"You can only create API keys for yourself",
-			);
+			ErrorService.throwUnauthorized("You can only create API keys for yourself");
 		}
 
 		// Convert expiresIn to milliseconds if provided
@@ -91,9 +87,7 @@ export async function deleteApiKey(apiKeyId: string) {
 		// Ensure user is authenticated
 		const session = await auth();
 		if (!session?.user) {
-			ErrorService.throwUnauthorized(
-				"You must be logged in to delete an API key",
-			);
+			ErrorService.throwUnauthorized("You must be logged in to delete an API key");
 		}
 
 		console.log("session", session.user.id);

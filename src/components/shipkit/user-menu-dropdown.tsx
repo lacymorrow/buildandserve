@@ -47,6 +47,7 @@ interface UserMenuDropdownProps {
 	session: Session | null;
 	isAdmin?: boolean;
 	showUpgrade?: boolean;
+	hasActiveSubscription?: boolean;
 	showOnboarding?: boolean;
 	theme?: string;
 	handleThemeChange?: (value: string) => void;
@@ -65,6 +66,7 @@ export function UserMenuDropdown({
 	session,
 	isAdmin = false,
 	showUpgrade = false,
+	hasActiveSubscription = false,
 	showOnboarding = false,
 	theme,
 	handleThemeChange,
@@ -103,7 +105,7 @@ export function UserMenuDropdown({
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />
 
-				{showUpgrade && (
+				{showUpgrade && !hasActiveSubscription && (
 					<>
 						<DropdownMenuGroup>
 							<DropdownMenuItem asChild>
