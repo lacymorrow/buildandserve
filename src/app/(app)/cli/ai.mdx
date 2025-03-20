@@ -1,0 +1,74 @@
+# ShipKit v0.dev Integration Implementation
+
+## Introduction
+
+This document outlines the implementation of the v0.dev component import feature for ShipKit. The feature allows users to safely import components created on v0.dev into their own projects, handling different app directory structures and providing options for both direct installation and file downloading.
+
+## Problem Statement
+
+When importing v0.dev components, several challenges need to be addressed:
+
+1. **Directory Structure Incompatibility** - Some v0 components use `app/` while others use `src/app/` structure. If these don't match the user's project structure, Next.js can crash.
+2. **Production Environment Limitations** - In production, source code is compiled and obfuscated, making direct installation impossible.
+3. **Deployment Workflow** - Users need a way to get the component code into their repositories for deployment.
+
+## Implementation Plan
+
+- [x] Create a service for fetching v0.dev component structure without installing
+- [x] Add ability to detect and adapt to different app directory structures
+- [x] Create a user interface for importing components from v0.dev
+- [x] Implement file download functionality for offline installation
+- [x] Add direct installation option for development environments
+- [x] Integrate with existing CLI components browser
+
+## Implementation Details
+
+### v0 Component Import Service
+
+We created a service that:
+
+1. Downloads the component structure to a temporary directory
+2. Extracts files and their contents
+3. Determines the app directory structure used by the component
+4. Provides utilities to adjust file paths to match the user's project structure
+
+### User Interface
+
+We added a dialog that allows users to:
+
+1. Enter a v0.dev component URL
+2. View the component's structure (files and directory layout)
+3. Choose their project's directory structure
+4. Download the component files as a ZIP for manual installation
+5. Direct installation for development environments
+
+### Adjustment Logic
+
+The system automatically detects if there's a mismatch between the component's structure and the user's project structure, and adjusts file paths to ensure compatibility.
+
+## Usage Instructions
+
+1. From the component browser, click "Import from v0.dev"
+2. Enter a v0.dev component URL (e.g., https://v0.dev/chat/b/PELBaSciVMb)
+3. Review the component structure
+4. Select your project structure (app/ or src/app/)
+5. Choose to download the files or install directly
+
+## Files Created/Modified
+
+- `src/app/(app)/cli/_actions/import-v0.ts` - Server actions for v0 component operations
+- `src/app/(app)/cli/_lib/v0-import-service.ts` - Service for handling v0 component imports
+- `src/app/(app)/cli/_components/v0-import-dialog.tsx` - UI for importing v0 components
+- `src/app/(app)/cli/_components/browser-sidebar.tsx` - Updated to include v0 import dialog
+
+## Dependencies Added
+
+- jszip - For creating ZIP files of component code
+- file-saver - For downloading files in browser
+
+## Future Improvements
+
+- [ ] Add support for detecting and installing required npm dependencies
+- [ ] Improve error handling and validation for v0 URLs
+- [ ] Add a preview feature to see the component before importing
+- [ ] Support for batch importing multiple components

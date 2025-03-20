@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { CheckIcon, Cross2Icon, ReloadIcon } from '@radix-ui/react-icons'
 import { motion } from 'framer-motion'
 import { CopyIcon, Download } from 'lucide-react'
-import { type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { installComponent } from '../_actions/install'
 import { getInstalledComponents } from '../_actions/registry'
 import { useRegistry } from '../_hooks/use-registry'
@@ -22,7 +22,6 @@ import { ComponentDetails } from './component-details'
 import { buttonStyles, componentCardStyles, containerStyles } from './styles'
 import { Terminal } from './terminal'
 import type { InstallationProgress, StyleMode } from './types'
-import { memo } from 'react'
 
 interface ComponentCardProps {
 	component: RegistryItem

@@ -49,7 +49,7 @@ export class TeamService extends BaseService<typeof teams> {
 			});
 
 			if (!user) {
-				logger.error("Cannot create personal team: user not found", { userId });
+				logger.warn("Cannot create personal team: user not found. Signing out user.", { userId });
 
 				// Since session appears to be corrupted, sign the user out silently
 				try {
@@ -58,7 +58,7 @@ export class TeamService extends BaseService<typeof teams> {
 						redirectTo: `${routes.auth.signIn}?code=${STATUS_CODES.AUTH_REFRESH.code}`,
 					});
 				} catch (signOutError) {
-					logger.error("Failed to sign out user with invalid session", {
+					logger.warn("Failed to sign out user with invalid session", {
 						userId,
 						error: signOutError instanceof Error ? signOutError.message : String(signOutError),
 					});

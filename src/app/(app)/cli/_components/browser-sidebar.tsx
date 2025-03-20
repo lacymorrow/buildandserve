@@ -4,14 +4,14 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { Search } from 'lucide-react'
 import { memo, useMemo } from 'react'
 import type { RegistryFilters, RegistryItem } from '../_lib/types'
 import { getColor } from './colors'
-import type { StyleMode, InstallationProgress } from './types'
 import { CustomInstallDialog } from './custom-install-dialog'
+import type { InstallationProgress, StyleMode } from './types'
+import { V0ImportDialog } from './v0-import-dialog'
 
 export interface BrowserSidebarProps {
 	currentStyle: StyleMode
@@ -97,105 +97,69 @@ export const BrowserSidebar = memo(({
 					</div>
 				</div>
 
-				<CustomInstallDialog
-					onInstall={onCustomInstall}
-					installationProgress={installationProgress}
-				/>
-				<Separator className="my-2" />
+				<div className="space-y-2">
+					<CustomInstallDialog
+						onInstall={onCustomInstall}
+						installationProgress={installationProgress}
+					/>
+
+					<V0ImportDialog
+						onInstall={onCustomInstall}
+						installationProgress={installationProgress}
+					/>
+				</div>
 
 				<div>
-					<Label htmlFor="type" className="text-sm font-medium mb-2 block">
-						Type
-					</Label>
+					<Label htmlFor="type-select" className="text-sm font-medium block mb-2">Type</Label>
 					<Select
-						value={filters.type}
+						value={filters.type || 'all'}
 						onValueChange={(value) => setFilters({ ...filters, type: value as RegistryFilters['type'] })}
 					>
-						<SelectTrigger
-							id="type"
-							className={cn(
-								currentStyle === 'brutalist'
-									? 'border-2 border-primary rounded-none'
-									: 'border rounded-md'
-							)}
-						>
-							<SelectValue placeholder="Select type" />
+						<SelectTrigger id="type-select" className={cn(
+							currentStyle === 'brutalist'
+								? 'border-2 border-primary rounded-none'
+								: 'border rounded-md'
+						)}>
+							<SelectValue placeholder="All Types" />
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="all">All Types</SelectItem>
-							<SelectItem value="components" className="flex items-center justify-between">
-								<span>Components</span>
-								<Badge variant="secondary" className="ml-2 font-mono">{componentCount}</Badge>
-							</SelectItem>
-							<SelectItem value="blocks" className="flex items-center justify-between">
-								<span>Blocks</span>
-								<Badge variant="secondary" className="ml-2 font-mono">{blockCount}</Badge>
-							</SelectItem>
+							<SelectItem value="components">Components ({componentCount})</SelectItem>
+							<SelectItem value="blocks">Blocks ({blockCount})</SelectItem>
 						</SelectContent>
 					</Select>
 				</div>
 
 				<div>
-					<Label htmlFor="category" className="text-sm font-medium mb-2 block">
-						Category
-					</Label>
+					<Label htmlFor="category-select" className="text-sm font-medium block mb-2">Category</Label>
 					<Select
-						value={filters.category}
+						value={filters.category || 'all'}
 						onValueChange={(value) => setFilters({ ...filters, category: value })}
 					>
-						<SelectTrigger
-							id="category"
-							className={cn(
-								currentStyle === 'brutalist'
-									? 'border-2 border-primary rounded-none'
-									: 'border rounded-md'
-							)}
-						>
-							<div className="flex items-center gap-2">
-								{filters.category && filters.category !== 'all' && (
-									<div
-										className="w-2 h-2 rounded-full"
-										style={{ backgroundColor: getColor(filters.category) }}
-									/>
-								)}
-								<SelectValue placeholder="Select category" />
-							</div>
+						<SelectTrigger id="category-select" className={cn(
+							currentStyle === 'brutalist'
+								? 'border-2 border-primary rounded-none'
+								: 'border rounded-md'
+						)}>
+							<SelectValue placeholder="All Categories" />
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="all">All Categories</SelectItem>
 							{categories.map((category) => (
-								<SelectItem key={category} value={category} className="flex items-center justify-between">
-									<div className="flex items-center gap-2">
-										<div
-											className="w-2 h-2 rounded-full"
-											style={{ backgroundColor: getColor(category) }}
-										/>
-										{category}
+								<SelectItem key={category} value={category}>
+									<div className="flex items-center justify-between w-full">
+										<div className="flex items-center">
+											<div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: getColor(category) }} />
+											{category}
+										</div>
+										<span className="ml-auto text-xs text-muted-foreground">
+											{categoryCount[category]}
+										</span>
 									</div>
-									<Badge variant="secondary" className="ml-2 font-mono">
-										{categoryCount[category]}
-									</Badge>
 								</SelectItem>
 							))}
 						</SelectContent>
 					</Select>
-				</div>
-
-				<Separator className="my-4" />
-
-				<div className="text-sm text-muted-foreground space-y-2">
-					<div className="flex items-center justify-between">
-						<span>Total Components</span>
-						<Badge variant="secondary" className="font-mono">{filteredItems.length}</Badge>
-					</div>
-					<div className="flex items-center justify-between">
-						<span>Types</span>
-						<Badge variant="secondary" className="font-mono">{types.length}</Badge>
-					</div>
-					<div className="flex items-center justify-between">
-						<span>Categories</span>
-						<Badge variant="secondary" className="font-mono">{categories.length}</Badge>
-					</div>
 				</div>
 			</div>
 		</div>
