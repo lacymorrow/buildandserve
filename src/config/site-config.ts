@@ -119,7 +119,7 @@ export const siteConfig: SiteConfig = {
 	name: "Shipkit",
 	title: "Launch your app today",
 	url: "https://shipkit.io",
-	ogImage: "https://shipkit.io/og",
+	ogImage: "https://shipkit.io/app/og-image.png",
 	description:
 		"Launch your app at light speed. Fast, flexible, and feature-packed for the modern web.",
 

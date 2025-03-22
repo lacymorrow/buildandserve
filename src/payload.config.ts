@@ -54,7 +54,7 @@ export default buildConfig({
 			openGraph: {
 				images: [
 					{
-						url: "/og",
+						url: "/app/og-image.png",
 					},
 				],
 				siteName: "ShipKit CMS",
