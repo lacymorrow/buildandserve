@@ -16,12 +16,16 @@ For example, you may launch with no environment variables at all. Adding a datab
 - Authentication uses NextAuth/AuthJS v5.
 - Authentication with credentials uses payload CMS user management.
 - Use the Shadcn/UI components and styles when possible. This means colors, fonts, spacing, border-radius, etc. are already set up.
-- Write concise, technical TypeScript code with accurate examples.
-- Use functional and declarative programming patterns; avoid classes.
-- Prefer iteration and modularization over code duplication.
-- Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError).
-- Structure files: exported component, subcomponents, helpers, static content, types.
-- Use the simplest solution first and only add complexity when necessary.
+
+## Code sacred beliefs
+
+- Thou shalt Make files small and discrete. When possible keep files under 500 lines, if at all possible.
+- Thou shalt Write concise, technical TypeScript code with accurate examples.
+- Thou shalt Use functional and declarative programming patterns; avoid classes.
+- Thou shalt Prefer iteration and modularization over code duplication.
+- Thou shalt Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError).
+- Thou shalt Structure files: exported component, subcomponents, helpers, static content, types.
+- Thou shalt Use the simplest solution first and only add complexity when necessary.
 
 ## React State Management
 
