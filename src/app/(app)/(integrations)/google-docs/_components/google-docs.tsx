@@ -1,8 +1,8 @@
-import { SafeHTML } from "@/components/ui/safe-html";
-import { env } from "@/env";
-import { logger } from "@/lib/logger";
 import { google } from "googleapis";
 import type React from "react";
+
+import { env } from "@/env";
+import { SafeHTML } from "./safe-html";
 
 interface Heading {
 	id: string;
@@ -19,7 +19,7 @@ export const importGoogleDoc = async (
 	documentId: string,
 ): Promise<ProcessedDocument> => {
 	if (!env.GOOGLE_CLIENT_EMAIL || !env.GOOGLE_PRIVATE_KEY) {
-		logger.error("Google credentials are not set");
+		console.error("Google credentials are not set");
 		return {
 			content: null,
 			headings: [],

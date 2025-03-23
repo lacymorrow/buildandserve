@@ -33,6 +33,8 @@ export const env = createEnv({
 			(str) => process.env.VERCEL_URL ?? str,
 			process.env.VERCEL ? z.string().optional() : z.string().url().optional()
 		),
+		// ======== Credentials (requires DB) ========
+		AUTH_CREDENTIALS_ENABLED: z.string().optional(),
 
 		// Email and Magic login
 		AUTH_RESEND_KEY: z.string().optional(),
@@ -127,6 +129,7 @@ export const env = createEnv({
 		// Authentication
 		AUTH_SECRET: process.env.AUTH_SECRET,
 		AUTH_URL: process.env.AUTH_URL,
+		AUTH_CREDENTIALS_ENABLED: process.env.AUTH_CREDENTIALS_ENABLED,
 		AUTH_RESEND_KEY: process.env.AUTH_RESEND_KEY,
 		RESEND_FROM: process.env.RESEND_FROM,
 		RESEND_AUDIENCE_ID: process.env.RESEND_AUDIENCE_ID,

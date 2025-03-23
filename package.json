@@ -128,6 +128,7 @@
     "@vercel/analytics": "1.5.0",
     "@vercel/otel": "^1.10.4",
     "@vercel/speed-insights": "^1.2.0",
+    "@webcontainer/api": "^1.5.1",
     "ansi-to-html": "^0.7.2",
     "better-react-mathjax": "^2.1.0",
     "blurhash": "^2.0.5",

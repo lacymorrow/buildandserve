@@ -74,7 +74,9 @@ export const providers: NextAuthConfig["providers"] = [
 	 * @see https://authjs.dev/getting-started/providers/credentials
 	 */
 
-	...(process.env.DATABASE_URL
+	...(process.env.DATABASE_URL &&
+	process.env.AUTH_CREDENTIALS_ENABLED === "true" &&
+	process.env.DISABLE_PAYLOAD !== "true"
 		? [
 				Credentials({
 					name: "credentials", // Used by Oauth buttons to determine the active sign-in options
