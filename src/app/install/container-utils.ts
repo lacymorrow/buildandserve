@@ -46,6 +46,9 @@ declare global {
 export class ContainerManager {
 	private container: any;
 	private isReady = false;
+	private fileSystemSnapshotBefore: Map<string, string> = new Map();
+	private fileSystemSnapshotAfter: Map<string, string> = new Map();
+	private changedFiles: ContainerFile[] = [];
 
 	// Initialize the container when needed
 	async initialize() {
@@ -368,8 +371,38 @@ export class ContainerManager {
 		logInfo(`Running ${description}: ${command} ${args.join(" ")}`);
 
 		try {
+			// Modify args to auto-accept prompts if possible
+			let modifiedArgs = [...args];
+
+			// For npm and pnpm commands, add --yes flag if not already present
+			if (
+				(command === "npm" || command === "pnpm") &&
+				!args.includes("--yes") &&
+				!args.includes("-y")
+			) {
+				modifiedArgs.push("--yes");
+			}
+
+			// For npx, add --yes if not already present
+			if (command === "npx" && !args.includes("--yes") && !args.includes("-y")) {
+				// Add --yes before the package name
+				if (modifiedArgs[0] === "--yes" || modifiedArgs[0] === "-y") {
+					// already has it as first arg
+				} else if (modifiedArgs.length > 0) {
+					modifiedArgs = ["--yes", ...modifiedArgs];
+				}
+			}
+
+			// If installing shadcn, make sure to auto-accept prompts
+			const isShadcn = modifiedArgs.some((arg) => arg.includes("shadcn"));
+			if (isShadcn && !modifiedArgs.includes("--yes") && !modifiedArgs.includes("-y")) {
+				modifiedArgs.push("--yes");
+			}
+
+			logInfo(`Modified command to auto-accept prompts: ${command} ${modifiedArgs.join(" ")}`);
+
 			// Start the process
-			const process = await this.container.spawn(command, args);
+			const process = await this.container.spawn(command, modifiedArgs);
 
 			// Set up tracking variables
 			let output = "";
@@ -406,7 +439,7 @@ export class ContainerManager {
 					// For shadcn/shadcn-ui specifically, if we've gotten to the validation point
 					// or any message about configuration or themes, consider it done
 					// since it may error out after validating due to missing files
-					if (args[1]?.includes("shadcn")) {
+					if (isShadcn) {
 						return (
 							lowerText.includes("validating") ||
 							lowerText.includes("no tailwind css configuration") ||
@@ -434,17 +467,28 @@ export class ContainerManager {
 
 			// Function to handle automatic prompt responses
 			const handlePrompts = (text: string) => {
-				if (
+				const hasPrompt =
 					text.toLowerCase().includes("ok to proceed?") ||
 					text.toLowerCase().includes("need to install") ||
 					text.toLowerCase().includes("(y/n)") ||
-					text.toLowerCase().includes("(y)")
-				) {
+					text.toLowerCase().includes("(y)");
+
+				if (hasPrompt) {
 					try {
-						logInfo("Detected prompt, responding with 'y'");
-						process.input.write("y\n");
+						logInfo("Detected prompt, attempting to respond with 'y'");
+
+						// Check if input exists and is writable
+						if (process.input && typeof process.input.write === "function") {
+							process.input.write("y\n");
+							logInfo("Successfully wrote 'y' to process input");
+						} else {
+							// If we can't write to input, log but don't throw error
+							// Commands should have --yes flags already
+							logInfo("Unable to write to process input, relying on --yes flags");
+						}
 					} catch (e) {
-						logInfo("Failed to write to process input", e);
+						logInfo("Failed to handle prompt", e);
+						// Don't throw - we'll rely on --yes flags
 					}
 				}
 			};
@@ -799,6 +843,168 @@ export function cn(...inputs: ClassValue[]) {
 		logInfo(`Processed ${files.length} files total`);
 		logInfo("Template file processing complete");
 		return files;
+	}
+
+	// Take a snapshot of the file system
+	private async takeFileSystemSnapshot(): Promise<Map<string, string>> {
+		const snapshot = new Map<string, string>();
+
+		if (!this.container || !this.container.fs) {
+			logInfo("Container or filesystem not available for snapshot");
+			return snapshot;
+		}
+
+		// Helper function to recursively process directories
+		const processDirectory = async (dirPath: string): Promise<void> => {
+			try {
+				logInfo(`Reading directory: ${dirPath}`);
+
+				// Read directory entries
+				const entries = await this.container.fs.readdir(dirPath);
+
+				for (const entryName of entries) {
+					const fullPath = `${dirPath}/${entryName}`;
+
+					try {
+						// Try to determine if it's a directory by attempting to read it
+						try {
+							const subEntries = await this.container.fs.readdir(fullPath);
+							// If we get here, it's a directory
+							logInfo(`Found directory: ${fullPath}`);
+							await processDirectory(fullPath);
+						} catch (readError) {
+							// If we can't read it as a directory, assume it's a file
+							// Skip binary files based on extension
+							const extension = fullPath.split(".").pop()?.toLowerCase() || "";
+							const binaryExtensions = [
+								"png",
+								"jpg",
+								"jpeg",
+								"gif",
+								"ico",
+								"woff",
+								"woff2",
+								"ttf",
+								"eot",
+								"pdf",
+								"zip",
+							];
+
+							if (!binaryExtensions.includes(extension)) {
+								try {
+									// Try to read the file
+									const content = await this.container.fs.readFile(fullPath, "utf-8");
+									logInfo(`Added file to snapshot: ${fullPath} (${content.length} bytes)`);
+									snapshot.set(fullPath, content);
+								} catch (fileReadError) {
+									logInfo(`Error reading file ${fullPath}:`, fileReadError);
+								}
+							} else {
+								logInfo(`Skipping binary file: ${fullPath}`);
+							}
+						}
+					} catch (err) {
+						logInfo(`Error processing entry ${fullPath}:`, err);
+					}
+				}
+			} catch (err) {
+				logInfo(`Error reading directory ${dirPath}:`, err);
+			}
+		};
+
+		// Start the snapshot from root
+		try {
+			await processDirectory(".");
+		} catch (err) {
+			logInfo("Error taking file system snapshot:", err);
+		}
+
+		return snapshot;
+	}
+
+	// Compare two snapshots and return changed files
+	private compareSnapshots(
+		before: Map<string, string>,
+		after: Map<string, string>
+	): ContainerFile[] {
+		const changedFiles: ContainerFile[] = [];
+
+		// Check for new and modified files
+		after.forEach((content, path) => {
+			if (!before.has(path) || before.get(path) !== content) {
+				changedFiles.push({
+					path,
+					content,
+				});
+			}
+		});
+
+		return changedFiles;
+	}
+
+	// Run a shadcn command and track file system changes
+	async runShadcnCommand(command: string[]): Promise<ContainerFile[]> {
+		if (!this.isReady) {
+			await this.initialize();
+		}
+
+		try {
+			// Log the user's original command
+			const originalCommand = [...command];
+			logInfo(`Original command: ${originalCommand.join(" ")}`);
+
+			// Parse the command to determine package manager and actual command
+			let packageManager = "npx";
+			let actualCommand = [...command];
+
+			// Check if command starts with a package manager
+			const packageManagers = ["npx", "pnpx", "pnpm", "bunx", "yarn"];
+			if (packageManagers.includes(command[0])) {
+				packageManager = command[0];
+				actualCommand = command.slice(1);
+			}
+
+			// Take a snapshot of the file system before running the command
+			logInfo("Taking snapshot of file system before command...");
+			this.fileSystemSnapshotBefore = await this.takeFileSystemSnapshot();
+			logInfo(`Initial snapshot captured: ${this.fileSystemSnapshotBefore.size} files`);
+
+			// Just run the command as provided by the user
+			logInfo(`Running command: ${packageManager} ${actualCommand.join(" ")}`);
+
+			// Run the command directly without modification
+			await this.runInstallCommand(
+				packageManager,
+				actualCommand,
+				`${packageManager} ${actualCommand.join(" ")}`
+			);
+
+			// Take a snapshot after running the command
+			logInfo("Taking snapshot of file system after command...");
+			this.fileSystemSnapshotAfter = await this.takeFileSystemSnapshot();
+			logInfo(`After snapshot captured: ${this.fileSystemSnapshotAfter.size} files`);
+
+			// Compare snapshots to find changes
+			this.changedFiles = this.compareSnapshots(
+				this.fileSystemSnapshotBefore,
+				this.fileSystemSnapshotAfter
+			);
+			logInfo(`Detected ${this.changedFiles.length} changed files after command execution`);
+
+			return this.changedFiles;
+		} catch (error) {
+			logInfo(
+				"Error running shadcn command",
+				error instanceof Error ? error.message : String(error)
+			);
+			console.error("Error running shadcn command:", error);
+			throw error;
+		}
+	}
+
+	// Get the detected changed files
+	getChangedFiles(): ContainerFile[] {
+		return this.changedFiles;
 	}
 }
 

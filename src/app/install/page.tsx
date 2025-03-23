@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { getProjectStructure } from "./actions";
 import { ContainerProcessor } from "./components/container-processor";
 import { FilePreview } from "./components/file-preview";
+import { ShadcnCommand } from "./components/shadcn-command";
 
 export default function InstallPage() {
 	const [processing, setProcessing] = useState(false);
@@ -261,34 +262,27 @@ export default function InstallPage() {
 				</TabsContent>
 
 				<TabsContent value="preview">
-					<Card>
-						<CardHeader>
-							<CardTitle>Component Files</CardTitle>
-							<CardDescription>
-								These files will be created in your project using the{" "}
-								<code className="text-xs bg-muted px-1 py-0.5 rounded">{projectStructure}</code>{" "}
-								directory structure
-							</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-4">
-								{files.length === 0 ? (
-									<p className="text-muted-foreground">No files to display</p>
-								) : (
-									files.map((file) => <FilePreview key={file.path} file={file} />)
-								)}
-							</div>
-						</CardContent>
-						<CardFooter className="flex justify-between">
-							<Button variant="outline" onClick={() => setActiveTab("input")}>
-								Back to Input
-							</Button>
-							<Button onClick={handleDownloadAll} disabled={files.length === 0}>
-								<DownloadIcon className="mr-2 h-4 w-4" />
-								Download All Files
-							</Button>
-						</CardFooter>
-					</Card>
+					<div className="space-y-6">
+						<Card>
+							<CardHeader>
+								<CardTitle>Template Files</CardTitle>
+								<CardDescription>
+									Preview and download the shadcn/UI template files
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<FilePreview files={files} />
+							</CardContent>
+							<CardFooter>
+								<Button onClick={handleDownloadAll} className="w-full sm:w-auto">
+									<DownloadIcon className="mr-2 h-4 w-4" />
+									Download All Files
+								</Button>
+							</CardFooter>
+						</Card>
+
+						<ShadcnCommand />
+					</div>
 				</TabsContent>
 			</Tabs>
 		</div>

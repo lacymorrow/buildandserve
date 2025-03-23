@@ -3,17 +3,25 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon, CopyIcon, DownloadIcon } from "lucide-react";
 import { useState } from "react";
 
 interface FilePreviewProps {
+    files: {
+        path: string;
+        content: string;
+    }[];
+}
+
+interface SingleFilePreviewProps {
     file: {
         path: string;
         content: string;
     };
 }
 
-export function FilePreview({ file }: FilePreviewProps) {
+function SingleFilePreview({ file }: SingleFilePreviewProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [copied, setCopied] = useState(false);
 
@@ -71,5 +79,25 @@ export function FilePreview({ file }: FilePreviewProps) {
                 </CardFooter>
             </Card>
         </Collapsible>
+    );
+}
+
+export function FilePreview({ files }: FilePreviewProps) {
+    if (!files || files.length === 0) {
+        return (
+            <div className="text-center p-8 text-muted-foreground">
+                No files to display
+            </div>
+        );
+    }
+
+    return (
+        <ScrollArea className="h-[400px]">
+            <div className="space-y-4">
+                {files.map((file) => (
+                    <SingleFilePreview key={file.path} file={file} />
+                ))}
+            </div>
+        </ScrollArea>
     );
 }
