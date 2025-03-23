@@ -18,6 +18,26 @@ export const ShadcnCommand = () => {
     const [commandError, setCommandError] = useState<string>("");
     const [changedFiles, setChangedFiles] = useState<FileChange[]>([]);
     const [activeTab, setActiveTab] = useState("command");
+    const [progressMessage, setProgressMessage] = useState("");
+
+    // Function to update progress message based on logs
+    const updateProgress = (logs: string) => {
+        if (logs.includes("Installing dependencies")) {
+            setProgressMessage("Installing dependencies... This may take several minutes");
+        } else if (logs.includes("installing") && !logs.includes("Installing dependencies")) {
+            setProgressMessage("Installing components... Please wait");
+        } else if (logs.includes("ready to use") || logs.includes("component added")) {
+            setProgressMessage("Component added successfully!");
+        } else if (logs.includes("copying")) {
+            setProgressMessage("Copying component files...");
+        } else if (logs.includes("validating")) {
+            setProgressMessage("Validating configuration...");
+        } else if (logs.includes("added ") && logs.includes("package")) {
+            setProgressMessage("Added dependencies successfully!");
+        } else if (logs.includes("downloading") || logs.includes("fetching")) {
+            setProgressMessage("Downloading packages... Please wait");
+        }
+    };
 
     // Validate the command format - just basic checks
     const validateCommand = (commandStr: string): string | null => {
@@ -33,6 +53,8 @@ export const ShadcnCommand = () => {
         setCommandOutput("");
         setCommandError("");
         setChangedFiles([]);
+        setProgressMessage("Starting command execution...");
+        setActiveTab("command");
 
         // Simple validation to ensure there's a command
         const validationError = validateCommand(command);
@@ -49,8 +71,24 @@ export const ShadcnCommand = () => {
             // Track the window logs before running the command
             const logsBefore = window.webContainerLogs ? [...window.webContainerLogs] : [];
 
+            // Set up an interval to update UI with latest logs during execution
+            const logUpdateInterval = setInterval(() => {
+                if (window.webContainerLogs) {
+                    const currentLogs = window.webContainerLogs.slice(logsBefore.length);
+                    const formattedLogs = currentLogs
+                        .map((log) => `[${log.timestamp}] ${log.message} ${log.data || ""}`)
+                        .join("\n");
+
+                    setCommandOutput(formattedLogs || "Command running...");
+                    updateProgress(formattedLogs);
+                }
+            }, 1000);
+
             // Run the command and get changed files
             const changes = await containerManager?.runShadcnCommand(args);
+
+            // Clear the interval when done
+            clearInterval(logUpdateInterval);
 
             // Get logs that were added during command execution
             const logsAfter = window.webContainerLogs ? [...window.webContainerLogs] : [];
@@ -62,6 +100,7 @@ export const ShadcnCommand = () => {
                 .join("\n");
 
             setCommandOutput(formattedLogs || "Command completed successfully");
+            setProgressMessage("");
 
             if (changes && changes.length > 0) {
                 setChangedFiles(changes);
@@ -71,6 +110,7 @@ export const ShadcnCommand = () => {
             }
         } catch (error) {
             setCommandError(error instanceof Error ? error.message : String(error));
+            setProgressMessage("");
             setActiveTab("command");
         } finally {
             setIsLoading(false);
@@ -101,6 +141,14 @@ export const ShadcnCommand = () => {
                                 {isLoading ? "Running..." : "Run"}
                             </Button>
                         </div>
+
+                        {isLoading && progressMessage && (
+                            <div className="mt-2 flex items-center text-sm">
+                                <div className="animate-spin mr-2 h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                                <span>{progressMessage}</span>
+                            </div>
+                        )}
+
                         <div className="text-sm text-muted-foreground space-y-2 mt-2">
                             <p><strong>Examples:</strong></p>
                             <ul className="list-disc pl-5 space-y-1">
@@ -116,6 +164,7 @@ export const ShadcnCommand = () => {
                                         <li>Add <strong>--yes</strong> to auto-confirm installations</li>
                                         <li>For v0.dev URLs, make sure they're properly quoted: "https://v0.dev/..."</li>
                                         <li>Paste commands exactly as you would run them in your terminal</li>
+                                        <li>Complex components may take several minutes to install</li>
                                     </ul>
                                 </AlertDescription>
                             </Alert>

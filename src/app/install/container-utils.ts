@@ -408,6 +408,8 @@ export class ContainerManager {
 			let output = "";
 			let lastOutputTime = Date.now();
 			let isComplete = false;
+			let installationStarted = false;
+			let installationMessages = 0;
 
 			// Create a reader for the output stream
 			const reader = process.output.getReader();
@@ -416,50 +418,130 @@ export class ContainerManager {
 			const checkCompletionIndicators = (text: string): boolean => {
 				const lowerText = text.toLowerCase();
 
+				// Skip spinner animations which are often used for "Installing dependencies"
+				// The ora spinner package uses these characters: ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
+				if (text.match(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/) && lowerText.includes("installing")) {
+					// This is most likely a spinner animation - not a completion indicator
+					logInfo("Detected spinner animation, not considering as completion");
+
+					// Update the last activity time to prevent timeout
+					lastOutputTime = Date.now();
+
+					return false;
+				}
+
+				// Skip ANSI color/cursor control sequences (used by spinners and progress indicators)
+				if (text.includes("\u001b[") || text.match(/\[\d+[A-Z]/)) {
+					// These are terminal control sequences, not actual completion indicators
+					logInfo("Detected ANSI control sequence, not considering as completion");
+					return false;
+				}
+
+				// Skip simple "installing dependencies" messages which aren't completion markers
+				if (
+					lowerText.trim() === "installing dependencies." ||
+					lowerText.includes("installing dependencies...") ||
+					lowerText.match(/installing dependencies/i)
+				) {
+					// Update the last activity time to prevent timeout since we know work is happening
+					lastOutputTime = Date.now();
+					installationStarted = true;
+					installationMessages++;
+
+					logInfo(
+						`Installation in progress (message #${installationMessages}), not considering as completion`
+					);
+					return false;
+				}
+
 				// General completion phrases
 				if (
 					lowerText.includes("done in") ||
 					lowerText.includes("completed in") ||
-					lowerText.includes("finished in")
+					lowerText.includes("finished in") ||
+					(lowerText.includes("added") && lowerText.includes("package"))
 				) {
+					logInfo("Detected completion phrase in output");
 					return true;
 				}
 
 				// npm specific completion indicators
 				if (command === "npm") {
-					return (
+					if (
 						lowerText.includes("added ") ||
 						lowerText.includes("up to date") ||
 						lowerText.includes("packages are looking for funding")
-					);
+					) {
+						logInfo("Detected npm completion indicator");
+						return true;
+					}
 				}
 
-				// npx specific completion indicators
-				if (command === "npx") {
-					// For shadcn/shadcn-ui specifically, if we've gotten to the validation point
-					// or any message about configuration or themes, consider it done
-					// since it may error out after validating due to missing files
-					if (isShadcn) {
-						return (
-							lowerText.includes("validating") ||
-							lowerText.includes("no tailwind css configuration") ||
-							lowerText.includes("components") ||
-							lowerText.includes("configuration") ||
-							lowerText.includes("error") ||
-							lowerText.includes("failed") ||
-							lowerText.includes("deprecated") || // Detect deprecation messages
-							lowerText.includes("please use the 'shadcn' package") ||
-							lowerText.includes("for more information") || // Added for shadcn output
-							lowerText.includes("import the styles in your app") // Added for shadcn output
-						);
+				// npx specific completion indicators for shadcn
+				if (command === "npx" && isShadcn) {
+					// For shadcn specifically, additional completion indicators
+					if (
+						// Common completion phrases for shadcn
+						lowerText.includes("added dependencies") ||
+						lowerText.includes("installed button") ||
+						lowerText.includes("component added") ||
+						lowerText.includes("components added") ||
+						lowerText.includes("ready to use") ||
+						(lowerText.includes("successfully") && lowerText.includes("installed")) ||
+						// Installation complete phrases
+						(lowerText.includes("tailwind") && lowerText.includes("configured")) ||
+						(lowerText.includes("components") && lowerText.includes("ready")) ||
+						// Component copy phrases
+						lowerText.includes("component copied") ||
+						(lowerText.includes("copying component") && lowerText.includes("complete")) ||
+						// Configuration complete phrases
+						(lowerText.includes("configuration") && !lowerText.includes("configuring")) ||
+						lowerText.includes("tailwind.config") ||
+						// Explicit completion
+						lowerText.includes("import the styles in your app") ||
+						lowerText.includes("for more information") ||
+						// Error states
+						lowerText.includes("error") ||
+						lowerText.includes("failed") ||
+						lowerText.includes("deprecated") ||
+						lowerText.includes("please use the 'shadcn' package")
+					) {
+						logInfo("Detected shadcn completion indicator");
+						return true;
 					}
 
-					return (
-						lowerText.includes("installed") ||
+					// Handle installation progress - we now specifically exclude this as a completion indicator
+					if (lowerText.includes("installing")) {
+						installationStarted = true;
+						installationMessages++;
+
+						// Reset the last output time to avoid timeouts - we know the installation is ongoing
+						lastOutputTime = Date.now();
+
+						// Never consider "installing" as a completion indicator on its own
+						logInfo(`Installation progress message #${installationMessages}, continuing to wait`);
+						return false;
+					}
+				}
+
+				// Other npx completion indicators
+				if (command === "npx") {
+					if (
+						(lowerText.includes("installed") && !lowerText.includes("installing")) ||
 						lowerText.includes("success") ||
-						lowerText.includes("components") ||
-						lowerText.includes("configuration")
-					);
+						(lowerText.includes("components") && !lowerText.includes("installing"))
+					) {
+						logInfo("Detected npx completion indicator");
+						return true;
+					}
+				}
+
+				// If we've seen 20+ installation messages and haven't detected completion,
+				// we should check if we're seeing any output at all
+				if (installationStarted && installationMessages > 20) {
+					// Keep updating the last output time to prevent timeouts
+					lastOutputTime = Date.now();
+					logInfo("Long-running installation in progress, continuing to wait");
 				}
 
 				return false;
@@ -497,23 +579,32 @@ export class ContainerManager {
 			const activityCheckInterval = setInterval(() => {
 				const idleTime = Date.now() - lastOutputTime;
 
-				// If we've been idle for more than 3 seconds and have output
-				if (idleTime > 3000 && output.length > 0) {
+				// If we've been idle for more than 10 seconds and have output
+				if (idleTime > 10000 && output.length > 0) {
 					// Check if the output indicates completion
 					if (checkCompletionIndicators(output)) {
 						logInfo(`${description} appears to be complete based on output indicators`);
 						isComplete = true;
 						clearInterval(activityCheckInterval);
+					} else if (installationStarted) {
+						// For installations, be more lenient with idle time
+						logInfo(
+							`${description} has been installing for ${Math.round(idleTime / 1000)}s, still waiting...`
+						);
+						// Reset the last output time to prevent timeout during installation
+						if (isShadcn) {
+							lastOutputTime = Date.now() - 5000; // Still track idle time, but give more buffer
+						}
 					} else {
 						logInfo(
 							`${description} has been idle for ${Math.round(idleTime / 1000)}s, still waiting...`
 						);
 					}
 				}
-			}, 3000);
+			}, 10000); // Check every 10 seconds instead of 3
 
 			// Read output until we get completion indicators
-			const maxWaitTime = 60000; // 1 minute maximum wait
+			const maxWaitTime = 300000; // 5 minutes maximum wait (increased from 1 minute)
 			const startTime = Date.now();
 
 			try {
@@ -547,6 +638,16 @@ export class ContainerManager {
 								isComplete = true;
 								break;
 							}
+
+							// Update UI with progress info for long-running processes
+							if (
+								chunk.includes("Installing dependencies") ||
+								chunk.includes("installing") ||
+								chunk.includes("downloading")
+							) {
+								installationStarted = true;
+								installationMessages++;
+							}
 						}
 					} catch (err) {
 						logInfo(`Error reading output: ${err instanceof Error ? err.message : String(err)}`);
@@ -562,7 +663,9 @@ export class ContainerManager {
 			// Check if we timed out
 			if (Date.now() - startTime >= maxWaitTime && !isComplete) {
 				logInfo(`${description} timed out after ${maxWaitTime / 1000} seconds`);
-				throw new Error(`${description} process timed out`);
+				throw new Error(
+					`${description} process timed out after ${Math.floor(maxWaitTime / 60000)} minutes. This may be due to slow network or resource limits. Try again or use a more basic component.`
+				);
 			}
 
 			// Log completion
@@ -857,12 +960,24 @@ export function cn(...inputs: ClassValue[]) {
 		// Helper function to recursively process directories
 		const processDirectory = async (dirPath: string): Promise<void> => {
 			try {
+				// Skip node_modules directory
+				if (dirPath === "node_modules" || dirPath.includes("/node_modules/")) {
+					logInfo(`Skipping node_modules directory: ${dirPath}`);
+					return;
+				}
+
 				logInfo(`Reading directory: ${dirPath}`);
 
 				// Read directory entries
 				const entries = await this.container.fs.readdir(dirPath);
 
 				for (const entryName of entries) {
+					// Skip node_modules directory
+					if (entryName === "node_modules") {
+						logInfo(`Skipping node_modules directory: ${dirPath}/${entryName}`);
+						continue;
+					}
+
 					const fullPath = `${dirPath}/${entryName}`;
 
 					try {
