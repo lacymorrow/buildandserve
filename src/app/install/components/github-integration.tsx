@@ -1,67 +1,125 @@
 "use client";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangleIcon, CheckCircleIcon, GitBranchIcon, GithubIcon } from "lucide-react";
+import { ChevronDown, ChevronUp, Github, Loader2 } from "lucide-react";
 import { useState } from "react";
-import type { FileChange } from "./file-change-display";
 
-export const GitHubIntegration = ({
-	changedFiles,
-	disabled = false,
-}: {
-	changedFiles: FileChange[];
+interface GitHubIntegrationProps {
+	changedFiles: Array<{ path: string; content: string }>;
 	disabled?: boolean;
-}) => {
-	// State for branch and commit information
-	const [branchName, setBranchName] = useState(
-		`shadcn-${new Date().toISOString().split("T")[0]}`
-	);
-	const [commitMessage, setCommitMessage] = useState("Add Shadcn UI components");
+	command?: string; // The shadcn command being executed
+}
 
-	// State for pull request information
-	const [prTitle, setPrTitle] = useState("Add Shadcn UI components");
-	const [prBody, setPrBody] = useState("");
+export function GitHubIntegration({ changedFiles, disabled, command }: GitHubIntegrationProps) {
+	// Extract component name from command once
+	const extractComponentInfo = () => {
+		if (!command) return null;
+		const match = command.match(/add\s+(\w+)/);
+		return match ? match[1] : null;
+	};
 
-	// State for operation status
+	const componentName = extractComponentInfo();
+	const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+	const timeComponent = new Date().toISOString().split('T')[1].split('.')[0].replace(/:/g, '-'); // HH-MM-SS
+
+	// Generate default values once
+	const defaultValues = {
+		branchName: componentName
+			? `shipkit/add-${componentName}-${timestamp}`
+			: `shipkit/add-components-${timestamp}-${timeComponent}`,
+		title: componentName
+			? `Add ${componentName} component`
+			: "Add Shadcn UI components",
+		description: "",
+	};
+
+	// State management
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
 	const [prUrl, setPrUrl] = useState<string | null>(null);
+	const [showCustomization, setShowCustomization] = useState(false);
+	const [progressMessages, setProgressMessages] = useState<string[]>([]);
 
-	// State for UI
-	const [activeTab, setActiveTab] = useState("branch");
+	// Form state
+	const [branchName, setBranchName] = useState(defaultValues.branchName);
+	const [commitMessage, setCommitMessage] = useState(defaultValues.title);
+	const [prTitle, setPrTitle] = useState(defaultValues.title);
+	const [prBody, setPrBody] = useState(defaultValues.description);
+
+	// Helper functions
+	const addProgressMessage = (message: string) => {
+		setProgressMessages(prev => [...prev, message]);
+	};
+
+	const generatePrBody = () => {
+		const componentsList = changedFiles
+			.filter(file => file.path.includes("component") && file.path.includes(".tsx"))
+			.map(file => file.path.split("/").pop()?.replace(".tsx", ""))
+			.filter(Boolean);
+
+		const sections = [
+			"## Shadcn UI Components Added",
+			command && `Command: \`${command}\``,
+			"\n### Changed Files",
+			changedFiles.map(file => `- \`${file.path}\``).join("\n"),
+			componentsList.length > 0 && "\n### Components Added",
+			componentsList.length > 0 && componentsList.map(name => `- ${name}`).join("\n")
+		].filter(Boolean);
+
+		return sections.join("\n");
+	};
+
+	const handleGitHubError = (error: unknown) => {
+		console.error("Error during GitHub operation:", error);
+		let errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+
+		const errorTypes = {
+			"authentication failed": ". Please check if your GitHub access token is valid.",
+			"permission denied": ". Please check if you have the necessary permissions.",
+			"rate limit": ". Please try again later."
+		};
+
+		for (const [type, message] of Object.entries(errorTypes)) {
+			if (errorMessage.includes(type)) {
+				errorMessage += message;
+				break;
+			}
+		}
+
+		setError(errorMessage);
+	};
+
+	const makeGitHubRequest = async (
+		endpoint: string,
+		data: object,
+		progressMessage: string,
+		successMessage: string | ((data: any) => string)
+	) => {
+		addProgressMessage(progressMessage);
+		const response = await fetch(`/api/github/${endpoint}`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(data),
+		});
+
+		const responseData = await response.json();
+		if (!response.ok) {
+			throw new Error(responseData.details || responseData.error || `Failed to ${endpoint}`);
+		}
+
+		addProgressMessage(typeof successMessage === 'function' ? successMessage(responseData) : successMessage);
+		return responseData;
+	};
 
 	const handleSubmit = async () => {
-		// Client-side validation
-		if (!branchName?.trim()) {
-			setError("Branch name is required");
-			return;
-		}
-
-		if (!commitMessage?.trim()) {
-			setError("Commit message is required");
-			return;
-		}
-
-		if (!prTitle?.trim()) {
-			setError("Pull request title is required");
-			return;
-		}
-
 		if (changedFiles.length === 0) {
 			setError("No changes to submit. Please add components first.");
-			return;
-		}
-
-		// Validate branch name format
-		const branchNameRegex = /^[a-zA-Z0-9-_/]+$/;
-		if (!branchNameRegex.test(branchName)) {
-			setError("Branch name can only contain letters, numbers, hyphens, underscores, and forward slashes");
 			return;
 		}
 
@@ -69,254 +127,189 @@ export const GitHubIntegration = ({
 		setError(null);
 		setSuccess(null);
 		setPrUrl(null);
+		setProgressMessages([]);
 
 		try {
-			// Step 1: Create a new branch
-			const branchResponse = await fetch("/api/github/create-branch", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					branchName: branchName.trim(),
-				}),
-			});
+			// Check if branch exists
+			const branchCheckData = await makeGitHubRequest(
+				"create-branch",
+				{ branchName: branchName.trim(), checkOnly: true },
+				"Checking if branch exists...",
+				""
+			);
 
-			const branchData = await branchResponse.json();
-
-			if (!branchResponse.ok) {
-				throw new Error(branchData.details || branchData.error || "Failed to create branch");
+			// Handle existing branch
+			if (branchCheckData.exists) {
+				const newBranchName = `${branchName}-${timeComponent}`;
+				setBranchName(newBranchName);
+				addProgressMessage(`Branch "${branchName}" already exists, using "${newBranchName}" instead`);
 			}
 
-			setSuccess(`Branch "${branchName}" created successfully.`);
+			// Create branch
+			await makeGitHubRequest(
+				"create-branch",
+				{ branchName: branchName.trim() },
+				"Creating new branch...",
+				`Branch "${branchName}" created successfully`
+			);
 
-			// Step 2: Commit changes to the branch
-			const commitResponse = await fetch("/api/github/commit-changes", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
+			// Commit changes
+			await makeGitHubRequest(
+				"commit-changes",
+				{
 					branchName: branchName.trim(),
 					commitMessage: commitMessage.trim(),
-					files: changedFiles.map((file) => ({
-						path: file.path,
-						content: file.content,
-					})),
-				}),
-			});
-
-			const commitData = await commitResponse.json();
-
-			if (!commitResponse.ok) {
-				throw new Error(commitData.details || commitData.error || "Failed to commit changes");
-			}
-
-			setSuccess(`Changes committed successfully to branch "${branchName}".`);
-
-			// Step 3: Create a pull request
-			// Create a PR body that lists the changed files
-			const generatedPrBody =
-				prBody ||
-				`## Shadcn UI Components Added
-
-${changedFiles.map((file) => `- \`${file.path}\``).join("\n")}
-
-${changedFiles.some((file) => file.path.includes("component"))
-					? `\n## Components Added
-${changedFiles
-						.filter((file) => file.path.includes("component") && file.path.includes(".tsx"))
-						.map((file) => {
-							const componentName = file.path.split("/").pop()?.replace(".tsx", "");
-							return `- ${componentName}`;
-						})
-						.join("\n")}`
-					: ""
-				}
-`;
-
-			const prResponse = await fetch("/api/github/create-pr", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
+					files: changedFiles,
 				},
-				body: JSON.stringify({
+				"Committing changes...",
+				`Changes committed successfully to branch "${branchName}"`
+			);
+
+			// Create PR
+			const prData = await makeGitHubRequest(
+				"create-pr",
+				{
 					branchName: branchName.trim(),
 					title: prTitle.trim(),
-					body: generatedPrBody.trim(),
-				}),
-			});
+					body: prBody.trim() || generatePrBody(),
+				},
+				"Creating pull request...",
+				(data) => `Pull request #${data.pull_number} created successfully!`
+			);
 
-			const prData = await prResponse.json();
-
-			if (!prResponse.ok) {
-				throw new Error(prData.details || prData.error || "Failed to create pull request");
-			}
-
-			setSuccess(`Pull request created successfully! PR #${prData.pull_number}`);
+			setSuccess("All steps completed successfully!");
 			setPrUrl(prData.html_url);
 		} catch (error) {
-			console.error("Error during GitHub operation:", error);
-
-			// Extract the most meaningful error message
-			let errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
-
-			// Add helpful context based on error message
-			if (errorMessage.includes("authentication failed")) {
-				errorMessage += ". Please check if your GitHub access token is valid and has the required permissions.";
-			} else if (errorMessage.includes("permission denied")) {
-				errorMessage += ". Please check if you have the necessary permissions to create branches and pull requests.";
-			} else if (errorMessage.includes("rate limit")) {
-				errorMessage += ". Please try again later.";
-			}
-
-			setError(errorMessage);
+			handleGitHubError(error);
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle className="flex items-center gap-2">
-					<GithubIcon className="h-5 w-5" />
-					GitHub Integration
-				</CardTitle>
-				<CardDescription>
-					Create a branch and pull request with your Shadcn UI components
-				</CardDescription>
-			</CardHeader>
-			<CardContent>
-				{error && (
-					<Alert variant="destructive" className="mb-4">
-						<AlertTriangleIcon className="h-4 w-4" />
-						<AlertTitle>Error</AlertTitle>
-						<AlertDescription>{error}</AlertDescription>
-					</Alert>
-				)}
+		<div className="space-y-4">
+			<div className="space-y-4">
+				<Collapsible open={showCustomization} onOpenChange={setShowCustomization}>
+					<div className="flex items-center justify-between">
+						<p className="text-sm text-muted-foreground">
+							{showCustomization ? "Customize PR settings" : "Using default PR settings"}
+						</p>
+						<CollapsibleTrigger asChild>
+							<Button variant="ghost" size="sm">
+								{showCustomization ? (
+									<ChevronUp className="h-4 w-4" />
+								) : (
+									<ChevronDown className="h-4 w-4" />
+								)}
+							</Button>
+						</CollapsibleTrigger>
+					</div>
 
-				{success && (
-					<Alert className="mb-4 border-green-600 text-green-600">
-						<CheckCircleIcon className="h-4 w-4" />
-						<AlertTitle>Success</AlertTitle>
-						<AlertDescription>
-							{success}
-							{prUrl && (
-								<div className="mt-2">
-									<a
-										href={prUrl}
-										target="_blank"
-										rel="noopener noreferrer"
-										className="text-blue-600 hover:underline"
-									>
-										View Pull Request →
-									</a>
-								</div>
-							)}
-						</AlertDescription>
-					</Alert>
-				)}
-
-				<Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-					<TabsList className="grid w-full grid-cols-2">
-						<TabsTrigger value="branch" className="text-xs">
-							<GitBranchIcon className="h-3 w-3 mr-2" />
-							Branch & Commit
-						</TabsTrigger>
-						<TabsTrigger value="pr" className="text-xs">
-							<GithubIcon className="h-3 w-3 mr-2" />
-							Pull Request
-						</TabsTrigger>
-					</TabsList>
-
-					<TabsContent value="branch" className="space-y-4 pt-4">
-						<div className="space-y-2">
-							<label htmlFor="branch-name" className="text-sm font-medium">
-								Branch Name
-							</label>
+					<CollapsibleContent className="space-y-4 pt-4">
+						<div className="grid gap-2">
+							<Label htmlFor="branchName">Branch Name</Label>
 							<Input
-								id="branch-name"
+								id="branchName"
 								value={branchName}
 								onChange={(e) => setBranchName(e.target.value)}
-								placeholder="feature/shadcn-components"
-								disabled={isLoading || disabled}
+								placeholder="feature/add-components"
 							/>
 						</div>
 
-						<div className="space-y-2">
-							<label htmlFor="commit-message" className="text-sm font-medium">
-								Commit Message
-							</label>
+						<div className="grid gap-2">
+							<Label htmlFor="commitMessage">Commit Message</Label>
 							<Input
-								id="commit-message"
+								id="commitMessage"
 								value={commitMessage}
 								onChange={(e) => setCommitMessage(e.target.value)}
 								placeholder="Add Shadcn UI components"
-								disabled={isLoading || disabled}
 							/>
 						</div>
-					</TabsContent>
 
-					<TabsContent value="pr" className="space-y-4 pt-4">
-						<div className="space-y-2">
-							<label htmlFor="pr-title" className="text-sm font-medium">
-								Pull Request Title
-							</label>
+						<div className="grid gap-2">
+							<Label htmlFor="prTitle">Pull Request Title</Label>
 							<Input
-								id="pr-title"
+								id="prTitle"
 								value={prTitle}
 								onChange={(e) => setPrTitle(e.target.value)}
 								placeholder="Add Shadcn UI components"
-								disabled={isLoading || disabled}
 							/>
 						</div>
 
-						<div className="space-y-2">
-							<label htmlFor="pr-body" className="text-sm font-medium">
-								Pull Request Description (Optional)
-							</label>
+						<div className="grid gap-2">
+							<Label htmlFor="prBody">Pull Request Description (optional)</Label>
 							<Textarea
-								id="pr-body"
+								id="prBody"
 								value={prBody}
 								onChange={(e) => setPrBody(e.target.value)}
-								placeholder="Describe the changes made with these components..."
-								rows={4}
-								disabled={isLoading || disabled}
+								placeholder="Leave blank for auto-generated description"
+								className="min-h-[100px]"
 							/>
-							<p className="text-xs text-muted-foreground">
-								Leave empty to generate a description automatically based on changed files.
-							</p>
 						</div>
-					</TabsContent>
-				</Tabs>
+					</CollapsibleContent>
+				</Collapsible>
 
-				<div className="mt-6">
-					<Button
-						onClick={handleSubmit}
-						disabled={isLoading || disabled || changedFiles.length === 0}
-						className="w-full"
-					>
-						{isLoading ? (
-							<span className="flex items-center">
-								<span className="animate-spin mr-2 h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
-								Creating Pull Request...
-							</span>
-						) : (
-							<>
-								<GithubIcon className="mr-2 h-4 w-4" />
-								Submit to GitHub
-							</>
-						)}
-					</Button>
-
-					{changedFiles.length === 0 && (
-						<p className="text-xs text-muted-foreground mt-2">
-							No changes to submit. Add components first.
-						</p>
+				<Button
+					onClick={handleSubmit}
+					disabled={isLoading || disabled}
+					className="w-full"
+				>
+					{isLoading ? (
+						<>
+							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							Creating PR...
+						</>
+					) : (
+						<>
+							<Github className="mr-2 h-4 w-4" />
+							Create Pull Request
+						</>
 					)}
-				</div>
-			</CardContent>
-		</Card>
+				</Button>
+			</div>
+
+			<div className="transition-[height,opacity] duration-200 ease-in-out">
+				{(error || progressMessages.length > 0 || success) && (
+					<div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+						{error && (
+							<Alert variant="destructive" className="mb-3">
+								<AlertDescription>{error}</AlertDescription>
+							</Alert>
+						)}
+
+						{progressMessages.length > 0 && (
+							<div className="space-y-2 text-sm">
+								{progressMessages.map((message) => (
+									<div
+										key={message}
+										className="flex items-center gap-2 text-muted-foreground"
+									>
+										<div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+										{message}
+									</div>
+								))}
+							</div>
+						)}
+
+						{success && (
+							<Alert className="mt-3">
+								<AlertDescription className="flex items-center gap-2">
+									{success}
+									{prUrl && (
+										<Button
+											variant="link"
+											className="h-auto p-0"
+											onClick={() => window.open(prUrl, "_blank")}
+										>
+											View PR
+										</Button>
+									)}
+								</AlertDescription>
+							</Alert>
+						)}
+					</div>
+				)}
+			</div>
+		</div>
 	);
-};
+}
