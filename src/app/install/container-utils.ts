@@ -42,6 +42,338 @@ declare global {
 	}
 }
 
+/**
+ * Processes terminal output to remove redundant progress lines
+ * Consolidates similar consecutive progress indicators into a single line
+ * Preserves ANSI control sequences for proper terminal rendering
+ */
+export function processTerminalOutput(output: string): string {
+	if (!output) return "";
+
+	// Skip any debug logging messages about ANSI sequences
+	const cleanedOutput = output
+		.split("\n")
+		.filter((line) => {
+			return (
+				!line.includes("Detected ANSI control sequence") &&
+				!line.includes("not considering as completion")
+			);
+		})
+		.join("\n");
+
+	// Remove repetitive command output prefixes - match any npx command pattern
+	// This will handle "npx shadcn@latest add button output: " and similar patterns
+	const withoutPrefixes = cleanedOutput.replace(/^npx .+ output:\s*/gm, "");
+
+	// Remove excessive empty lines - replace 3+ consecutive empty lines with just one
+	const withoutExcessiveEmptyLines = withoutPrefixes.replace(/\n\s*\n\s*\n+/g, "\n\n");
+
+	// Process spinner animations
+	// We'll use regex to find lines with spinner characters and merge them
+	const processedOutput = processSpinnerAnimations(withoutExcessiveEmptyLines);
+
+	// Split the output into lines
+	const lines = processedOutput.split("\n");
+	const filteredLines: string[] = [];
+	let lastProgressLine = "";
+	let lastNonProgressLine = "";
+	let progressCounter = 0;
+
+	// Track the last spinner line so we can update it in place
+	let lastSpinnerIdx = -1;
+
+	// Group related lines together (installation, checking registry, etc.)
+	let inInstallationGroup = false;
+	let installationGroupStart = -1;
+
+	// Process each line
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+
+		// Skip empty lines and lines with just the command prefix
+		if (
+			!line.trim() ||
+			line.trim() === "npx shadcn@latest add button" ||
+			line.match(/^npx .+ output:$/)
+		) {
+			continue;
+		}
+
+		// Detect start of installation or checking registry sequence
+		if (line.includes("Installing dependencies") || line.includes("Checking registry")) {
+			if (!inInstallationGroup) {
+				inInstallationGroup = true;
+				installationGroupStart = filteredLines.length;
+				filteredLines.push(line);
+			} else {
+				// Replace the previous line if we're in the same group
+				if (installationGroupStart >= 0) {
+					filteredLines[installationGroupStart] = line;
+				}
+			}
+			continue;
+		}
+
+		// If we find a completion indicator, end the installation group
+		if (line.includes("✔") || line.includes("installed") || line.includes("added")) {
+			inInstallationGroup = false;
+		}
+
+		// Check for ANSI spinner characters (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏) or cursor control sequences
+		// These are used by spinners to animate in-place
+		const hasSpinner = line.match(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/);
+		const hasCursorControl =
+			line.includes("\u001b[") &&
+			(line.includes("\u001b[A") || // Cursor up
+				line.includes("\u001b[K") || // Clear line
+				line.includes("\u001b[G")); // Cursor to column
+
+		// If this is a spinner or has cursor control, we should replace the previous spinner line
+		if (hasSpinner || hasCursorControl) {
+			// If we found a previous spinner, replace it
+			if (lastSpinnerIdx >= 0) {
+				filteredLines[lastSpinnerIdx] = line;
+			} else {
+				// Otherwise add as a new line and track its position
+				lastSpinnerIdx = filteredLines.length;
+				filteredLines.push(line);
+			}
+			continue;
+		}
+
+		// Fix potential escaping issues with "npx" commands showing as "px"
+		// This can happen with some ANSI sequences
+		if (line.includes("px ") && !line.includes("npx ") && !line.includes("pnpx ")) {
+			// Try to detect if this should be "npx" and fix it
+			const fixedLine = line.replace(/(\s|^)px /g, "$1npx ");
+
+			// Skip if it's just a command output prefix line
+			if (fixedLine.match(/^npx .+ output:$/)) {
+				continue;
+			}
+
+			lastNonProgressLine = fixedLine;
+			filteredLines.push(fixedLine);
+			continue;
+		}
+
+		// Identify progress indicators and duplicate output patterns
+		const isProgressLine =
+			line.includes("[#") ||
+			line.includes("...") ||
+			(line.includes("timing") && line.includes("Complete")) ||
+			(line.includes("npx") && line.includes("output:")) ||
+			line.match(/\[\d+\/\d+\]/) !== null; // [1/4], [2/4] style progress
+
+		// Special handling for progress lines
+		if (isProgressLine) {
+			progressCounter++;
+
+			// Extract the essence of progress lines for comparison
+			let progressEssence = "";
+
+			// Extract progress bar percentage for comparison
+			if (line.includes("[#")) {
+				const progressMatch = line.match(/\[#+\.+\]/);
+				progressEssence = progressMatch ? progressMatch[0] : "";
+			} else if (line.match(/\[\d+\/\d+\]/)) {
+				const progressMatch = line.match(/\[\d+\/\d+\]/);
+				progressEssence = progressMatch ? progressMatch[0] : "";
+			} else {
+				// For other progress lines, use the whole line
+				progressEssence = line;
+			}
+
+			// Only keep progress lines if they represent a meaningful change
+			const isSignificantChange =
+				// Keep first progress line
+				lastProgressLine === "" ||
+				// Keep completed/final messages
+				line.includes("Complete") ||
+				line.includes("Completed") ||
+				line.includes("Finished") ||
+				// Keep lines with different progress patterns from the last one
+				(progressEssence && !lastProgressLine.includes(progressEssence)) ||
+				// Sample progress lines at a reasonable interval (every 10th)
+				progressCounter % 10 === 0;
+
+			if (isSignificantChange) {
+				lastProgressLine = line;
+				filteredLines.push(line);
+			}
+		} else {
+			// For non-progress lines, avoid duplicates
+			// Use a more lenient approach to avoid dropping important lines
+
+			// Compare with a "fuzzy match" to catch near-duplicates
+			const isFuzzyDuplicate =
+				lastNonProgressLine.length > 10 &&
+				line.length > 10 &&
+				// If >80% of the characters match, consider it a duplicate
+				(lastNonProgressLine.length - levenshteinDistance(lastNonProgressLine, line)) /
+					lastNonProgressLine.length >
+					0.8;
+
+			if (!isFuzzyDuplicate || i === 0) {
+				lastNonProgressLine = line;
+				filteredLines.push(line);
+			}
+		}
+	}
+
+	return filteredLines.join("\n");
+}
+
+/**
+ * Processes spinner animations by identifying consecutive spinner lines
+ * and merging them to maintain in-place animations
+ */
+function processSpinnerAnimations(output: string): string {
+	if (!output) return "";
+
+	// Collapse multiple consecutive newlines into a single newline
+	const collapsedNewlines = output.replace(/\n{2,}/g, "\n");
+
+	// Split the output into lines for processing
+	const lines = collapsedNewlines.split("\n");
+	const result: string[] = [];
+
+	// Keep track of spinner state
+	let currentSpinnerText = "";
+	let spinnerPrefix = "";
+	let inSpinnerSequence = false;
+	let installationSequence = false;
+
+	// Find spinner lines and merge them
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i].trim();
+
+		// Skip completely empty lines when inside a spinner sequence
+		if (!line) {
+			if (
+				!inSpinnerSequence &&
+				!installationSequence &&
+				result.length > 0 &&
+				result[result.length - 1] !== ""
+			) {
+				// Only add empty line if we're not in a spinner sequence and don't already have one
+				result.push("");
+			}
+			continue;
+		}
+
+		// Special handling for installation lines
+		if (line.includes("Installing dependencies") || line.includes("Checking registry")) {
+			// Track that we're in an installation sequence
+			installationSequence = true;
+
+			// If we already have an installation line, replace it instead of adding a new one
+			if (
+				result.length > 0 &&
+				(result[result.length - 1].includes("Installing dependencies") ||
+					result[result.length - 1].includes("Checking registry"))
+			) {
+				result[result.length - 1] = line;
+			} else {
+				// Only add a separator line if needed
+				if (result.length > 0 && result[result.length - 1] !== "") {
+					result.push("");
+				}
+				result.push(line);
+			}
+			continue;
+		}
+
+		// If we find a completion indicator, end the installation sequence
+		if (
+			line.includes("✓") ||
+			line.includes("✔") ||
+			line.includes("installed") ||
+			line.includes("added")
+		) {
+			installationSequence = false;
+		}
+
+		// Check if this is a spinner line
+		const spinnerMatch = line.match(/^(.*?)[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏](.*?)$/);
+
+		if (spinnerMatch) {
+			// This is a spinner line
+			const [, prefix, suffix] = spinnerMatch;
+
+			if (!inSpinnerSequence) {
+				// Starting a new spinner sequence
+				spinnerPrefix = prefix;
+				currentSpinnerText = line;
+				inSpinnerSequence = true;
+			} else if (prefix === spinnerPrefix) {
+				// Continuing spinner sequence with same prefix - update instead of adding new line
+				currentSpinnerText = line;
+			} else {
+				// Different spinner prefix - end previous sequence and start new one
+				if (result.length > 0 && result[result.length - 1] !== currentSpinnerText) {
+					result.push(currentSpinnerText);
+				}
+				spinnerPrefix = prefix;
+				currentSpinnerText = line;
+			}
+		} else {
+			// Not a spinner line
+			if (inSpinnerSequence) {
+				// End spinner sequence and add the final state
+				if (result.length > 0 && result[result.length - 1] !== currentSpinnerText) {
+					result.push(currentSpinnerText);
+				}
+				inSpinnerSequence = false;
+			}
+
+			// Add non-empty lines
+			result.push(line);
+		}
+	}
+
+	// Add the final spinner state if we were in a spinner sequence
+	if (inSpinnerSequence && result.length > 0 && result[result.length - 1] !== currentSpinnerText) {
+		result.push(currentSpinnerText);
+	}
+
+	return result.join("\n");
+}
+
+/**
+ * Calculates the Levenshtein distance between two strings
+ * Used to detect similar but not identical messages
+ */
+function levenshteinDistance(a: string, b: string): number {
+	const matrix: number[][] = [];
+
+	// Initializing matrix
+	for (let i = 0; i <= b.length; i++) {
+		matrix[i] = [i];
+	}
+
+	for (let i = 0; i <= a.length; i++) {
+		matrix[0][i] = i;
+	}
+
+	// Calculate Levenshtein distance
+	for (let i = 1; i <= b.length; i++) {
+		for (let j = 1; j <= a.length; j++) {
+			if (b.charAt(i - 1) === a.charAt(j - 1)) {
+				matrix[i][j] = matrix[i - 1][j - 1];
+			} else {
+				matrix[i][j] = Math.min(
+					matrix[i - 1][j - 1] + 1, // substitution
+					matrix[i][j - 1] + 1, // insertion
+					matrix[i - 1][j] + 1 // deletion
+				);
+			}
+		}
+	}
+
+	return matrix[b.length][a.length];
+}
+
 // Simplified interface for working with WebContainers
 export class ContainerManager {
 	private container: any;
@@ -89,18 +421,59 @@ export class ContainerManager {
 			const { WebContainer } = await import("@webcontainer/api");
 
 			// Start booting and save the promise
+			logInfo("Booting WebContainer...");
 			bootPromise = WebContainer.boot();
 
 			// Await the container boot
 			this.container = await bootPromise;
 			containerInstance = this.container;
 			this.isReady = true;
+			logInfo("WebContainer booted successfully");
 
 			// After boot is complete, set bootPromise to null for future boots if needed
 			bootPromise = null;
 
 			// Set up a basic project structure
+			logInfo("Setting up initial file system...");
 			await this.container.mount(this.getInitialFileSystem());
+
+			// Create the templates directory structure
+			try {
+				logInfo("Creating directory structure for templates...");
+				await this.container.fs.mkdir("templates", { recursive: true });
+				await this.container.fs.mkdir("templates/shadcn", { recursive: true });
+				logInfo("Templates directory structure created");
+			} catch (mkdirError) {
+				logInfo("Note: Templates directory may already exist", mkdirError);
+			}
+
+			// Pre-load the shadcn template files
+			logInfo("Pre-loading shadcn template files...");
+			try {
+				// Fetch directory listing from template API
+				const response = await fetch("/api/template-files?path=");
+				if (!response.ok) {
+					throw new Error(`Failed to fetch template directory listing: ${response.statusText}`);
+				}
+
+				// Process template files recursively
+				await this.preloadTemplateFiles();
+
+				// Ensure we have a components.json file at the root for any command to work
+				await this.ensureComponentsJsonExists();
+
+				logInfo("Shadcn template files pre-loaded successfully");
+			} catch (preloadError) {
+				logInfo(
+					"Error pre-loading template files",
+					preloadError instanceof Error ? preloadError.message : String(preloadError)
+				);
+				console.warn(
+					"Failed to pre-load template files, will try on-demand loading:",
+					preloadError
+				);
+				// Continue without failing - we'll try to load files on demand
+			}
 
 			return true;
 		} catch (error) {
@@ -170,6 +543,159 @@ export class ContainerManager {
 		}
 	}
 
+	// Make sure components.json exists at the root
+	private async ensureComponentsJsonExists(): Promise<void> {
+		try {
+			// Check if components.json already exists
+			if (await this.fileExists("components.json")) {
+				logInfo("components.json already exists");
+				return;
+			}
+
+			// Read the template components.json from the API
+			const templateComponentsJson = await this.readTemplateFile("components.json");
+			if (templateComponentsJson && typeof templateComponentsJson === "string") {
+				// Write it to the root
+				await this.container.fs.writeFile("components.json", templateComponentsJson);
+				logInfo("Created components.json from template");
+				return;
+			}
+
+			// If not found in templates, create a default one
+			const defaultComponentsJson = {
+				$schema: "https://ui.shadcn.com/schema.json",
+				style: "default",
+				rsc: true,
+				tsx: true,
+				tailwind: {
+					config: "tailwind.config.ts",
+					css: "src/app/globals.css",
+					baseColor: "neutral",
+					cssVariables: true,
+				},
+				aliases: {
+					components: "@/components",
+					utils: "@/lib/utils",
+				},
+			};
+
+			await this.container.fs.writeFile(
+				"components.json",
+				JSON.stringify(defaultComponentsJson, null, 2)
+			);
+			logInfo("Created default components.json");
+		} catch (error) {
+			logInfo("Error ensuring components.json exists:", error);
+			// Don't throw, continue anyway
+		}
+	}
+
+	// Helper function to read file from templates/shadcn
+	private async readTemplateFile(filePath: string): Promise<string | Uint8Array | null> {
+		try {
+			// In the browser environment, we need to fetch the file
+			if (typeof window !== "undefined") {
+				const url = `/api/template-file-content?path=${encodeURIComponent(filePath)}`;
+				logInfo(`Fetching template file content from: ${url}`);
+
+				const response = await fetch(url);
+
+				if (!response.ok) {
+					logInfo(`Failed to fetch template file: ${filePath}`, {
+						status: response.status,
+						statusText: response.statusText,
+					});
+					return null;
+				}
+
+				// Check content type to determine how to handle the response
+				const contentType = response.headers.get("Content-Type") || "";
+				logInfo(`Received content type: ${contentType} for file: ${filePath}`);
+
+				// Handle binary files
+				if (
+					contentType.includes("image/") ||
+					contentType.includes("font/") ||
+					contentType.includes("application/octet-stream") ||
+					contentType.includes("application/zip")
+				) {
+					// For binary files, return an ArrayBuffer
+					const buffer = await response.arrayBuffer();
+					return new Uint8Array(buffer);
+				}
+
+				// For text files, return text
+				const text = await response.text();
+				logInfo(`Received text content (${text.length} bytes) for file: ${filePath}`);
+				return text;
+			}
+			return null;
+		} catch (error) {
+			logInfo(`Error reading template file ${filePath}:`, error);
+			return null;
+		}
+	}
+
+	// Preload template files to speed up later operations
+	async preloadTemplateFiles(): Promise<void> {
+		logInfo("Starting to preload template files");
+
+		// Helper function to recursively process directory
+		const processDirectory = async (directoryPath = ""): Promise<void> => {
+			try {
+				// Make a fetch request to get the directory listing
+				const response = await fetch(
+					`/api/template-files?path=${encodeURIComponent(directoryPath)}`
+				);
+				if (!response.ok) {
+					logInfo(`Failed to fetch directory listing for ${directoryPath}`, response.statusText);
+					return;
+				}
+
+				const entries = await response.json();
+				logInfo(`Found ${entries.length} entries in ${directoryPath || "root"}`);
+
+				// Create the directory in the container if it doesn't exist
+				if (directoryPath) {
+					try {
+						await this.container.fs.mkdir(directoryPath, { recursive: true });
+						logInfo(`Created directory ${directoryPath} in container`);
+					} catch (err) {
+						// Directory may already exist
+						logInfo(`Note: Directory ${directoryPath} may already exist in container`);
+					}
+				}
+
+				for (const entry of entries) {
+					const fullPath = directoryPath ? `${directoryPath}/${entry.name}` : entry.name;
+
+					if (entry.isDirectory) {
+						// Process subdirectory recursively
+						await processDirectory(fullPath);
+					} else {
+						// Read the file content
+						const content = await this.readTemplateFile(fullPath);
+						if (content !== null) {
+							// Write file to the container
+							try {
+								await this.container.fs.writeFile(fullPath, content);
+								logInfo(`Preloaded file: ${fullPath}`);
+							} catch (writeError) {
+								logInfo(`Error writing file ${fullPath} to container:`, writeError);
+							}
+						}
+					}
+				}
+			} catch (error) {
+				logInfo(`Error processing directory ${directoryPath}:`, error);
+			}
+		};
+
+		// Start processing from root
+		await processDirectory("");
+		logInfo("Completed preloading template files");
+	}
+
 	// Process shadcn template upload
 	async installShadcnTemplate(projectStructure: string): Promise<ContainerFile[]> {
 		if (!this.isReady) {
@@ -202,44 +728,6 @@ export class ContainerManager {
 
 		logInfo(`Processing template files from disk for '${projectStructure}' structure`);
 
-		// Helper function to read file from templates/shadcn
-		const readTemplateFile = async (filePath: string): Promise<string | Uint8Array | null> => {
-			try {
-				// In the browser environment, we need to fetch the file
-				if (typeof window !== "undefined") {
-					const response = await fetch(
-						`/api/template-file-content?path=${encodeURIComponent(filePath)}`
-					);
-					if (!response.ok) {
-						logInfo(`Failed to fetch template file: ${filePath}`, response.statusText);
-						return null;
-					}
-
-					// Check content type to determine how to handle the response
-					const contentType = response.headers.get("Content-Type") || "";
-
-					// Handle binary files
-					if (
-						contentType.includes("image/") ||
-						contentType.includes("font/") ||
-						contentType.includes("application/octet-stream") ||
-						contentType.includes("application/zip")
-					) {
-						// For binary files, return an ArrayBuffer
-						const buffer = await response.arrayBuffer();
-						return new Uint8Array(buffer);
-					}
-
-					// For text files, return text
-					return await response.text();
-				}
-				return null;
-			} catch (error) {
-				logInfo(`Error reading template file ${filePath}:`, error);
-				return null;
-			}
-		};
-
 		// Helper function to recursively process directory
 		const processDirectory = async (directoryPath = ""): Promise<void> => {
 			try {
@@ -262,7 +750,7 @@ export class ContainerManager {
 						await processDirectory(fullPath);
 					} else {
 						// Read the file content
-						const content = await readTemplateFile(fullPath);
+						const content = await this.readTemplateFile(fullPath);
 						if (content !== null) {
 							// Create target path based on project structure
 							let targetPath = fullPath;
@@ -316,7 +804,7 @@ export class ContainerManager {
 		};
 
 		// Start processing from root
-		await processDirectory();
+		await processDirectory("");
 
 		// If unable to fetch template files, fallback to using the processTemplateFiles method
 		if (files.length === 0) {
@@ -324,37 +812,11 @@ export class ContainerManager {
 				"No template files could be fetched from disk. Falling back to normal installation process."
 			);
 
-			// Install necessary dependencies
-			logInfo("Setting up environment...");
-
-			// Install base npm dependencies
-			await this.runInstallCommand(
-				"npm",
-				["install", "--no-package-lock", "--yes"],
-				"Base npm dependencies"
+			// Log error but don't try to run shadcn init as a fallback
+			logInfo(
+				"Template files could not be processed. Please try again or use manual installation."
 			);
-
-			// Install shadcn CLI
-			await this.runInstallCommand(
-				"npm",
-				["install", "--no-package-lock", "--yes", "shadcn"],
-				"shadcn/ui CLI"
-			);
-
-			// Initialize shadcn template
-			await this.runInstallCommand(
-				"npx",
-				[
-					"--yes",
-					"shadcn@latest",
-					"init",
-					"--yes", // Auto-confirm all prompts
-				],
-				"shadcn/ui template initialization"
-			);
-
-			// Process template files using the existing method
-			return await this.processTemplateFiles(projectStructure);
+			return [];
 		}
 
 		logInfo(`Processed ${files.length} files total from disk`);
@@ -422,18 +884,14 @@ export class ContainerManager {
 				// The ora spinner package uses these characters: ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
 				if (text.match(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/) && lowerText.includes("installing")) {
 					// This is most likely a spinner animation - not a completion indicator
-					logInfo("Detected spinner animation, not considering as completion");
-
 					// Update the last activity time to prevent timeout
 					lastOutputTime = Date.now();
-
 					return false;
 				}
 
 				// Skip ANSI color/cursor control sequences (used by spinners and progress indicators)
 				if (text.includes("\u001b[") || text.match(/\[\d+[A-Z]/)) {
 					// These are terminal control sequences, not actual completion indicators
-					logInfo("Detected ANSI control sequence, not considering as completion");
 					return false;
 				}
 
@@ -978,6 +1436,19 @@ export function cn(...inputs: ClassValue[]) {
 						continue;
 					}
 
+					// Skip lockfiles
+					if (
+						entryName === "package-lock.json" ||
+						entryName === "yarn.lock" ||
+						entryName === "pnpm-lock.yaml" ||
+						entryName === ".pnpm-lock.yaml" ||
+						entryName === "npm-shrinkwrap.json" ||
+						entryName === "bun.lockb"
+					) {
+						logInfo(`Skipping lockfile: ${dirPath}/${entryName}`);
+						continue;
+					}
+
 					const fullPath = `${dirPath}/${entryName}`;
 
 					try {
@@ -1120,6 +1591,56 @@ export function cn(...inputs: ClassValue[]) {
 	// Get the detected changed files
 	getChangedFiles(): ContainerFile[] {
 		return this.changedFiles;
+	}
+
+	/**
+	 * Copies important files from the host project into the WebContainer
+	 * This allows components to be added with correct project settings
+	 */
+	async importProjectFiles(files?: string[]): Promise<void> {
+		if (!this.container) {
+			throw new Error("Container not initialized");
+		}
+
+		logInfo("Importing project files", { count: files?.length || 0 });
+
+		// Files to synchronize with the host project
+		const targetFiles = files?.length
+			? files
+			: ["tailwind.config.ts", "components.json", "src/styles/globals.css", "src/lib/utils.ts"];
+
+		try {
+			for (const filePath of targetFiles) {
+				try {
+					// Check if file exists in current project
+					if (await this.fileExists(filePath)) {
+						// Get file content from the server
+						const response = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
+
+						if (response.ok) {
+							const content = await response.text();
+
+							// Ensure directory exists
+							const directory = filePath.split("/").slice(0, -1).join("/");
+							if (directory) {
+								await this.container.fs.mkdir(directory, { recursive: true });
+							}
+
+							// Write file to WebContainer
+							await this.container.fs.writeFile(filePath, content);
+							logInfo(`Imported project file: ${filePath}`);
+						}
+					}
+				} catch (error) {
+					console.warn(`Failed to import file ${filePath}:`, error);
+				}
+			}
+
+			logInfo("Project files import completed");
+		} catch (error) {
+			console.error("Error importing project files:", error);
+			throw error;
+		}
 	}
 }
 

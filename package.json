@@ -130,6 +130,7 @@
     "@vercel/speed-insights": "^1.2.0",
     "@webcontainer/api": "^1.5.1",
     "ansi-to-html": "^0.7.2",
+    "ansi-to-react": "^6.1.6",
     "better-react-mathjax": "^2.1.0",
     "blurhash": "^2.0.5",
     "canvas-confetti": "^1.9.3",

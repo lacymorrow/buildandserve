@@ -56,6 +56,8 @@ export const env = createEnv({
 		// ======== External Services ========
 		// GitHub
 		GITHUB_ACCESS_TOKEN: z.string().optional(),
+		GITHUB_REPO_OWNER: z.string().optional(),
+		GITHUB_REPO_NAME: z.string().optional(),
 
 		// Google
 		GOOGLE_CLIENT_EMAIL: z.string().optional(),
@@ -146,6 +148,8 @@ export const env = createEnv({
 
 		// External Services
 		GITHUB_ACCESS_TOKEN: process.env.GITHUB_ACCESS_TOKEN,
+		GITHUB_REPO_OWNER: process.env.GITHUB_REPO_OWNER,
+		GITHUB_REPO_NAME: process.env.GITHUB_REPO_NAME,
 		GOOGLE_CLIENT_EMAIL: process.env.GOOGLE_CLIENT_EMAIL,
 		GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY,
 

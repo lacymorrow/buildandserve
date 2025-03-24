@@ -39,7 +39,6 @@ The installer uses the following process:
 
 1. Initialize a WebContainer in the browser
 2. Install the shadcn CLI within the container
-3. Run the shadcn init command to generate the template files
 4. Process and transform the files to match the project structure
 5. Present the files to the user for preview and download
 

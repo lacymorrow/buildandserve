@@ -2,223 +2,388 @@
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileIcon, InfoIcon } from "lucide-react";
-import { useState } from "react";
-import { containerManager } from "../container-utils";
+import { AlertTriangleIcon, FileIcon, InfoIcon, TerminalIcon } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { containerManager, processTerminalOutput } from "../container-utils";
 import { type FileChange, FileChangeDisplay } from "./file-change-display";
+import { GitHubIntegration } from "./github-integration";
 
-export const ShadcnCommand = () => {
-    const [isLoading, setIsLoading] = useState(false);
-    const [command, setCommand] = useState("");
-    const [commandOutput, setCommandOutput] = useState<string>("");
-    const [commandError, setCommandError] = useState<string>("");
-    const [changedFiles, setChangedFiles] = useState<FileChange[]>([]);
-    const [activeTab, setActiveTab] = useState("command");
-    const [progressMessage, setProgressMessage] = useState("");
+// Use a smaller refresh interval for more responsive animations
+const TERMINAL_REFRESH_INTERVAL = 30; // 33 fps for very smooth spinner animation
 
-    // Function to update progress message based on logs
-    const updateProgress = (logs: string) => {
-        if (logs.includes("Installing dependencies")) {
-            setProgressMessage("Installing dependencies... This may take several minutes");
-        } else if (logs.includes("installing") && !logs.includes("Installing dependencies")) {
-            setProgressMessage("Installing components... Please wait");
-        } else if (logs.includes("ready to use") || logs.includes("component added")) {
-            setProgressMessage("Component added successfully!");
-        } else if (logs.includes("copying")) {
-            setProgressMessage("Copying component files...");
-        } else if (logs.includes("validating")) {
-            setProgressMessage("Validating configuration...");
-        } else if (logs.includes("added ") && logs.includes("package")) {
-            setProgressMessage("Added dependencies successfully!");
-        } else if (logs.includes("downloading") || logs.includes("fetching")) {
-            setProgressMessage("Downloading packages... Please wait");
-        }
-    };
+// Dynamically import Ansi component to avoid SSR issues
+const Ansi = dynamic(() => import('ansi-to-react').then(mod => mod.default), {
+	ssr: false,
+	loading: () => <div className="text-sm text-muted-foreground">Loading terminal...</div>
+});
 
-    // Validate the command format - just basic checks
-    const validateCommand = (commandStr: string): string | null => {
-        // No real validation needed - we'll let the command run as-is
-        if (!commandStr.trim()) {
-            return "Please enter a command";
-        }
-        return null;
-    };
+// Add LoadingSpinner component at the top of the file with other components
+const LoadingSpinner = ({ label = "Loading..." }: { label?: string }) => (
+	<div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+		<div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+		<div className="text-sm">{label}</div>
+	</div>
+);
 
-    const runCommand = async () => {
-        setIsLoading(true);
-        setCommandOutput("");
-        setCommandError("");
-        setChangedFiles([]);
-        setProgressMessage("Starting command execution...");
-        setActiveTab("command");
+interface ShadcnCommandProps {
+	containerReady?: boolean;
+	webContainerSupported?: boolean;
+	projectStructure?: string;
+	onExecute?: (files: { path: string; content: string }[]) => void;
+	autoRun?: boolean;
+}
 
-        // Simple validation to ensure there's a command
-        const validationError = validateCommand(command);
-        if (validationError) {
-            setCommandError(validationError);
-            setIsLoading(false);
-            return;
-        }
+export const ShadcnCommand = ({
+	containerReady = false,
+	webContainerSupported = false,
+	projectStructure = "src/app",
+	onExecute,
+	autoRun = false,
+}: ShadcnCommandProps) => {
+	const [isLoading, setIsLoading] = useState(false);
+	const [command, setCommand] = useState("npx shadcn@latest add button");
+	const [commandOutput, setCommandOutput] = useState<string>("");
+	const [commandError, setCommandError] = useState<string>("");
+	const [changedFiles, setChangedFiles] = useState<FileChange[]>([]);
+	const [activeTab, setActiveTab] = useState("command");
+	const [progressMessage, setProgressMessage] = useState("");
+	const [isCommandQueued, setIsCommandQueued] = useState(false);
+	const hasAutoRun = useRef(false);
+	const queuedCommand = useRef<string | null>(null);
+	const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(false);
+	const [loadingMessage, setLoadingMessage] = useState<string>("");
 
-        try {
-            // Parse the command into arguments
-            const args = command.trim().split(/\s+/);
+	const makeCommand = useCallback(() => {
+		return `npx shadcn@latest add ${command.split(" ").pop()}`;
+	}, [command]);
 
-            // Track the window logs before running the command
-            const logsBefore = window.webContainerLogs ? [...window.webContainerLogs] : [];
+	// Auto-run when container becomes ready
+	useEffect(() => {
+		if (autoRun && containerReady && webContainerSupported && !hasAutoRun.current) {
+			hasAutoRun.current = true;
+			runCommand();
+		}
 
-            // Set up an interval to update UI with latest logs during execution
-            const logUpdateInterval = setInterval(() => {
-                if (window.webContainerLogs) {
-                    const currentLogs = window.webContainerLogs.slice(logsBefore.length);
-                    const formattedLogs = currentLogs
-                        .map((log) => `[${log.timestamp}] ${log.message} ${log.data || ""}`)
-                        .join("\n");
+		// If a command is queued and container becomes ready, execute it
+		if (containerReady && queuedCommand.current) {
+			const pendingCommand = queuedCommand.current;
+			queuedCommand.current = null;
+			setIsCommandQueued(false);
+			executeCommand(pendingCommand);
+		}
+	}, [containerReady, webContainerSupported, autoRun]);
 
-                    setCommandOutput(formattedLogs || "Command running...");
-                    updateProgress(formattedLogs);
-                }
-            }, 1000);
+	// Update the useEffect for showing logs during web container loading
+	useEffect(() => {
+		if (!containerReady && webContainerSupported && typeof window !== 'undefined' && window.webContainerLogs) {
+			// Set interval to update command output with logs
+			const timer = setInterval(() => {
+				if (window.webContainerLogs && window.webContainerLogs.length > 0) {
+					// Format logs for display
+					const formattedLogs = window.webContainerLogs
+						.map((log) => `${log.message}${log.data ? ` ${log.data}` : ''}`)
+						.join('\n');
 
-            // Run the command and get changed files
-            const changes = await containerManager?.runShadcnCommand(args);
+					// Process logs to clean up repetitive content
+					const processedLogs = processTerminalOutput(formattedLogs);
 
-            // Clear the interval when done
-            clearInterval(logUpdateInterval);
+					// Update command output with processed logs
+					setCommandOutput(processedLogs);
+				}
+			}, TERMINAL_REFRESH_INTERVAL); // Update more frequently for smoother animations
 
-            // Get logs that were added during command execution
-            const logsAfter = window.webContainerLogs ? [...window.webContainerLogs] : [];
-            const newLogs = logsAfter.slice(logsBefore.length);
+			return () => clearInterval(timer);
+		}
+	}, [containerReady, webContainerSupported]);
 
-            // Format logs for display
-            const formattedLogs = newLogs
-                .map((log) => `[${log.timestamp}] ${log.message} ${log.data || ""}`)
-                .join("\n");
+	// Function to update progress message based on logs
+	const updateProgress = (logs: string) => {
+		if (logs.includes("Installing dependencies")) {
+			setProgressMessage("Installing dependencies... This may take several minutes");
+		} else if (logs.includes("installing") && !logs.includes("Installing dependencies")) {
+			setProgressMessage("Installing components... Please wait");
+		} else if (logs.includes("ready to use") || logs.includes("component added")) {
+			setProgressMessage("Component added successfully!");
+		} else if (logs.includes("copying")) {
+			setProgressMessage("Copying component files...");
+		} else if (logs.includes("validating")) {
+			setProgressMessage("Validating configuration...");
+		} else if (logs.includes("added ") && logs.includes("package")) {
+			setProgressMessage("Added dependencies successfully!");
+		} else if (logs.includes("downloading") || logs.includes("fetching")) {
+			setProgressMessage("Downloading packages... Please wait");
+		} else if (logs.includes("Booting WebContainer")) {
+			setProgressMessage("Starting WebContainer environment...");
+		} else if (logs.includes("WebContainer booted")) {
+			setProgressMessage("WebContainer environment ready!");
+		} else if (logs.includes("Setting up initial file system")) {
+			setProgressMessage("Setting up file system...");
+		} else if (logs.includes("Pre-loading shadcn template files")) {
+			setProgressMessage("Pre-loading template files...");
+		}
+	};
 
-            setCommandOutput(formattedLogs || "Command completed successfully");
-            setProgressMessage("");
+	// Validate the command format - just basic checks
+	const validateCommand = (commandStr: string): string | null => {
+		// No real validation needed - we'll let the command run as-is
+		if (!commandStr.trim()) {
+			return "Please enter a command";
+		}
+		return null;
+	};
 
-            if (changes && changes.length > 0) {
-                setChangedFiles(changes);
-                setActiveTab("files");
-            } else {
-                setActiveTab("command");
-            }
-        } catch (error) {
-            setCommandError(error instanceof Error ? error.message : String(error));
-            setProgressMessage("");
-            setActiveTab("command");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+	const executeCommand = async (commandToRun: string) => {
+		setIsLoading(true);
+		setCommandError("");
+		setChangedFiles([]);
+		setProgressMessage("Starting command execution...");
+		setActiveTab("command");
 
-    return (
-        <div className="container mx-auto p-4 space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Run Shadcn/UI Command</CardTitle>
-                    <CardDescription>
-                        Run any shadcn command to add components and track changes
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="command">Command</Label>
-                        <div className="flex gap-2">
-                            <Input
-                                id="command"
-                                placeholder="npx shadcn@latest add button"
-                                value={command}
-                                onChange={(e) => setCommand(e.target.value)}
-                                disabled={isLoading}
-                            />
-                            <Button onClick={runCommand} disabled={isLoading || !command.trim()}>
-                                {isLoading ? "Running..." : "Run"}
-                            </Button>
-                        </div>
+		try {
+			// Parse the command into arguments
+			const args = commandToRun.trim().split(/\s+/);
 
-                        {isLoading && progressMessage && (
-                            <div className="mt-2 flex items-center text-sm">
-                                <div className="animate-spin mr-2 h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
-                                <span>{progressMessage}</span>
-                            </div>
-                        )}
+			// Track the window logs before running the command
+			const logsBefore = window.webContainerLogs ? [...window.webContainerLogs] : [];
 
-                        <div className="text-sm text-muted-foreground space-y-2 mt-2">
-                            <p><strong>Examples:</strong></p>
-                            <ul className="list-disc pl-5 space-y-1">
-                                <li>"npx shadcn@latest <strong>--yes</strong> add button" - Install button component</li>
-                                <li>"npx shadcn@latest <strong>--yes</strong> add card dialog" - Install multiple components</li>
-                                <li>"npx shadcn@latest <strong>--yes</strong> add https://v0.dev/chat/..." - Install from v0.dev URL</li>
-                                <li>"bunx shadcn-ui@latest <strong>--yes</strong> add dropdown-menu" - Use other package managers</li>
-                            </ul>
-                            <Alert className="mt-2">
-                                <AlertTitle className="text-xs font-semibold">Pro Tips</AlertTitle>
-                                <AlertDescription className="text-xs">
-                                    <ul className="list-disc pl-4 mt-1 space-y-1">
-                                        <li>Add <strong>--yes</strong> to auto-confirm installations</li>
-                                        <li>For v0.dev URLs, make sure they're properly quoted: "https://v0.dev/..."</li>
-                                        <li>Paste commands exactly as you would run them in your terminal</li>
-                                        <li>Complex components may take several minutes to install</li>
-                                    </ul>
-                                </AlertDescription>
-                            </Alert>
-                        </div>
-                    </div>
+			// Set up an interval to update UI with latest logs during execution
+			const logUpdateInterval = setInterval(() => {
+				if (window.webContainerLogs) {
+					const currentLogs = window.webContainerLogs.slice(logsBefore.length);
+					const formattedLogs = currentLogs
+						.map((log) => `${log.message}${log.data ? ` ${log.data}` : ''}`)
+						.join('\n');
 
-                    {commandError && (
-                        <Alert variant="destructive">
-                            <AlertTitle>Error</AlertTitle>
-                            <AlertDescription>
-                                <pre className="mt-2 w-full whitespace-pre-wrap font-mono text-sm">
-                                    {commandError}
-                                </pre>
-                            </AlertDescription>
-                        </Alert>
-                    )}
+					// Process logs but preserve animation sequences
+					const processedOutput = processTerminalOutput(formattedLogs);
+					setCommandOutput(processedOutput || "Command running...");
+					updateProgress(formattedLogs);
+				}
+			}, TERMINAL_REFRESH_INTERVAL); // Use the faster refresh rate
 
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="command">
-                                <InfoIcon className="h-4 w-4 mr-2" />
-                                Command Output
-                            </TabsTrigger>
-                            <TabsTrigger value="files" disabled={changedFiles.length === 0}>
-                                <FileIcon className="h-4 w-4 mr-2" />
-                                Changed Files {changedFiles.length > 0 && `(${changedFiles.length})`}
-                            </TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="command" className="mt-4">
-                            {commandOutput ? (
-                                <div className="bg-muted p-4 rounded-md">
-                                    <pre className="whitespace-pre-wrap font-mono text-sm">{commandOutput}</pre>
-                                </div>
-                            ) : (
-                                <div className="text-center p-8 text-muted-foreground">
-                                    Run a command to see output
-                                </div>
-                            )}
-                        </TabsContent>
-                        <TabsContent value="files" className="mt-4">
-                            {changedFiles.length > 0 ? (
-                                <FileChangeDisplay
-                                    changedFiles={changedFiles}
-                                    onDownloadAll={() => { }} // This is handled in the component itself
-                                />
-                            ) : (
-                                <div className="text-center p-8 text-muted-foreground">
-                                    No files changed by the command
-                                </div>
-                            )}
-                        </TabsContent>
-                    </Tabs>
-                </CardContent>
-            </Card>
-        </div>
-    );
+			// Run the command and get changed files
+			const changes = await containerManager?.runShadcnCommand(args);
+
+			// Clear the interval when done
+			clearInterval(logUpdateInterval);
+
+			// Get logs that were added during command execution
+			const logsAfter = window.webContainerLogs ? [...window.webContainerLogs] : [];
+			const newLogs = logsAfter.slice(logsBefore.length);
+
+			// Format logs for display
+			const formattedLogs = newLogs
+				.map((log) => {
+					// Color coding for logs
+					const formattedMsg = `${log.message}`;
+					let formattedData = log.data || "";
+
+					// Format prompt outputs and responses
+					if (typeof formattedData === "string") {
+						if (
+							formattedData.includes("Ok to proceed?") ||
+							formattedData.includes("Need to install")
+						) {
+							formattedData = `\x1b[33m${formattedData}\x1b[0m`;
+						} else if (formattedData.includes("y\n") || formattedData.includes("responding")) {
+							formattedData = `\x1b[32m${formattedData}\x1b[0m`;
+						}
+					}
+
+					return `${formattedMsg} ${formattedData}`;
+				})
+				.join("\n");
+
+			// Process terminal output to clean up repetitive messages
+			setCommandOutput(processTerminalOutput(formattedLogs) || "Command completed successfully");
+			setProgressMessage("Command completed successfully");
+
+			if (changes && changes.length > 0) {
+				setChangedFiles(changes);
+				setActiveTab("files");
+
+				// Call the onExecute callback if provided
+				if (onExecute) {
+					onExecute(changes);
+				}
+			} else {
+				setActiveTab("command");
+			}
+		} catch (error) {
+			setCommandError(error instanceof Error ? error.message : String(error));
+			setProgressMessage("");
+			setActiveTab("command");
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const runCommand = async () => {
+		if (!webContainerSupported) {
+			setCommandError("WebContainer is not supported in this environment");
+			return;
+		}
+
+		// Simple validation to ensure there's a command
+		const validationError = validateCommand(command);
+		if (validationError) {
+			setCommandError(validationError);
+			return;
+		}
+
+		// If container is not ready, queue the command
+		if (!containerReady) {
+			queuedCommand.current = command;
+			setIsCommandQueued(true);
+			setProgressMessage("Command queued - will run when WebContainer is ready");
+			return;
+		}
+
+		try {
+			setIsLoadingFiles(true);
+			setLoadingMessage("Importing project configuration files...");
+
+			// Import necessary project files before running the command
+			await containerManager?.importProjectFiles();
+
+			setLoadingMessage("Running shadcn command...");
+			setIsLoadingFiles(false);
+			setIsLoading(true);
+
+			const cmd = makeCommand();
+			setCommand(cmd);
+
+			// If container is ready, execute the command immediately
+			await executeCommand(cmd);
+		} catch (error) {
+			console.error("Error running command", error);
+			setCommandError((error as Error).message);
+		} finally {
+			setIsLoading(false);
+			setIsLoadingFiles(false);
+		}
+	};
+
+	return (
+		<div className="w-full">
+			<div className="space-y-4">
+				<div className="flex flex-col gap-3">
+					<div className="relative flex w-full items-center">
+						<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+							<TerminalIcon className="h-4 w-4 text-muted-foreground" />
+						</div>
+						<Input
+							className="pl-10 pr-20 font-mono text-sm h-12 bg-muted/40 border-muted focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+							placeholder="npx shadcn@latest add button"
+							value={command}
+							onChange={(e) => setCommand(e.target.value)}
+							disabled={isLoading || isLoadingFiles}
+						/>
+						<Button
+							onClick={runCommand}
+							disabled={isLoading || !webContainerSupported || isLoadingFiles}
+							className="absolute right-1 px-4 py-1 h-10"
+							size="sm"
+							variant={isLoading || isCommandQueued || isLoadingFiles ? "outline" : "default"}
+						>
+							{isLoading ? (
+								<span className="flex items-center">
+									<span className="animate-spin mr-2 h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+									Running
+								</span>
+							) : isLoadingFiles ? (
+								<span className="flex items-center">
+									<span className="animate-spin mr-2 h-3 w-3 border-2 border-current border-t-transparent rounded-full" />
+									Loading
+								</span>
+							) : isCommandQueued ? (
+								<span className="flex items-center">
+									<span className="animate-pulse mr-2">⏱️</span>
+									Queued
+								</span>
+							) : (
+								"Run"
+							)}
+						</Button>
+					</div>
+
+					{!containerReady && webContainerSupported && (
+						<div className="text-xs text-muted-foreground">
+							<span className="animate-pulse">⏳</span> WebContainer initializing... {isCommandQueued ? "(Your command will run automatically when ready)" : "You can type your command now"}
+						</div>
+					)}
+				</div>
+
+				{isLoadingFiles && (
+					<div className="flex items-center justify-center p-3 bg-muted/30 rounded-md text-sm text-muted-foreground border border-dashed">
+						<div className="animate-spin mr-2 h-3 w-3 border-2 border-primary border-t-transparent rounded-full" />
+						<span>{loadingMessage}</span>
+					</div>
+				)}
+
+				{(isLoading || isCommandQueued) && progressMessage && (
+					<div className="flex items-center justify-center p-3 bg-muted/30 rounded-md text-sm text-muted-foreground border border-dashed">
+						{isLoading && <div className="animate-spin mr-2 h-3 w-3 border-2 border-primary border-t-transparent rounded-full" />}
+						{isCommandQueued && <span className="animate-pulse mr-2">⏱️</span>}
+						<span>{progressMessage}</span>
+					</div>
+				)}
+
+				{commandError && (
+					<Alert variant="destructive" className="mt-2">
+						<AlertTriangleIcon className="h-4 w-4" />
+						<AlertTitle>Error</AlertTitle>
+						<AlertDescription>
+							<pre className="mt-1 w-full whitespace-pre-wrap font-mono text-xs">
+								{commandError}
+							</pre>
+						</AlertDescription>
+					</Alert>
+				)}
+
+				{(commandOutput || changedFiles.length > 0) && (
+					<Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-4">
+						<TabsList className="grid w-full grid-cols-2">
+							<TabsTrigger value="command" className="text-xs">
+								<InfoIcon className="h-3 w-3 mr-2" />
+								Terminal Output
+							</TabsTrigger>
+							<TabsTrigger value="files" disabled={changedFiles.length === 0} className="text-xs">
+								<FileIcon className="h-3 w-3 mr-2" />
+								Changed Files {changedFiles.length > 0 && `(${changedFiles.length})`}
+							</TabsTrigger>
+						</TabsList>
+						<TabsContent value="command" className="mt-2">
+							<div className="w-full p-4 bg-black rounded-md text-white overflow-auto h-[300px] font-mono text-sm">
+								{commandOutput ? (
+									<div className="whitespace-pre-wrap terminal-output leading-5">
+										<Ansi>{commandOutput}</Ansi>
+									</div>
+								) : (
+									<div className="text-center p-6 text-muted-foreground text-sm">
+										{!containerReady ? "Initializing WebContainer..." : "Run a command to see output"}
+									</div>
+								)}
+							</div>
+						</TabsContent>
+						<TabsContent value="files" className="mt-2 max-h-[300px] overflow-auto">
+							<FileChangeDisplay
+								changedFiles={changedFiles}
+								onDownloadAll={() => { }}
+							/>
+						</TabsContent>
+					</Tabs>
+				)}
+
+				{changedFiles.length > 0 && (
+					<div className="mt-4">
+						<GitHubIntegration changedFiles={changedFiles} disabled={isLoading} />
+					</div>
+				)}
+			</div>
+		</div>
+	);
 };
