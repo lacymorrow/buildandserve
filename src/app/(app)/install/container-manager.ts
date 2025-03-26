@@ -11,9 +11,9 @@ import {
 import { logInfo } from "./logging";
 import {
 	importProjectFiles as importFiles,
-	preloadRepoFiles,
-	processShadcnComponent,
-	readRepoFile,
+	preloadTemplateFiles as loadTemplateFiles,
+	processTemplateFilesFromDisk,
+	readTemplateFile,
 } from "./template-utils";
 import type { ContainerFile } from "./types";
 
@@ -170,14 +170,14 @@ export class ContainerManager {
 	 * Make sure components.json exists at the root
 	 */
 	private async ensureComponentsJsonExists(): Promise<void> {
-		return ensureComponentsJsonExists(this.container, (path) => readRepoFile(path));
+		return ensureComponentsJsonExists(this.container, (path) => readTemplateFile(path));
 	}
 
 	/**
-	 * Preload repo files to speed up later operations
+	 * Preload template files to speed up later operations
 	 */
 	async preloadTemplateFiles(): Promise<void> {
-		return preloadRepoFiles(this.container);
+		return loadTemplateFiles(this.container);
 	}
 
 	/**
@@ -192,22 +192,12 @@ export class ContainerManager {
 			logInfo("Starting shadcn template installation...");
 			logInfo("WebContainer initialized and ready");
 
-			// Instead of using template files, we'll directly use repo files
-			logInfo("Using shadcn components from repo files...");
+			// Instead of installing with npm/npx, we'll directly use the template files
+			logInfo("Using shadcn template from templates/shadcn...");
 
-			// Process the core shadcn components from repo files
-			logInfo("Starting to process core components...");
-
-			// Let's load the core components that most people will need
-			const components = ["button", "card", "input", "form", "dropdown-menu"];
-			const allFiles: ContainerFile[] = [];
-
-			for (const component of components) {
-				const files = await processShadcnComponent(this.container, projectStructure, component);
-				allFiles.push(...files);
-			}
-
-			return allFiles;
+			// Process all files from the shadcn template
+			logInfo("Starting to process template files...");
+			return await processTemplateFilesFromDisk(this.container, projectStructure);
 		} catch (error) {
 			logInfo(
 				"Error occurred during installation",
@@ -289,13 +279,10 @@ export class ContainerManager {
 	}
 
 	/**
-	 * Import project files to synchronize the container with the repository
+	 * Copies important files from the host project into the WebContainer
+	 * This allows components to be added with correct project settings
 	 */
 	async importProjectFiles(files?: string[]): Promise<void> {
-		if (!this.isReady) {
-			await this.initialize();
-		}
-
 		return importFiles(this.container, (path) => this.fileExists(path), files);
 	}
 }

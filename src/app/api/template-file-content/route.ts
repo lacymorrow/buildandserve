@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import path from "path";
+import { shouldIgnoreFile } from "../template-utils";
 
 // Binary file extensions that should be returned as raw data
 const binaryExtensions = [
@@ -24,6 +25,9 @@ const binaryExtensions = [
 	".gz",
 ];
 
+// Cache for file content to avoid redundant filesystem operations
+const fileContentCache = new Map<string, { content: Buffer | string; contentType: string }>();
+
 export async function GET(request: NextRequest) {
 	try {
 		const { searchParams } = new URL(request.url);
@@ -31,6 +35,26 @@ export async function GET(request: NextRequest) {
 
 		// Sanitize the path to prevent directory traversal attacks
 		filePath = filePath.replace(/\.\./g, "").replace(/^\/+/, "");
+
+		// Log the request path for debugging
+		console.log(`File content request for: "${filePath}"`);
+
+		// Check if the file should be ignored
+		if (shouldIgnoreFile(filePath)) {
+			console.log(`Ignoring request for filtered file: ${filePath}`);
+			return NextResponse.json({ error: "File is filtered out" }, { status: 404 });
+		}
+
+		// Check cache first
+		if (fileContentCache.has(filePath)) {
+			console.log(`Using cached file content for: ${filePath}`);
+			const { content, contentType } = fileContentCache.get(filePath)!;
+			return new NextResponse(content, {
+				headers: {
+					"Content-Type": contentType,
+				},
+			});
+		}
 
 		// Get the full path to the file
 		const fullPath = path.join(process.cwd(), "templates/shadcn", filePath);
@@ -104,6 +128,9 @@ export async function GET(request: NextRequest) {
 				break;
 			// Add more content types as needed
 		}
+
+		// Cache the file content
+		fileContentCache.set(filePath, { content, contentType });
 
 		return new NextResponse(content, {
 			headers: {

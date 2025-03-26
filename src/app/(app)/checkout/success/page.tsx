@@ -1,5 +1,5 @@
 import { AuthForm } from "@/app/(app)/(authentication)/_components/auth-form";
-import { SignInForm } from "@/app/(app)/(authentication)/sign-in/_components/sign-in-form";
+import { SignInForm } from "@/app/(app)/(authentication)/sign-in/_components/sign-in";
 import { Link } from "@/components/primitives/link-with-transition";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

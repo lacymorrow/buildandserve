@@ -30,56 +30,51 @@ export async function fileExists(container: any, path: string): Promise<boolean>
 }
 
 /**
- * Ensure that components.json exists at the root of the container
- * This is required for shadcn/ui commands to work
+ * Ensure components.json exists at the root
  */
 export async function ensureComponentsJsonExists(
 	container: any,
-	readFileFunction: (path: string) => Promise<string | Uint8Array | null>
+	readTemplateFile: (path: string) => Promise<string | Uint8Array | null>
 ): Promise<void> {
 	try {
 		// Check if components.json already exists
 		if (await fileExists(container, "components.json")) {
-			logInfo("components.json already exists in container");
+			logInfo("components.json already exists");
 			return;
 		}
 
-		logInfo("components.json not found, creating it");
-
-		// Try to read from repo first
-		let componentsJson = await readFileFunction("components.json");
-
-		// If not found in repo, use a default template
-		if (!componentsJson) {
-			logInfo("No components.json found in repo, using default template");
-			componentsJson = JSON.stringify(
-				{
-					$schema: "https://ui.shadcn.com/schema.json",
-					style: "default",
-					rsc: true,
-					tsx: true,
-					tailwind: {
-						config: "tailwind.config.ts",
-						css: "src/app/globals.css",
-						baseColor: "slate",
-						cssVariables: true,
-					},
-					aliases: {
-						components: "@/components",
-						utils: "@/lib/utils",
-					},
-				},
-				null,
-				2
-			);
+		// Read the template components.json from the API
+		const templateComponentsJson = await readTemplateFile("components.json");
+		if (templateComponentsJson && typeof templateComponentsJson === "string") {
+			// Write it to the root
+			await container.fs.writeFile("components.json", templateComponentsJson);
+			logInfo("Created components.json from template");
+			return;
 		}
 
-		// Write the file to the container
-		await container.fs.writeFile("components.json", componentsJson);
-		logInfo("Created components.json successfully");
+		// If not found in templates, create a default one
+		const defaultComponentsJson = {
+			$schema: "https://ui.shadcn.com/schema.json",
+			style: "default",
+			rsc: true,
+			tsx: true,
+			tailwind: {
+				config: "tailwind.config.ts",
+				css: "src/app/globals.css",
+				baseColor: "neutral",
+				cssVariables: true,
+			},
+			aliases: {
+				components: "@/components",
+				utils: "@/lib/utils",
+			},
+		};
+
+		await container.fs.writeFile("components.json", JSON.stringify(defaultComponentsJson, null, 2));
+		logInfo("Created default components.json");
 	} catch (error) {
 		logInfo("Error ensuring components.json exists:", error);
-		throw error;
+		// Don't throw, continue anyway
 	}
 }
 

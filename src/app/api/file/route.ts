@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import { type NextRequest, NextResponse } from "next/server";
 import * as path from "path";
+import { shouldIgnoreFile } from "../template-utils";
 
 /**
  * API route to get file content from the server filesystem
@@ -13,6 +14,12 @@ export async function GET(request: NextRequest) {
 
 		if (!filePath) {
 			return NextResponse.json({ error: "File path is required" }, { status: 400 });
+		}
+
+		// Check if the file should be ignored
+		if (shouldIgnoreFile(filePath)) {
+			console.log(`Ignoring request for filtered file: ${filePath}`);
+			return NextResponse.json({ error: "File is filtered out" }, { status: 404 });
 		}
 
 		// Sanitize the file path to prevent directory traversal attacks
@@ -33,7 +40,7 @@ export async function GET(request: NextRequest) {
 		// Return the file content as plain text
 		return new NextResponse(fileContent, {
 			headers: {
-				"Content-Type": "text/plain; charset=utf-8",
+				"Content-Type": getContentType(path.extname(filePath)),
 			},
 		});
 	} catch (error) {

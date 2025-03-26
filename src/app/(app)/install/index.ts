@@ -1,16 +1,15 @@
 "use client";
 
-// Re-export types
-export * from "./types";
+// Re-export main components and utilities for easier imports
+export { ContainerManager, containerManager } from "./container-manager";
+export { logInfo, logWarning } from "./logging";
+export { processTerminalOutput } from "./terminal-output";
+
+// Type exports
+export type { ContainerFile } from "./types";
 
 // Export logging utilities
 export * from "./logging";
-
-// Export terminal output processing
-export { processTerminalOutput } from "./terminal-output";
-
-// Export container manager
-export { ContainerManager, containerManager } from "./container-manager";
 
 // Export filesystem utilities
 export {

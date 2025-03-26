@@ -4,21 +4,21 @@ import { logInfo } from "./logging";
 import type { ContainerFile } from "./types";
 
 /**
- * Helper function to read a repo file directly
- * @param filePath The path to the file in the repo
+ * Helper function to read a template file
+ * @param filePath The path to the file
  * @returns The file content or null if the file couldn't be read
  */
-export async function readRepoFile(filePath: string): Promise<string | Uint8Array | null> {
+export async function readTemplateFile(filePath: string): Promise<string | Uint8Array | null> {
 	try {
 		// In the browser environment, we need to fetch the file
 		if (typeof window !== "undefined") {
-			const url = `/api/repo-file?path=${encodeURIComponent(filePath)}`;
-			logInfo(`Fetching repo file content from: ${url}`);
+			const url = `/api/template-file-content?path=${encodeURIComponent(filePath)}`;
+			logInfo(`Fetching template file content from: ${url}`);
 
 			const response = await fetch(url);
 
 			if (!response.ok) {
-				logInfo(`Failed to fetch repo file: ${filePath}`, {
+				logInfo(`Failed to fetch template file: ${filePath}`, {
 					status: response.status,
 					statusText: response.statusText,
 				});
@@ -48,170 +48,178 @@ export async function readRepoFile(filePath: string): Promise<string | Uint8Arra
 		}
 		return null;
 	} catch (error) {
-		logInfo(`Error reading repo file ${filePath}:`, error);
+		logInfo(`Error reading template file ${filePath}:`, error);
 		return null;
 	}
 }
 
 /**
- * Get a list of important files from the repo that should be loaded
- * @returns Array of file paths
- */
-export function getImportantRepoFiles(): string[] {
-	// List of key files that should be loaded for proper functionality
-	return [
-		// Core configuration files
-		"package.json",
-		"tailwind.config.ts",
-		"tsconfig.json",
-		"components.json",
-		// Style files
-		"src/styles/globals.css",
-		"src/app/globals.css", // Alternative location
-		// Utility files
-		"src/lib/utils.ts",
-		// Layout and page files
-		"src/app/layout.tsx",
-		"src/app/page.tsx",
-		// Theme files
-		"src/styles/themes.ts",
-		"src/lib/themes.ts",
-		"src/app/themes.ts",
-		// Important shadcn component files if they exist
-		"src/components/ui/button.tsx",
-		"src/components/ui/card.tsx",
-		"src/components/ui/form.tsx",
-		"src/components/ui/input.tsx",
-	];
-}
-
-/**
- * Preload important repo files to speed up operations
+ * Preload template files to speed up later operations
  * @param container The WebContainer instance
  */
-export async function preloadRepoFiles(container: any): Promise<void> {
-	logInfo("Starting to preload important repo files");
+export async function preloadTemplateFiles(container: any): Promise<void> {
+	logInfo("Starting to preload template files");
 
-	const filesToPreload = getImportantRepoFiles();
-
-	for (const filePath of filesToPreload) {
+	// Helper function to recursively process directory
+	const processDirectory = async (directoryPath = ""): Promise<void> => {
 		try {
-			// Read the file content
-			const content = await readRepoFile(filePath);
-			if (content !== null) {
-				// Make sure the directory exists
-				const dirPath = filePath.substring(0, filePath.lastIndexOf("/"));
-				if (dirPath) {
-					try {
-						await container.fs.mkdir(dirPath, { recursive: true });
-						logInfo(`Created directory ${dirPath} in container`);
-					} catch (err) {
-						// Directory may already exist
-						logInfo(`Note: Directory ${dirPath} may already exist in container`);
-					}
-				}
+			// Make a fetch request to get the directory listing
+			const response = await fetch(`/api/template-files?path=${encodeURIComponent(directoryPath)}`);
+			if (!response.ok) {
+				logInfo(`Failed to fetch directory listing for ${directoryPath}`, response.statusText);
+				return;
+			}
 
-				// Write file to the container
+			const entries = await response.json();
+			logInfo(`Found ${entries.length} entries in ${directoryPath || "root"}`);
+
+			// Create the directory in the container if it doesn't exist
+			if (directoryPath) {
 				try {
-					await container.fs.writeFile(filePath, content);
-					logInfo(`Preloaded file: ${filePath}`);
-				} catch (writeError) {
-					logInfo(`Error writing file ${filePath} to container:`, writeError);
+					await container.fs.mkdir(directoryPath, { recursive: true });
+					logInfo(`Created directory ${directoryPath} in container`);
+				} catch (err) {
+					// Directory may already exist
+					logInfo(`Note: Directory ${directoryPath} may already exist in container`);
+				}
+			}
+
+			for (const entry of entries) {
+				const fullPath = directoryPath ? `${directoryPath}/${entry.name}` : entry.name;
+
+				if (entry.isDirectory) {
+					// Process subdirectory recursively
+					await processDirectory(fullPath);
+				} else {
+					// Read the file content
+					const content = await readTemplateFile(fullPath);
+					if (content !== null) {
+						// Write file to the container
+						try {
+							await container.fs.writeFile(fullPath, content);
+							logInfo(`Preloaded file: ${fullPath}`);
+						} catch (writeError) {
+							logInfo(`Error writing file ${fullPath} to container:`, writeError);
+						}
+					}
 				}
 			}
 		} catch (error) {
-			logInfo(`Error processing file ${filePath}:`, error);
+			logInfo(`Error processing directory ${directoryPath}:`, error);
 		}
-	}
+	};
 
-	logInfo("Completed preloading repo files");
+	// Start processing from root
+	await processDirectory("");
+	logInfo("Completed preloading template files");
 }
 
 /**
- * Process shadcn component installation directly using repo files
+ * Process template files from disk
  * @param container The WebContainer instance
  * @param projectStructure The project structure type ("app" or "src/app")
  */
-export async function processShadcnComponent(
+export async function processTemplateFilesFromDisk(
 	container: any,
-	projectStructure: string,
-	componentName: string
+	projectStructure: string
 ): Promise<ContainerFile[]> {
 	const files: ContainerFile[] = [];
-	logInfo(`Processing shadcn component '${componentName}' for '${projectStructure}' structure`);
 
-	// Define the base directory for shadcn components
-	const componentBaseDir = "src/components/ui";
+	logInfo(`Processing template files from disk for '${projectStructure}' structure`);
 
-	// Get dependencies from components.json if available
-	let dependencies: Record<string, string> = {};
+	// Helper function to recursively process directory
+	const processDirectory = async (directoryPath = ""): Promise<void> => {
+		try {
+			// Make a fetch request to get the directory listing
+			const response = await fetch(`/api/template-files?path=${encodeURIComponent(directoryPath)}`);
+			if (!response.ok) {
+				logInfo(`Failed to fetch directory listing for ${directoryPath}`, response.statusText);
+				return;
+			}
 
-	try {
-		const componentsJson = await readRepoFile("components.json");
-		if (componentsJson) {
-			const config = JSON.parse(componentsJson as string);
-			dependencies = config.dependencies || {};
+			const entries = await response.json();
+
+			for (const entry of entries) {
+				const fullPath = directoryPath ? `${directoryPath}/${entry.name}` : entry.name;
+
+				if (entry.isDirectory) {
+					// Process subdirectory recursively
+					await processDirectory(fullPath);
+				} else {
+					// Read the file content
+					const content = await readTemplateFile(fullPath);
+					if (content !== null) {
+						// Create target path based on project structure
+						let targetPath = fullPath;
+
+						// If the path needs adjustment based on project structure
+						if (fullPath.startsWith("app/") && projectStructure === "src/app") {
+							targetPath = `src/${fullPath}`;
+							logInfo(`Adjusting path from ${fullPath} to ${targetPath} for src/app structure`);
+						} else if (fullPath.startsWith("src/app/") && projectStructure === "app") {
+							targetPath = fullPath.substring(4); // Remove "src/"
+							logInfo(`Adjusting path from ${fullPath} to ${targetPath} for app structure`);
+						}
+
+						// Log file info - handle both string and binary content
+						const contentLength = typeof content === "string" ? content.length : content.byteLength;
+						logInfo(`Adding file: ${targetPath} (${contentLength} bytes)`);
+
+						// Create directory structure if it doesn't exist
+						const dirPath = targetPath.substring(0, targetPath.lastIndexOf("/"));
+						if (dirPath) {
+							try {
+								await container.fs.mkdir(dirPath, { recursive: true });
+							} catch (err) {
+								// Ignore if directory already exists
+								logInfo(`Note: Directory ${dirPath} may already exist`);
+							}
+						}
+
+						// Write the file to the container - handle both string and binary content
+						try {
+							// For WebContainer fs.writeFile, we need different formats for text vs binary
+							await container.fs.writeFile(targetPath, content);
+							logInfo(`Successfully wrote file: ${targetPath}`);
+						} catch (writeError) {
+							logInfo(`Error writing file ${targetPath}:`, writeError);
+						}
+
+						// Add to the list of processed files - convert binary to base64 for storage
+						files.push({
+							path: targetPath,
+							content:
+								typeof content === "string" ? content : `[Binary data: ${contentLength} bytes]`, // For display only
+						});
+					}
+				}
+			}
+		} catch (error) {
+			logInfo(`Error processing directory ${directoryPath}:`, error);
 		}
-	} catch (error) {
-		logInfo("Error reading components.json:", error);
+	};
+
+	// Start processing from root
+	await processDirectory("");
+
+	// If unable to fetch template files, fallback to using the processTemplateFiles method
+	if (files.length === 0) {
+		logInfo(
+			"No template files could be fetched from disk. Falling back to normal installation process."
+		);
+
+		// Log error but don't try to run shadcn init as a fallback
+		logInfo("Template files could not be processed. Please try again or use manual installation.");
+		return [];
 	}
 
-	// Add the component files to the result
-	try {
-		// Try to load the component file from the repo
-		const componentPath = `${componentBaseDir}/${componentName}.tsx`;
-		const content = await readRepoFile(componentPath);
-
-		if (content) {
-			// Create directory structure if needed
-			try {
-				await container.fs.mkdir(componentBaseDir, { recursive: true });
-			} catch (err) {
-				// Ignore if directory already exists
-				logInfo("Note: Directory ${componentBaseDir} may already exist");
-			}
-
-			// Write the file to the container
-			try {
-				await container.fs.writeFile(componentPath, content);
-				logInfo(`Successfully wrote component file: ${componentPath}`);
-
-				// Add to the list of processed files
-				files.push({
-					path: componentPath,
-					content: typeof content === "string" ? content : "[Binary data]",
-				});
-			} catch (writeError) {
-				logInfo("Error writing component file ${componentPath}:", writeError);
-			}
-		}
-
-		// Add utility files if needed
-		const utilsPath = "src/lib/utils.ts";
-		const utilsContent = await readRepoFile(utilsPath);
-
-		if (utilsContent) {
-			try {
-				await container.fs.mkdir("src/lib", { recursive: true });
-				await container.fs.writeFile(utilsPath, utilsContent);
-				files.push({
-					path: utilsPath,
-					content: typeof utilsContent === "string" ? utilsContent : "[Binary data]",
-				});
-			} catch (err) {
-				logInfo("Error writing utils file:", err);
-			}
-		}
-	} catch (error) {
-		logInfo(`Error processing component ${componentName}:`, error);
-	}
-
-	logInfo(`Processed component ${componentName} with ${files.length} files`);
+	logInfo(`Processed ${files.length} files total from disk`);
+	logInfo("Template file processing complete");
 	return files;
 }
 
 /**
- * Import project files from the repo into the container
+ * Import project files from the host into the container
  * @param container The WebContainer instance
  * @param fileExists Helper function to check if a file exists
  * @param files Optional list of specific files to import
@@ -227,35 +235,49 @@ export async function importProjectFiles(
 
 	logInfo("Importing project files", { count: files?.length || 0 });
 
-	// Files to synchronize with the repo project
-	const targetFiles = files?.length ? files : getImportantRepoFiles();
+	// Files to synchronize with the host project
+	const targetFiles = files?.length
+		? files
+		: [
+				"package.json",
+				"tailwind.config.ts",
+				"components.json",
+				"src/styles/globals.css",
+				"src/lib/utils.ts",
+				"src/app/layout.tsx",
+				"src/app/page.tsx",
+			];
 
-	for (const filePath of targetFiles) {
-		try {
-			// For each file, try to read it from the repo
-			const content = await readRepoFile(filePath);
+	try {
+		for (const filePath of targetFiles) {
+			try {
+				// Check if file exists in current project
+				if (await fileExists(filePath)) {
+					// Get file content from the server
+					const response = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
 
-			if (content !== null) {
-				logInfo(`Successfully read ${filePath} from repo`);
+					if (response.ok) {
+						const content = await response.text();
 
-				// Make sure the directory exists
-				const dirPath = filePath.substring(0, filePath.lastIndexOf("/"));
-				if (dirPath) {
-					try {
-						await container.fs.mkdir(dirPath, { recursive: true });
-					} catch (err) {
-						// Directory may already exist, ignore
+						// Ensure directory exists
+						const directory = filePath.split("/").slice(0, -1).join("/");
+						if (directory) {
+							await container.fs.mkdir(directory, { recursive: true });
+						}
+
+						// Write file to WebContainer
+						await container.fs.writeFile(filePath, content);
+						logInfo(`Imported project file: ${filePath}`);
 					}
 				}
-
-				// Write to container
-				await container.fs.writeFile(filePath, content);
-				logInfo(`Imported ${filePath} to container`);
+			} catch (error) {
+				console.warn(`Failed to import file ${filePath}:`, error);
 			}
-		} catch (error) {
-			logInfo(`Failed to import ${filePath}:`, error);
 		}
-	}
 
-	logInfo("Project file import complete");
+		logInfo("Project files import completed");
+	} catch (error) {
+		console.error("Error importing project files:", error);
+		throw error;
+	}
 }

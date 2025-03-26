@@ -1,5 +1,6 @@
 "use client";
 
+import { logInfo } from "../(app)/install/logging";
 import { runInstallCommand } from "./command-utils";
 import {
 	compareSnapshots,
@@ -8,7 +9,6 @@ import {
 	getInitialFileSystem,
 	takeFileSystemSnapshot,
 } from "./filesystem-utils";
-import { logInfo } from "./logging";
 import {
 	importProjectFiles as importFiles,
 	preloadTemplateFiles as loadTemplateFiles,
@@ -20,6 +20,12 @@ import type { ContainerFile } from "./types";
 // Track whether the container has already been booted
 let containerInstance: any = null;
 let bootPromise: Promise<any> | null = null;
+
+// Add proper debugging to track initialization state
+let containerInitializing = false;
+
+// Track whether template files have been loaded
+let templateFilesLoaded = false;
 
 /**
  * Simplified interface for working with WebContainers
@@ -41,6 +47,7 @@ export class ContainerManager {
 
 		// If already initialized, just return
 		if (this.isReady && this.container) {
+			logInfo("Container already initialized, reusing existing instance");
 			return true;
 		}
 
@@ -57,16 +64,44 @@ export class ContainerManager {
 			if (containerInstance) {
 				this.container = containerInstance;
 				this.isReady = true;
+				logInfo("Reusing existing container instance");
 				return true;
 			}
 
 			// If boot is already in progress, wait for it
 			if (bootPromise) {
+				logInfo("WebContainer boot already in progress, waiting for it to complete...");
 				await bootPromise;
 				this.container = containerInstance;
 				this.isReady = true;
+				logInfo("WebContainer boot completed, container is now available");
 				return true;
 			}
+
+			// If another initialization is in progress, wait for it to complete
+			if (containerInitializing) {
+				logInfo(
+					"Container initialization already in progress, waiting to avoid race conditions..."
+				);
+
+				// Wait for initialization to complete
+				while (containerInitializing) {
+					await new Promise((resolve) => setTimeout(resolve, 100));
+				}
+
+				// If container was initialized during our wait, use it
+				if (containerInstance) {
+					this.container = containerInstance;
+					this.isReady = true;
+					logInfo(
+						"Container initialization completed by another process, container is now available"
+					);
+					return true;
+				}
+			}
+
+			// Mark initialization as in progress to prevent race conditions
+			containerInitializing = true;
 
 			// Dynamic import to avoid SSR issues
 			const { WebContainer } = await import("@webcontainer/api");
@@ -101,17 +136,11 @@ export class ContainerManager {
 			// Pre-load the shadcn template files
 			logInfo("Pre-loading shadcn template files...");
 			try {
-				// Fetch directory listing from template API
-				const response = await fetch("/api/template-files?path=");
-				if (!response.ok) {
-					throw new Error(`Failed to fetch template directory listing: ${response.statusText}`);
-				}
-
-				// Process template files recursively
-				await this.preloadTemplateFiles();
-
 				// Ensure we have a components.json file at the root for any command to work
 				await this.ensureComponentsJsonExists();
+
+				// Process template files in one go, waiting for it to complete
+				await this.preloadTemplateFiles();
 
 				logInfo("Shadcn template files pre-loaded successfully");
 			} catch (preloadError) {
@@ -124,6 +153,9 @@ export class ContainerManager {
 					preloadError
 				);
 				// Continue without failing - we'll try to load files on demand
+			} finally {
+				// Mark initialization as complete
+				containerInitializing = false;
 			}
 
 			return true;
@@ -131,6 +163,7 @@ export class ContainerManager {
 			// Reset state on error
 			bootPromise = null;
 			this.isReady = false;
+			containerInitializing = false;
 
 			console.error("Failed to initialize WebContainer:", error);
 
@@ -177,7 +210,15 @@ export class ContainerManager {
 	 * Preload template files to speed up later operations
 	 */
 	async preloadTemplateFiles(): Promise<void> {
-		return loadTemplateFiles(this.container);
+		// Skip if templates were already loaded
+		if (templateFilesLoaded) {
+			logInfo("Template files already loaded, skipping preload");
+			return;
+		}
+
+		await loadTemplateFiles(this.container);
+		templateFilesLoaded = true;
+		logInfo("Template files loaded and cached");
 	}
 
 	/**
@@ -191,6 +232,14 @@ export class ContainerManager {
 		try {
 			logInfo("Starting shadcn template installation...");
 			logInfo("WebContainer initialized and ready");
+
+			// Make sure template files are loaded first
+			if (!templateFilesLoaded) {
+				logInfo("Loading template files before installation...");
+				await this.preloadTemplateFiles();
+			} else {
+				logInfo("Using previously loaded template files");
+			}
 
 			// Instead of installing with npm/npx, we'll directly use the template files
 			logInfo("Using shadcn template from templates/shadcn...");

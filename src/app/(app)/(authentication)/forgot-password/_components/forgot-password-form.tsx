@@ -19,30 +19,26 @@ import { getSchemaDefaults } from "@/lib/utils/get-schema-defaults";
 import { forgotPasswordAction } from "@/server/actions/auth";
 import { toast } from "sonner";
 
+type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+
 export function ForgotPasswordForm() {
-	const form = useForm<z.infer<typeof forgotPasswordSchema>>({
+	const form = useForm<ForgotPasswordFormValues>({
 		resolver: zodResolver(forgotPasswordSchema),
-		defaultValues: getSchemaDefaults(forgotPasswordSchema),
+		defaultValues: getSchemaDefaults<typeof forgotPasswordSchema>(forgotPasswordSchema),
 	});
 
-	async function onSubmit(values: z.infer<typeof forgotPasswordSchema>) {
+	async function onSubmit(values: ForgotPasswordFormValues) {
 		try {
-			const [result, formError] = await forgotPasswordAction(values);
+			const result = await forgotPasswordAction(values);
 
-			if (formError) {
-				toast.error("Error sending password reset email", {
-					description: "Please try again.",
-				});
-				return;
-			}
-
-			if (result) {
+			if (result.success) {
 				toast.success("Email sent", {
 					description: "Please check your email for a link to reset your password.",
 				});
+				form.reset();
 			} else {
 				toast.error("Error sending password reset email", {
-					description: "Please try again.",
+					description: result.error || "Please try again.",
 				});
 			}
 		} catch (error) {
@@ -68,8 +64,8 @@ export function ForgotPasswordForm() {
 						</FormItem>
 					)}
 				/>
-				<Button className="self-end" type="submit">
-					Submit
+				<Button className="self-end" type="submit" disabled={form.formState.isSubmitting}>
+					{form.formState.isSubmitting ? "Sending..." : "Submit"}
 				</Button>
 			</form>
 		</Form>

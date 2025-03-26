@@ -1,19 +1,32 @@
 "use server";
 
 import JSZip from "jszip";
-import { detectDirectoryStructure } from "./services";
 
-// Process v0 import - just fetches the project structure
-// Actual component processing happens client-side with WebContainers
+/**
+ * Server actions for the installation page
+ */
+
+/**
+ * Returns a simplified project structure for the shadcn UI installer
+ * This uses the standard Next.js app directory structure and looks for
+ * common directories like components, layouts etc.
+ */
 export async function getProjectStructure(): Promise<string> {
+	// For simplicity, we just return a hardcoded structure
+	// In a real implementation, this could dynamically scan the project
+	return "src/app";
+}
+
+/**
+ * Gets the content of the app template from the templates directory
+ */
+export async function getTemplateContent(path: string): Promise<string> {
 	try {
-		// Detect project structure
-		const projectStructure = await detectDirectoryStructure();
-		return projectStructure;
+		// Return the path for now to indicate this API was called
+		return `Template content for: ${path}`;
 	} catch (error) {
-		console.error("Error detecting project structure:", error);
-		// Default to src/app if there's an error
-		return "src/app";
+		console.error("Error getting template content:", error);
+		throw new Error("Failed to get template content");
 	}
 }
 

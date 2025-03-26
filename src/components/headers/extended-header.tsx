@@ -1,6 +1,9 @@
 "use client";
 
+import { Icon } from "@/components/assets/icon";
+import { LoginButton } from "@/components/buttons/login-button";
 import { Link } from "@/components/primitives/link-with-transition";
+import { SearchAi } from "@/components/search/search-ai";
 import { UserMenu } from "@/components/shipkit/user-menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -17,14 +20,12 @@ import { HamburgerMenuIcon } from "@radix-ui/react-icons";
 import { useWindowScroll } from "@uidotdev/usehooks";
 import { cva } from "class-variance-authority";
 import { useSession } from "next-auth/react";
+import { usePathname } from "next/navigation";
 import type React from "react";
 import { useMemo } from "react";
-
-import { Icon } from "@/components/assets/icon";
-import { LoginButton } from "@/components/buttons/login-button";
-import { SearchAi } from "@/components/search/search-ai";
-import styles from "@/styles/header.module.css";
 import { BuyButton } from "../buttons/buy-button";
+
+import styles from "@/styles/header.module.css";
 
 interface NavLink {
 	href: string;
@@ -70,6 +71,7 @@ export const Header: React.FC<HeaderProps> = ({
 	navLinks = defaultNavLinks,
 	variant = "default",
 }) => {
+	const pathname = usePathname();
 	const [{ y }] = useWindowScroll();
 	const isOpaque = useMemo(() => variant === "floating" && y && y > 100, [y, variant]);
 	const { data: session } = useSession();
@@ -224,17 +226,6 @@ export const Header: React.FC<HeaderProps> = ({
 										</LoginButton>
 									</TooltipContent>
 								</Tooltip>
-
-								// <AnimatePresence>
-								// 	{y && y > 700 ? (
-								// 		// <motion.div
-								// 		// 	key="compact"
-								// 		// 	initial={{ opacity: 0, scale: 0.9 }}
-								// 		// 	animate={{ opacity: 1, scale: 1 }}
-								// 		// 	exit={{ opacity: 0, scale: 0.9 }}
-								// 		// 	transition={{ duration: 0.1 }}
-								// 		// >
-								// 	)}
 							)}
 						</div>
 					</div>

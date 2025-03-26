@@ -1,7 +1,11 @@
 "use client";
 
 /**
- * Interface for container file structure
+ * Types for the install feature
+ */
+
+/**
+ * Represents a file in the container
  */
 export interface ContainerFile {
 	path: string;
@@ -9,25 +13,15 @@ export interface ContainerFile {
 }
 
 /**
- * Interface for file changes
- */
-export interface FileChange {
-	path: string;
-	content: string;
-}
-
-/**
- * Type for WebContainer logs
+ * Represents a log entry from the WebContainer
  */
 export interface WebContainerLog {
-	type: string;
 	message: string;
-	data?: any;
-	timestamp: string;
+	data?: string;
 }
 
 /**
- * Global declarations for WebContainer logs
+ * Global type augmentation for window
  */
 declare global {
 	interface Window {

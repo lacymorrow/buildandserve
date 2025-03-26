@@ -5,6 +5,7 @@ import { UserMenuDropdown } from "@/components/shipkit/user-menu-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { routes } from "@/config/routes";
 import { useSignInRedirectUrl } from "@/hooks/use-auth-redirect";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useSubscription } from "@/hooks/use-subscription";
@@ -14,6 +15,7 @@ import { updateTheme } from "@/server/actions/settings";
 import { UserIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
+import { usePathname } from "next/navigation";
 import * as React from "react";
 
 type Theme = "light" | "dark" | "system";
@@ -29,6 +31,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 	className,
 	showUpgrade = false
 }) => {
+	const pathname = usePathname();
 	const { data: session, status } = useSession();
 	const signInRedirectUrl = useSignInRedirectUrl();
 	const { theme, setTheme } = useTheme();
@@ -137,12 +140,24 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 					</Button>
 				</UserMenuDropdown>
 			) : (
-				<Link
-					href={signInRedirectUrl}
-					className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "rounded-full cursor-pointer")}
-				>
-					<UserIcon className="size-6" />
-				</Link>
+				<>
+					{pathname !== routes.auth.signIn && pathname !== routes.auth.signUp ? (
+						<Link
+							href={signInRedirectUrl}
+							className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "rounded-full cursor-pointer")}
+						>
+							<UserIcon className="size-6" />
+						</Link>
+					) : (
+						<Button
+							variant="ghost"
+							size="icon"
+							className={cn("relative rounded-full", className)}
+						>
+							<UserIcon className="size-6" />
+						</Button>
+					)}
+				</>
 			)}
 		</div>
 	);

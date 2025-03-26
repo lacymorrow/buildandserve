@@ -2,6 +2,7 @@
 
 import type { FileSystemTree } from "@webcontainer/api";
 import { logInfo } from "./logging";
+import { shouldIgnoreFile } from "./template-utils";
 import type { ContainerFile } from "./types";
 
 /**
@@ -110,20 +111,13 @@ export async function takeFileSystemSnapshot(container: any): Promise<Map<string
 					continue;
 				}
 
-				// Skip lockfiles
-				if (
-					entryName === "package-lock.json" ||
-					entryName === "yarn.lock" ||
-					entryName === "pnpm-lock.yaml" ||
-					entryName === ".pnpm-lock.yaml" ||
-					entryName === "npm-shrinkwrap.json" ||
-					entryName === "bun.lockb"
-				) {
-					logInfo(`Skipping lockfile: ${dirPath}/${entryName}`);
+				const fullPath = `${dirPath}/${entryName}`;
+
+				// Use shouldIgnoreFile function for consistent filtering
+				if (shouldIgnoreFile(fullPath)) {
+					logInfo(`Skipping ignored file: ${fullPath}`);
 					continue;
 				}
-
-				const fullPath = `${dirPath}/${entryName}`;
 
 				try {
 					// Try to determine if it's a directory by attempting to read it

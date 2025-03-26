@@ -1,7 +1,10 @@
 "use client";
 
-import { logInfo } from "./logging";
+import { logInfo } from "../(app)/install/logging";
 import type { ContainerFile } from "./types";
+
+// Add a cache for files that have already been loaded
+const fileContentCache: Map<string, string | Uint8Array> = new Map();
 
 /**
  * Helper function to read a template file
@@ -10,15 +13,30 @@ import type { ContainerFile } from "./types";
  */
 export async function readTemplateFile(filePath: string): Promise<string | Uint8Array | null> {
 	try {
+		// Normalize the path to prevent duplicate requests with slightly different paths
+		const normalizedPath = filePath.replace(/^\/+/, "").trim();
+
+		// Skip empty paths
+		if (!normalizedPath) {
+			logInfo("Skipping empty file path request");
+			return null;
+		}
+
 		// In the browser environment, we need to fetch the file
 		if (typeof window !== "undefined") {
-			const url = `/api/template-file-content?path=${encodeURIComponent(filePath)}`;
+			// Check cache first
+			if (fileContentCache.has(normalizedPath)) {
+				logInfo(`Using cached file content for: ${normalizedPath}`);
+				return fileContentCache.get(normalizedPath) || null;
+			}
+
+			const url = `/api/template-file-content?path=${encodeURIComponent(normalizedPath)}`;
 			logInfo(`Fetching template file content from: ${url}`);
 
 			const response = await fetch(url);
 
 			if (!response.ok) {
-				logInfo(`Failed to fetch template file: ${filePath}`, {
+				logInfo(`Failed to fetch template file: ${normalizedPath}`, {
 					status: response.status,
 					statusText: response.statusText,
 				});
@@ -27,7 +45,9 @@ export async function readTemplateFile(filePath: string): Promise<string | Uint8
 
 			// Check content type to determine how to handle the response
 			const contentType = response.headers.get("Content-Type") || "";
-			logInfo(`Received content type: ${contentType} for file: ${filePath}`);
+			logInfo(`Received content type: ${contentType} for file: ${normalizedPath}`);
+
+			let content: string | Uint8Array;
 
 			// Handle binary files
 			if (
@@ -38,13 +58,16 @@ export async function readTemplateFile(filePath: string): Promise<string | Uint8
 			) {
 				// For binary files, return an ArrayBuffer
 				const buffer = await response.arrayBuffer();
-				return new Uint8Array(buffer);
+				content = new Uint8Array(buffer);
+			} else {
+				// For text files, return text
+				content = await response.text();
+				logInfo(`Received text content (${content.length} bytes) for file: ${normalizedPath}`);
 			}
 
-			// For text files, return text
-			const text = await response.text();
-			logInfo(`Received text content (${text.length} bytes) for file: ${filePath}`);
-			return text;
+			// Cache the content
+			fileContentCache.set(normalizedPath, content);
+			return content;
 		}
 		return null;
 	} catch (error) {
@@ -53,66 +76,107 @@ export async function readTemplateFile(filePath: string): Promise<string | Uint8
 	}
 }
 
+// Add a cache for directory listings
+const directoryListingCache: Map<string, any[]> = new Map();
+
 /**
- * Preload template files to speed up later operations
- * @param container The WebContainer instance
+ * Helper function to get directory entries with caching
+ * @param directoryPath The directory path to fetch
+ * @returns Array of directory entries or empty array if failed
  */
-export async function preloadTemplateFiles(container: any): Promise<void> {
-	logInfo("Starting to preload template files");
+export async function getDirectoryEntries(directoryPath = ""): Promise<any[]> {
+	try {
+		// Normalize the path to prevent duplicate requests with slightly different paths
+		const normalizedPath = directoryPath.replace(/^\/+/, "").trim();
 
-	// Helper function to recursively process directory
-	const processDirectory = async (directoryPath = ""): Promise<void> => {
-		try {
-			// Make a fetch request to get the directory listing
-			const response = await fetch(`/api/template-files?path=${encodeURIComponent(directoryPath)}`);
-			if (!response.ok) {
-				logInfo(`Failed to fetch directory listing for ${directoryPath}`, response.statusText);
-				return;
-			}
-
-			const entries = await response.json();
-			logInfo(`Found ${entries.length} entries in ${directoryPath || "root"}`);
-
-			// Create the directory in the container if it doesn't exist
-			if (directoryPath) {
-				try {
-					await container.fs.mkdir(directoryPath, { recursive: true });
-					logInfo(`Created directory ${directoryPath} in container`);
-				} catch (err) {
-					// Directory may already exist
-					logInfo(`Note: Directory ${directoryPath} may already exist in container`);
-				}
-			}
-
-			for (const entry of entries) {
-				const fullPath = directoryPath ? `${directoryPath}/${entry.name}` : entry.name;
-
-				if (entry.isDirectory) {
-					// Process subdirectory recursively
-					await processDirectory(fullPath);
-				} else {
-					// Read the file content
-					const content = await readTemplateFile(fullPath);
-					if (content !== null) {
-						// Write file to the container
-						try {
-							await container.fs.writeFile(fullPath, content);
-							logInfo(`Preloaded file: ${fullPath}`);
-						} catch (writeError) {
-							logInfo(`Error writing file ${fullPath} to container:`, writeError);
-						}
-					}
-				}
-			}
-		} catch (error) {
-			logInfo(`Error processing directory ${directoryPath}:`, error);
+		// Check cache first
+		if (directoryListingCache.has(normalizedPath)) {
+			logInfo(`Using cached directory listing for: ${normalizedPath}`);
+			return directoryListingCache.get(normalizedPath) || [];
 		}
-	};
 
-	// Start processing from root
-	await processDirectory("");
-	logInfo("Completed preloading template files");
+		const response = await fetch(`/api/template-files?path=${encodeURIComponent(normalizedPath)}`);
+		if (!response.ok) {
+			logInfo(`Failed to fetch directory listing for ${normalizedPath}`, response.statusText);
+			return [];
+		}
+
+		const entries = await response.json();
+		logInfo(`Found ${entries.length} entries in ${normalizedPath || "root"}`);
+
+		// Cache the directory listing
+		directoryListingCache.set(normalizedPath, entries);
+		return entries;
+	} catch (error) {
+		logInfo(`Error getting directory entries for ${directoryPath}:`, error);
+		return [];
+	}
 }
+
+/**
+ * Check if a file should be ignored
+ * @param filename The filename to check
+ * @returns True if the file should be ignored, false otherwise
+ */
+export function shouldIgnoreFile(filename: string): boolean {
+	// Skip empty paths
+	if (!filename || filename.trim() === "") {
+		return true;
+	}
+
+	// Normalize the path before checking
+	const normalizedName = filename.replace(/^\/+/, "").trim();
+
+	// Ignore DS_Store files
+	if (normalizedName.includes(".DS_Store")) {
+		return true;
+	}
+
+	// Ignore lock files
+	if (
+		normalizedName.includes("package-lock.json") ||
+		normalizedName.includes("yarn.lock") ||
+		normalizedName.includes("pnpm-lock.yaml") ||
+		normalizedName.includes(".pnpm-lock.yaml") ||
+		normalizedName.includes("npm-shrinkwrap.json") ||
+		normalizedName.includes("bun.lockb")
+	) {
+		return true;
+	}
+
+	// Ignore TypeScript environment files
+	if (normalizedName.includes("next-env.d.ts")) {
+		return true;
+	}
+
+	// Ignore configuration files specifically mentioned by the user
+	if (
+		normalizedName.includes("README.md") ||
+		normalizedName.includes("eslint.config") ||
+		normalizedName.includes("next.config") ||
+		normalizedName.includes("postcss.config")
+	) {
+		return true;
+	}
+
+	// Ignore other common unnecessary files
+	if (
+		normalizedName.endsWith(".git") ||
+		normalizedName.endsWith(".gitignore") ||
+		normalizedName.endsWith(".npmrc") ||
+		normalizedName.endsWith(".env") ||
+		normalizedName.endsWith(".env.local") ||
+		normalizedName.endsWith(".env.development") ||
+		normalizedName.endsWith(".env.production")
+	) {
+		return true;
+	}
+
+	return false;
+}
+
+// Cache for processed template files per structure
+const processedTemplateCache: Map<string, ContainerFile[]> = new Map();
 
 /**
  * Process template files from disk
@@ -123,6 +187,16 @@ export async function processTemplateFilesFromDisk(
 	container: any,
 	projectStructure: string
 ): Promise<ContainerFile[]> {
+	// Check if we already processed files for this structure
+	const cacheKey = `structure:${projectStructure}`;
+	if (processedTemplateCache.has(cacheKey)) {
+		const cachedFiles = processedTemplateCache.get(cacheKey) || [];
+		logInfo(
+			`Using ${cachedFiles.length} previously processed files for ${projectStructure} structure`
+		);
+		return cachedFiles;
+	}
+
 	const files: ContainerFile[] = [];
 
 	logInfo(`Processing template files from disk for '${projectStructure}' structure`);
@@ -130,23 +204,23 @@ export async function processTemplateFilesFromDisk(
 	// Helper function to recursively process directory
 	const processDirectory = async (directoryPath = ""): Promise<void> => {
 		try {
-			// Make a fetch request to get the directory listing
-			const response = await fetch(`/api/template-files?path=${encodeURIComponent(directoryPath)}`);
-			if (!response.ok) {
-				logInfo(`Failed to fetch directory listing for ${directoryPath}`, response.statusText);
-				return;
-			}
-
-			const entries = await response.json();
+			// Use cached directory entries
+			const entries = await getDirectoryEntries(directoryPath);
 
 			for (const entry of entries) {
 				const fullPath = directoryPath ? `${directoryPath}/${entry.name}` : entry.name;
+
+				// Skip files that should be ignored
+				if (shouldIgnoreFile(fullPath)) {
+					logInfo(`Skipping ignored file: ${fullPath}`);
+					continue;
+				}
 
 				if (entry.isDirectory) {
 					// Process subdirectory recursively
 					await processDirectory(fullPath);
 				} else {
-					// Read the file content
+					// Read the file content using cache
 					const content = await readTemplateFile(fullPath);
 					if (content !== null) {
 						// Create target path based on project structure
@@ -213,6 +287,9 @@ export async function processTemplateFilesFromDisk(
 		return [];
 	}
 
+	// Cache the processed files for this structure
+	processedTemplateCache.set(cacheKey, files);
+
 	logInfo(`Processed ${files.length} files total from disk`);
 	logInfo("Template file processing complete");
 	return files;
@@ -239,9 +316,10 @@ export async function importProjectFiles(
 	const targetFiles = files?.length
 		? files
 		: [
+				"components.json",
 				"package.json",
 				"tailwind.config.ts",
-				"components.json",
+				"tsconfig.json",
 				"src/styles/globals.css",
 				"src/lib/utils.ts",
 				"src/app/layout.tsx",
@@ -251,6 +329,12 @@ export async function importProjectFiles(
 	try {
 		for (const filePath of targetFiles) {
 			try {
+				// Skip files that should be ignored
+				if (shouldIgnoreFile(filePath)) {
+					logInfo(`Skipping ignored file: ${filePath}`);
+					continue;
+				}
+
 				// Check if file exists in current project
 				if (await fileExists(filePath)) {
 					// Get file content from the server
@@ -280,4 +364,64 @@ export async function importProjectFiles(
 		console.error("Error importing project files:", error);
 		throw error;
 	}
+}
+
+/**
+ * Preload template files to speed up later operations
+ * @param container The WebContainer instance
+ */
+export async function preloadTemplateFiles(container: any): Promise<void> {
+	logInfo("Starting to preload template files");
+
+	// Helper function to recursively process directory
+	const processDirectory = async (directoryPath = ""): Promise<void> => {
+		try {
+			// Use cached directory entries
+			const entries = await getDirectoryEntries(directoryPath);
+
+			// Create the directory in the container if it doesn't exist
+			if (directoryPath) {
+				try {
+					await container.fs.mkdir(directoryPath, { recursive: true });
+					logInfo(`Created directory ${directoryPath} in container`);
+				} catch (err) {
+					// Directory may already exist
+					logInfo(`Note: Directory ${directoryPath} may already exist in container`);
+				}
+			}
+
+			for (const entry of entries) {
+				const fullPath = directoryPath ? `${directoryPath}/${entry.name}` : entry.name;
+
+				// Skip files that should be ignored
+				if (shouldIgnoreFile(fullPath)) {
+					logInfo(`Skipping ignored file: ${fullPath}`);
+					continue;
+				}
+
+				if (entry.isDirectory) {
+					// Process subdirectory recursively
+					await processDirectory(fullPath);
+				} else {
+					// Read the file content using cache
+					const content = await readTemplateFile(fullPath);
+					if (content !== null) {
+						// Write file to the container
+						try {
+							await container.fs.writeFile(fullPath, content);
+							logInfo(`Preloaded file: ${fullPath}`);
+						} catch (writeError) {
+							logInfo(`Error writing file ${fullPath} to container:`, writeError);
+						}
+					}
+				}
+			}
+		} catch (error) {
+			logInfo(`Error processing directory ${directoryPath}:`, error);
+		}
+	};
+
+	// Start processing from root
+	await processDirectory("");
+	logInfo("Completed preloading template files");
 }

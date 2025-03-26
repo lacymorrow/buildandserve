@@ -30,6 +30,7 @@ const getAnswerText = (answer: unknown): string => {
 };
 
 export default async function FaqPage() {
+
 	let faqs: (Faq | StaticFaq)[] = [];
 
 	try {

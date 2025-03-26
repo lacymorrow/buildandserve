@@ -4,6 +4,7 @@ import { Link } from "@/components/primitives/link-with-transition";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
 import { AuthForm } from "../_components/auth-form";
+import { AuthenticationCard } from "../_components/authentication-card";
 import { SignUpForm } from "./_components/sign-up-form";
 
 export default function SignUpPage() {
@@ -15,10 +16,12 @@ export default function SignUpPage() {
 				</div>
 				{siteConfig.name}
 			</Link>
-			<AuthForm mode="sign-up">
-				<Divider text="Or continue with email" />
-				<SignUpForm />
-			</AuthForm>
+			<AuthenticationCard>
+				<AuthForm mode="sign-up">
+					<Divider text="Or continue with email" />
+					<SignUpForm />
+				</AuthForm>
+			</AuthenticationCard>
 		</div>
 	);
 }

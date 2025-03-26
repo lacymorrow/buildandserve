@@ -18,7 +18,6 @@ This document tracks the implementation of the shadcn/UI Template Installer, whi
 - [x] Add file download functionality
 - [x] Add advanced options UI
 - [x] Create README.md with install instructions
-- [x] Migrate from template files to using actual repo files
 - [ ] Add error handling and validation for edge cases
 - [ ] Add comprehensive logging for debugging
 - [ ] Test with actual shadcn template installation
@@ -31,14 +30,12 @@ This document tracks the implementation of the shadcn/UI Template Installer, whi
 - `/src/app/install/actions.ts`: Server actions for processing imports
 - `/src/app/install/utils.ts`: Client-safe utility functions
 - `/src/app/install/services.ts`: Server-side utility functions
-- `/src/app/install/container-manager.ts`: Utilities for WebContainer integration
-- `/src/app/install/template-utils.ts`: Utilities for handling repo files (renamed but kept for compatibility)
+- `/src/app/install/container-utils.ts`: Utilities for WebContainer integration
 - `/src/app/install/components/file-preview.tsx`: Component for previewing files
 - `/src/app/install/components/container-processor.tsx`: Component for WebContainer processing
 - `/src/app/install/layout.tsx`: Layout for the install page
 - `/src/app/install/README.md`: Documentation for the install directory
 - `/src/app/install/ai.mdx`: AI implementation tracking
-- `/src/app/api/repo-file/route.ts`: API endpoint to retrieve repo files
 
 ### Key Functionality
 1. Initialize shadcn/UI template using WebContainers
@@ -49,24 +46,16 @@ This document tracks the implementation of the shadcn/UI Template Installer, whi
 6. Provide installation instructions
 
 ### WebContainer Approach
-The implementation uses WebContainers for processing components:
+The implementation uses WebContainers exclusively for template processing:
 1. WebContainer is initialized in the browser
-2. Important repo files are preloaded into the container
-3. For shadcn components, files are loaded directly from the repo
+2. The shadcn CLI is installed within the container
+3. The shadcn init command is run to generate the template files
 4. Files are processed and transformed to match the project structure
 5. Files are presented to the user for preview and download
-
-### Repo File Migration
-The code has been refactored to use repo files directly instead of template files:
-1. Created a new API endpoint `/api/repo-file/route.ts` to serve repo files
-2. Renamed template-related functions to repo-related functions
-3. Updated the container manager to work with repo files
-4. Simplified the file processing logic to work with actual components
-5. Updated the UI to support direct component loading
 
 ### Next Steps
 - Implement additional validation for edge cases
 - Add comprehensive error handling
-- Test with actual component installation
+- Test with actual template installation
 - Add analytics to track usage
 - Improve WebContainer performance
