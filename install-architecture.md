@@ -265,3 +265,96 @@ export async function GET(request: NextRequest) {
    - Separate core filesystem operations from template processing
    - Create independent modules for each major function
    - Enable better testing and maintenance
+
+### 5. Selective File Loading Optimization
+
+```typescript
+// Define essential configuration files
+const ESSENTIAL_CONFIG_FILES = [
+  "package.json",
+  "tsconfig.json",
+  "components.json",
+  "tailwind.config.js",
+  "tailwind.config.ts",
+  "postcss.config.js",
+  "next.config.js",
+  "next.config.ts"
+];
+
+// Define essential directories
+const ESSENTIAL_DIRECTORIES = [
+  "components",
+  "components/ui",
+  "app",
+  "src",
+  "src/app",
+  "lib",
+  "hooks",
+  "styles"
+];
+
+// Component dependency mapping
+const COMPONENT_DEPENDENCIES: Record<string, string[]> = {
+  "button": ["components/ui/button.tsx", "lib/utils.ts"],
+  "dialog": ["components/ui/dialog.tsx", "lib/utils.ts", "components/ui/button.tsx"],
+  // Add more component dependencies as needed
+};
+
+export async function loadEssentialFiles(
+  container: WebContainer,
+  projectStructure: string,
+  componentToInstall?: string
+): Promise<void> {
+  // Load essential configuration files
+  await Promise.all(
+    ESSENTIAL_CONFIG_FILES.map(async (file) => {
+      if (await fileExists(file)) {
+        await mountFile(container, file);
+      }
+    })
+  );
+  
+  // Create essential directories
+  await Promise.all(
+    ESSENTIAL_DIRECTORIES.map(async (dir) => {
+      const targetDir = transformPath(dir, projectStructure);
+      await container.fs.mkdir(targetDir, { recursive: true });
+    })
+  );
+  
+  // Load component-specific dependencies if a component is specified
+  if (componentToInstall && COMPONENT_DEPENDENCIES[componentToInstall]) {
+    await Promise.all(
+      COMPONENT_DEPENDENCIES[componentToInstall].map(async (dependency) => {
+        const targetPath = transformPath(dependency, projectStructure);
+        if (await fileExists(dependency)) {
+          await mountFile(container, dependency, targetPath);
+        }
+      })
+    );
+  }
+}
+
+// Update container initialization to use selective loading
+export async function initializeContainer(
+  componentToInstall?: string
+): Promise<WebContainer> {
+  const container = await WebContainer.boot();
+  const projectStructure = determineProjectStructure();
+  
+  // Only load essential files rather than the entire repository
+  await loadEssentialFiles(container, projectStructure, componentToInstall);
+  
+  return container;
+}
+```
+
+This approach provides several benefits:
+
+1. **Reduced Memory Usage** - Only loads files actually needed for installation
+2. **Faster Initialization** - Minimizes the time required to boot the container
+3. **Targeted Dependencies** - Loads specific files based on component requirements
+4. **Dynamic Loading** - Can load additional files on demand if needed
+5. **Structure Preservation** - Maintains the correct project structure for component installation
+
+When implementing this optimization, the installation workflow can dynamically determine which files are needed based on the component being installed, rather than loading the entire repository into the WebContainer.

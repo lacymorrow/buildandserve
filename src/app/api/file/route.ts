@@ -1,19 +1,19 @@
-import * as fs from "fs";
-import { type NextRequest, NextResponse } from "next/server";
-import * as path from "path";
-import { shouldIgnoreFile } from "../template-utils";
+import fs from "fs/promises";
+import { NextResponse } from "next/server";
+import path from "path";
+import { getContentType, sanitizePath, shouldIgnoreFile } from "../utils";
 
 /**
  * API route to get file content from the server filesystem
  * This is used by the WebContainer to get project files
  */
-export async function GET(request: NextRequest) {
+export async function GET(req: Request) {
 	try {
-		// Get the file path from the query parameter
-		const filePath = request.nextUrl.searchParams.get("path");
+		const url = new URL(req.url);
+		const filePath = url.searchParams.get("path");
 
 		if (!filePath) {
-			return NextResponse.json({ error: "File path is required" }, { status: 400 });
+			return NextResponse.json({ error: "Path parameter is required" }, { status: 400 });
 		}
 
 		// Check if the file should be ignored
@@ -23,59 +23,45 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Sanitize the file path to prevent directory traversal attacks
-		const sanitizedPath = path.normalize(filePath).replace(/^(\.\.(\/|\\|$))+/, "");
+		const sanitizedPath = sanitizePath(filePath);
+		const resolvedPath = path.resolve(process.cwd(), sanitizedPath);
 
-		// Construct the absolute path
-		const rootDir = process.cwd();
-		const absolutePath = path.join(rootDir, sanitizedPath);
+		// Ensure the path is within the project directory
+		if (!resolvedPath.startsWith(process.cwd())) {
+			return NextResponse.json({ error: "Invalid file path" }, { status: 403 });
+		}
 
 		// Check if the file exists
-		if (!fs.existsSync(absolutePath)) {
+		try {
+			const stats = await fs.stat(resolvedPath);
+			if (!stats.isFile()) {
+				return NextResponse.json({ error: "Not a file" }, { status: 400 });
+			}
+		} catch (error) {
 			return NextResponse.json({ error: "File not found" }, { status: 404 });
 		}
 
 		// Read the file
-		const fileContent = fs.readFileSync(absolutePath, "utf-8");
+		const content = await fs.readFile(resolvedPath, "utf-8");
 
-		// Return the file content as plain text
-		return new NextResponse(fileContent, {
+		// Get file extension for content type
+		const ext = path.extname(resolvedPath).toLowerCase();
+		const contentType = getContentType(ext);
+
+		// Return file content
+		return new NextResponse(content, {
 			headers: {
-				"Content-Type": getContentType(path.extname(filePath)),
+				"Content-Type": contentType,
 			},
 		});
 	} catch (error) {
-		console.error("Error reading file:", error);
+		console.error("Error accessing file:", error);
 		return NextResponse.json(
-			{ error: "Failed to read file", details: (error as Error).message },
+			{
+				error: "Failed to access file",
+				details: error instanceof Error ? error.message : String(error),
+			},
 			{ status: 500 }
 		);
-	}
-}
-
-/**
- * Helper to determine content type based on file extension
- */
-function getContentType(ext: string): string {
-	switch (ext) {
-		case ".json":
-			return "application/json";
-		case ".js":
-		case ".mjs":
-		case ".cjs":
-			return "application/javascript";
-		case ".ts":
-		case ".tsx":
-			return "application/typescript";
-		case ".css":
-			return "text/css";
-		case ".svg":
-			return "image/svg+xml";
-		case ".html":
-			return "text/html";
-		case ".md":
-		case ".mdx":
-			return "text/markdown";
-		default:
-			return "text/plain";
 	}
 }

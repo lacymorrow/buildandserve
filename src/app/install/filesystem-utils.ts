@@ -2,7 +2,7 @@
 
 import type { FileSystemTree } from "@webcontainer/api";
 import { logInfo } from "./logging";
-import { shouldIgnoreFile } from "./template-utils";
+import { shouldIgnoreFile } from "./shared-utils";
 import type { ContainerFile } from "./types";
 
 /**

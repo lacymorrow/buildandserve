@@ -2,12 +2,11 @@ import fs from "fs/promises";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import path from "path";
-import { shouldIgnoreFile } from "../template-utils";
+import { TEMPLATE_BASE_DIR, directoryCache, sanitizePath, shouldIgnoreFile } from "../utils";
 
-// Cache for directory listings to avoid redundant filesystem operations
-const directoryCache = new Map<string, any[]>();
-
-// Function to get all files in a directory
+/**
+ * Get all files in a directory with caching
+ */
 async function getDirectoryContents(directoryPath: string) {
 	try {
 		// Check cache first
@@ -16,7 +15,7 @@ async function getDirectoryContents(directoryPath: string) {
 			return directoryCache.get(directoryPath) || [];
 		}
 
-		const fullPath = path.join(process.cwd(), "templates/shadcn", directoryPath);
+		const fullPath = path.join(process.cwd(), TEMPLATE_BASE_DIR, directoryPath);
 		const entries = await fs.readdir(fullPath, { withFileTypes: true });
 
 		// Filter out unwanted files before returning the list
@@ -46,7 +45,7 @@ export async function GET(request: NextRequest) {
 		let dirPath = searchParams.get("path") || "";
 
 		// Sanitize the path to prevent directory traversal attacks
-		dirPath = dirPath.replace(/\.\./g, "").replace(/^\/+/, "");
+		dirPath = sanitizePath(dirPath);
 
 		// Log all requests for debugging
 		console.log(`Directory listing request for path: "${dirPath}"`);

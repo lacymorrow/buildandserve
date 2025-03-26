@@ -1,7 +1,5 @@
-"use client";
-
 /**
- * Interface for container file structure
+ * A file to be processed by the container
  */
 export interface ContainerFile {
 	path: string;
@@ -9,20 +7,18 @@ export interface ContainerFile {
 }
 
 /**
- * Type for WebContainer logs
+ * Log entry type for the container logs
  */
-export interface WebContainerLog {
-	type: string;
+export interface LogEntry {
+	type: "info" | "warning" | "error";
 	message: string;
 	data?: any;
 	timestamp: string;
 }
 
-/**
- * Global declarations for WebContainer logs
- */
+// Add this to TypeScript global declarations
 declare global {
 	interface Window {
-		webContainerLogs?: WebContainerLog[];
+		webContainerLogs?: LogEntry[];
 	}
 }

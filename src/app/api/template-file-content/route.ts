@@ -2,31 +2,14 @@ import fs from "fs/promises";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import path from "path";
-import { shouldIgnoreFile } from "../template-utils";
-
-// Binary file extensions that should be returned as raw data
-const binaryExtensions = [
-	".ico",
-	".png",
-	".jpg",
-	".jpeg",
-	".gif",
-	".svg",
-	".webp",
-	".bmp",
-	".woff",
-	".woff2",
-	".ttf",
-	".eot",
-	".otf",
-	".pdf",
-	".zip",
-	".tar",
-	".gz",
-];
-
-// Cache for file content to avoid redundant filesystem operations
-const fileContentCache = new Map<string, { content: Buffer | string; contentType: string }>();
+import {
+	BINARY_EXTENSIONS,
+	TEMPLATE_BASE_DIR,
+	fileContentCache,
+	getContentType,
+	sanitizePath,
+	shouldIgnoreFile,
+} from "../utils";
 
 export async function GET(request: NextRequest) {
 	try {
@@ -34,7 +17,7 @@ export async function GET(request: NextRequest) {
 		let filePath = searchParams.get("path") || "";
 
 		// Sanitize the path to prevent directory traversal attacks
-		filePath = filePath.replace(/\.\./g, "").replace(/^\/+/, "");
+		filePath = sanitizePath(filePath);
 
 		// Log the request path for debugging
 		console.log(`File content request for: "${filePath}"`);
@@ -57,7 +40,7 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Get the full path to the file
-		const fullPath = path.join(process.cwd(), "templates/shadcn", filePath);
+		const fullPath = path.join(process.cwd(), TEMPLATE_BASE_DIR, filePath);
 
 		// Check if the file exists
 		try {
@@ -71,63 +54,15 @@ export async function GET(request: NextRequest) {
 
 		// Determine if this is a binary file
 		const extension = path.extname(filePath).toLowerCase();
-		const isBinary = binaryExtensions.includes(extension);
+		const isBinary = BINARY_EXTENSIONS.includes(extension);
 
 		// Read the file
 		const content = isBinary
 			? await fs.readFile(fullPath) // Binary files as Buffer
 			: await fs.readFile(fullPath, "utf-8"); // Text files as UTF-8
 
-		// Determine content type based on file extension
-		let contentType = "text/plain";
-
-		switch (extension) {
-			case ".json":
-				contentType = "application/json";
-				break;
-			case ".js":
-			case ".jsx":
-			case ".ts":
-			case ".tsx":
-				contentType = "application/javascript";
-				break;
-			case ".css":
-				contentType = "text/css";
-				break;
-			case ".html":
-				contentType = "text/html";
-				break;
-			case ".md":
-			case ".mdx":
-				contentType = "text/markdown";
-				break;
-			case ".png":
-				contentType = "image/png";
-				break;
-			case ".jpg":
-			case ".jpeg":
-				contentType = "image/jpeg";
-				break;
-			case ".gif":
-				contentType = "image/gif";
-				break;
-			case ".svg":
-				contentType = "image/svg+xml";
-				break;
-			case ".ico":
-				contentType = "image/x-icon";
-				break;
-			case ".woff":
-				contentType = "font/woff";
-				break;
-			case ".woff2":
-				contentType = "font/woff2";
-				break;
-			case ".ttf":
-				contentType = "font/ttf";
-				break;
-			// Add more content types as needed
-		}
+		// Get content type based on file extension
+		const contentType = getContentType(extension);
 
 		// Cache the file content
 		fileContentCache.set(filePath, { content, contentType });

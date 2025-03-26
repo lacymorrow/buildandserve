@@ -12,6 +12,7 @@ The ShipKit installation workflow provides a browser-based mechanism for install
 4. Ensure compatibility with various development environments
 5. Implement efficient caching to minimize redundant operations
 6. Produce clean, production-ready code without unnecessary files
+7. Use repository source code directly without needing template duplicates
 
 ## Technical Architecture
 
@@ -21,9 +22,10 @@ The ShipKit installation workflow provides a browser-based mechanism for install
    - Provides a browser-based containerized environment for installing components
    - Manages file operations and command execution without server-side processing
    - Simulates a Node.js environment for running shadcn/ui installation commands
+   - Accesses repository source code directly without duplication
 
 2. **File Processing System**
-   - Manages template files from the repository
+   - Uses component files directly from repository source code
    - Processes file content and adapts paths based on project structure
    - Filters unnecessary files (lock files, .DS_Store, etc.)
 
@@ -43,12 +45,12 @@ The ShipKit installation workflow provides a browser-based mechanism for install
 
 1. Boot the WebContainer in a cross-origin isolated environment
 2. Mount initial filesystem with basic project structure
-3. Preload shadcn/ui template files from repository
-4. Create required directory structure for template processing
+3. Access shadcn/ui components directly from repository source code
+4. Create required directory structure for component processing
 
 #### Template Processing
 
-1. Load template files based on selected component(s)
+1. Access component files directly from repository source code
 2. Transform file paths to match project structure
 3. Filter out unnecessary files (.DS_Store, lock files, etc.)
 4. Cache processed files for efficient reuse
@@ -67,6 +69,7 @@ The ShipKit installation workflow provides a browser-based mechanism for install
 3. Minimize network requests and API calls
 4. Implement caching at all levels of the process
 5. Avoid redundant operations when processing the same files
+6. Eliminate unnecessary template duplication to reduce repository size
 
 ## Filtering Requirements
 
@@ -131,3 +134,51 @@ The following file types should be filtered out of the installation process:
 3. Enhance caching mechanisms for better performance
 4. Standardize API responses and error formats
 5. Implement stronger typing for all functions and data structures
+6. Remove all copies of template files from public directory
+
+## Source Code Access
+
+The installation process should:
+
+1. Access shadcn/ui component files directly from repository source code
+2. Eliminate the need for duplicate template files in public/templates directory
+3. Use the repository's component structure as the source of truth
+4. Maintain path transformation and filtering capabilities when using source files
+5. Support proper versioning through repository tags/branches
+
+## WebContainer Optimization Requirements
+
+### Selective File Loading
+
+1. **Essential Configuration Files**
+   - Only load necessary configuration files:
+     - package.json
+     - tsconfig.json
+     - components.json
+     - tailwind.config.js/ts
+     - postcss.config.js
+     - next.config.js/ts (if needed)
+
+2. **Targeted Directory Structure**
+   - Mount only directories that shadcn/ui might modify:
+     - /components (including /ui subdirectory)
+     - /app (for page components)
+     - /src (if using src directory structure)
+     - /lib (for utility functions)
+     - /hooks (for custom hooks)
+     - /styles (for global styles)
+
+3. **Minimal Initial Structure**
+   - Create empty directories where shadcn might add new files
+   - Initialize directories with bare minimum files to represent structure
+   - Avoid loading unrelated project files that won't be affected by component installation
+
+4. **Dynamic File Handling**
+   - Load additional files only when needed for specific components
+   - Implement on-demand loading for component dependencies
+   - Cache previously loaded files to avoid redundant operations
+
+5. **Installation Analysis**
+   - Before installation, analyze component dependencies to determine required files
+   - Prepare targeted filesystem based on installation requirements
+   - Only mount necessary source directories for the specified component
