@@ -1,10 +1,10 @@
 "use client";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangleIcon, ExternalLinkIcon, TerminalIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckIcon, CircleIcon, ExternalLinkIcon, TerminalIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ShadcnCommand } from "./_components/shadcn-command";
 import { getProjectStructure } from "./actions";
-import { ShadcnCommand } from "./components/shadcn-command";
 
 export default function InstallPage() {
 	const [containerStatus, setContainerStatus] = useState<string>("initializing");
@@ -68,7 +68,7 @@ export default function InstallPage() {
 			setContainerProgress(20);
 
 			// Dynamically import the container manager to avoid SSR issues
-			const { containerManager } = await import("./container-utils");
+			const { containerManager } = await import("./container-manager");
 			if (!containerManager) {
 				throw new Error("WebContainer is only available in browser environments");
 			}
@@ -154,7 +154,7 @@ export default function InstallPage() {
 						<div className="bg-muted/50 p-4 border-b">
 							<div className="space-y-2">
 								<p className="text-sm font-medium flex items-center">
-									<span className="h-2 w-2 rounded-full bg-amber-500 mr-2 animate-pulse" />
+									<CircleIcon className="h-2 w-2 text-amber-500 mr-2 animate-pulse" />
 									{containerStatus === "initializing" && "Setting up environment..."}
 									{containerStatus === "loading-container" && "Loading WebContainer..."}
 									{containerStatus === "initializing-container" && "Initializing container..."}
@@ -187,7 +187,7 @@ export default function InstallPage() {
 						<div className="text-xs text-muted-foreground">
 							{containerStatus === "ready" ? (
 								<span className="flex items-center text-emerald-500">
-									<span className="h-2 w-2 rounded-full bg-emerald-500 mr-2 animate-pulse" />
+									<CheckIcon className="h-3 w-3 mr-2 text-emerald-500 animate-pulse" />
 									WebContainer Ready
 								</span>
 							) : (

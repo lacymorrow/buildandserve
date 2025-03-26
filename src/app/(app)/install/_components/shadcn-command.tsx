@@ -4,20 +4,29 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangleIcon, FileIcon, InfoIcon, TerminalIcon } from "lucide-react";
+import {
+	AlertTriangleIcon,
+	Clock,
+	FileIcon,
+	Hourglass,
+	InfoIcon,
+	TerminalIcon,
+} from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { containerManager, processTerminalOutput } from "../container-utils";
-import { type FileChange, FileChangeDisplay } from "./file-change-display";
+import { containerManager } from "../container-manager";
+import { processTerminalOutput } from "../terminal-output";
+import type { ContainerFile, FileChange } from "../types";
+import { FileChangeDisplay } from "./file-change-display";
 import { GitHubIntegration } from "./github-integration";
 
 // Use a smaller refresh interval for more responsive animations
 const TERMINAL_REFRESH_INTERVAL = 30; // 33 fps for very smooth spinner animation
 
 // Dynamically import Ansi component to avoid SSR issues
-const Ansi = dynamic(() => import('ansi-to-react').then(mod => mod.default), {
+const Ansi = dynamic(() => import("ansi-to-react").then((mod) => mod.default), {
 	ssr: false,
-	loading: () => <div className="text-sm text-muted-foreground">Loading terminal...</div>
+	loading: () => <div className="text-sm text-muted-foreground">Loading terminal...</div>,
 });
 
 // Add LoadingSpinner component at the top of the file with other components
@@ -78,20 +87,22 @@ export const ShadcnCommand = ({
 
 	// Update the useEffect for showing logs during web container loading
 	useEffect(() => {
-		if (!containerReady && webContainerSupported && typeof window !== 'undefined' && window.webContainerLogs) {
+		if (
+			!containerReady &&
+			webContainerSupported &&
+			typeof window !== "undefined" &&
+			window.webContainerLogs
+		) {
 			// Set interval to update command output with logs
 			const timer = setInterval(() => {
 				if (window.webContainerLogs && window.webContainerLogs.length > 0) {
 					// Format logs for display
 					const formattedLogs = window.webContainerLogs
-						.map((log) => `${log.message}${log.data ? ` ${log.data}` : ''}`)
-						.join('\n');
-
-					// Process logs to clean up repetitive content
-					const processedLogs = processTerminalOutput(formattedLogs);
+						.map((log) => `${log.message}${log.data ? ` ${log.data}` : ""}`)
+						.join("\n");
 
 					// Update command output with processed logs
-					setCommandOutput(processedLogs);
+					setCommandOutput(formattedLogs);
 				}
 			}, TERMINAL_REFRESH_INTERVAL); // Update more frequently for smoother animations
 
@@ -101,6 +112,7 @@ export const ShadcnCommand = ({
 
 	// Function to update progress message based on logs
 	const updateProgress = (logs: string) => {
+		console.log(logs);
 		if (logs.includes("Installing dependencies")) {
 			setProgressMessage("Installing dependencies... This may take several minutes");
 		} else if (logs.includes("installing") && !logs.includes("Installing dependencies")) {
@@ -130,7 +142,7 @@ export const ShadcnCommand = ({
 	const validateCommand = (commandStr: string): string | null => {
 		// No real validation needed - we'll let the command run as-is
 		if (!commandStr.trim()) {
-			return "Please enter a command";
+			return "Please enter a v0.dev or shadcn install command";
 		}
 		return null;
 	};
@@ -146,76 +158,166 @@ export const ShadcnCommand = ({
 			// Parse the command into arguments
 			const args = commandToRun.trim().split(/\s+/);
 
-			// Track the window logs before running the command
-			const logsBefore = window.webContainerLogs ? [...window.webContainerLogs] : [];
+			// Extract the component name - last argument from the command
+			let componentName = "";
+			if (args.length > 0) {
+				componentName = args[args.length - 1];
+			}
 
-			// Set up an interval to update UI with latest logs during execution
-			const logUpdateInterval = setInterval(() => {
-				if (window.webContainerLogs) {
-					const currentLogs = window.webContainerLogs.slice(logsBefore.length);
-					const formattedLogs = currentLogs
-						.map((log) => `${log.message}${log.data ? ` ${log.data}` : ''}`)
-						.join('\n');
+			// Check if this is a shadcn "add" command for a component
+			const isShadcnAddCommand = args.some((arg) => arg === "add") && componentName !== "add";
 
-					// Process logs but preserve animation sequences
-					const processedOutput = processTerminalOutput(formattedLogs);
-					setCommandOutput(processedOutput || "Command running...");
-					updateProgress(formattedLogs);
-				}
-			}, TERMINAL_REFRESH_INTERVAL); // Use the faster refresh rate
+			if (isShadcnAddCommand) {
+				setProgressMessage(`Adding ${componentName} component from repo...`);
 
-			// Run the command and get changed files
-			const changes = await containerManager?.runShadcnCommand(args);
+				// For direct repo file access, we'll bypass the command and directly load the component
+				if (containerManager) {
+					await containerManager.importProjectFiles([`src/components/ui/${componentName}.tsx`]);
 
-			// Clear the interval when done
-			clearInterval(logUpdateInterval);
+					// Run the command to get the changes
+					const commandChanges = await containerManager.runShadcnCommand(args);
 
-			// Get logs that were added during command execution
-			const logsAfter = window.webContainerLogs ? [...window.webContainerLogs] : [];
-			const newLogs = logsAfter.slice(logsBefore.length);
+					if (commandChanges && commandChanges.length > 0) {
+						// Filter out non-shadcn files from results if needed
+						const relevantChanges = commandChanges.filter((file: ContainerFile) => {
+							return file.path.includes("/components/ui/") || file.path.includes("/lib/utils");
+						});
 
-			// Format logs for display
-			const formattedLogs = newLogs
-				.map((log) => {
-					// Color coding for logs
-					const formattedMsg = `${log.message}`;
-					let formattedData = log.data || "";
+						setChangedFiles(relevantChanges.map((file: ContainerFile) => ({
+							path: file.path,
+							content: file.content
+						})));
 
-					// Format prompt outputs and responses
-					if (typeof formattedData === "string") {
-						if (
-							formattedData.includes("Ok to proceed?") ||
-							formattedData.includes("Need to install")
-						) {
-							formattedData = `\x1b[33m${formattedData}\x1b[0m`;
-						} else if (formattedData.includes("y\n") || formattedData.includes("responding")) {
-							formattedData = `\x1b[32m${formattedData}\x1b[0m`;
+						if (onExecute) {
+							onExecute(relevantChanges);
+						}
+
+						setProgressMessage(`Component ${componentName} added successfully!`);
+					} else {
+						// Fall back to running the actual command if direct access fails
+						console.warn(`Direct component access failed for ${componentName}, falling back to command execution`);
+						setProgressMessage(`Running command to install ${componentName}...`);
+
+						// Track the window logs before running the command
+						const logsBefore = window.webContainerLogs ? [...window.webContainerLogs] : [];
+
+						// Set up an interval to update UI with latest logs during execution
+						const logUpdateInterval = setInterval(() => {
+							if (window.webContainerLogs) {
+								const currentLogs = window.webContainerLogs.slice(logsBefore.length);
+								const formattedLogs = currentLogs
+									.map((log) => `${log.message}${log.data ? ` ${log.data}` : ""}`)
+									.join("\n");
+
+								// Process logs but preserve animation sequences
+								const processedOutput = processTerminalOutput(formattedLogs);
+								setCommandOutput(processedOutput || "Command running...");
+								updateProgress(formattedLogs);
+							}
+						}, TERMINAL_REFRESH_INTERVAL); // Use the faster refresh rate
+
+						// Run the command and get changed files
+						const changes = await containerManager?.runShadcnCommand(args);
+
+						// Clear the interval when done
+						clearInterval(logUpdateInterval);
+
+						// Process changed files
+						if (changes && changes.length > 0) {
+							setChangedFiles(
+								changes.map((file) => ({
+									path: file.path,
+									content: file.content,
+								}))
+							);
+
+							if (onExecute) {
+								onExecute(changes);
+							}
 						}
 					}
-
-					return `${formattedMsg} ${formattedData}`;
-				})
-				.join("\n");
-
-			// Process terminal output to clean up repetitive messages
-			setCommandOutput(processTerminalOutput(formattedLogs) || "Command completed successfully");
-			setProgressMessage("Command completed successfully");
-
-			if (changes && changes.length > 0) {
-				setChangedFiles(changes);
-				setActiveTab("files");
-
-				// Call the onExecute callback if provided
-				if (onExecute) {
-					onExecute(changes);
+				} else {
+					setCommandError("Container manager not initialized");
 				}
 			} else {
-				setActiveTab("command");
+				// For non-shadcn add commands, just run the command normally
+				// Track the window logs before running the command
+				const logsBefore = window.webContainerLogs ? [...window.webContainerLogs] : [];
+
+				// Set up an interval to update UI with latest logs during execution
+				const logUpdateInterval = setInterval(() => {
+					if (window.webContainerLogs) {
+						const currentLogs = window.webContainerLogs.slice(logsBefore.length);
+						const formattedLogs = currentLogs
+							.map((log) => `${log.message}${log.data ? ` ${log.data}` : ""}`)
+							.join("\n");
+
+						// Process logs but preserve animation sequences
+						const processedOutput = processTerminalOutput(formattedLogs);
+						setCommandOutput(processedOutput || "Command running...");
+						updateProgress(formattedLogs);
+					}
+				}, TERMINAL_REFRESH_INTERVAL);
+
+				// Run the command and get changed files
+				const changes = await containerManager?.runShadcnCommand(args);
+
+				// Clear the interval when done
+				clearInterval(logUpdateInterval);
+
+				// Get logs that were added during command execution
+				const logsAfter = window.webContainerLogs ? [...window.webContainerLogs] : [];
+				const newLogs = logsAfter.slice(logsBefore.length);
+
+				// Format logs for display
+				const formattedLogs = newLogs
+					.map((log) => {
+						// Color coding for logs
+						const formattedMsg = `${log.message}`;
+						let formattedData = log.data || "";
+
+						// Format prompt outputs and responses
+						if (typeof formattedData === "string") {
+							if (
+								formattedData.includes("Ok to proceed?") ||
+								formattedData.includes("Need to install")
+							) {
+								formattedData = `\x1b[33m${formattedData}\x1b[0m`;
+							} else if (formattedData.includes("y\n") || formattedData.includes("responding")) {
+								formattedData = `\x1b[32m${formattedData}\x1b[0m`;
+							}
+						}
+
+						return `${formattedMsg} ${formattedData}`;
+					})
+					.join("\n");
+
+				// Process terminal output to clean up repetitive messages
+				setCommandOutput(processTerminalOutput(formattedLogs) || "Command completed successfully");
+
+				// Process changed files
+				if (changes && changes.length > 0) {
+					setChangedFiles(
+						changes.map((file) => ({
+							path: file.path,
+							content: file.content,
+						}))
+					);
+
+					if (onExecute) {
+						onExecute(changes);
+					}
+				}
+			}
+
+			// Show the files tab if there are changes
+			if (changedFiles.length > 0) {
+				setActiveTab("files");
 			}
 		} catch (error) {
+			console.error("Error running command:", error);
 			setCommandError(error instanceof Error ? error.message : String(error));
-			setProgressMessage("");
-			setActiveTab("command");
+			setCommandOutput(`Error: ${error instanceof Error ? error.message : String(error)}`);
 		} finally {
 			setIsLoading(false);
 		}
@@ -301,7 +403,7 @@ export const ShadcnCommand = ({
 								</span>
 							) : isCommandQueued ? (
 								<span className="flex items-center">
-									<span className="animate-pulse mr-2">⏱️</span>
+									<Clock className="animate-pulse mr-2 h-4 w-4" />
 									Queued
 								</span>
 							) : (
@@ -312,7 +414,11 @@ export const ShadcnCommand = ({
 
 					{!containerReady && webContainerSupported && (
 						<div className="text-xs text-muted-foreground">
-							<span className="animate-pulse">⏳</span> WebContainer initializing... {isCommandQueued ? "(Your command will run automatically when ready)" : "You can type your command now"}
+							<Hourglass className="animate-pulse inline-block mr-1 h-3 w-3" /> WebContainer
+							initializing...{" "}
+							{isCommandQueued
+								? "(Your command will run automatically when ready)"
+								: "You can type your command now"}
 						</div>
 					)}
 				</div>
@@ -326,8 +432,10 @@ export const ShadcnCommand = ({
 
 				{(isLoading || isCommandQueued) && progressMessage && (
 					<div className="flex items-center justify-center p-3 bg-muted/30 rounded-md text-sm text-muted-foreground border border-dashed">
-						{isLoading && <div className="animate-spin mr-2 h-3 w-3 border-2 border-primary border-t-transparent rounded-full" />}
-						{isCommandQueued && <span className="animate-pulse mr-2">⏱️</span>}
+						{isLoading && (
+							<div className="animate-spin mr-2 h-3 w-3 border-2 border-primary border-t-transparent rounded-full" />
+						)}
+						{isCommandQueued && <Clock className="animate-pulse mr-2 h-4 w-4" />}
 						<span>{progressMessage}</span>
 					</div>
 				)}
@@ -364,16 +472,15 @@ export const ShadcnCommand = ({
 									</div>
 								) : (
 									<div className="text-center p-6 text-muted-foreground text-sm">
-										{!containerReady ? "Initializing WebContainer..." : "Run a command to see output"}
+										{!containerReady
+											? "Initializing WebContainer..."
+											: "Run a command to see output"}
 									</div>
 								)}
 							</div>
 						</TabsContent>
 						<TabsContent value="files" className="mt-2 max-h-[300px] overflow-auto">
-							<FileChangeDisplay
-								changedFiles={changedFiles}
-								onDownloadAll={() => { }}
-							/>
+							<FileChangeDisplay changedFiles={changedFiles} onDownloadAll={() => { }} />
 						</TabsContent>
 					</Tabs>
 				)}

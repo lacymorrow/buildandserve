@@ -45,6 +45,9 @@ export function GitHubIntegration({ changedFiles, disabled, command }: GitHubInt
 	const [prUrl, setPrUrl] = useState<string | null>(null);
 	const [showCustomization, setShowCustomization] = useState(false);
 	const [progressMessages, setProgressMessages] = useState<string[]>([]);
+	const [prNumber, setPrNumber] = useState<number | null>(null);
+	const [isMerging, setIsMerging] = useState(false);
+	const [mergeSuccess, setMergeSuccess] = useState(false);
 
 	// Form state
 	const [branchName, setBranchName] = useState(defaultValues.branchName);
@@ -117,6 +120,36 @@ export function GitHubIntegration({ changedFiles, disabled, command }: GitHubInt
 		return responseData;
 	};
 
+	const handleMergePR = async () => {
+		if (!prNumber) return;
+
+		setIsMerging(true);
+		setError(null);
+
+		try {
+			addProgressMessage("Merging pull request...");
+
+			const response = await fetch("/api/github/merge-pr", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ pull_number: prNumber }),
+			});
+
+			const responseData = await response.json();
+
+			if (!response.ok) {
+				throw new Error(responseData.details || responseData.error || "Failed to merge PR");
+			}
+
+			addProgressMessage("Pull request merged successfully!");
+			setMergeSuccess(true);
+		} catch (error) {
+			handleGitHubError(error);
+		} finally {
+			setIsMerging(false);
+		}
+	};
+
 	const handleSubmit = async () => {
 		if (changedFiles.length === 0) {
 			setError("No changes to submit. Please add components first.");
@@ -179,6 +212,7 @@ export function GitHubIntegration({ changedFiles, disabled, command }: GitHubInt
 
 			setSuccess("All steps completed successfully!");
 			setPrUrl(prData.html_url);
+			setPrNumber(prData.pull_number);
 		} catch (error) {
 			handleGitHubError(error);
 		} finally {
@@ -296,13 +330,39 @@ export function GitHubIntegration({ changedFiles, disabled, command }: GitHubInt
 								<AlertDescription className="flex items-center gap-2">
 									{success}
 									{prUrl && (
-										<Button
-											variant="link"
-											className="h-auto p-0"
-											onClick={() => window.open(prUrl, "_blank")}
-										>
-											View PR
-										</Button>
+										<div className="flex gap-2 items-center ml-auto">
+											<Button
+												variant="link"
+												className="h-auto p-0"
+												onClick={() => window.open(prUrl, "_blank")}
+											>
+												View PR
+											</Button>
+											{prNumber && !mergeSuccess && (
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={handleMergePR}
+													disabled={isMerging}
+													className="ml-2"
+												>
+													{isMerging ? (
+														<>
+															<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+															Merging...
+														</>
+													) : (
+														"Merge to main"
+													)}
+												</Button>
+											)}
+											{mergeSuccess && (
+												<span className="text-sm text-green-600 flex items-center">
+													<div className="h-1.5 w-1.5 rounded-full bg-green-500 mr-1.5" />
+													Merged to main
+												</span>
+											)}
+										</div>
 									)}
 								</AlertDescription>
 							</Alert>

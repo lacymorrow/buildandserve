@@ -7,12 +7,14 @@ import { metadata as defaultMetadata } from "@/config/metadata";
 
 export const metadata: Metadata = defaultMetadata;
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout({ children, modal }: { children: React.ReactNode, modal?: React.ReactNode }) {
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<BodyProvider>
 				<AppLayout>
 					<main>{children}</main>
+
+					{modal}
 				</AppLayout>
 			</BodyProvider>
 		</html>

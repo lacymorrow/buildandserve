@@ -74,7 +74,7 @@ export const ContainerProcessor = ({ projectStructure, onComplete, onError }: Co
 				setProgress(20);
 
 				// Dynamically import the container manager to avoid SSR issues
-				const { containerManager } = await import("../container-utils");
+				const { containerManager } = await import("../container-manager");
 				if (!containerManager) {
 					throw new Error("WebContainer is only available in browser environments");
 				}
