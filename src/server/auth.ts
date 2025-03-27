@@ -2,7 +2,7 @@ import { routes } from "@/config/routes";
 import { STATUS_CODES } from "@/config/status-codes";
 import { env } from "@/env";
 import { logger } from "@/lib/logger";
-import { redirectWithCode } from "@/lib/utils/redirect-with-code";
+import { redirectWithCode, routeRedirectWithCode } from "@/lib/utils/redirect-with-code";
 import { authOptions } from "@/server/auth.config";
 import { db } from "@/server/db";
 import { accounts, sessions, users, verificationTokens } from "@/server/db/schema";
@@ -80,7 +80,21 @@ const authWithOptions = async (props?: AuthProps) => {
 
 	const handleRedirect = (code: string) => {
 		logger.warn(`[authWithOptions] Redirecting to ${redirectTo} with code ${code}`);
-		return redirectWithCode(redirectTo, { code, nextUrl });
+
+		// Determine if we're in a route handler context
+		const isFromRouteHandler = typeof Response !== "undefined" && typeof window === "undefined";
+
+		if (isFromRouteHandler) {
+			return routeRedirectWithCode(redirectTo, {
+				code,
+				nextUrl,
+			});
+		}
+
+		return redirectWithCode(redirectTo, {
+			code,
+			nextUrl,
+		});
 	};
 
 	// TODO: Handle refresh token error
