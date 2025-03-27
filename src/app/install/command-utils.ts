@@ -167,6 +167,7 @@ export async function runInstallCommand(
  */
 export function processTerminalOutput(output: string): string {
 	if (!output) return "";
+	return output;
 
 	// Skip any debug logging messages about ANSI sequences
 	const cleanedOutput = output

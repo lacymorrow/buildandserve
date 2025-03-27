@@ -26,19 +26,11 @@ function getContainerManager(): ContainerManager {
 // Use a smaller refresh interval for more responsive animations
 const TERMINAL_REFRESH_INTERVAL = 30; // 33 fps for very smooth spinner animation
 
-// Dynamically import Ansi component to avoid SSR issues
-const Ansi = dynamic(() => import('ansi-to-react').then(mod => mod.default), {
+// Dynamically import XTerm to avoid SSR issues
+const XTermComponent = dynamic(() => import('./xterm-component').then(mod => mod.default), {
 	ssr: false,
 	loading: () => <div className="text-sm text-muted-foreground">Loading terminal...</div>
 });
-
-// Add LoadingSpinner component at the top of the file with other components
-const LoadingSpinner = ({ label = "Loading..." }: { label?: string }) => (
-	<div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-		<div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-		<div className="text-sm">{label}</div>
-	</div>
-);
 
 interface ShadcnCommandProps {
 	containerReady?: boolean;
@@ -65,6 +57,7 @@ export const ShadcnCommand = ({
 	const queuedCommand = useRef<string | null>(null);
 	const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(false);
 	const [loadingMessage, setLoadingMessage] = useState<string>("");
+	const terminalRef = useRef<any>(null);
 
 	const makeCommand = useCallback(() => {
 		const parts = command.split(" ");
@@ -102,14 +95,19 @@ export const ShadcnCommand = ({
 				if (window.webContainerLogs && window.webContainerLogs.length > 0) {
 					// Format logs for display
 					const formattedLogs = window.webContainerLogs
-						.map((log) => `${log.message}${log.data ? ` ${log.data}` : ''}`)
-						.join('\n');
+						.map((log) => `${log.data ? ` ${log.data}` : ''}`)
+						.join('');
 
 					// Process logs to clean up repetitive content
 					const processedLogs = processTerminalOutput(formattedLogs);
 
 					// Update command output with processed logs
 					setCommandOutput(processedLogs);
+
+					// Write to terminal if available
+					if (terminalRef.current?.terminal) {
+						terminalRef.current.write(`${window.webContainerLogs}`);
+					}
 				}
 			}, TERMINAL_REFRESH_INTERVAL); // Update more frequently for smoother animations
 
@@ -160,6 +158,11 @@ export const ShadcnCommand = ({
 		setProgressMessage("Starting command execution...");
 		setActiveTab("command");
 
+		// Clear the terminal if available
+		if (terminalRef.current?.clear) {
+			terminalRef.current.clear();
+		}
+
 		try {
 			// Parse the command into arguments
 			const args = commandToRun.trim().split(/\s+/);
@@ -172,13 +175,18 @@ export const ShadcnCommand = ({
 				if (window.webContainerLogs) {
 					const currentLogs = window.webContainerLogs.slice(logsBefore.length);
 					const formattedLogs = currentLogs
-						.map((log) => `${log.message}${log.data ? ` ${log.data}` : ''}`)
-						.join('\n');
+						.map((log) => `${log.data ? ` ${log.data}` : ''}`)
+						.join('');
 
 					// Process logs but preserve animation sequences
 					const processedOutput = processTerminalOutput(formattedLogs);
 					setCommandOutput(processedOutput || "Command running...");
 					updateProgress(formattedLogs);
+
+					// Write directly to the terminal
+					if (terminalRef.current?.write && processedOutput) {
+						terminalRef.current.write(processedOutput);
+					}
 				}
 			}, TERMINAL_REFRESH_INTERVAL); // Use the faster refresh rate
 
@@ -216,8 +224,14 @@ export const ShadcnCommand = ({
 				.join("\n");
 
 			// Process terminal output to clean up repetitive messages
-			setCommandOutput(processTerminalOutput(formattedLogs) || "Command completed successfully");
+			const processedOutput = processTerminalOutput(formattedLogs) || "Command completed successfully";
+			// setCommandOutput(processedOutput);
 			setProgressMessage("Command completed successfully");
+
+			// Final terminal output
+			if (terminalRef.current?.write) {
+				terminalRef.current.write("\r\n\x1b[32mCommand completed successfully\x1b[0m\r\n");
+			}
 
 			if (changes && changes.length > 0) {
 				setChangedFiles(changes);
@@ -234,6 +248,11 @@ export const ShadcnCommand = ({
 			setCommandError(error instanceof Error ? error.message : String(error));
 			setProgressMessage("");
 			setActiveTab("command");
+
+			// Show error in terminal
+			if (terminalRef.current?.write) {
+				terminalRef.current.write(`\r\n\x1b[31mError: ${error instanceof Error ? error.message : String(error)}\x1b[0m\r\n`);
+			}
 		} finally {
 			setIsLoading(false);
 		}
@@ -282,6 +301,11 @@ export const ShadcnCommand = ({
 			setCommandError(
 				error instanceof Error ? error.message : "An unknown error occurred during command execution"
 			);
+
+			// Show error in terminal
+			if (terminalRef.current?.write) {
+				terminalRef.current.write(`\r\n\x1b[31mError: ${error instanceof Error ? error.message : String(error)}\x1b[0m\r\n`);
+			}
 		} finally {
 			setIsLoading(false);
 			setIsLoadingFiles(false);
@@ -378,16 +402,8 @@ export const ShadcnCommand = ({
 							</TabsTrigger>
 						</TabsList>
 						<TabsContent value="command" className="mt-2">
-							<div className="w-full p-4 bg-black rounded-md text-white overflow-auto h-[300px] font-mono text-sm">
-								{commandOutput ? (
-									<div className="whitespace-pre-wrap terminal-output leading-5">
-										<Ansi>{commandOutput}</Ansi>
-									</div>
-								) : (
-									<div className="text-center p-6 text-muted-foreground text-sm">
-										{!containerReady ? "Initializing WebContainer..." : "Run a command to see output"}
-									</div>
-								)}
+							<div className="w-full p-0 bg-black rounded-md text-white overflow-hidden h-[300px] font-mono text-sm">
+								<XTermComponent initialText={commandOutput} ref={terminalRef} />
 							</div>
 						</TabsContent>
 						<TabsContent value="files" className="mt-2 max-h-[300px] overflow-auto">
