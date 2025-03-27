@@ -1,9 +1,10 @@
+import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
 import { Separator } from "@/components/ui/separator";
 import { SidebarNav } from "@/components/ui/sidebar-nav";
 import { routes } from "@/config/routes";
 import { auth } from "@/server/auth";
 import { redirect } from "next/navigation";
-import type { ReactNode } from "react";
+import { type ReactNode, Suspense } from "react";
 import { Header } from "../../../components/headers/header";
 
 const sidebarNavItems = [
@@ -64,7 +65,9 @@ export default async function SettingsLayout({ children }: SettingsLayoutProps) 
 						<aside className="lg:w-1/5">
 							<SidebarNav items={navItems} />
 						</aside>
-						<div className="flex-1 lg:max-w-2xl">{children}</div>
+						<div className="flex-1 lg:max-w-2xl">
+							<Suspense fallback={<SuspenseFallback />}>{children}</Suspense>
+						</div>
 					</div>
 				</div>
 			</main>

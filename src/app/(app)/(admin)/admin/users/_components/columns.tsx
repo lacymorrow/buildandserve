@@ -1,9 +1,13 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { UserData } from "@/server/services/payment-service";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
+import { Eye } from "lucide-react";
+import { useState } from "react";
+import { UserDrawer } from "./user-drawer";
 
 const formatDate = (date: Date | null) => {
 	return date ? format(date, "MMM d, yyyy") : "N/A";
@@ -43,10 +47,22 @@ export const columns: ColumnDef<UserData>[] = [
 		header: "Subscription",
 		cell: ({ row }) => {
 			const hasActiveSubscription = Boolean(row.getValue("hasActiveSubscription"));
+			const hadSubscription = Boolean(row.original.hadSubscription);
+
+			let status = "None";
+			let variant: "default" | "outline" | "secondary" = "outline";
+
+			if (hasActiveSubscription) {
+				status = "Subscribed";
+				variant = "default";
+			} else if (hadSubscription) {
+				status = "Inactive";
+				variant = "secondary";
+			}
 
 			return (
 				<div className="flex flex-col gap-1 items-start justify-center">
-					<Badge variant={hasActiveSubscription ? "default" : "outline"}>{hasActiveSubscription ? "Active" : "None"}</Badge>
+					<Badge variant={variant}>{status}</Badge>
 				</div>
 			);
 		},
@@ -60,5 +76,34 @@ export const columns: ColumnDef<UserData>[] = [
 		accessorKey: "totalPurchases",
 		header: "Total Purchases",
 		cell: ({ row }) => row.original?.totalPurchases ?? 0,
+	},
+	{
+		id: "actions",
+		header: "Details",
+		cell: ({ row }) => {
+			const [isUserDrawerOpen, setIsUserDrawerOpen] = useState(false);
+			const user = row.original;
+
+			return (
+				<>
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={(e) => {
+							e.stopPropagation();
+							setIsUserDrawerOpen(true);
+						}}
+						className="flex items-center"
+					>
+						<Eye className="h-4 w-4 mr-1" /> View Details
+					</Button>
+					<UserDrawer
+						user={user}
+						open={isUserDrawerOpen}
+						onClose={() => setIsUserDrawerOpen(false)}
+					/>
+				</>
+			);
+		},
 	},
 ];
