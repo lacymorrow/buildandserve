@@ -3,14 +3,12 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangleIcon, ExternalLinkIcon, TerminalIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { getProjectStructure } from "./actions";
 import { ShadcnCommand } from "./components/shadcn-command";
 
 export default function InstallPage() {
 	const [containerStatus, setContainerStatus] = useState<string>("initializing");
 	const [containerProgress, setContainerProgress] = useState<number>(0);
 	const [files, setFiles] = useState<{ path: string; content: string }[]>([]);
-	const [projectStructure, setProjectStructure] = useState("src/app");
 	const [error, setError] = useState<string | null>(null);
 	const [webContainerSupported, setWebContainerSupported] = useState(false);
 	const [isCrossOriginIsolated, setIsCrossOriginIsolated] = useState(false);
@@ -45,14 +43,6 @@ export default function InstallPage() {
 				console.error("Error checking WebContainer support:", err);
 				setWebContainerSupported(false);
 			}
-
-			// Get project structure
-			try {
-				const structure = await getProjectStructure();
-				setProjectStructure(structure);
-			} catch (err) {
-				console.error("Error getting project structure:", err);
-			}
 		};
 
 		initialize();
@@ -81,6 +71,12 @@ export default function InstallPage() {
 
 			// Initialize the container with selective loading
 			await manager.initialize();
+
+			setContainerStatus("loading-shadcn-files");
+			setContainerProgress(80);
+
+			// Import essential project files (package.json, tailwind.config.ts, etc.)
+			await manager.importProjectFiles();
 
 			setContainerStatus("ready");
 			setContainerProgress(100);
@@ -151,6 +147,7 @@ export default function InstallPage() {
 									{containerStatus === "initializing" && "Setting up environment..."}
 									{containerStatus === "loading-container" && "Loading WebContainer..."}
 									{containerStatus === "initializing-container" && "Initializing container..."}
+									{containerStatus === "loading-shadcn-files" && "Loading essential files..."}
 									<span className="ml-2 text-xs text-muted-foreground">(You can enter your command while this loads)</span>
 								</p>
 								<div className="h-2 w-full bg-muted rounded-full overflow-hidden">
@@ -168,7 +165,6 @@ export default function InstallPage() {
 						<ShadcnCommand
 							containerReady={containerReady}
 							webContainerSupported={webContainerSupported}
-							projectStructure={projectStructure}
 							onExecute={handleCommandExecuted}
 							autoRun={false}
 						/>

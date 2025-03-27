@@ -3,6 +3,7 @@
  * This file contains only server-safe code (no browser APIs or client-specific functionality)
  */
 
+import { getAlternativePaths, getEssentialConfigFiles } from "./project-config";
 import type { ContainerFile } from "./types";
 
 // Common constants
@@ -64,24 +65,13 @@ export const directoryListingCache = new Map<string, any[]>();
  */
 export function shouldIgnoreFile(filename: string): boolean {
 	// Skip empty paths
-	if (!filename || filename.trim() === "") return true;
+	if (!filename || filename?.trim() === "") return true;
 
-	// Normalize path
-	const normalizedName = filename.replace(/^\/+/, "").trim();
+	// Now we can safely use string methods
+	const normalizedName = filename?.replace(/^\/+/, "").trim();
 
 	// Ignore system files
 	if (normalizedName.includes(".DS_Store")) return true;
-
-	// Ignore lock files
-	if (
-		normalizedName.includes("package-lock.json") ||
-		normalizedName.includes("yarn.lock") ||
-		normalizedName.includes("pnpm-lock.yaml") ||
-		normalizedName.includes(".pnpm-lock.yaml") ||
-		normalizedName.includes("npm-shrinkwrap.json") ||
-		normalizedName.includes("bun.lockb")
-	)
-		return true;
 
 	// Ignore TypeScript environment files
 	if (normalizedName.includes("next-env.d.ts")) return true;
@@ -152,7 +142,7 @@ export async function readTemplateFile(filePath: string): Promise<string | Uint8
 			}
 
 			// Fetch directly from source components
-			const url = `/api/template-file-content?path=${encodeURIComponent(normalizedPath)}`;
+			const url = `/api/file?path=${encodeURIComponent(normalizedPath)}`;
 
 			const response = await fetch(url);
 
@@ -313,89 +303,125 @@ export async function processTemplateFiles(projectStructure: string): Promise<Co
 }
 
 /**
- * Import project files into the container
- * @param container WebContainer instance
+ * Process and import project files into the container
+ * @param container The WebContainer instance
  * @param fileExists Function to check if a file exists
- * @param files Optional list of specific files to import
+ * @param filesToImport Array of files to import
  */
 export async function importProjectFiles(
 	container: any,
 	fileExists: (path: string) => Promise<boolean>,
-	files?: string[]
+	filesToImport: string[] = getEssentialConfigFiles()
 ): Promise<void> {
 	try {
-		// If specific files are provided, only import those
-		if (files && files.length > 0) {
-			for (const file of files) {
+		for (const filePath of filesToImport) {
+			try {
 				// Check if file already exists
-				const exists = await fileExists(file);
+				const exists = await fileExists(filePath);
 				if (exists) {
 					continue;
 				}
 
 				// Read the file from the template
-				const content = await readTemplateFile(file);
+				const content = await readTemplateFile(filePath);
 				if (content) {
 					// Make sure the directory exists
-					const dir = file.substring(0, file.lastIndexOf("/"));
+					const dir = filePath.substring(0, filePath.lastIndexOf("/"));
 					if (dir) {
 						await container.fs.mkdir(dir, { recursive: true });
 					}
 
 					// Write the file
 					if (typeof content === "string") {
-						await container.fs.writeFile(file, content);
+						await container.fs.writeFile(filePath, content);
 					} else {
-						await container.fs.writeFile(file, content, null);
+						await container.fs.writeFile(filePath, content, null);
 					}
 				}
-			}
-			return;
-		}
 
-		// Handle importing all files
-		const processDirectory = async (directoryPath = ""): Promise<void> => {
-			// Get directory entries
-			const entries = await getDirectoryEntries(directoryPath);
+				// Try alternative paths for missing essential files
+				if (!exists) {
+					if (filePath.includes("globals.css")) {
+						for (const altPath of getAlternativePaths("globals.css")) {
+							if (await fileExists(altPath)) {
+								const content = await readTemplateFile(altPath);
+								if (content) {
+									// Create the destination directory
+									const directory = filePath.split("/").slice(0, -1).join("/");
+									if (directory) {
+										try {
+											await container.fs.mkdir(directory, { recursive: true });
+										} catch (mkdirErr) {
+											// Directory may already exist, that's fine
+										}
+									}
 
-			// Process each entry
-			for (const entry of entries) {
-				const subPath = directoryPath ? `${directoryPath}/${entry.name}` : entry.name;
+									await container.fs.writeFile(filePath, content);
+									console.log(`Imported alternative file ${altPath} as ${filePath}`);
+									break;
+								}
+							}
+						}
+					} else if (filePath.includes("utils.ts")) {
+						for (const altPath of getAlternativePaths("utils.ts")) {
+							if (await fileExists(altPath)) {
+								const content = await readTemplateFile(altPath);
+								if (content) {
+									// Create the destination directory
+									const directory = filePath.split("/").slice(0, -1).join("/");
+									if (directory) {
+										try {
+											await container.fs.mkdir(directory, { recursive: true });
+										} catch (mkdirErr) {
+											// Directory may already exist, that's fine
+										}
+									}
 
-				// Skip if this file should be ignored
-				if (shouldIgnoreFile(subPath)) {
-					continue;
-				}
-
-				// If this is a directory, process its contents recursively
-				if (entry.isDirectory) {
-					// Make sure the directory exists
-					try {
-						await container.fs.mkdir(subPath, { recursive: true });
-					} catch (error) {}
-					await processDirectory(subPath);
-				} else {
-					// Check if the file already exists
-					const exists = await fileExists(subPath);
-					if (exists) {
-						continue;
-					}
-
-					// This is a file, read its content
-					const content = await readTemplateFile(subPath);
-					if (content) {
-						// Write the file
-						if (typeof content === "string") {
-							await container.fs.writeFile(subPath, content);
-						} else {
-							await container.fs.writeFile(subPath, content, null);
+									await container.fs.writeFile(filePath, content);
+									console.log(`Imported alternative file ${altPath} as ${filePath}`);
+									break;
+								}
+							}
 						}
 					}
 				}
+			} catch (err) {
+				console.warn(`Error importing file ${filePath}:`, err);
 			}
-		};
+		}
+	} catch (err) {
+		console.error("Error importing project files:", err);
+	}
+}
 
-		// Start processing from the root
-		await processDirectory();
-	} catch (error) {}
+/**
+ * Check if components.json exists at the root
+ * @param container The WebContainer instance
+ * @param readFile A function that reads a template file (not used)
+ * @returns Promise that resolves when the check is complete
+ */
+export async function ensureComponentsJsonExists(
+	container: any,
+	readFile: (path: string) => Promise<string | Uint8Array | null>
+): Promise<void> {
+	try {
+		// Just check if components.json exists
+		const exists = await fileExistsInContainer(container, "components.json");
+		// We do nothing with this information - we let shadcn create it if needed
+	} catch (error) {
+		// Don't throw, continue anyway
+		console.error("Error checking if components.json exists:", error);
+	}
+}
+
+/**
+ * Helper function to check if a file exists in container
+ */
+async function fileExistsInContainer(container: any, path: string): Promise<boolean> {
+	try {
+		await container.fs.stat(path);
+		return true;
+	} catch (err) {
+		return false;
+	}
 }

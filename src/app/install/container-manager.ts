@@ -1,97 +1,34 @@
 "use client";
 
-import { importProjectFiles, processTemplateFiles, readTemplateFile } from "./client-utils";
+import type { WebContainer } from "@webcontainer/api";
+import { importProjectFiles, readTemplateFile } from "./client-utils";
 import { runInstallCommand } from "./command-utils";
 import {
 	compareSnapshots,
-	ensureComponentsJsonExists,
 	fileExists,
 	getInitialFileSystem,
 	takeFileSystemSnapshot,
 } from "./filesystem-utils";
 import { logInfo } from "./logging";
+import { getEssentialConfigFiles } from "./project-config";
+import { ensureComponentsJsonExists } from "./shared-utils";
 import type { ContainerFile } from "./types";
 
 // Define essential configuration files
-const ESSENTIAL_CONFIG_FILES = [
-	"package.json",
-	"tsconfig.json",
-	"components.json",
-	"tailwind.config.js",
-	"tailwind.config.ts",
-	"postcss.config.js",
-	"next.config.js",
-	"next.config.ts",
-];
-
-// Define essential directories
-const ESSENTIAL_DIRECTORIES = [
-	"components",
-	"components/ui",
-	"app",
-	"src",
-	"src/app",
-	"lib",
-	"hooks",
-	"styles",
-];
-
-// Component dependency mapping
-const COMPONENT_DEPENDENCIES: Record<string, string[]> = {
-	button: ["components/ui/button.tsx", "lib/utils.ts"],
-	dialog: ["components/ui/dialog.tsx", "lib/utils.ts", "components/ui/button.tsx"],
-	accordion: ["components/ui/accordion.tsx"],
-	alert: ["components/ui/alert.tsx"],
-	"alert-dialog": ["components/ui/alert-dialog.tsx", "components/ui/button.tsx"],
-	"aspect-ratio": ["components/ui/aspect-ratio.tsx"],
-	avatar: ["components/ui/avatar.tsx"],
-	badge: ["components/ui/badge.tsx"],
-	calendar: ["components/ui/calendar.tsx"],
-	card: ["components/ui/card.tsx"],
-	checkbox: ["components/ui/checkbox.tsx"],
-	collapsible: ["components/ui/collapsible.tsx"],
-	command: ["components/ui/command.tsx"],
-	"context-menu": ["components/ui/context-menu.tsx"],
-	"dropdown-menu": ["components/ui/dropdown-menu.tsx"],
-	form: ["components/ui/form.tsx", "lib/utils.ts"],
-	"hover-card": ["components/ui/hover-card.tsx"],
-	input: ["components/ui/input.tsx"],
-	label: ["components/ui/label.tsx"],
-	menubar: ["components/ui/menubar.tsx"],
-	"navigation-menu": ["components/ui/navigation-menu.tsx"],
-	popover: ["components/ui/popover.tsx"],
-	progress: ["components/ui/progress.tsx"],
-	"radio-group": ["components/ui/radio-group.tsx"],
-	"scroll-area": ["components/ui/scroll-area.tsx"],
-	select: ["components/ui/select.tsx"],
-	separator: ["components/ui/separator.tsx"],
-	sheet: ["components/ui/sheet.tsx"],
-	skeleton: ["components/ui/skeleton.tsx"],
-	slider: ["components/ui/slider.tsx"],
-	switch: ["components/ui/switch.tsx"],
-	table: ["components/ui/table.tsx"],
-	tabs: ["components/ui/tabs.tsx"],
-	textarea: ["components/ui/textarea.tsx"],
-	toast: ["components/ui/toast.tsx", "components/ui/use-toast.ts"],
-	toggle: ["components/ui/toggle.tsx"],
-	tooltip: ["components/ui/tooltip.tsx"],
-};
+const ESSENTIAL_CONFIG_FILES = getEssentialConfigFiles();
 
 // Track whether the container has already been booted
-let containerInstance: any = null;
-let bootPromise: Promise<any> | null = null;
+let containerInstance: WebContainer | null = null;
+let bootPromise: Promise<WebContainer> | null = null;
 
 // Improve debugging by explicitly tracking initialization state
 let containerInitializing = false;
-
-// Track whether template files have been loaded
-let templateFilesLoaded = false;
 
 /**
  * Simplified interface for working with WebContainers
  */
 export class ContainerManager {
-	private container: any;
+	private container: WebContainer | null = null;
 	private isReady = false;
 	private fileSystemSnapshotBefore: Map<string, string> = new Map();
 	private fileSystemSnapshotAfter: Map<string, string> = new Map();
@@ -113,150 +50,32 @@ export class ContainerManager {
 	/**
 	 * Load essential files only for the WebContainer
 	 * @param componentToInstall Optional component name to load dependencies for
-	 * @param projectStructure The project structure type ("app" or "src/app")
 	 */
-	private async loadEssentialFiles(
-		componentToInstall?: string,
-		projectStructure = "app"
-	): Promise<void> {
+	private async loadEssentialFiles(componentToInstall?: string): Promise<void> {
 		if (!this.container) {
 			throw new Error("Container not initialized");
 		}
 
-		logInfo("Loading essential configuration files...");
+		logInfo("Setting up essential configuration files...");
 
-		// Load essential configuration files
-		for (const file of ESSENTIAL_CONFIG_FILES) {
-			try {
-				const fileContent = await readTemplateFile(file);
-				if (fileContent && typeof fileContent === "string") {
-					await this.container.fs.writeFile(file, fileContent);
-					logInfo(`Loaded essential configuration file: ${file}`);
-				}
-			} catch (error) {
-				logInfo(`Error loading configuration file ${file}:`, error);
-				// Continue loading other files
-			}
-		}
+		// Pass the array explicitly to avoid optional parameter confusion
+		await importProjectFiles(
+			this.container,
+			(path) => fileExists(this.container!, path),
+			ESSENTIAL_CONFIG_FILES
+		);
 
-		// Create essential directories based on project structure
-		logInfo(`Creating essential directory structure for ${projectStructure} structure...`);
-		for (const dir of ESSENTIAL_DIRECTORIES) {
-			try {
-				// Transform directory path based on project structure
-				const targetDir = this.transformPath(dir, projectStructure);
-				await this.container.fs.mkdir(targetDir, { recursive: true });
-				logInfo(`Created essential directory: ${targetDir}`);
-			} catch (error) {
-				logInfo(`Directory might already exist: ${dir}`, error);
-				// Continue creating other directories
-			}
-		}
-
-		// Load component-specific dependencies if a component is specified
-		if (componentToInstall && COMPONENT_DEPENDENCIES[componentToInstall]) {
-			logInfo(
-				`Loading dependencies for component: ${componentToInstall} with ${projectStructure} structure`
-			);
-
-			const dependencies = COMPONENT_DEPENDENCIES[componentToInstall];
-			for (const dependency of dependencies) {
-				try {
-					// Read template file from source
-					const fileContent = await readTemplateFile(dependency);
-					if (fileContent) {
-						// Transform path based on project structure
-						const targetPath = this.transformPath(dependency, projectStructure);
-
-						// Create directory for the dependency if needed
-						const dirPath = targetPath.substring(0, targetPath.lastIndexOf("/"));
-						if (dirPath) {
-							await this.container.fs.mkdir(dirPath, { recursive: true });
-						}
-
-						// Write the file to the transformed path
-						await this.container.fs.writeFile(targetPath, fileContent);
-						logInfo(`Loaded dependency file: ${dependency} → ${targetPath}`);
-					}
-				} catch (error) {
-					logInfo(`Error loading dependency ${dependency}:`, error);
-					// Continue loading other dependencies
-				}
-			}
-		}
-
-		logInfo("Essential files loaded successfully");
-	}
-
-	/**
-	 * Transform a path based on project structure
-	 * @param path Original path
-	 * @param projectStructure Project structure type ("app" or "src/app")
-	 */
-	private transformPath(path: string, projectStructure: string): string {
-		// If using src/app structure, add src/ prefix to paths that should be in src
-		if (projectStructure === "src/app") {
-			// For component imports
-			if (path.startsWith("components/")) {
-				return `src/${path}`;
-			}
-
-			// For lib imports
-			if (path.startsWith("lib/")) {
-				return `src/${path}`;
-			}
-
-			// For app imports
-			if (path.startsWith("app/")) {
-				return `src/${path}`;
-			}
-
-			// For hooks and other common directories
-			if (path.startsWith("hooks/") || path.startsWith("styles/")) {
-				return `src/${path}`;
-			}
-		}
-
-		// Return unmodified path for "app" structure
-		return path;
-	}
-
-	/**
-	 * Determine project structure based on URL or defaults
-	 */
-	private detectProjectStructure(initialStructure?: string): string {
-		// Use provided structure if available
-		if (initialStructure) {
-			return initialStructure;
-		}
-
-		// Default to app directory
-		let detectedStructure = "app";
-
-		// Check URL params for structure hint
-		if (typeof window !== "undefined") {
-			const urlParams = new URLSearchParams(window.location.search);
-			const structureParam = urlParams.get("structure");
-			if (structureParam === "src-app" || structureParam === "src/app") {
-				detectedStructure = "src/app";
-			}
-		}
-
-		return detectedStructure;
+		logInfo("Imported essential configuration files for shadcn installation");
 	}
 
 	/**
 	 * Initialize the container when needed
 	 * @param componentToInstall Optional component name to preload
-	 * @param initialProjectStructure Project structure ("app" or "src/app")
 	 */
-	async initialize(componentToInstall?: string, initialProjectStructure?: string) {
+	async initialize(componentToInstall?: string) {
 		if (typeof window === "undefined") {
 			throw new Error("WebContainer can only be initialized in the browser");
 		}
-
-		// Determine project structure if not provided
-		const projectStructure = this.detectProjectStructure(initialProjectStructure);
 
 		// If already initialized, just return
 		if (this.isReady && this.container) {
@@ -336,16 +155,13 @@ export class ContainerManager {
 			logInfo("Setting up initial file system...");
 			await this.container.mount(getInitialFileSystem());
 
-			// Load only essential files instead of the entire repository
-			logInfo(`Initializing selective file loading for ${projectStructure} structure...`);
-			await this.loadEssentialFiles(componentToInstall, projectStructure);
+			// Setup essential files
+			await this.loadEssentialFiles(componentToInstall);
 
-			// Ensure we have a components.json file at the root for any command to work
+			// Check for components.json existence (but don't create it)
 			await ensureComponentsJsonExists(this.container, readTemplateFile);
 
-			// Mark template loading state
-			templateFilesLoaded = true;
-			logInfo("Selective file loading completed successfully");
+			logInfo("WebContainer initialization completed successfully");
 
 			// Mark initialization as complete
 			containerInitializing = false;
@@ -399,32 +215,43 @@ export class ContainerManager {
 	}
 
 	/**
-	 * Install shadcn template and get the result
+	 * Install shadcn by running the init command
 	 */
-	async installShadcnTemplate(projectStructure: string): Promise<ContainerFile[]> {
-		if (!this.isReady) {
+	async installShadcnTemplate(): Promise<ContainerFile[]> {
+		if (!this.isReady || !this.container) {
 			throw new Error("Container not initialized");
 		}
 
 		try {
-			logInfo("Starting shadcn template installation...");
+			logInfo("Starting shadcn initialization...");
 			logInfo("WebContainer initialized and ready");
 
-			// Ensure the project structure matches one of the expected values
-			const normalizedStructure = projectStructure === "src/app" ? "src/app" : "app";
+			// Take a snapshot of the file system before installation
+			this.fileSystemSnapshotBefore = await takeFileSystemSnapshot(this.container);
+			logInfo(`Taken snapshot before shadcn init with ${this.fileSystemSnapshotBefore.size} files`);
 
-			// Process the template files
-			const templateFiles = await processTemplateFiles(normalizedStructure);
-			logInfo(`Processed ${templateFiles.length} template files`);
+			// Run the shadcn init command
+			const commandString = "npx shadcn@latest init --yes";
+			await runInstallCommand(this.container, commandString);
 
-			// Directly return the template files
-			return templateFiles;
+			// Take another snapshot after running init
+			this.fileSystemSnapshotAfter = await takeFileSystemSnapshot(this.container);
+			logInfo(`Taken snapshot after shadcn init with ${this.fileSystemSnapshotAfter.size} files`);
+
+			// Get the list of changed files
+			this.changedFiles = compareSnapshots(
+				this.fileSystemSnapshotBefore,
+				this.fileSystemSnapshotAfter
+			);
+			logInfo(`Found ${this.changedFiles.length} changed files after shadcn init`);
+
+			return this.changedFiles;
 		} catch (error) {
 			logInfo(
 				"Error occurred during installation",
 				error instanceof Error ? error.message : String(error)
 			);
-			console.error("Error installing shadcn template:", error);
+			console.error("Error installing shadcn:", error);
 			throw error;
 		}
 	}
@@ -432,40 +259,56 @@ export class ContainerManager {
 	/**
 	 * Run a shadcn command in the container
 	 * @param commandArray The command array to execute
-	 * @param projectStructure Project structure ("app" or "src/app")
 	 */
-	async runShadcnCommand(
-		commandArray: string[],
-		projectStructure?: string
-	): Promise<ContainerFile[]> {
-		// Get the component name if this is an add command
-		const componentName = this.getComponentNameFromCommand(commandArray);
+	async runShadcnCommand(commandArray: string[]): Promise<ContainerFile[]> {
+		try {
+			// Get the component name if this is an add command
+			const componentName = this.getComponentNameFromCommand(commandArray);
 
-		// Initialize with component dependencies if applicable
-		await this.initialize(componentName, projectStructure);
+			// Initialize with component dependencies if applicable
+			await this.initialize(componentName);
 
-		// Take a snapshot of the file system before installation
-		this.fileSystemSnapshotBefore = await takeFileSystemSnapshot(this.container);
-		logInfo(
-			`Taken snapshot before shadcn command with ${this.fileSystemSnapshotBefore.size} files`
-		);
+			if (!this.container) {
+				throw new Error("Container not initialized");
+			}
 
-		// Run the command
-		const commandString = `npx shadcn-ui@latest ${commandArray.join(" ")}`;
-		await runInstallCommand(this.container, commandString);
+			// Take a snapshot of the file system before installation
+			this.fileSystemSnapshotBefore = await takeFileSystemSnapshot(this.container);
+			logInfo(
+				`Taken snapshot before shadcn command with ${this.fileSystemSnapshotBefore.size} files`
+			);
 
-		// Take another snapshot
-		this.fileSystemSnapshotAfter = await takeFileSystemSnapshot(this.container);
-		logInfo(`Taken snapshot after shadcn command with ${this.fileSystemSnapshotAfter.size} files`);
+			// Run the command
+			// Check if commandArray already includes npx shadcn@latest
+			const commandString =
+				commandArray[0] === "npx" && commandArray.length > 1 && commandArray[1].includes("shadcn")
+					? commandArray.join(" ")
+					: `npx shadcn@latest ${commandArray.join(" ")}`;
 
-		// Get the list of changed files
-		this.changedFiles = compareSnapshots(
-			this.fileSystemSnapshotBefore,
-			this.fileSystemSnapshotAfter
-		);
-		logInfo(`Found ${this.changedFiles.length} changed files after shadcn command`);
+			await runInstallCommand(this.container, commandString);
 
-		return this.changedFiles;
+			// Take another snapshot
+			this.fileSystemSnapshotAfter = await takeFileSystemSnapshot(this.container);
+			logInfo(
+				`Taken snapshot after shadcn command with ${this.fileSystemSnapshotAfter.size} files`
+			);
+
+			// Get the list of changed files
+			this.changedFiles = compareSnapshots(
+				this.fileSystemSnapshotBefore,
+				this.fileSystemSnapshotAfter
+			);
+			logInfo(`Found ${this.changedFiles.length} changed files after shadcn command`);
+
+			return this.changedFiles;
+		} catch (error) {
+			logInfo(
+				"Error occurred during shadcn command execution",
+				error instanceof Error ? error.message : String(error)
+			);
+			console.error("Error running shadcn command:", error);
+			throw error;
+		}
 	}
 
 	/**
@@ -478,10 +321,16 @@ export class ContainerManager {
 	/**
 	 * Import project files into the container
 	 * @param files Optional array of specific files to import
-	 * @param projectStructure Optional project structure type
 	 */
-	async importProjectFiles(files?: string[], projectStructure?: string): Promise<void> {
-		await this.initialize(undefined, projectStructure);
-		await importProjectFiles(this.container, (path) => fileExists(this.container, path), files);
+	async importProjectFiles(files?: string[]): Promise<void> {
+		await this.initialize();
+		if (!this.container) {
+			throw new Error("Container not initialized");
+		}
+		await importProjectFiles(
+			this.container,
+			(path) => fileExists(this.container!, path),
+			files || ESSENTIAL_CONFIG_FILES
+		);
 	}
 }

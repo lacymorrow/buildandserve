@@ -6,9 +6,9 @@ This directory contains API routes for the ShipKit installation workflow. These 
 
 ### Core API Routes
 
-1. `file/route.ts` - Retrieves file contents from the server filesystem
-2. `template-files/route.ts` - Lists template files and directories
-3. `template-file-content/route.ts` - Retrieves template file contents
+1. `file/route.ts` - Retrieves file contents from the filesystem
+   - Usage: `/api/file?path=path/to/file`
+2. `template-files/route.ts` - Lists files in a directory
 
 ### Shared Utilities
 
@@ -44,7 +44,6 @@ The `utils.ts` file contains shared utilities and constants used across all API 
 
 Key configuration constants in `utils.ts`:
 
-- `TEMPLATE_BASE_DIR`: Base directory for template files
 - `BINARY_EXTENSIONS`: List of binary file extensions
 - `CONTENT_TYPE_MAP`: Mapping of file extensions to content types
 
@@ -52,6 +51,6 @@ Key configuration constants in `utils.ts`:
 
 These API routes are consumed by the ShipKit installation WebContainer to:
 
-1. Browse available templates
-2. Fetch template file contents
-3. Access project files
+1. Browse available files
+2. Fetch file contents
+3. Access project source code

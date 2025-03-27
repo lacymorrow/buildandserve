@@ -1,25 +1,33 @@
 import fs from "fs/promises";
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import path from "path";
-import { getContentType, sanitizePath, shouldIgnoreFile } from "../utils";
+import { BINARY_EXTENSIONS, fileContentCache, getContentType, sanitizePath } from "../utils";
 
 /**
  * API route to get file content from the server filesystem
- * This is used by the WebContainer to get project files
  */
-export async function GET(req: Request) {
+export async function GET(request: NextRequest) {
 	try {
-		const url = new URL(req.url);
-		const filePath = url.searchParams.get("path");
+		const { searchParams } = new URL(request.url);
+		const filePath = searchParams.get("path");
 
 		if (!filePath) {
 			return NextResponse.json({ error: "Path parameter is required" }, { status: 400 });
 		}
 
-		// Check if the file should be ignored
-		if (shouldIgnoreFile(filePath)) {
-			console.log(`Ignoring request for filtered file: ${filePath}`);
-			return NextResponse.json({ error: "File is filtered out" }, { status: 404 });
+		// Log the request path for debugging
+		console.log(`File content request for: "${filePath}"`);
+
+		// Check cache first
+		if (fileContentCache.has(filePath)) {
+			console.log(`Using cached file content for: ${filePath}`);
+			const { content, contentType } = fileContentCache.get(filePath)!;
+			return new NextResponse(content, {
+				headers: {
+					"Content-Type": contentType,
+				},
+			});
 		}
 
 		// Sanitize the file path to prevent directory traversal attacks
@@ -41,12 +49,20 @@ export async function GET(req: Request) {
 			return NextResponse.json({ error: "File not found" }, { status: 404 });
 		}
 
-		// Read the file
-		const content = await fs.readFile(resolvedPath, "utf-8");
+		// Determine if this is a binary file
+		const extension = path.extname(resolvedPath).toLowerCase();
+		const isBinary = BINARY_EXTENSIONS.includes(extension);
 
-		// Get file extension for content type
-		const ext = path.extname(resolvedPath).toLowerCase();
-		const contentType = getContentType(ext);
+		// Read the file
+		const content = isBinary
+			? await fs.readFile(resolvedPath) // Binary files as Buffer
+			: await fs.readFile(resolvedPath, "utf-8"); // Text files as UTF-8
+
+		// Get content type based on file extension
+		const contentType = getContentType(extension);
+
+		// Cache the file content
+		fileContentCache.set(filePath, { content, contentType });
 
 		// Return file content
 		return new NextResponse(content, {

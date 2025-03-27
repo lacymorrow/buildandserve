@@ -43,7 +43,6 @@ const LoadingSpinner = ({ label = "Loading..." }: { label?: string }) => (
 interface ShadcnCommandProps {
 	containerReady?: boolean;
 	webContainerSupported?: boolean;
-	projectStructure?: string;
 	onExecute?: (files: { path: string; content: string }[]) => void;
 	autoRun?: boolean;
 }
@@ -51,7 +50,6 @@ interface ShadcnCommandProps {
 export const ShadcnCommand = ({
 	containerReady = false,
 	webContainerSupported = false,
-	projectStructure = "src/app",
 	onExecute,
 	autoRun = false,
 }: ShadcnCommandProps) => {
@@ -69,7 +67,15 @@ export const ShadcnCommand = ({
 	const [loadingMessage, setLoadingMessage] = useState<string>("");
 
 	const makeCommand = useCallback(() => {
-		return `npx shadcn@latest add ${command.split(" ").pop()}`;
+		const parts = command.split(" ");
+		// If the command already contains npx shadcn@latest, just return it
+		if (parts[0] === "npx" && parts.length > 1 && parts[1].includes("shadcn")) {
+			return command;
+		}
+		// Otherwise, extract just the component name or command parts
+		const componentPart = parts[parts.length - 1];
+		const action = parts.length > 1 ? parts[parts.length - 2] : "add";
+		return `npx shadcn@latest ${action} ${componentPart}`;
 	}, [command]);
 
 	// Auto-run when container becomes ready
@@ -176,8 +182,8 @@ export const ShadcnCommand = ({
 				}
 			}, TERMINAL_REFRESH_INTERVAL); // Use the faster refresh rate
 
-			// Run the command and get changed files with the correct project structure
-			const changes = await getContainerManager().runShadcnCommand(args, projectStructure);
+			// Run the command and get changed files
+			const changes = await getContainerManager().runShadcnCommand(args);
 
 			// Clear the interval when done
 			clearInterval(logUpdateInterval);
@@ -260,7 +266,7 @@ export const ShadcnCommand = ({
 			setLoadingMessage("Importing project files...");
 
 			// Import necessary project files before running the command
-			await getContainerManager().importProjectFiles(undefined, projectStructure);
+			await getContainerManager().importProjectFiles();
 
 			setLoadingMessage("Running shadcn command...");
 			setIsLoadingFiles(false);

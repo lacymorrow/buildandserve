@@ -3,6 +3,7 @@
 // We're moving this to a client component since WebContainer can only run in the browser
 import type { FileSystemTree } from "@webcontainer/api";
 import { logInfo } from "./logging";
+import { ProjectPaths, getAlternativePaths, getEssentialConfigFiles } from "./project-config";
 import { levenshteinDistance, processTemplateFiles } from "./shared-utils";
 import type { ContainerFile } from "./types";
 
@@ -503,231 +504,21 @@ export class ContainerManager {
 
 		return snapshot;
 	}
-}
-
-// Simplified interface for working with WebContainers
-export class ContainerManager {
-	private container: any;
-	private isReady = false;
-	private fileSystemSnapshotBefore: Map<string, string> = new Map();
-	private fileSystemSnapshotAfter: Map<string, string> = new Map();
-	private changedFiles: ContainerFile[] = [];
-
-	// Initialize the container when needed
-	async initialize() {
-		if (typeof window === "undefined") {
-			throw new Error("WebContainer can only be initialized in the browser");
-		}
-
-		// If already initialized, just return
-		if (this.isReady && this.container) {
-			return true;
-		}
-
-		// Check for cross-origin isolation first
-		if (typeof window !== "undefined" && !window.crossOriginIsolated) {
-			console.warn("This page is not cross-origin isolated. WebContainers might not work.");
-			throw new Error(
-				"WebContainer requires cross-origin isolation. Please use the manual processing option instead."
-			);
-		}
-
-		try {
-			// Use the existing singleton container if it exists
-			if (containerInstance) {
-				this.container = containerInstance;
-				this.isReady = true;
-				return true;
-			}
-
-			// If boot is already in progress, wait for it
-			if (bootPromise) {
-				await bootPromise;
-				this.container = containerInstance;
-				this.isReady = true;
-				return true;
-			}
-
-			// Dynamic import to avoid SSR issues
-			const { WebContainer } = await import("@webcontainer/api");
-
-			// Start booting and save the promise
-			logInfo("Booting WebContainer...");
-			bootPromise = WebContainer.boot();
-
-			// Await the container boot
-			this.container = await bootPromise;
-			containerInstance = this.container;
-			this.isReady = true;
-			logInfo("WebContainer booted successfully");
-
-			// After boot is complete, set bootPromise to null for future boots if needed
-			bootPromise = null;
-
-			// Set up a basic project structure
-			logInfo("Setting up initial file system...");
-			await this.container.mount(this.getInitialFileSystem());
-
-			// Create the templates directory structure
-			try {
-				logInfo("Creating directory structure for templates...");
-				await this.container.fs.mkdir("templates", { recursive: true });
-				await this.container.fs.mkdir("templates/shadcn", { recursive: true });
-				logInfo("Templates directory structure created");
-			} catch (mkdirError) {
-				logInfo("Note: Templates directory may already exist", mkdirError);
-			}
-
-			// Pre-load the shadcn template files
-			logInfo("Pre-loading shadcn template files...");
-			try {
-				// Fetch directory listing from template API
-				const response = await fetch("/api/template-files?path=");
-				if (!response.ok) {
-					throw new Error(`Failed to fetch template directory listing: ${response.statusText}`);
-				}
-
-				// Process template files recursively
-				await this.preloadTemplateFiles();
-
-				// Ensure we have a components.json file at the root for any command to work
-				await this.ensureComponentsJsonExists();
-
-				logInfo("Shadcn template files pre-loaded successfully");
-			} catch (preloadError) {
-				logInfo(
-					"Error pre-loading template files",
-					preloadError instanceof Error ? preloadError.message : String(preloadError)
-				);
-				console.warn(
-					"Failed to pre-load template files, will try on-demand loading:",
-					preloadError
-				);
-				// Continue without failing - we'll try to load files on demand
-			}
-
-			return true;
-		} catch (error) {
-			// Reset state on error
-			bootPromise = null;
-			this.isReady = false;
-
-			console.error("Failed to initialize WebContainer:", error);
-
-			// Provide more specific error message based on the error
-			if (error instanceof Error) {
-				if (
-					error.message.includes("SharedArrayBuffer") ||
-					error.message.includes("crossOriginIsolated")
-				) {
-					throw new Error(
-						"WebContainer requires cross-origin isolation. Please use the manual processing option instead."
-					);
-				}
-
-				if (
-					error.message.includes("Unable to create more instances") ||
-					error.message.includes("Only a single WebContainer instance")
-				) {
-					throw new Error(
-						"A WebContainer instance is already running. Please refresh the page and try again."
-					);
-				}
-			}
-
-			throw error;
-		}
-	}
-
-	// Get the initial file system for the container
-	private getInitialFileSystem(): FileSystemTree {
-		return {
-			"package.json": {
-				file: {
-					contents: JSON.stringify({
-						name: "shadcn-template-sandbox",
-						version: "0.0.0",
-						private: true,
-						scripts: {
-							start: "node index.js",
-						},
-						dependencies: {},
-						devDependencies: {},
-					}),
-				},
-			},
-			"index.js": {
-				file: {
-					contents: `console.log('WebContainer initialized');`,
-				},
-			},
-		};
-	}
-
-	// Helper method to check if a file or directory exists
-	private async fileExists(path: string): Promise<boolean> {
-		try {
-			await this.container.fs.stat(path);
-			return true;
-		} catch (err) {
-			return false;
-		}
-	}
 
 	// Make sure components.json exists at the root
 	private async ensureComponentsJsonExists(): Promise<void> {
-		try {
-			// Check if components.json already exists
-			if (await this.fileExists("components.json")) {
-				logInfo("components.json already exists");
-				return;
-			}
-
-			// Read the template components.json from the API
-			const templateComponentsJson = await this.readTemplateFile("components.json");
-			if (templateComponentsJson && typeof templateComponentsJson === "string") {
-				// Write it to the root
-				await this.container.fs.writeFile("components.json", templateComponentsJson);
-				logInfo("Created components.json from template");
-				return;
-			}
-
-			// If not found in templates, create a default one
-			const defaultComponentsJson = {
-				$schema: "https://ui.shadcn.com/schema.json",
-				style: "default",
-				rsc: true,
-				tsx: true,
-				tailwind: {
-					config: "tailwind.config.ts",
-					css: "src/app/globals.css",
-					baseColor: "neutral",
-					cssVariables: true,
-				},
-				aliases: {
-					components: "@/components",
-					utils: "@/lib/utils",
-				},
-			};
-
-			await this.container.fs.writeFile(
-				"components.json",
-				JSON.stringify(defaultComponentsJson, null, 2)
-			);
-			logInfo("Created default components.json");
-		} catch (error) {
-			logInfo("Error ensuring components.json exists:", error);
-			// Don't throw, continue anyway
-		}
+		// Import the shared utility function
+		const { ensureComponentsJsonExists } = await import("./shared-utils");
+		// Use the shared implementation
+		await ensureComponentsJsonExists(this.container, (path) => this.readTemplateFile(path));
 	}
 
-	// Helper function to read file from templates/shadcn
 	private async readTemplateFile(filePath: string): Promise<string | Uint8Array | null> {
 		try {
 			// In the browser environment, we need to fetch the file
 			if (typeof window !== "undefined") {
-				const url = `/api/template-file-content?path=${encodeURIComponent(filePath)}`;
-				logInfo(`Fetching template file content from: ${url}`);
+				const url = `/api/file?path=${encodeURIComponent(filePath)}`;
+				logInfo(`Fetching file content from: ${url}`);
 
 				const response = await fetch(url);
 
@@ -834,11 +625,7 @@ export class ContainerManager {
 		}
 
 		try {
-			logInfo("Starting shadcn template installation...");
 			logInfo("WebContainer initialized and ready");
-
-			// Instead of installing with npm/npx, we'll directly use the template files
-			logInfo("Using shadcn template from templates/shadcn...");
 
 			// Process all files from the shadcn template
 			logInfo("Starting to process template files...");
@@ -1730,9 +1517,7 @@ export function cn(...inputs: ClassValue[]) {
 		logInfo("Importing project files", { count: files?.length || 0 });
 
 		// Files to synchronize with the host project
-		const targetFiles = files?.length
-			? files
-			: ["tailwind.config.ts", "components.json", "src/styles/globals.css", "src/lib/utils.ts"];
+		const targetFiles = files?.length ? files : getEssentialConfigFiles();
 
 		try {
 			for (const filePath of targetFiles) {
@@ -1755,6 +1540,13 @@ export function cn(...inputs: ClassValue[]) {
 							await this.container.fs.writeFile(filePath, content);
 							logInfo(`Imported project file: ${filePath}`);
 						}
+					} else {
+						// Try alternative paths for essential files
+						if (filePath === ProjectPaths.GLOBALS_CSS) {
+							await this.tryAlternativePaths(getAlternativePaths("globals.css"));
+						} else if (filePath === ProjectPaths.UTILS_TS) {
+							await this.tryAlternativePaths(getAlternativePaths("utils.ts"));
+						}
 					}
 				} catch (error) {
 					console.warn(`Failed to import file ${filePath}:`, error);
@@ -1765,6 +1557,48 @@ export function cn(...inputs: ClassValue[]) {
 		} catch (error) {
 			console.error("Error importing project files:", error);
 			throw error;
+		}
+	}
+
+	/**
+	 * Try to import files from alternative paths
+	 * @param paths Array of alternative paths to try
+	 */
+	private async tryAlternativePaths(paths: string[]): Promise<boolean> {
+		for (const path of paths) {
+			try {
+				if (await this.fileExists(path)) {
+					const response = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
+
+					if (response.ok) {
+						const content = await response.text();
+
+						// Ensure directory exists
+						const directory = path.split("/").slice(0, -1).join("/");
+						if (directory) {
+							await this.container.fs.mkdir(directory, { recursive: true });
+						}
+
+						// Write file to WebContainer
+						await this.container.fs.writeFile(path, content);
+						logInfo(`Imported alternative file: ${path}`);
+						return true;
+					}
+				}
+			} catch (error) {
+				// Continue to the next path
+			}
+		}
+		return false;
+	}
+
+	// Helper method to check if a file exists
+	private async fileExists(path: string): Promise<boolean> {
+		try {
+			await this.container.fs.stat(path);
+			return true;
+		} catch {
+			return false;
 		}
 	}
 }

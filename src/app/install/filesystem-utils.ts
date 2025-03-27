@@ -2,7 +2,7 @@
 
 import type { FileSystemTree } from "@webcontainer/api";
 import { logInfo } from "./logging";
-import { shouldIgnoreFile } from "./shared-utils";
+import { ensureComponentsJsonExists, shouldIgnoreFile } from "./shared-utils";
 import type { ContainerFile } from "./types";
 
 /**
@@ -19,6 +19,29 @@ export function getInitialFileSystem(): FileSystemTree {
 }
 
 /**
+ * Check if a file is essential based on config files and directories
+ * @param path File path to check
+ * @param essentialFiles Array of essential file paths
+ * @param essentialDirs Array of essential directory paths
+ */
+export function isEssentialPath(
+	path: string,
+	essentialFiles: string[],
+	essentialDirs: string[]
+): boolean {
+	// Normalize path
+	const normalizedPath = path.replace(/^\.\//, "").replace(/^\/+/, "");
+
+	// Check if it matches an essential file exactly
+	if (essentialFiles.includes(normalizedPath)) {
+		return true;
+	}
+
+	// Check if it's in an essential directory
+	return essentialDirs.some((dir) => normalizedPath.startsWith(dir + "/"));
+}
+
+/**
  * Check if a file or directory exists in the container
  */
 export async function fileExists(container: any, path: string): Promise<boolean> {
@@ -30,54 +53,8 @@ export async function fileExists(container: any, path: string): Promise<boolean>
 	}
 }
 
-/**
- * Ensure components.json exists at the root
- */
-export async function ensureComponentsJsonExists(
-	container: any,
-	readTemplateFile: (path: string) => Promise<string | Uint8Array | null>
-): Promise<void> {
-	try {
-		// Check if components.json already exists
-		if (await fileExists(container, "components.json")) {
-			logInfo("components.json already exists");
-			return;
-		}
-
-		// Read the template components.json from the API
-		const templateComponentsJson = await readTemplateFile("components.json");
-		if (templateComponentsJson && typeof templateComponentsJson === "string") {
-			// Write it to the root
-			await container.fs.writeFile("components.json", templateComponentsJson);
-			logInfo("Created components.json from template");
-			return;
-		}
-
-		// If not found in templates, create a default one
-		const defaultComponentsJson = {
-			$schema: "https://ui.shadcn.com/schema.json",
-			style: "default",
-			rsc: true,
-			tsx: true,
-			tailwind: {
-				config: "tailwind.config.ts",
-				css: "src/app/globals.css",
-				baseColor: "neutral",
-				cssVariables: true,
-			},
-			aliases: {
-				components: "@/components",
-				utils: "@/lib/utils",
-			},
-		};
-
-		await container.fs.writeFile("components.json", JSON.stringify(defaultComponentsJson, null, 2));
-		logInfo("Created default components.json");
-	} catch (error) {
-		logInfo("Error ensuring components.json exists:", error);
-		// Don't throw, continue anyway
-	}
-}
+// Re-export the ensureComponentsJsonExists function from shared-utils
+export { ensureComponentsJsonExists };
 
 /**
  * Take a snapshot of the file system

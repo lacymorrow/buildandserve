@@ -1,6 +1,7 @@
 "use client";
 
 import { logInfo } from "./logging";
+import { ProjectPaths, getAlternativePaths } from "./project-config";
 import {
 	BINARY_EXTENSIONS,
 	TEMPLATE_BASE_DIR,
@@ -35,8 +36,8 @@ export async function readTemplateFile(filePath: string): Promise<string | Uint8
 		}
 
 		// Fetch directly from source components
-		const url = `/api/template-file-content?path=${encodeURIComponent(normalizedPath)}`;
-		logInfo(`Fetching template file from: ${url}`);
+		const url = `/api/file?path=${encodeURIComponent(normalizedPath)}`;
+		logInfo(`Fetching file from: ${url}`);
 
 		const response = await fetch(url);
 
@@ -101,7 +102,24 @@ export async function getDirectoryEntries(directoryPath: string): Promise<string
 			return [];
 		}
 
-		const entries = await response.json();
+		const data = await response.json();
+
+		// Ensure we have a valid array of entries
+		if (!Array.isArray(data)) {
+			logInfo(`Invalid directory listing response for ${normalizedPath}, expected array`);
+			return [];
+		}
+
+		// Map complex objects to strings if needed
+		const entries = data.map((entry) => {
+			// If entry is an object with a name property, use that
+			if (entry && typeof entry === "object" && "name" in entry) {
+				return String(entry.name) + (entry.isDirectory ? "/" : "");
+			}
+			// Otherwise, convert to string
+			return String(entry);
+		});
+
 		logInfo(`Found ${entries.length} entries in ${normalizedPath || "root"}`);
 
 		// Cache the directory listing
@@ -180,98 +198,266 @@ export async function processTemplateFiles(projectStructure: string): Promise<Co
 }
 
 /**
- * Import project files into the container
- * @param container The container to import files into
+ * Import project files from host to container
+ * @param container WebContainer instance
  * @param fileExists Function to check if a file exists
- * @param files Optional list of files to import
+ * @param filesToImport Files to import
  */
 export async function importProjectFiles(
 	container: any,
 	fileExists: (path: string) => Promise<boolean>,
-	files?: string[]
-) {
+	filesToImport: string[]
+): Promise<void> {
 	try {
-		if (files && files.length > 0) {
-			// Import specific files
-			for (const file of files) {
-				try {
-					// Check if file already exists
-					const exists = await fileExists(file);
-					if (exists) {
-						logInfo(`File already exists, skipping: ${file}`);
-						continue;
-					}
-
-					// Read file content
-					const content = await readTemplateFile(file);
-					if (content) {
-						// Write the file to the container
-						if (typeof content === "string") {
-							await container.fs.writeFile(file, content);
-							logInfo(`Imported text file: ${file}`);
-						} else {
-							await container.fs.writeFile(file, content, null);
-							logInfo(`Imported binary file: ${file}`);
-						}
-					}
-				} catch (error) {
-					logInfo(`Error importing file: ${file}`, error);
+		// First try to import the files normally
+		for (const file of filesToImport) {
+			try {
+				// Check if the file already exists in the container
+				if (await fileExists(file)) {
+					logInfo(`File already exists in container: ${file}`);
+					continue;
 				}
-			}
-		} else {
-			// Import all project files
-			async function processDirectory(dirPath: string = TEMPLATE_BASE_DIR) {
-				const entries = await getDirectoryEntries(dirPath);
 
-				for (const entry of entries) {
-					const subPath = dirPath === TEMPLATE_BASE_DIR ? entry : `${dirPath}/${entry}`;
+				// Try to get the file from the server
+				const response = await fetch(`/api/file?path=${encodeURIComponent(file)}`);
 
-					// Skip if this file should be ignored
-					if (shouldIgnoreFile(subPath)) {
-						logInfo(`Skipping ignored file: ${subPath}`);
-						continue;
+				if (response.ok) {
+					const content = await response.text();
+
+					// Create directory structure if needed
+					const dir = file.substring(0, file.lastIndexOf("/"));
+					if (dir) {
+						await container.fs.mkdir(dir, { recursive: true });
 					}
 
-					// Process subdirectories and files
-					if (subPath.endsWith("/")) {
-						try {
-							await container.fs.mkdir(subPath, { recursive: true });
-							logInfo(`Created directory: ${subPath}`);
-						} catch (error) {
-							logInfo(`Directory might already exist: ${subPath}`, error);
-						}
-						await processDirectory(subPath);
-					} else {
-						try {
-							// Check if file already exists
-							const exists = await fileExists(subPath);
-							if (exists) {
-								logInfo(`File already exists, skipping: ${subPath}`);
-								continue;
-							}
+					// Write the file to the container
+					await container.fs.writeFile(file, content);
+					logInfo(`Imported project file: ${file}`);
+				} else {
+					logInfo(`File not found on server: ${file}, trying alternatives or defaults`);
 
-							// Read file content
-							const content = await readTemplateFile(subPath);
-							if (content) {
-								// Write the file to the container
-								if (typeof content === "string") {
-									await container.fs.writeFile(subPath, content);
-									logInfo(`Imported text file: ${subPath}`);
-								} else {
-									await container.fs.writeFile(subPath, content, null);
-									logInfo(`Imported binary file: ${subPath}`);
-								}
-							}
-						} catch (error) {
-							logInfo(`Error importing file: ${subPath}`, error);
-						}
+					// For critical files, try to generate default content if not found
+					if (file === ProjectPaths.GLOBALS_CSS) {
+						await ensureGlobalsCss(container);
+					} else if (file === ProjectPaths.UTILS_TS) {
+						await ensureUtilsTs(container);
 					}
 				}
+			} catch (error) {
+				// For critical files, ensure they exist regardless of errors
+				if (file === ProjectPaths.GLOBALS_CSS) {
+					await ensureGlobalsCss(container);
+				} else if (file === ProjectPaths.UTILS_TS) {
+					await ensureUtilsTs(container);
+				} else {
+					logInfo(`Error importing file ${file}:`, error);
+				}
 			}
-
-			await processDirectory();
 		}
 	} catch (error) {
 		logInfo("Error importing project files:", error);
+	}
+}
+
+/**
+ * Ensure globals.css exists in the container
+ * Creates it with default content if it doesn't exist
+ */
+async function ensureGlobalsCss(container: any): Promise<void> {
+	const path = ProjectPaths.GLOBALS_CSS;
+
+	try {
+		// Check if the file already exists
+		try {
+			await container.fs.stat(path);
+			logInfo(`globals.css already exists at ${path}`);
+			return;
+		} catch {
+			// File doesn't exist, continue with creation
+		}
+
+		// Try alternative paths first
+		for (const altPath of getAlternativePaths("globals.css")) {
+			try {
+				await container.fs.stat(altPath);
+				logInfo(`Found globals.css at alternative path: ${altPath}`);
+
+				// Read content from alternative path
+				const content = await container.fs.readFile(altPath, "utf-8");
+
+				// Create the directory structure
+				const dir = path.substring(0, path.lastIndexOf("/"));
+				if (dir) {
+					await container.fs.mkdir(dir, { recursive: true });
+				}
+
+				// Write to the target path
+				await container.fs.writeFile(path, content);
+				logInfo(`Copied globals.css from ${altPath} to ${path}`);
+				return;
+			} catch {
+				// Continue to next alternative path
+			}
+		}
+
+		// If no alternative paths work, create a default globals.css
+		const defaultContent = `@import "tw-animate-css";
+
+/* ! Tailwind directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}`;
+
+		// Create directory structure
+		const dir = path.substring(0, path.lastIndexOf("/"));
+		if (dir) {
+			await container.fs.mkdir(dir, { recursive: true });
+		}
+
+		// Write the default content
+		await container.fs.writeFile(path, defaultContent);
+		logInfo(`Created default globals.css at ${path}`);
+	} catch (error) {
+		logInfo(`Error ensuring globals.css exists:`, error);
+		throw error;
+	}
+}
+
+/**
+ * Ensure utils.ts exists in the container
+ * Creates it with default content if it doesn't exist
+ */
+async function ensureUtilsTs(container: any): Promise<void> {
+	const path = ProjectPaths.UTILS_TS;
+
+	try {
+		// Check if the file already exists
+		try {
+			await container.fs.stat(path);
+			logInfo(`utils.ts already exists at ${path}`);
+			return;
+		} catch {
+			// File doesn't exist, continue with creation
+		}
+
+		// Try alternative paths first
+		for (const altPath of getAlternativePaths("utils.ts")) {
+			try {
+				await container.fs.stat(altPath);
+				logInfo(`Found utils.ts at alternative path: ${altPath}`);
+
+				// Read content from alternative path
+				const content = await container.fs.readFile(altPath, "utf-8");
+
+				// Create the directory structure
+				const dir = path.substring(0, path.lastIndexOf("/"));
+				if (dir) {
+					await container.fs.mkdir(dir, { recursive: true });
+				}
+
+				// Write to the target path
+				await container.fs.writeFile(path, content);
+				logInfo(`Copied utils.ts from ${altPath} to ${path}`);
+				return;
+			} catch {
+				// Continue to next alternative path
+			}
+		}
+
+		// If no alternative paths work, create a default utils.ts
+		const defaultContent = `import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+	return twMerge(clsx(inputs));
+}
+`;
+
+		// Create directory structure
+		const dir = path.substring(0, path.lastIndexOf("/"));
+		if (dir) {
+			await container.fs.mkdir(dir, { recursive: true });
+		}
+
+		// Write the default content
+		await container.fs.writeFile(path, defaultContent);
+		logInfo(`Created default utils.ts at ${path}`);
+	} catch (error) {
+		logInfo(`Error ensuring utils.ts exists:`, error);
+		throw error;
 	}
 }

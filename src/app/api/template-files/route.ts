@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import path from "path";
-import { TEMPLATE_BASE_DIR, directoryCache, sanitizePath, shouldIgnoreFile } from "../utils";
+import { TEMPLATE_BASE_DIR, directoryCache, sanitizePath } from "../utils";
 
 /**
  * Get all files in a directory with caching
@@ -18,21 +18,16 @@ async function getDirectoryContents(directoryPath: string) {
 		const fullPath = path.join(process.cwd(), TEMPLATE_BASE_DIR, directoryPath);
 		const entries = await fs.readdir(fullPath, { withFileTypes: true });
 
-		// Filter out unwanted files before returning the list
-		const filteredEntries = entries
-			.filter((entry) => {
-				const fullEntryPath = path.join(directoryPath, entry.name);
-				return !shouldIgnoreFile(fullEntryPath);
-			})
-			.map((entry) => ({
-				name: entry.name,
-				isDirectory: entry.isDirectory(),
-			}));
+		// Map entries to consistent format
+		const mappedEntries = entries.map((entry) => ({
+			name: entry.name,
+			isDirectory: entry.isDirectory(),
+		}));
 
 		// Cache the result
-		directoryCache.set(directoryPath, filteredEntries);
+		directoryCache.set(directoryPath, mappedEntries);
 
-		return filteredEntries;
+		return mappedEntries;
 	} catch (error) {
 		console.error(`Error reading directory: ${directoryPath}`, error);
 		return [];
