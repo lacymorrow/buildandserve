@@ -1,5 +1,4 @@
 import { routes } from "@/config/routes";
-import { STATUS_CODES } from "@/config/status-codes";
 import { env } from "@/env";
 import { logger } from "@/lib/logger";
 import { redirectWithCode, routeRedirectWithCode } from "@/lib/utils/redirect-with-code";
@@ -102,9 +101,9 @@ const authWithOptions = async (props?: AuthProps) => {
 	//   return handleRedirect(STATUS_CODES.AUTH_REFRESH.code);
 	// }
 
-	if (protect && !session?.user?.id) {
-		return handleRedirect(errorCode ?? STATUS_CODES.AUTH.code);
-	}
+	// if (protect && !session?.user?.id) {
+	// 	return handleRedirect(errorCode ?? STATUS_CODES.AUTH.code);
+	// }
 
 	// TODO: RBAC
 	// if (role && session?.user?.role !== role) {

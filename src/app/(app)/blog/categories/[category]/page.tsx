@@ -1,7 +1,7 @@
+import { Link } from "@/components/primitives/link-with-transition"; // Add this line
 import { Badge } from "@/components/ui/badge";
 import { getBlogCategories, getBlogPosts } from "@/lib/blog";
 import { cn } from "@/lib/utils";
-import { Link } from "@/components/primitives/link-with-transition"; // Add this line
 
 export default async function CategoryPage({ searchParams }: { searchParams: Promise<{ category: string }> }) {
 	const resolvedParams = await searchParams;

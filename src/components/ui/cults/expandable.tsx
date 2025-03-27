@@ -506,5 +506,6 @@ export {
 	ExpandableContent,
 	ExpandableContext,
 	ExpandableTrigger,
-	useExpandable,
+	useExpandable
 };
+

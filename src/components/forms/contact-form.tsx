@@ -14,12 +14,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { submitContactForm } from "@/server/actions/contact";
 import { type ContactFormData, contactFormSchema } from "@/types/contact";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
 import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useForm } from "react-hook-form";
 
 interface ContactFormProps {
 	/** Optional default values for the form */

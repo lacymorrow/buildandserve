@@ -234,7 +234,7 @@
     "autoprefixer": "10.4.21",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "cursor-tools": "latest",
+    "cursor-tools": "^0.5.0",
     "dotenv": "^16.4.7",
     "dotenv-cli": "^8.0.0",
     "eslint": "^9",

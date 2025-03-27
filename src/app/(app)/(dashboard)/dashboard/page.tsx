@@ -127,7 +127,7 @@ export default async function DashboardPage() {
 		checkVercelConnection(userId),
 		PaymentService.getUserPaymentStatus(userId),
 		PaymentService.hasUserPurchasedProduct({ userId, productId: siteConfig.store.products.shipkit, provider: "lemonsqueezy" }),
-		PaymentService.hasUserActiveSubscription({ userId, provider: "lemonsqueezy" }),
+		PaymentService.hasUserActiveSubscription({ userId }),
 	]);
 
 	return (
