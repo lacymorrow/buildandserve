@@ -6,9 +6,9 @@ This document outlines the consolidation work performed on the ShipKit installat
 
 ### 1. API Routes Consolidation
 
-We've consolidated duplicated API routes from `/app/api-broke` into the main `/app/api` directory:
+We've consolidated duplicated API routes from `/app/install/api-broke` into the main `/app/install/api` directory:
 
-- **Shared Utilities**: Created `/app/api/utils.ts` with shared constants, types, and helper functions
+- **Shared Utilities**: Created `/app/install/api/utils.ts` with shared constants, types, and helper functions
 - **Consistent Approach**: Made all API routes follow the same patterns for file handling, error management, and response formatting
 - **Caching Improvements**: Added multi-level caching to reduce redundant file system operations and API calls
 - **Security Enhancements**: Improved path sanitization and validation throughout
@@ -84,9 +84,9 @@ Implemented direct usage of source components instead of template files:
 
 The API routes follow a consistent pattern:
 
-1. `/api/file` - Retrieves file contents
-2. `/api/template-files` - Lists source component files and directories
-3. `/api/template-file-content` - Retrieves source component file contents
+1. `/install/api/file` - Retrieves file contents
+2. `/install/api/template-files` - Lists source component files and directories
+3. `/install/api/template-file-content` - Retrieves source component file contents
 
 All routes use shared utilities from `utils.ts` including:
 
@@ -274,10 +274,10 @@ console.log(`Added ${changedFiles.length} files`);
 
 ```typescript
 // Fetch a source component file
-const response = await fetch('/api/template-file-content?path=button.tsx');
+const response = await fetch('/install/api/template-file-content?path=button.tsx');
 const fileContent = await response.text();
 
 // List source component files
-const response = await fetch('/api/template-files?path=components');
+const response = await fetch('/install/api/template-files?path=components');
 const files = await response.json();
 ```

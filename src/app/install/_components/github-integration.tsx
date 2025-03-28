@@ -102,7 +102,7 @@ export function GitHubIntegration({ changedFiles, disabled, command }: GitHubInt
 		successMessage: string | ((data: any) => string)
 	) => {
 		addProgressMessage(progressMessage);
-		const response = await fetch(`/api/github/${endpoint}`, {
+		const response = await fetch(`/install/api/github/${endpoint}`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(data),

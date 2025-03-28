@@ -219,7 +219,7 @@ export class ContainerManager {
 		try {
 			// In the browser environment, we need to fetch the file
 			if (typeof window !== "undefined") {
-				const url = `/api/file?path=${encodeURIComponent(filePath)}`;
+				const url = `/install/api/file?path=${encodeURIComponent(filePath)}`;
 				logInfo(`Fetching file content from: ${url}`);
 
 				const response = await fetch(url);
@@ -269,7 +269,7 @@ export class ContainerManager {
 			try {
 				// Make a fetch request to get the directory listing
 				const response = await fetch(
-					`/api/template-files?path=${encodeURIComponent(directoryPath)}`
+					`/install/api/template-files?path=${encodeURIComponent(directoryPath)}`
 				);
 				if (!response.ok) {
 					logInfo(`Failed to fetch directory listing for ${directoryPath}`, response.statusText);
@@ -353,7 +353,7 @@ export class ContainerManager {
 			try {
 				// Make a fetch request to get the directory listing
 				const response = await fetch(
-					`/api/template-files?path=${encodeURIComponent(directoryPath)}`
+					`/install/api/template-files?path=${encodeURIComponent(directoryPath)}`
 				);
 				if (!response.ok) {
 					logInfo(`Failed to fetch directory listing for ${directoryPath}`, response.statusText);
@@ -1227,7 +1227,7 @@ export function cn(...inputs: ClassValue[]) {
 					// Check if file exists in current project
 					if (await this.fileExists(filePath)) {
 						// Get file content from the server
-						const response = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
+						const response = await fetch(`/install/api/file?path=${encodeURIComponent(filePath)}`);
 
 						if (response.ok) {
 							const content = await response.text();
@@ -1270,7 +1270,7 @@ export function cn(...inputs: ClassValue[]) {
 		for (const path of paths) {
 			try {
 				if (await this.fileExists(path)) {
-					const response = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
+					const response = await fetch(`/install/api/file?path=${encodeURIComponent(path)}`);
 
 					if (response.ok) {
 						const content = await response.text();

@@ -7,7 +7,7 @@ This directory contains API routes for the ShipKit installation workflow. These 
 ### Core API Routes
 
 1. `file/route.ts` - Retrieves file contents from the filesystem
-   - Usage: `/api/file?path=path/to/file`
+   - Usage: `/install/api/file?path=path/to/file`
 2. `template-files/route.ts` - Lists files in a directory
 
 ### Shared Utilities

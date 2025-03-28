@@ -36,7 +36,7 @@ export async function readTemplateFile(filePath: string): Promise<string | Uint8
 		}
 
 		// Fetch directly from source components
-		const url = `/api/file?path=${encodeURIComponent(normalizedPath)}`;
+		const url = `/install/api/file?path=${encodeURIComponent(normalizedPath)}`;
 		logInfo(`Fetching file from: ${url}`);
 
 		const response = await fetch(url);
@@ -96,7 +96,9 @@ export async function getDirectoryEntries(directoryPath: string): Promise<string
 			return directoryListingCache.get(normalizedPath) || [];
 		}
 
-		const response = await fetch(`/api/template-files?path=${encodeURIComponent(normalizedPath)}`);
+		const response = await fetch(
+			`/install/api/template-files?path=${encodeURIComponent(normalizedPath)}`
+		);
 		if (!response.ok) {
 			logInfo(`Failed to fetch directory listing for ${normalizedPath}`, response.statusText);
 			return [];
@@ -219,7 +221,7 @@ export async function importProjectFiles(
 				}
 
 				// Try to get the file from the server
-				const response = await fetch(`/api/file?path=${encodeURIComponent(file)}`);
+				const response = await fetch(`/install/api/file?path=${encodeURIComponent(file)}`);
 
 				if (response.ok) {
 					const content = await response.text();

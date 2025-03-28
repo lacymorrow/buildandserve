@@ -142,7 +142,7 @@ export async function readTemplateFile(filePath: string): Promise<string | Uint8
 			}
 
 			// Fetch directly from source components
-			const url = `/api/file?path=${encodeURIComponent(normalizedPath)}`;
+			const url = `/install/api/file?path=${encodeURIComponent(normalizedPath)}`;
 
 			const response = await fetch(url);
 
@@ -195,7 +195,9 @@ export async function getDirectoryEntries(directoryPath = ""): Promise<any[]> {
 			return directoryListingCache.get(normalizedPath) || [];
 		}
 
-		const response = await fetch(`/api/template-files?path=${encodeURIComponent(normalizedPath)}`);
+		const response = await fetch(
+			`/install/api/template-files?path=${encodeURIComponent(normalizedPath)}`
+		);
 		if (!response.ok) {
 			return [];
 		}
