@@ -1,9 +1,9 @@
+import { AuthForm } from "@/app/(app)/(authentication)/_components/auth-form";
 import { Icon } from "@/components/assets/icon";
 import { Divider } from "@/components/primitives/divider";
 import { Link } from "@/components/primitives/link-with-transition";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
-import { AuthForm } from "../_components/auth-form";
 import { AuthenticationCard } from "../_components/authentication-card";
 import { SignUpForm } from "./_components/sign-up-form";
 

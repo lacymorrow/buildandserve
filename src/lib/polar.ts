@@ -96,7 +96,7 @@ export const getOrdersByEmail = async (email: string): Promise<PolarOrder[]> => 
 		// Transform the Polar orders to our PolarOrder interface
 		return userOrders.map((order) => mapToPolarOrder(order));
 	} catch (error) {
-		logger.error("Error fetching Polar orders by email:", error);
+		logger.warn("Error fetching Polar orders by email:", error);
 		return [];
 	}
 };

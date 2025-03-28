@@ -14,9 +14,6 @@ import type { NextConfig } from "next";
 import { env } from "@/env";
 
 let nextConfig: NextConfig = {
-	publicRuntimeConfig: {
-		NEXT_PUBLIC_AUTH_PROVIDERS: ["google", "github", "email"],
-	},
 	async headers() {
 		return [
 			{
