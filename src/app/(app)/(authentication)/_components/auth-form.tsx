@@ -20,7 +20,7 @@ interface AuthFormProps {
 }
 
 async function getProviders() {
-	const response = await fetch("/api/providers");
+	const response = await fetch("/api/auth/providers");
 	if (!response.ok) {
 		console.error("Failed to fetch providers:", await response.text());
 		return [];
@@ -28,7 +28,7 @@ async function getProviders() {
 	return response.json();
 }
 
-export  function AuthForm({
+export function AuthForm({
 	mode = "sign-in",
 	className,
 	children,
@@ -47,7 +47,11 @@ export  function AuthForm({
 		? { text: "Don't have an account?", href: routes.auth.signUp, label: "Sign up" }
 		: { text: "Already have an account?", href: routes.auth.signIn, label: "Sign in" };
 
-	const [providers, setProviders] = useState<Provider[]>([]);
+	const [providers, setProviders] = useState<Array<{
+		id: string;
+		name: string;
+		isExcluded?: boolean;
+	}>>([]);
 
 	useEffect(() => {
 		getProviders().then(setProviders);
