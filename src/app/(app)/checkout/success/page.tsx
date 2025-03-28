@@ -1,5 +1,5 @@
 import { AuthForm } from "@/app/(app)/(authentication)/_components/auth-form";
-import { SignInForm } from "@/app/(app)/(authentication)/sign-in/_components/sign-in";
+import { SignIn } from "@/app/(app)/(authentication)/sign-in/_components/sign-in";
 import { Link } from "@/components/primitives/link-with-transition";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -225,7 +225,7 @@ export default async function CheckoutSuccessPage({ searchParams: searchParamsPr
 						</Card>
 					) : (
 						<AuthForm mode="sign-in" title="Sign in to get started" description="Get repository access and deploy your site in minutes">
-							<SignInForm />
+							<SignIn />
 						</AuthForm>
 					)}
 
