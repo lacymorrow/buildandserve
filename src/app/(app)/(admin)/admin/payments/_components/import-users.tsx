@@ -9,7 +9,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { importPayments } from "@/server/actions/payment";
+import { importPayments } from "@/server/actions/payments";
 import type { ImportProvider } from "@/types/payments";
 import { Import } from "lucide-react";
 import { useState } from "react";

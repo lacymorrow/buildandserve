@@ -1,7 +1,7 @@
 import { PolarProductStatus } from "@/components/shipkit/polar-product-status";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { env } from "@/env";
-import { getUserPurchasedProducts } from "@/server/actions/payment";
+import { getUserPurchasedProducts } from "@/server/actions/payments";
 import { auth } from "@/server/auth";
 
 export const metadata = {

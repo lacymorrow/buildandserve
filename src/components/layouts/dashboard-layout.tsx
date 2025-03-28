@@ -4,9 +4,7 @@ import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { routes } from "@/config/routes";
-import { auth } from "@/server/auth";
 import { SidebarCloseIcon } from "lucide-react";
-import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 export const DashboardLayout = async ({
@@ -14,12 +12,6 @@ export const DashboardLayout = async ({
 }: {
 	children: ReactNode;
 }) => {
-	const session = await auth();
-
-	if (!session?.user) {
-		redirect(routes.auth.signIn);
-	}
-
 	return (
 		<SidebarLayout>
 			<AppSidebar />

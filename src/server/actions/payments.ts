@@ -3,7 +3,7 @@
 import { routes } from "@/config/routes";
 import { logger } from "@/lib/logger";
 import { auth } from "@/server/auth";
-import { db } from "@/server/db";
+import { db, isDatabaseInitialized } from "@/server/db";
 import { users } from "@/server/db/schema";
 import { isAdmin } from "@/server/services/admin-service";
 import { PaymentService } from "@/server/services/payment-service";
@@ -22,6 +22,100 @@ const rateLimits = {
 		duration: 60 * 30, // per 30 minutes
 	},
 };
+
+/**
+ * Server action to create a LemonSqueezy payment record and grant access
+ */
+export async function createLemonSqueezyPayment(data: {
+	orderId: string;
+	orderIdentifier: string;
+	userId?: string;
+	userEmail?: string;
+	customData?: {
+		user_id?: string;
+		user_email?: string;
+	};
+	status: string;
+	total: number;
+	productName: string;
+}) {
+	const requestId = crypto.randomUUID();
+	const startTime = Date.now();
+
+	logger.info("LemonSqueezy payment creation request received", {
+		requestId,
+		timestamp: new Date().toISOString(),
+		orderId: data.orderId,
+		userId: data.userId,
+		status: data.status,
+	});
+
+	try {
+		// Check if database is initialized
+		if (!isDatabaseInitialized()) {
+			logger.error("Database not initialized", { requestId });
+			throw new Error("Database not initialized");
+		}
+
+		// Only process paid orders
+		if (data.status !== "paid") {
+			logger.warn("Order not paid", {
+				requestId,
+				orderId: data.orderId,
+				status: data.status,
+			});
+			throw new Error("Order not paid");
+		}
+
+		// Use either the session user ID or the custom data user ID
+		const actualUserId = data.userId || data.customData?.user_id;
+
+		if (!actualUserId) {
+			logger.error("No user ID found", {
+				requestId,
+				orderId: data.orderId,
+				userId: data.userId,
+				customData: data.customData,
+			});
+			throw new Error("No user ID found");
+		}
+
+		// Create payment using the existing service method
+		const payment = await PaymentService.createPayment({
+			userId: actualUserId,
+			orderId: data.orderId,
+			amount: data.total,
+			status: "completed",
+			processor: "lemonsqueezy",
+			metadata: {
+				orderIdentifier: data.orderIdentifier,
+				userEmail: data.userEmail || data.customData?.user_email,
+				customData: data.customData,
+				productName: data.productName,
+			},
+		});
+
+		const processingTime = Date.now() - startTime;
+		logger.info("LemonSqueezy payment created successfully", {
+			requestId,
+			orderId: data.orderId,
+			userId: actualUserId,
+			paymentId: payment.id,
+			processingTime,
+		});
+
+		return { success: true, paymentId: payment.id };
+	} catch (error) {
+		const processingTime = Date.now() - startTime;
+		logger.error("Error creating LemonSqueezy payment", {
+			requestId,
+			error: error instanceof Error ? error.message : String(error),
+			stack: error instanceof Error ? error.stack : undefined,
+			processingTime,
+		});
+		throw error;
+	}
+}
 
 /**
  * Server action to check if a user has purchased a specific product

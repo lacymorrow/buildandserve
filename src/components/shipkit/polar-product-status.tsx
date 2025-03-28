@@ -4,7 +4,7 @@ import { Icons } from "@/components/assets/icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { checkUserPurchasedProduct, createPolarCheckoutUrl } from "@/server/actions/payment";
+import { checkUserPurchasedProduct, createPolarCheckoutUrl } from "@/server/actions/payments";
 import { AlertCircle, CheckCircle, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";

@@ -6,6 +6,9 @@ import { routes } from "@/config/routes";
 import { ArrowUpRight, CheckCircle } from "lucide-react";
 
 interface DeploymentInfo {
+	teamId: string | undefined;
+	projectId: string | undefined;
+	deploymentId: string | undefined;
 	deploymentDashboardUrl: string;
 	deploymentUrl: string;
 	productionDeployHookUrl: string;
@@ -14,21 +17,35 @@ interface DeploymentInfo {
 	repositoryUrl: string;
 }
 
-function extractDeploymentInfo(searchParams: { [key: string]: string }): DeploymentInfo {
+function extractDeploymentInfo(searchParams: Record<string, string | string[] | undefined>): DeploymentInfo {
+	const teamId = typeof searchParams.teamId === 'string' ? searchParams.teamId : undefined;
+	const projectId = typeof searchParams.projectId === 'string' ? searchParams.projectId : undefined;
+	const deploymentId = typeof searchParams.deploymentId === 'string' ? searchParams.deploymentId : undefined;
+
+	function decodeParam(param: string | string[] | undefined): string {
+		if (typeof param === 'string') {
+			return decodeURIComponent(param);
+		}
+		return '';
+	}
+
 	return {
-		deploymentDashboardUrl: decodeURIComponent(searchParams["deployment-dashboard-url"] || ""),
-		deploymentUrl: decodeURIComponent(searchParams["deployment-url"] || ""),
-		productionDeployHookUrl: decodeURIComponent(searchParams["production-deploy-hook-url"] || ""),
-		projectDashboardUrl: decodeURIComponent(searchParams["project-dashboard-url"] || ""),
-		projectName: decodeURIComponent(searchParams["project-name"] || ""),
-		repositoryUrl: decodeURIComponent(searchParams["repository-url"] || ""),
+		teamId,
+		projectId,
+		deploymentId,
+		deploymentDashboardUrl: decodeParam(searchParams["deployment-dashboard-url"]),
+		deploymentUrl: decodeParam(searchParams["deployment-url"]),
+		productionDeployHookUrl: decodeParam(searchParams["production-deploy-hook-url"]),
+		projectDashboardUrl: decodeParam(searchParams["project-dashboard-url"]),
+		projectName: decodeParam(searchParams["project-name"]),
+		repositoryUrl: decodeParam(searchParams["repository-url"]),
 	};
 }
 
 export default async function VercelDeployPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ [key: string]: string }>;
+	searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
 	const deploymentInfo = extractDeploymentInfo(await searchParams);
 	console.log(deploymentInfo);
@@ -81,7 +98,7 @@ export default async function VercelDeployPage({
 							Visit Site <ArrowUpRight className="w-4 h-4" />
 						</Link>
 						<Button asChild variant="outline">
-							<Link href={routes.dashboard}>
+							<Link href={routes.app.dashboard}>
 								Shipkit Dashboard
 							</Link>
 						</Button>

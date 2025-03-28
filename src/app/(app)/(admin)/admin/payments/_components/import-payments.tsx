@@ -10,7 +10,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { importPayments } from "@/server/actions/payment";
+import { importPayments } from "@/server/actions/payments";
 import { FolderSyncIcon, Loader2 } from "lucide-react";
 import { useState } from "react";
 
