@@ -43,13 +43,13 @@ The script will automatically derive sensible defaults for other values based on
 
 If you prefer to rebrand manually, you can update the following files:
 
-1. `src/config/site.ts`: This is the main configuration file that contains most of the branding information.
+1. `src/config/site-config.ts`: This is the main configuration file that contains most of the branding information.
 2. `.env.example`: Update the database name.
 3. `package.json`: Update the project name.
 
 ### Site Configuration
 
-The `src/config/site.ts` file contains a `branding` section that centralizes most of the branding information:
+The `src/config/site-config.ts` file contains a `branding` section that centralizes most of the branding information:
 
 ```typescript
 branding: {
@@ -92,8 +92,8 @@ After rebranding, you should:
 
 If you encounter any issues during rebranding:
 
-1. Check the `src/config/site.ts` file to ensure all branding information has been updated correctly
+1. Check the `src/config/site-config.ts` file to ensure all branding information has been updated correctly
 2. Look for any hardcoded references to "Shipkit" or "bones" in the codebase
 3. Update any references that weren't caught by the rebranding script
 
-If you find any hardcoded references that weren't updated by the rebranding script, please consider contributing to improve the script. 
+If you find any hardcoded references that weren't updated by the rebranding script, please consider contributing to improve the script.

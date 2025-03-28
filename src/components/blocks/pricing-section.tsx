@@ -2,7 +2,7 @@ import { Link } from "@/components/primitives/link-with-transition"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { routes } from "@/config/routes"
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/config/site-config"
 import { cn } from "@/lib/utils"
 import { ArrowRight, Check, Sparkles } from 'lucide-react'
 
