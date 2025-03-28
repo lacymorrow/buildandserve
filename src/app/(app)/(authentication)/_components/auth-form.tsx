@@ -37,13 +37,18 @@ export async function AuthForm({
 		? { text: "Don't have an account?", href: routes.auth.signUp, label: "Sign up" }
 		: { text: "Already have an account?", href: routes.auth.signIn, label: "Sign in" };
 
-	// Fetch auth providers data
-	const orderedProviders = await AuthProviderService.getOrderedProviders();
-	const filteredProviders = orderedProviders.filter(Boolean) as Array<{
-		id: string;
-		name: string;
-		isExcluded?: boolean;
-	}>;
+
+	const filteredProviders = await AuthProviderService.getOrderedProviders().then((providers) => {
+		return providers.filter(Boolean) as Array<{
+			id: string;
+			name: string;
+			isExcluded?: boolean;
+		}>;
+	}).catch((error) => {
+		console.error("Error fetching auth providers:", error);
+		// Continue with empty providers array
+		return [];
+	});
 
 	return (
 		<div className={cn("flex flex-col gap-6 overflow-y-auto", className)} {...props}>
@@ -55,11 +60,13 @@ export async function AuthForm({
 			)}
 			<CardContent className="pb-0">
 				<div className="grid gap-6 relative">
-					<OAuthButtons
-						collapsible
-						variant="icons"
-						providers={filteredProviders}
-					/>
+					{filteredProviders.length > 0 ? (
+						<OAuthButtons
+							collapsible
+							variant="icons"
+							providers={filteredProviders}
+						/>
+					) : null}
 
 					<Suspense fallback={<SuspenseFallback />}>
 						{children}

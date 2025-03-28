@@ -22,7 +22,6 @@ import {
 	DrawerTrigger,
 } from "@/components/ui/drawer";
 import { debounce } from "@/lib/utils/debounce";
-import { useMediaQuery } from "@uidotdev/usehooks";
 import { useRouter } from "next/navigation";
 
 interface DrawerDialogProps {
@@ -51,7 +50,6 @@ export function Modal({
 	const [isOpen, setIsOpen] = React.useState(
 		typeof open === "undefined" ? true : open,
 	);
-	const isDesktop = useMediaQuery("(min-width: 768px)");
 
 	// Don't immediately close the modal, we need to wait for the modal to animate closed before we should navigate
 	// @see https://nextjs.org/docs/app/building-your-application/routing/parallel-routes#modals
@@ -72,59 +70,64 @@ export function Modal({
 		}
 	};
 
-	// Todo: The children are rendered twice, so state is not maintained when changing screen sizes
-	if (isDesktop) {
-		return (
-			<Dialog
-				onOpenChange={(open) => handleOpenChange(open)}
-				open={typeof open === "undefined" ? isOpen : open}
-				{...props}
-			>
-				{trigger && <DialogTrigger asChild={asChild}>{trigger}</DialogTrigger>}
-
-				<DialogContent className={className}>
-					<DialogHeader>
-						{dialogTitle ? (
-							<DialogTitle>{dialogTitle}</DialogTitle>
-						) : (
-							<DialogTitle className="sr-only">
-								{dialogTitle ?? "Modal dialog"}
-							</DialogTitle>
-						)}
-						{dialogDescription && (
-							<DialogDescription>{dialogDescription}</DialogDescription>
-						)}
-					</DialogHeader>
-					{children}
-				</DialogContent>
-			</Dialog>
-		);
-	}
-
+	// Using Tailwind responsive classes to conditionally render Dialog or Drawer
+	// md: breakpoint is typically 768px which is a common tablet/desktop breakpoint
 	return (
-		<Drawer
-			onOpenChange={(open) => handleOpenChange(open)}
-			open={typeof open === "undefined" ? isOpen : open}
-		>
-			{trigger && <DrawerTrigger asChild={asChild}>{trigger}</DrawerTrigger>}
-			<DrawerContent>
-				<DrawerHeader className="text-left">
-					<DrawerTitle className={dialogTitle ? "" : "sr-only"}>
-						{dialogTitle ?? "Modal"}
-					</DrawerTitle>
-					<DrawerDescription className={dialogDescription ? "" : "sr-only"}>
-						{dialogDescription ?? ""}
-					</DrawerDescription>
-				</DrawerHeader>
-				{children}
-				<DrawerFooter className="pt-2">
-					<DrawerClose asChild>
-						<Button type="button" variant="outline">
-							Cancel
-						</Button>
-					</DrawerClose>
-				</DrawerFooter>
-			</DrawerContent>
-		</Drawer>
+		<>
+			{/* Dialog for desktop - hidden on small screens, visible on medium and up */}
+			<div className="hidden md:block">
+				<Dialog
+					onOpenChange={(open) => handleOpenChange(open)}
+					open={typeof open === "undefined" ? isOpen : open}
+					{...props}
+				>
+					{trigger && <DialogTrigger asChild={asChild}>{trigger}</DialogTrigger>}
+
+					<DialogContent className={className}>
+						<DialogHeader>
+							{dialogTitle ? (
+								<DialogTitle>{dialogTitle}</DialogTitle>
+							) : (
+								<DialogTitle className="sr-only">
+									{dialogTitle ?? "Modal dialog"}
+								</DialogTitle>
+							)}
+							{dialogDescription && (
+								<DialogDescription>{dialogDescription}</DialogDescription>
+							)}
+						</DialogHeader>
+						{children}
+					</DialogContent>
+				</Dialog>
+			</div>
+
+			{/* Drawer for mobile - visible on small screens, hidden on medium and up */}
+			<div className="md:hidden">
+				<Drawer
+					onOpenChange={(open) => handleOpenChange(open)}
+					open={typeof open === "undefined" ? isOpen : open}
+				>
+					{trigger && <DrawerTrigger asChild={asChild}>{trigger}</DrawerTrigger>}
+					<DrawerContent>
+						<DrawerHeader className="text-left">
+							<DrawerTitle className={dialogTitle ? "" : "sr-only"}>
+								{dialogTitle ?? "Modal"}
+							</DrawerTitle>
+							<DrawerDescription className={dialogDescription ? "" : "sr-only"}>
+								{dialogDescription ?? ""}
+							</DrawerDescription>
+						</DrawerHeader>
+						{children}
+						<DrawerFooter className="pt-2">
+							<DrawerClose asChild>
+								<Button type="button" variant="outline">
+									Cancel
+								</Button>
+							</DrawerClose>
+						</DrawerFooter>
+					</DrawerContent>
+				</Drawer>
+			</div>
+		</>
 	);
 }

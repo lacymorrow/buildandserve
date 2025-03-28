@@ -1,5 +1,5 @@
 "use client";
-import { cn } from "@/cuicui/utils/cn/cn";
+import { cn } from "@/lib/utils";
 import { useId } from "react";
 
 type DotPatternProps = {
@@ -13,7 +13,7 @@ type DotPatternProps = {
   className?: string;
 };
 
-export function DotsBackground({
+export function DotPattern({
   width = 16,
   height = 16,
   x = 0,
@@ -52,3 +52,6 @@ export function DotsBackground({
     </svg>
   );
 }
+
+// Export for backward compatibility
+export const DotsBackground = DotPattern;
