@@ -57,5 +57,35 @@
       "excludeFiles": "{.next,*.cache,node_modules/prettier/**,node_modules/eslint/**,node_modules/@types/**,node_modules/typescript/**,public,app}/**"
     }
   },
+
+  "outputFileTracing": false,
+  "outputFileTracingExcludes": {
+    "*": [
+      "**/*.test.*",
+      "**/*.spec.*",
+      "**/*.stories.*",
+      "**/tests/**",
+      "**/docs/**",
+      "**/.git/**",
+      "**/.github/**",
+      "**/.vscode/**",
+      "**/.next/cache/**",
+      "**/node_modules/typescript/**",
+      "**/node_modules/@types/**",
+      "**/node_modules/eslint/**",
+      "**/node_modules/prettier/**",
+      "**/node_modules/typescript/**",
+      "**/node_modules/react-syntax-highlighter/**",
+      "**/node_modules/canvas-confetti/**",
+      "**/node_modules/@huggingface/transformers/**",
+      "**/node_modules/three/**",
+      "**/node_modules/@react-three/**",
+      "**/node_modules/jspdf/**"
+    ]
+  },
+  "outputFileTracingIncludes": {
+    "src/server/services/payment-service.ts": ["node_modules/drizzle-orm/**"]
+  },
+
   "crons": []
 }
