@@ -117,16 +117,16 @@ let nextConfig: NextConfig = {
 		// Remove all console logs
 		// removeConsole: true
 		// Remove console logs only in production, excluding error logs
-		// removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false
+		removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false,
 
 		// Use DISABLE_LOGGING to disable all logging except error logs
 		// Use DISABLE_ERROR_LOGGING to disable error logging too
-		removeConsole:
-			process.env.DISABLE_LOGGING === "true"
-				? process.env.DISABLE_ERROR_LOGGING === "true"
-					? true
-					: { exclude: ["error"] }
-				: false,
+		// removeConsole:
+		// 	process.env.DISABLE_LOGGING === "true"
+		// 		? process.env.DISABLE_ERROR_LOGGING === "true"
+		// 			? true
+		// 			: { exclude: ["error"] }
+		// 		: false,
 	},
 
 	outputFileTracingExcludes: {

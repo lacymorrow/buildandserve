@@ -108,8 +108,6 @@ export const env = createEnv({
 		// Polar Products
 		NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID: z.string().optional(),
 		NEXT_PUBLIC_POLAR_ONE_TIME_PRICE_ID: z.string().optional(),
-
-		NEXT_PUBLIC_TEST_BITCH: z.boolean().optional(),
 	},
 
 	/**
@@ -190,11 +188,6 @@ export const env = createEnv({
 		NEXT_PUBLIC_UMAMI_WEBSITE_ID: process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID,
 		NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID: process.env.NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID,
 		NEXT_PUBLIC_POLAR_ONE_TIME_PRICE_ID: process.env.NEXT_PUBLIC_POLAR_ONE_TIME_PRICE_ID,
-
-		NEXT_PUBLIC_TEST_BITCH:
-			process.env.DATABASE_URL &&
-			process.env.AUTH_CREDENTIALS_ENABLED === "true" &&
-			process.env.DISABLE_PAYLOAD !== "true",
 	},
 
 	/**

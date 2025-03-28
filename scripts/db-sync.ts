@@ -1,3 +1,4 @@
+import "../scripts/env-config.js";
 import { getPayloadClient } from "@/lib/payload/payload";
 import { seed } from "@/lib/payload/seed";
 import { db } from "@/server/db";

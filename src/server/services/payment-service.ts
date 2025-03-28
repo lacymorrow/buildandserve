@@ -23,6 +23,7 @@ export interface PaymentData {
 	orderId: string;
 	userEmail: string;
 	userName: string | null;
+	userImage: string | null;
 	amount: number;
 	status: "paid" | "refunded" | "pending";
 	productName: string;
@@ -46,6 +47,7 @@ export interface UserData {
 	id: string;
 	email: string;
 	name: string | null;
+	image: string | null;
 	role?: string;
 	hasPaid: boolean;
 	lemonSqueezyStatus: boolean;
@@ -408,72 +410,125 @@ const PaymentService = {
 	 * @returns Array of payment data with user information
 	 */
 	async getPaymentsWithUsers(): Promise<PaymentData[]> {
-		logger.debug("Fetching all payments with user information");
-
 		try {
-			// Get all users from the database for mapping
-			const allUsers = await db?.query.users.findMany();
-			logger.debug("Found users", { count: allUsers?.length ?? 0 });
-
-			// Array to store all payments from different processors
-			const allPayments: PaymentData[] = [];
-
-			// Get Lemon Squeezy payments
-			try {
-				// Import dynamically to avoid circular dependencies
-				const { getAllOrders } = await import("@/lib/lemonsqueezy");
-				const lemonSqueezyOrders = await getAllOrders();
-
-				logger.debug("Found Lemon Squeezy orders", { count: lemonSqueezyOrders.length });
-
-				// Map orders to PaymentData type
-				const lemonSqueezyPayments: PaymentData[] = lemonSqueezyOrders.map((order) => ({
-					id: order.id,
-					orderId: order.orderId,
-					userEmail: order.userEmail,
-					userName: order.userName,
-					amount: order.amount,
-					status: order.status,
-					productName: order.productName,
-					purchaseDate: order.purchaseDate,
-					processor: "lemonsqueezy",
-				}));
-
-				allPayments.push(...lemonSqueezyPayments);
-			} catch (error) {
-				logger.error("Error fetching Lemon Squeezy payments:", error);
+			// Check if the database is initialized
+			if (!isDatabaseInitialized() || !db) {
+				logger.warn("Database not initialized when getting payments with users");
+				return [];
 			}
 
-			// Get Polar payments
-			try {
-				// Import dynamically to avoid circular dependencies
-				const { getAllOrders } = await import("@/lib/polar");
-				const polarOrders = await getAllOrders();
+			// Get all payments from the database
+			const allPayments = await db.query.payments.findMany();
 
-				logger.debug("Found Polar orders", { count: polarOrders.length });
+			// Get all users from the database
+			const allUsers = await db.query.users.findMany();
 
-				// Map orders to PaymentData type
-				const polarPayments: PaymentData[] = polarOrders.map((order) => ({
-					id: order.id,
-					orderId: order.orderId,
-					userEmail: order.userEmail,
-					userName: order.userName,
-					amount: order.amount,
-					status: order.status,
-					productName: order.productName,
-					purchaseDate: order.purchaseDate,
-					processor: "polar",
-				}));
+			// Combine them into PaymentData objects
+			const paymentData: PaymentData[] = [];
 
-				allPayments.push(...polarPayments);
-			} catch (error) {
-				logger.error("Error fetching Polar payments:", error);
+			// Process database payments
+			for (const payment of allPayments) {
+				// Find the user for this payment
+				const user = allUsers.find((u) => u.id === payment.userId);
+
+				// Try to parse metadata for additional info
+				let productName = "Unknown Product";
+				try {
+					if (payment.metadata) {
+						const metadata = JSON.parse(payment.metadata as string);
+						if (metadata.productName) {
+							productName = metadata.productName;
+						}
+					}
+				} catch (error) {
+					// Ignore parsing errors
+				}
+
+				paymentData.push({
+					id: payment.id.toString(),
+					orderId: payment.orderId || "",
+					userEmail: user?.email || "unknown@example.com",
+					userName: user?.name || null,
+					userImage: user?.image || null,
+					amount: payment.amount || 0,
+					status: payment.status as "paid" | "refunded" | "pending",
+					productName,
+					purchaseDate: new Date(payment.createdAt),
+					processor: payment.processor || "unknown",
+				});
 			}
 
-			// Return all payments sorted by purchase date (newest first)
-			return allPayments.sort((a, b) => b.purchaseDate.getTime() - a.purchaseDate.getTime());
+			// Get payments from Lemon Squeezy
+			try {
+				const orders = await getLemonSqueezyOrders();
+
+				for (const order of orders) {
+					// Check if we already have this order in the database
+					const existingOrder = paymentData.find((p) => p.orderId === order.orderId);
+
+					if (!existingOrder) {
+						// Try to find a user with matching email
+						const user = allUsers.find(
+							(u) => u.email?.toLowerCase() === order.userEmail.toLowerCase()
+						);
+
+						paymentData.push({
+							id: order.id,
+							orderId: order.orderId,
+							userEmail: order.userEmail,
+							userName: order.userName,
+							userImage: user?.image || null,
+							amount: order.amount,
+							status: order.status,
+							productName: order.productName,
+							purchaseDate: order.purchaseDate,
+							processor: "lemonsqueezy",
+						});
+					}
+				}
+			} catch (error) {
+				logger.error("Error fetching Lemon Squeezy orders:", error);
+			}
+
+			// Get payments from Polar
+			try {
+				const { getAllOrders: getPolarOrders } = await import("@/lib/polar");
+				const orders = await getPolarOrders();
+
+				for (const order of orders) {
+					// Check if we already have this order in the database
+					const existingOrder = paymentData.find((p) => p.orderId === order.orderId);
+
+					if (!existingOrder) {
+						// Try to find a user with matching email
+						const user = allUsers.find(
+							(u) => u.email?.toLowerCase() === order.userEmail.toLowerCase()
+						);
+
+						paymentData.push({
+							id: order.id,
+							orderId: order.orderId,
+							userEmail: order.userEmail,
+							userName: order.userName,
+							userImage: user?.image || null,
+							amount: order.amount,
+							status: order.status,
+							productName: order.productName,
+							purchaseDate: order.purchaseDate,
+							processor: "polar",
+						});
+					}
+				}
+			} catch (error) {
+				logger.error("Error fetching Polar orders:", error);
+			}
+
+			// Sort by purchase date (newest first)
+			paymentData.sort((a, b) => b.purchaseDate.getTime() - a.purchaseDate.getTime());
+
+			return paymentData;
 		} catch (error) {
-			logger.error("Error fetching payments with users:", error);
+			console.error("Error getting payments with users:", error);
 			return [];
 		}
 	},
@@ -484,217 +539,94 @@ const PaymentService = {
 	 * @returns Array of users with payment information
 	 */
 	async getUsersWithPayments(): Promise<UserData[]> {
-		logger.debug("Fetching users with payment information");
-
 		try {
-			if (!db) {
-				logger.warn("Database not initialized when fetching users with payments");
+			// Check if the database is initialized
+			if (!isDatabaseInitialized() || !db) {
+				logger.warn("Database not initialized when getting users with payments");
 				return [];
 			}
 
-			// Get all users from the database
+			// Get all users
 			const allUsers = await db.query.users.findMany();
-			if (!allUsers?.length) {
-				logger.debug("No users found");
-				return [];
-			}
 
-			// Get all payments from the database
-			const dbPayments = await db.query.payments.findMany();
-			logger.debug("Found database payments", { count: dbPayments.length });
+			// Get all payments
+			const allPayments = await db.query.payments.findMany();
 
-			// Create an array for all payment processors statuses
-			const usersWithPayments = await Promise.all(
-				allUsers.map(async (user) => {
-					if (!user?.email) return null;
+			// Map users to UserData format
+			const userData: UserData[] = [];
 
-					// Initialize payment status variables
-					let lemonSqueezyStatus = false;
-					let polarStatus = false;
-					let hasPaid = false;
-					let hasActiveSubscription = false;
-					let hadSubscription = false; // Track past subscriptions
-					let lastPurchaseDate: Date | null = null;
-					const purchases: Purchase[] = [];
+			for (const user of allUsers) {
+				// Get payments for this user
+				const userPayments = allPayments.filter((payment) => payment.userId === user.id);
 
-					// Check if user has a payment record in our database
-					const dbPayment = dbPayments.find((p) => p.userId === user.id);
-					if (dbPayment) {
-						hasPaid = true;
-						if (dbPayment.processor === "lemonsqueezy") {
-							lemonSqueezyStatus = true;
-						} else if (dbPayment.processor === "polar") {
-							polarStatus = true;
-						}
-					}
+				// Sort payments by date (newest first)
+				userPayments.sort((a, b) => {
+					return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+				});
 
-					// Check Lemon Squeezy
+				// Map payments to Purchase format
+				const purchases: Purchase[] = userPayments.map((payment) => {
+					// Try to parse metadata for additional info
+					let productName = "Unknown Product";
 					try {
-						// Import dynamically to avoid circular dependencies
-						const { getAllOrders, hasUserActiveSubscription: hasLemonSqueezyActiveSubscription } =
-							await import("@/lib/lemonsqueezy");
-						const lemonSqueezyOrders = await getAllOrders();
-
-						// Filter orders for this user
-						const userOrders = lemonSqueezyOrders.filter(
-							(order) => order.userEmail?.toLowerCase() === user.email.toLowerCase()
-						);
-
-						if (userOrders.some((order) => order.status === "paid")) {
-							hasPaid = true;
-							lemonSqueezyStatus = true;
-						}
-
-						// Check if user has an active subscription
-						if (user.id) {
-							const hasLemonSubscription = await hasLemonSqueezyActiveSubscription(user.id);
-							if (hasLemonSubscription) {
-								hasActiveSubscription = true;
-							}
-
-							// Check if any orders contain subscription products (even if inactive now)
-							const hasSubscriptionProducts = userOrders.some(
-								(order) =>
-									order.productName?.toLowerCase().includes("subscription") ||
-									order.productName?.toLowerCase().includes("monthly") ||
-									order.productName?.toLowerCase().includes("yearly") ||
-									order.productName?.toLowerCase().includes("annual")
-							);
-
-							if (hasSubscriptionProducts) {
-								hadSubscription = true;
+						if (payment.metadata) {
+							const metadata = JSON.parse(payment.metadata as string);
+							if (metadata.productName) {
+								productName = metadata.productName;
 							}
 						}
-
-						// Get the last purchase date
-						const sortedOrders = [...userOrders].sort(
-							(a, b) => b.purchaseDate.getTime() - a.purchaseDate.getTime()
-						);
-
-						if (sortedOrders.length > 0) {
-							lastPurchaseDate = sortedOrders[0].purchaseDate;
-						}
-
-						// Add purchases to the list
-						purchases.push(
-							...userOrders.map((order) => ({
-								id: order.id,
-								orderId: order.orderId,
-								amount: order.amount,
-								status: order.status,
-								productName: order.productName,
-								purchaseDate: order.purchaseDate,
-								processor: "lemonsqueezy",
-							}))
-						);
-
-						logger.debug("Found Lemon Squeezy orders for user", {
-							userId: user.id,
-							email: user.email,
-							count: userOrders.length,
-						});
 					} catch (error) {
-						logger.error("Error fetching Lemon Squeezy orders for user:", {
-							userId: user.id,
-							email: user.email,
-							error,
-						});
-					}
-
-					// Check Polar
-					try {
-						// Import dynamically to avoid circular dependencies
-						const { getOrdersByEmail, hasUserActiveSubscription: hasPolarActiveSubscription } =
-							await import("@/lib/polar");
-						const polarOrders = await getOrdersByEmail(user.email);
-
-						if (polarOrders.some((order) => order.status === "paid")) {
-							hasPaid = true;
-							polarStatus = true;
-						}
-
-						// Check if user has an active subscription
-						if (user.id) {
-							const hasPolarSubscription = await hasPolarActiveSubscription(user.id);
-							if (hasPolarSubscription) {
-								hasActiveSubscription = true;
-							}
-
-							// Check if any orders contain subscription products (even if inactive now)
-							const hasSubscriptionProducts = polarOrders.some(
-								(order) =>
-									order.productName?.toLowerCase().includes("subscription") ||
-									order.productName?.toLowerCase().includes("monthly") ||
-									order.productName?.toLowerCase().includes("yearly") ||
-									order.productName?.toLowerCase().includes("annual")
-							);
-
-							if (hasSubscriptionProducts) {
-								hadSubscription = true;
-							}
-						}
-
-						// Get the last purchase date if newer than Lemon Squeezy
-						const sortedOrders = [...polarOrders].sort(
-							(a, b) => b.purchaseDate.getTime() - a.purchaseDate.getTime()
-						);
-
-						if (sortedOrders.length > 0) {
-							if (!lastPurchaseDate || sortedOrders[0].purchaseDate > lastPurchaseDate) {
-								lastPurchaseDate = sortedOrders[0].purchaseDate;
-							}
-						}
-
-						// Add purchases to the list
-						purchases.push(
-							...polarOrders.map((order) => ({
-								id: order.id,
-								orderId: order.orderId,
-								amount: order.amount,
-								status: order.status,
-								productName: order.productName,
-								purchaseDate: order.purchaseDate,
-								processor: "polar",
-							}))
-						);
-
-						logger.debug("Found Polar orders for user", {
-							userId: user.id,
-							email: user.email,
-							count: polarOrders.length,
-						});
-					} catch (error) {
-						logger.error("Error fetching Polar orders for user:", {
-							userId: user.id,
-							email: user.email,
-							error,
-						});
+						// Ignore parsing errors
 					}
 
 					return {
-						id: user.id,
-						name: user.name ?? null,
-						email: user.email,
-						role: user.role ?? "user",
-						createdAt: user.createdAt ?? new Date(),
-						hasPaid,
-						lemonSqueezyStatus,
-						polarStatus,
-						hasActiveSubscription,
-						hadSubscription,
-						lastPurchaseDate,
-						totalPurchases: purchases.length,
-						purchases,
+						id: String(payment.id),
+						productName,
+						amount: payment.amount ?? 0,
+						status: payment.status as "paid" | "refunded" | "pending",
+						purchaseDate: new Date(payment.createdAt),
+						orderId: payment.orderId ?? "",
+						processor: payment.processor || "unknown",
 					};
-				})
-			);
+				});
 
-			// Filter out null values and return
-			const result = usersWithPayments.filter(Boolean) as UserData[];
-			logger.debug("Finished fetching users with payments", { count: result.length });
-			return result;
+				// Check payment status from payment processors
+				const lemonSqueezyStatus = await getLemonSqueezyPaymentStatus(user.id);
+				const polarStatus = await getPolarPaymentStatus(user.id);
+
+				// Check subscription status from payment processors
+				const lemonSqueezySubscriptionActive = await hasUserActiveLemonsqueezySubscription(user.id);
+				const polarSubscriptionActive = await hasUserActivePolarSubscription(user.id);
+				const hadSubscription = user.metadata
+					? JSON.parse(user.metadata as string)?.hadSubscription || false
+					: false;
+
+				// Get the last purchase date
+				const lastPurchaseDate =
+					userPayments.length > 0 ? new Date(userPayments[0].createdAt) : null;
+
+				// Create user data object
+				userData.push({
+					id: user.id,
+					email: user.email || "",
+					name: user.name,
+					image: user.image,
+					role: user.role,
+					hasPaid: lemonSqueezyStatus || polarStatus,
+					lemonSqueezyStatus,
+					polarStatus,
+					hasActiveSubscription: lemonSqueezySubscriptionActive || polarSubscriptionActive,
+					hadSubscription,
+					createdAt: new Date(user.createdAt),
+					lastPurchaseDate,
+					totalPurchases: userPayments.length,
+					purchases,
+				});
+			}
+
+			return userData;
 		} catch (error) {
-			logger.warn("Error fetching users with payments:", error);
+			console.error("Error getting users with payments:", error);
 			return [];
 		}
 	},

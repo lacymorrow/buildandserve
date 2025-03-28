@@ -1,5 +1,6 @@
 "use client";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { UserData } from "@/server/services/payment-service";
@@ -14,6 +15,25 @@ const formatDate = (date: Date | null) => {
 };
 
 export const columns: ColumnDef<UserData>[] = [
+	{
+		accessorKey: "image",
+		header: "",
+		cell: ({ row }) => {
+			const userImage = row.original?.image;
+			const userName = row.original?.name;
+
+			return (
+				<Avatar className="size-8">
+					<AvatarImage
+						src={userImage || ""}
+						alt={userName ? `${userName}'s avatar` : "User avatar"}
+						draggable={false}
+					/>
+					<AvatarFallback>{userName?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+				</Avatar>
+			);
+		},
+	},
 	{
 		accessorKey: "email",
 		header: "Email",

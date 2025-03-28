@@ -9,11 +9,51 @@ import { PaymentService } from "@/server/services/payment-service";
 import { columns } from "./_components/columns";
 
 function UsersTableSkeleton() {
+	// Generate skeleton row IDs
+	const skeletonRowIds = Array.from({ length: 3 }, () =>
+		Math.random().toString(36).substring(2, 10)
+	);
+
 	return (
 		<div className="space-y-4">
 			<Skeleton className="h-10 w-[250px]" />
 			<div className="rounded-md border">
-				<div className="h-24 rounded-md" />
+				<div className="p-4">
+					<div className="flex items-center justify-between py-4 border-b">
+						<div className="flex items-center gap-2">
+							<Skeleton className="h-8 w-64" />
+						</div>
+						<Skeleton className="h-9 w-64" />
+					</div>
+					<div className="flex items-center h-12 px-4 border-b">
+						<div className="flex-1 flex items-center gap-4">
+							<Skeleton className="h-4 w-4" />
+							<Skeleton className="h-4 w-32" />
+							<Skeleton className="h-4 w-32" />
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="h-4 w-24" />
+						</div>
+					</div>
+					{skeletonRowIds.map((id) => (
+						<div key={id} className="flex items-center h-16 px-4 border-b">
+							<div className="flex-1 flex items-center gap-4">
+								<Skeleton className="size-8 rounded-full" />
+								<Skeleton className="h-4 w-36" />
+								<Skeleton className="h-4 w-32" />
+								<Skeleton className="h-4 w-24" />
+								<Skeleton className="h-5 w-20 rounded-full" />
+								<Skeleton className="h-5 w-20 rounded-full" />
+								<Skeleton className="h-4 w-24" />
+								<Skeleton className="h-4 w-16" />
+								<Skeleton className="h-8 w-28" />
+							</div>
+						</div>
+					))}
+					<div className="flex items-center justify-between p-4">
+						<Skeleton className="h-10 w-40" />
+						<Skeleton className="h-10 w-40" />
+					</div>
+				</div>
 			</div>
 		</div>
 	);

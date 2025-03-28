@@ -90,15 +90,11 @@ export async function deleteApiKey(apiKeyId: string) {
 			ErrorService.throwUnauthorized("You must be logged in to delete an API key");
 		}
 
-		console.log("session", session.user.id);
-		console.log("apiKeyId", apiKeyId);
 		// Get the API key to check ownership
 		const apiKey = await apiKeyService.findById(apiKeyId);
 		if (!apiKey) {
 			ErrorService.throwNotFound("API key not found");
 		}
-
-		console.log("apiKey", apiKey);
 
 		// Ensure user can only delete their own keys
 		if (apiKey.userId && apiKey.userId !== session.user.id) {

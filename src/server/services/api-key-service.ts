@@ -105,7 +105,6 @@ export class ApiKeyService {
 			})
 			.returning();
 
-		console.log("apiKey", apiKey);
 		return apiKey;
 	}
 

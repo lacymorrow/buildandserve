@@ -1,8 +1,9 @@
-// TODO: Replace with Next.js env config: https://nextjs.org/docs/app/building-your-application/configuring/environment-variables#test-environment-variables
-import dotenv from "dotenv";
+// Import Next.js environment variable loader
+import { loadEnvConfig } from "@next/env";
 
-// Load test environment variables
-dotenv.config({ path: ".env" });
+// Load environment variables from .env* files
+const projectDir = process.cwd();
+loadEnvConfig(projectDir);
 
 // Mock environment variables
 process.env = {

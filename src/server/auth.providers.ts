@@ -50,7 +50,6 @@ export const ORDERED_PROVIDERS = [
 	"bitbucket",
 ];
 
-console.log("env", process.env, process.env.DISABLE_PAYLOAD === "true");
 export const providers: NextAuthConfig["providers"] = [
 	/***
 	 * Magic Link Provider - Resend
@@ -86,8 +85,6 @@ export const providers: NextAuthConfig["providers"] = [
 						password: { label: "Password", type: "password" },
 					},
 					async authorize(credentials) {
-						console.log("Credentials in authorize:", credentials);
-
 						if (!credentials?.email || !credentials?.password) {
 							console.error("Missing email or password in credentials");
 							return null;
@@ -101,8 +98,6 @@ export const providers: NextAuthConfig["providers"] = [
 								console.error("User validation failed");
 								throw new Error(STATUS_CODES.CREDENTIALS.message);
 							}
-
-							console.log("User validated successfully:", user);
 
 							// For database session strategy, we need to ensure the user exists in the database
 							// This is handled in validateCredentials via ensureUserSynchronized
@@ -261,7 +256,6 @@ export const orderedProviders =
 	]
 		// Map the providers to their data
 		.map((providerId) => {
-			console.log("providerId", providerId);
 			const provider = authProviders.find((provider) => provider.id === providerId);
 			if (!provider) {
 				return null;
