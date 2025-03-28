@@ -9,7 +9,7 @@ import {
 	getContentType,
 	sanitizePath,
 	shouldIgnoreFile,
-} from "../install/shared-utils";
+} from "../shared-utils";
 
 // Export utilities that are also used in the API routes
 export {
