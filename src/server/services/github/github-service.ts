@@ -367,7 +367,7 @@ export const getRepoStars = cache(
 			const response = await getRepo(owner, repo);
 			return response?.stargazers_count ?? 0;
 		} catch (error) {
-			logger.error("Error fetching GitHub stars:", error);
+			logger.warn("Error fetching GitHub stars:", error);
 			return 0;
 		}
 	}

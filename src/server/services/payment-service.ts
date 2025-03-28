@@ -488,8 +488,8 @@ const PaymentService = {
 
 		try {
 			if (!db) {
-				logger.error("Database not initialized when fetching users with payments");
-				throw new Error("Database is not initialized");
+				logger.warn("Database not initialized when fetching users with payments");
+				return [];
 			}
 
 			// Get all users from the database
@@ -694,7 +694,7 @@ const PaymentService = {
 			logger.debug("Finished fetching users with payments", { count: result.length });
 			return result;
 		} catch (error) {
-			logger.error("Error fetching users with payments:", error);
+			logger.warn("Error fetching users with payments:", error);
 			return [];
 		}
 	},

@@ -139,10 +139,46 @@ let nextConfig: NextConfig = {
 		serverActions: {
 			bodySizeLimit: FILE_UPLOAD_MAX_SIZE,
 		},
-		// @see: https://nextjs.org/docs/app/api-reference/config/next-config-js/viewTransition
+		// @see: https://nextjs.org/docs/app/api-reference/next-config-js/viewTransition
 		viewTransition: true,
 		webVitalsAttribution: ["CLS", "LCP", "TTFB", "FCP", "FID"],
 	},
+
+	// Optimize serverless function size by controlling which files are included
+	outputFileTracing: true,
+	outputFileTracingExcludes: {
+		"*": [
+			// Exclude test files and documentation
+			"**/*.test.*",
+			"**/*.spec.*",
+			"**/*.stories.*",
+			"**/tests/**",
+			"**/docs/**",
+			// Exclude development and tooling files
+			"**/.git/**",
+			"**/.github/**",
+			"**/.vscode/**",
+			"**/.next/cache/**",
+			"**/node_modules/typescript/**",
+			// Exclude common development packages we don't need in production
+			"**/node_modules/@types/**",
+			"**/node_modules/eslint/**",
+			"**/node_modules/prettier/**",
+			"**/node_modules/typescript/**",
+			// Exclude specific large packages not needed on the server
+			"**/node_modules/react-syntax-highlighter/**",
+			"**/node_modules/canvas-confetti/**",
+			"**/node_modules/@huggingface/transformers/**",
+			"**/node_modules/three/**",
+			"**/node_modules/@react-three/**",
+			"**/node_modules/jspdf/**",
+		],
+	},
+	// Ensure required files for payment service are included
+	outputFileTracingIncludes: {
+		"src/server/services/payment-service.ts": ["node_modules/drizzle-orm/**"],
+	},
+
 	/*
 	 * Miscellaneous configuration
 	 */
