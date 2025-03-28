@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { routes } from "@/config/routes";
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
 import { STATUS_CODES } from "@/config/status-codes";
+import { signInSchema } from "@/lib/schemas/auth";
+import { getSchemaDefaults } from "@/lib/utils/get-schema-defaults";
 import { signInWithCredentialsAction } from "@/server/actions/auth";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LockClosedIcon } from "@radix-ui/react-icons";
@@ -22,14 +24,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { z } from "zod";
+import type { z } from "zod";
 
-const credentialsSchema = z.object({
-	email: z.string().email("Please enter a valid email address"),
-	password: z.string().min(4, "Password must be at least 4 characters"),
-});
-
-type CredentialsFormValues = z.infer<typeof credentialsSchema>;
+type CredentialsFormValues = z.infer<typeof signInSchema>;
 
 interface CredentialsFormProps {
 	className?: string;
@@ -43,11 +40,8 @@ export function CredentialsForm({ className }: CredentialsFormProps) {
 	const { update: updateSession } = useSession();
 
 	const form = useForm<CredentialsFormValues>({
-		resolver: zodResolver(credentialsSchema),
-		defaultValues: {
-			email: "",
-			password: "",
-		},
+		resolver: zodResolver(signInSchema),
+		defaultValues: getSchemaDefaults<typeof signInSchema>(signInSchema),
 	});
 
 	async function onSubmit(values: CredentialsFormValues) {
@@ -61,10 +55,8 @@ export function CredentialsForm({ className }: CredentialsFormProps) {
 				redirectTo: nextUrl || routes.home,
 			});
 
-			console.log("Sign in result:", result);
-
 			// Check if the result is an error object from our server action
-			if (result && typeof result === 'object' && 'error' in result && !result.ok) {
+			if (result && typeof result === "object" && "error" in result && !result.ok) {
 				// Handle the error returned by the server action
 				let errorMessage = result.error;
 
@@ -80,7 +72,7 @@ export function CredentialsForm({ className }: CredentialsFormProps) {
 			}
 
 			// Check if the sign-in was successful
-			if (typeof result === 'string') {
+			if (typeof result === "string") {
 				// If result is a string, it's likely a URL to redirect to
 				toast.success("Signed in successfully");
 				// Update the session before redirecting
@@ -112,7 +104,6 @@ export function CredentialsForm({ className }: CredentialsFormProps) {
 			}
 
 			// If we get here, something unexpected happened but we'll try to handle it gracefully
-			console.warn("Unexpected authentication result:", result);
 			// Still try to update the session and redirect
 			await updateSession();
 			toast.success("Signed in successfully");
@@ -124,10 +115,12 @@ export function CredentialsForm({ className }: CredentialsFormProps) {
 			let errorMessage = "Please check your credentials and try again.";
 
 			if (error instanceof Error) {
-				if (error.message.includes("Invalid credentials") ||
+				if (
+					error.message.includes("Invalid credentials") ||
 					error.message.includes("User not found") ||
 					error.message.includes("CredentialsSignin") ||
-					error.message === STATUS_CODES.CREDENTIALS.message) {
+					error.message === STATUS_CODES.CREDENTIALS.message
+				) {
 					errorMessage = STATUS_CODES.CREDENTIALS.message;
 				} else if (error.message.includes("Authentication service unavailable")) {
 					errorMessage = "Authentication service is currently unavailable. Please try again later.";

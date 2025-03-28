@@ -3,9 +3,9 @@
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { ChevronDownIcon, ChevronRightIcon } from "@radix-ui/react-icons";
 import { File, Folder } from "lucide-react";
 import { useState } from "react";
-import { ChevronDownIcon, ChevronRightIcon } from "@radix-ui/react-icons";
 
 interface FileTreeProps {
   files: {

@@ -38,6 +38,7 @@ export interface Purchase {
 	status: "paid" | "refunded" | "pending";
 	purchaseDate: Date;
 	orderId: string;
+	processor?: string; // Payment processor (lemonsqueezy, polar, etc.)
 }
 
 // Define UserData interface for admin dashboard
@@ -50,6 +51,7 @@ export interface UserData {
 	lemonSqueezyStatus: boolean;
 	polarStatus: boolean;
 	hasActiveSubscription: boolean;
+	hadSubscription: boolean; // Tracks if user had a subscription in the past
 	createdAt: Date;
 	lastPurchaseDate: Date | null;
 	totalPurchases: number;
@@ -511,6 +513,7 @@ const PaymentService = {
 					let polarStatus = false;
 					let hasPaid = false;
 					let hasActiveSubscription = false;
+					let hadSubscription = false; // Track past subscriptions
 					let lastPurchaseDate: Date | null = null;
 					const purchases: Purchase[] = [];
 
@@ -548,6 +551,19 @@ const PaymentService = {
 							if (hasLemonSubscription) {
 								hasActiveSubscription = true;
 							}
+
+							// Check if any orders contain subscription products (even if inactive now)
+							const hasSubscriptionProducts = userOrders.some(
+								(order) =>
+									order.productName?.toLowerCase().includes("subscription") ||
+									order.productName?.toLowerCase().includes("monthly") ||
+									order.productName?.toLowerCase().includes("yearly") ||
+									order.productName?.toLowerCase().includes("annual")
+							);
+
+							if (hasSubscriptionProducts) {
+								hadSubscription = true;
+							}
 						}
 
 						// Get the last purchase date
@@ -568,6 +584,7 @@ const PaymentService = {
 								status: order.status,
 								productName: order.productName,
 								purchaseDate: order.purchaseDate,
+								processor: "lemonsqueezy",
 							}))
 						);
 
@@ -602,6 +619,19 @@ const PaymentService = {
 							if (hasPolarSubscription) {
 								hasActiveSubscription = true;
 							}
+
+							// Check if any orders contain subscription products (even if inactive now)
+							const hasSubscriptionProducts = polarOrders.some(
+								(order) =>
+									order.productName?.toLowerCase().includes("subscription") ||
+									order.productName?.toLowerCase().includes("monthly") ||
+									order.productName?.toLowerCase().includes("yearly") ||
+									order.productName?.toLowerCase().includes("annual")
+							);
+
+							if (hasSubscriptionProducts) {
+								hadSubscription = true;
+							}
 						}
 
 						// Get the last purchase date if newer than Lemon Squeezy
@@ -624,6 +654,7 @@ const PaymentService = {
 								status: order.status,
 								productName: order.productName,
 								purchaseDate: order.purchaseDate,
+								processor: "polar",
 							}))
 						);
 
@@ -650,6 +681,7 @@ const PaymentService = {
 						lemonSqueezyStatus,
 						polarStatus,
 						hasActiveSubscription,
+						hadSubscription,
 						lastPurchaseDate,
 						totalPurchases: purchases.length,
 						purchases,

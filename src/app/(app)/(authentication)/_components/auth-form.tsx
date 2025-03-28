@@ -2,7 +2,7 @@ import { type ComponentPropsWithoutRef, type ReactNode, Suspense } from "react";
 
 import { OAuthButtons } from "@/app/(app)/(authentication)/_components/oauth-buttons";
 import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,8 @@ interface AuthFormProps extends ComponentPropsWithoutRef<"div"> {
 	children?: ReactNode;
 	title?: string;
 	description?: string;
+	withHeader?: boolean;
+	withFooter?: boolean;
 }
 
 export async function AuthForm({
@@ -22,6 +24,8 @@ export async function AuthForm({
 	children,
 	title,
 	description,
+	withHeader = true,
+	withFooter = true,
 	...props
 }: AuthFormProps) {
 	const isSignIn = mode === "sign-in";
@@ -42,36 +46,40 @@ export async function AuthForm({
 	}>;
 
 	return (
-		<div className={cn("flex flex-col gap-6", className)} {...props}>
-			<Card>
+		<div className={cn("flex flex-col gap-6 overflow-y-auto", className)} {...props}>
+			{withHeader && (
 				<CardHeader className="text-center">
 					<CardTitle className="text-xl">{cardTitle}</CardTitle>
 					<CardDescription>{cardDescription}</CardDescription>
 				</CardHeader>
-				<CardContent>
-					<div className="grid gap-6 relative">
-						<OAuthButtons
-							collapsible
-							variant="icons"
-							providers={filteredProviders}
-						/>
+			)}
+			<CardContent className="pb-0">
+				<div className="grid gap-6 relative">
+					<OAuthButtons
+						collapsible
+						variant="icons"
+						providers={filteredProviders}
+					/>
 
-						<Suspense fallback={<SuspenseFallback />}>
-							{children}
-						</Suspense>
-						<div className="text-center text-sm">
-							{alternateLink.text}{" "}
-							<Link href={alternateLink.href} className="underline underline-offset-4">
-								{alternateLink.label}
-							</Link>
-						</div>
+					<Suspense fallback={<SuspenseFallback />}>
+						{children}
+					</Suspense>
+					<div className="text-center text-sm">
+						{alternateLink.text}{" "}
+						<Link href={alternateLink.href} className="underline underline-offset-4">
+							{alternateLink.label}
+						</Link>
 					</div>
-				</CardContent>
-			</Card>
-			<div className="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-primary">
-				By clicking continue, you agree to our <Link href={routes.terms}>Terms of Service</Link> and{" "}
-				<Link href={routes.privacy}>Privacy Policy</Link>.
-			</div>
+				</div>
+			</CardContent>
+			{withFooter && (
+				<CardFooter>
+					<div className="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-primary">
+						By signing up, you agree to our <Link href={routes.terms}>Terms of Service</Link> and{" "}
+						<Link href={routes.privacy}>Privacy Policy</Link>.
+					</div>
+				</CardFooter>
+			)}
 		</div>
 	);
 }

@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import type { PaymentData } from "@/server/services/payment-service";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, Eye } from "lucide-react";
+import { useState } from "react";
+import { PaymentDrawer } from "./payment-drawer";
 
 export const columns: ColumnDef<PaymentData>[] = [
 	{
@@ -81,5 +83,34 @@ export const columns: ColumnDef<PaymentData>[] = [
 			</Button>
 		),
 		cell: ({ row }) => format(row.getValue("purchaseDate"), "PPP"),
+	},
+	{
+		id: "actions",
+		header: "Details",
+		cell: ({ row }) => {
+			const [isPaymentDrawerOpen, setIsPaymentDrawerOpen] = useState(false);
+			const payment = row.original;
+
+			return (
+				<>
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={(e) => {
+							e.stopPropagation();
+							setIsPaymentDrawerOpen(true);
+						}}
+						className="flex items-center"
+					>
+						<Eye className="h-4 w-4 mr-1" /> View Details
+					</Button>
+					<PaymentDrawer
+						payment={payment}
+						open={isPaymentDrawerOpen}
+						onClose={() => setIsPaymentDrawerOpen(false)}
+					/>
+				</>
+			);
+		},
 	},
 ];

@@ -60,13 +60,13 @@ export default function manifest(): MetadataRoute.Manifest {
 				type: "image/x-icon",
 			},
 			{
-				src: "/favicon/web-app-manifest-192x192.png", // Home screen icon
+				src: "/app/web-app-manifest-192x192.png", // Home screen icon
 				sizes: "192x192",
 				type: "image/png",
 				purpose: "maskable", // Allows icon to be masked into different shapes on Android
 			},
 			{
-				src: "/favicon/web-app-manifest-512x512.png", // Large icon for splash screens
+				src: "/app/web-app-manifest-512x512.png", // Large icon for splash screens
 				sizes: "512x512",
 				type: "image/png",
 				purpose: "maskable",

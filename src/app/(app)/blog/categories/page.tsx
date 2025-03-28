@@ -1,7 +1,7 @@
+import { Link } from "@/components/primitives/link-with-transition";
 import { Badge } from "@/components/ui/badge";
 import { getBlogCategories, getBlogPosts } from "@/lib/blog";
 import { cn } from "@/lib/utils";
-import { Link } from "@/components/primitives/link-with-transition";
 
 interface Props {
 	searchParams: Promise<{ [key: string]: string | string[] | undefined }>;

@@ -1,10 +1,9 @@
-import { CredentialsForm } from "@/app/(app)/(authentication)/_components/credentials-form";
+import { AuthenticationCard } from "@/app/(app)/(authentication)/_components/authentication-card";
+import { SignIn } from "@/app/(app)/(authentication)/sign-in/_components/sign-in";
 import { Icon } from "@/components/assets/icon";
-import { Divider } from "@/components/primitives/divider";
 import { Link } from "@/components/primitives/link-with-transition";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
-import { AuthForm } from "../_components/auth-form";
 
 export default function SignInPage() {
 	return (
@@ -15,10 +14,9 @@ export default function SignInPage() {
 				</div>
 				{siteConfig.name}
 			</Link>
-			<AuthForm mode="sign-in" >
-				<Divider text="Or continue with email" />
-				<CredentialsForm />
-			</AuthForm>
+			<AuthenticationCard>
+				<SignIn />
+			</AuthenticationCard>
 		</div >
 	);
 }

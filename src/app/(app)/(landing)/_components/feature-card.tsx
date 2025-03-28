@@ -5,7 +5,6 @@ import type { Feature } from "@/types/feature";
 import type { LucideIcon } from "lucide-react";
 import * as Icons from "lucide-react";
 import type { FC } from "react";
-import React from "react";
 
 interface FeatureCardProps {
     feature: Feature;

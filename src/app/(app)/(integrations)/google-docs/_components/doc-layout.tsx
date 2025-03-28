@@ -1,6 +1,6 @@
-import { TableOfContents } from "@/components/blocks/table-of-contents";
 import { Card } from "@/components/ui/card";
 import type React from "react";
+import { TableOfContents } from "./table-of-contents";
 
 interface DocLayoutProps {
 	children: React.ReactNode;

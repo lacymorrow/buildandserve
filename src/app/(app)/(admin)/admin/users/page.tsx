@@ -20,12 +20,21 @@ function UsersTableSkeleton() {
 }
 
 async function UsersTableContent() {
+	// Fetch all users with their complete payment history
 	const users = await PaymentService.getUsersWithPayments();
+
+	// Make sure purchases are sorted by date (newest first)
+	const sortedUsers = users.map(user => ({
+		...user,
+		purchases: user.purchases?.sort(
+			(a, b) => b.purchaseDate.getTime() - a.purchaseDate.getTime()
+		) || []
+	}));
 
 	return (
 		<DataTable
 			columns={columns}
-			data={users}
+			data={sortedUsers}
 			searchPlaceholder="Search users..."
 		/>
 	);
@@ -42,7 +51,7 @@ export default function AdminPage() {
 				<PageHeader>
 					<PageHeaderHeading>User Management</PageHeaderHeading>
 					<PageHeaderDescription>
-						View and manage all users in your database.
+						View and manage all users in your database. Click on a user to see detailed purchase history.
 					</PageHeaderDescription>
 				</PageHeader>
 

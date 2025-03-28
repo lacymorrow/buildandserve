@@ -1,6 +1,6 @@
 "use client";
 
-// npx shadcn-ui@latest add checkbox
+// npx shadcn@latest add checkbox
 // npm  i react-use-measure
 import {
   AnimatePresence,
@@ -98,16 +98,16 @@ function SortableListItem({
           style={
             isExpanded
               ? {
-                  zIndex: 9999,
-                  marginTop: 10,
-                  marginBottom: 10,
-                  position: "relative",
-                  overflow: "hidden",
-                }
+                zIndex: 9999,
+                marginTop: 10,
+                marginBottom: 10,
+                position: "relative",
+                overflow: "hidden",
+              }
               : {
-                  position: "relative",
-                  overflow: "hidden",
-                }
+                position: "relative",
+                overflow: "hidden",
+              }
           }
           whileDrag={{ zIndex: 9999 }}
         >

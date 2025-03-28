@@ -1,4 +1,3 @@
-
 import { Link } from "@/components/primitives/link-with-transition";
 import { Section } from "@/components/primitives/section";
 import { buttonVariants } from "@/components/ui/button";
@@ -63,6 +62,25 @@ export async function LaunchPageContent() {
 									<p className="text-muted-foreground">{step.description}</p>
 								</div>
 							))}
+						</div>
+					</Section>
+
+					{/* shadcn/UI Template Installer */}
+					<Section className="container">
+						<div className="mx-auto max-w-4xl text-center">
+							<h2 className="mb-6 text-3xl font-bold">
+								Easy Component Setup
+							</h2>
+							<p className="mb-8 text-lg text-muted-foreground max-w-2xl mx-auto">
+								Install the shadcn/UI component library with our browser-based template installer.
+								No terminal commands needed - just click, preview, and download.
+							</p>
+							<Link
+								href="/install"
+								className={buttonVariants({ size: "lg" })}
+							>
+								Install shadcn/UI Template
+							</Link>
 						</div>
 					</Section>
 

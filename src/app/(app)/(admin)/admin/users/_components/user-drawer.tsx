@@ -1,19 +1,9 @@
 "use client";
 
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
 	Drawer,
 	DrawerClose,
@@ -23,6 +13,7 @@ import {
 	DrawerHeader,
 	DrawerTitle,
 } from "@/components/ui/drawer";
+import { JsonViewer } from "@/components/ui/json-viewer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -35,7 +26,8 @@ import {
 } from "@/components/ui/table";
 import type { Purchase, UserData } from "@/server/services/payment-service";
 import { format } from "date-fns";
-import { Ban, CreditCard, Mail, Package, RotateCcw } from "lucide-react";
+import { Calendar, ChevronDown, ChevronUp, CreditCard, Mail, Package, User } from "lucide-react";
+import { useState } from "react";
 
 interface UserDrawerProps {
 	user: UserData | null;
@@ -46,22 +38,13 @@ interface UserDrawerProps {
 export const UserDrawer = ({ user, open, onClose }: UserDrawerProps) => {
 	if (!user) return null;
 
-	const handleBanUser = () => {
-		// TODO: Implement ban user functionality
-		console.log("Ban user:", user.id);
-	};
+	const [isJsonOpen, setIsJsonOpen] = useState(false);
 
-	const handleResetAccess = () => {
-		// TODO: Implement reset access functionality
-		console.log("Reset access for:", user.id);
-	};
+	const getStatusBadgeVariant = (status: Purchase["status"], isSubscription = false, isActive = false) => {
+		if (isSubscription) {
+			return isActive ? "default" : "secondary";
+		}
 
-	const handleSendEmail = () => {
-		// TODO: Implement send email functionality
-		console.log("Send email to:", user.email);
-	};
-
-	const getStatusBadgeVariant = (status: Purchase["status"]) => {
 		switch (status) {
 			case "paid":
 				return "default";
@@ -74,10 +57,17 @@ export const UserDrawer = ({ user, open, onClose }: UserDrawerProps) => {
 		}
 	};
 
+	const isSubscriptionProduct = (productName: string): boolean => {
+		return productName.toLowerCase().includes('subscription') ||
+			productName.toLowerCase().includes('monthly') ||
+			productName.toLowerCase().includes('yearly') ||
+			productName.toLowerCase().includes('annual');
+	};
+
 	return (
 		<Drawer open={open} onOpenChange={onClose}>
-			<DrawerContent>
-				<ScrollArea className="h-[80vh]">
+			<DrawerContent className="max-h-[90vh]">
+				<ScrollArea className="max-h-[calc(90vh-8rem)]">
 					<div className="mx-auto w-full max-w-2xl">
 						<DrawerHeader>
 							<DrawerTitle>User Details</DrawerTitle>
@@ -88,65 +78,72 @@ export const UserDrawer = ({ user, open, onClose }: UserDrawerProps) => {
 
 						<div className="p-6">
 							<div className="space-y-6">
-								{/* Quick Actions */}
-								<Card>
-									<CardContent className="p-4">
-										<div className="flex flex-wrap gap-2">
-											<AlertDialog>
-												<AlertDialogTrigger asChild>
-													<Button variant="destructive" size="sm">
-														<Ban className="mr-2 h-4 w-4" />
-														Ban User
-													</Button>
-												</AlertDialogTrigger>
-												<AlertDialogContent>
-													<AlertDialogHeader>
-														<AlertDialogTitle>Ban User</AlertDialogTitle>
-														<AlertDialogDescription>
-															Are you sure you want to ban {user.email}? This action can be reversed
-															later.
-														</AlertDialogDescription>
-													</AlertDialogHeader>
-													<AlertDialogFooter>
-														<AlertDialogCancel>Cancel</AlertDialogCancel>
-														<AlertDialogAction onClick={() => void handleBanUser()}>
-															Continue
-														</AlertDialogAction>
-													</AlertDialogFooter>
-												</AlertDialogContent>
-											</AlertDialog>
-
-											<Button variant="outline" size="sm" onClick={() => void handleResetAccess()}>
-												<RotateCcw className="mr-2 h-4 w-4" />
-												Reset Access
-											</Button>
-
-											<Button variant="outline" size="sm" onClick={() => void handleSendEmail()}>
-												<Mail className="mr-2 h-4 w-4" />
-												Send Email
-											</Button>
-										</div>
-									</CardContent>
-								</Card>
-
-								<Separator />
-
 								{/* Basic Information */}
 								<section>
 									<h3 className="text-lg font-semibold">Basic Information</h3>
-									<div className="mt-4 space-y-4">
-										<div>
-											<label className="text-sm font-medium text-muted-foreground">Email</label>
-											<p>{user.email}</p>
-										</div>
-										<div>
-											<label className="text-sm font-medium text-muted-foreground">Name</label>
-											<p>{user.name ?? "Not provided"}</p>
-										</div>
-										<div>
-											<label className="text-sm font-medium text-muted-foreground">Joined</label>
-											<p>{format(user.createdAt, "PPP")}</p>
-										</div>
+									<div className="mt-4 grid gap-4">
+										<Card className="overflow-hidden">
+											<div className="bg-muted/40 p-6">
+												<div className="flex items-center gap-4">
+													<div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+														<User className="h-8 w-8 text-primary" />
+													</div>
+													<div>
+														<h4 className="text-xl font-medium">{user.name || "Unnamed User"}</h4>
+														<div className="flex items-center gap-2 text-sm text-muted-foreground">
+															<Mail className="h-3 w-3" />
+															<span>{user.email}</span>
+														</div>
+													</div>
+												</div>
+											</div>
+											<CardContent className="p-0">
+												<div className="grid grid-cols-1 divide-y sm:grid-cols-2 sm:divide-y-0 sm:divide-x">
+													<div className="p-4">
+														<div className="flex items-center gap-3">
+															<div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+																<Calendar className="h-5 w-5 text-primary" />
+															</div>
+															<div>
+																<p className="text-sm font-medium text-muted-foreground">Joined</p>
+																<p className="font-medium">{format(user.createdAt, "PPP")}</p>
+															</div>
+														</div>
+													</div>
+													<div className="p-4">
+														<div className="flex items-center gap-3">
+															<div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+																<CreditCard className="h-5 w-5 text-primary" />
+															</div>
+															<div>
+																<p className="text-sm font-medium text-muted-foreground">Status</p>
+																<Badge variant={user.hasPaid ? "default" : "secondary"} className="mt-1">
+																	{user.hasPaid ? "Paid Customer" : "Not Paid"}
+																</Badge>
+															</div>
+														</div>
+													</div>
+												</div>
+												{user.id && (
+													<div className="border-t p-4">
+														<div className="flex items-center justify-between">
+															<div className="flex items-center gap-2 text-sm text-muted-foreground">
+																<span>User ID:</span>
+																<code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+																	{user.id}
+																</code>
+															</div>
+															<Button variant="ghost" size="sm" className="h-7 gap-1" asChild>
+																<a href={`mailto:${user.email}`} target="_blank" rel="noopener noreferrer">
+																	<Mail className="h-3.5 w-3.5" />
+																	<span className="text-xs">Contact</span>
+																</a>
+															</Button>
+														</div>
+													</div>
+												)}
+											</CardContent>
+										</Card>
 									</div>
 								</section>
 
@@ -179,12 +176,30 @@ export const UserDrawer = ({ user, open, onClose }: UserDrawerProps) => {
 
 										<Card>
 											<CardContent className="p-4">
-												<p className="text-sm font-medium text-muted-foreground">Last Purchase</p>
-												<p className="text-lg">
-													{user.lastPurchaseDate
-														? format(user.lastPurchaseDate, "PPP")
-														: "No purchases"}
-												</p>
+												<div className="flex items-center justify-between">
+													<div>
+														<p className="text-sm font-medium text-muted-foreground">
+															Subscription Status
+														</p>
+														{user.hasActiveSubscription ? (
+															<Badge variant="default">Subscribed</Badge>
+														) : user.hadSubscription ? (
+															<Badge variant="secondary">Inactive</Badge>
+														) : (
+															<Badge variant="outline">None</Badge>
+														)}
+													</div>
+													<div className="text-right">
+														<p className="text-sm font-medium text-muted-foreground">
+															Last Purchase
+														</p>
+														<p className="text-lg">
+															{user.lastPurchaseDate
+																? format(user.lastPurchaseDate, "PPP")
+																: "No purchases"}
+														</p>
+													</div>
+												</div>
 											</CardContent>
 										</Card>
 									</div>
@@ -206,6 +221,34 @@ export const UserDrawer = ({ user, open, onClose }: UserDrawerProps) => {
 
 									{user.purchases && user.purchases.length > 0 ? (
 										<Card>
+											<div className="p-4 border-b">
+												<div className="flex flex-wrap gap-3">
+													<Badge variant="outline" className="px-3 py-1">
+														Total: {user.totalPurchases} purchase{user.totalPurchases !== 1 ? 's' : ''}
+													</Badge>
+													{user.lemonSqueezyStatus && (
+														<Badge variant="outline" className="px-3 py-1">
+															<CreditCard className="h-4 w-4 mr-1 text-yellow-500" />
+															LemonSqueezy
+														</Badge>
+													)}
+													{user.polarStatus && (
+														<Badge variant="outline" className="px-3 py-1">
+															<CreditCard className="h-4 w-4 mr-1 text-blue-500" />
+															Polar
+														</Badge>
+													)}
+													{user.hasActiveSubscription ? (
+														<Badge variant="default" className="px-3 py-1">
+															Subscribed
+														</Badge>
+													) : user.hadSubscription ? (
+														<Badge variant="secondary" className="px-3 py-1">
+															Subscription Inactive
+														</Badge>
+													) : null}
+												</div>
+											</div>
 											<Table>
 												<TableHeader>
 													<TableRow>
@@ -213,6 +256,7 @@ export const UserDrawer = ({ user, open, onClose }: UserDrawerProps) => {
 														<TableHead>Date</TableHead>
 														<TableHead>Amount</TableHead>
 														<TableHead>Status</TableHead>
+														<TableHead>Provider</TableHead>
 													</TableRow>
 												</TableHeader>
 												<TableBody>
@@ -234,10 +278,41 @@ export const UserDrawer = ({ user, open, onClose }: UserDrawerProps) => {
 																</div>
 															</TableCell>
 															<TableCell>
-																<Badge variant={getStatusBadgeVariant(purchase.status)}>
-																	{purchase.status.charAt(0).toUpperCase() +
-																		purchase.status.slice(1)}
-																</Badge>
+																{(() => {
+																	const isSubscription = isSubscriptionProduct(purchase.productName);
+																	// Check if this specific purchase is an active subscription
+																	const isActive = isSubscription &&
+																		user.hasActiveSubscription &&
+																		(user.purchases?.filter(p =>
+																			isSubscriptionProduct(p.productName) &&
+																			p.status === "paid"
+																		).slice(-1)[0]?.id === purchase.id);
+
+																	if (isSubscription) {
+																		return (
+																			<Badge variant={isActive ? "default" : "secondary"}>
+																				{isActive ? "Subscribed" : "Inactive"}
+																			</Badge>
+																		);
+																	}
+
+																	return (
+																		<Badge variant={getStatusBadgeVariant(purchase.status)}>
+																			{purchase.status.charAt(0).toUpperCase() +
+																				purchase.status.slice(1)}
+																		</Badge>
+																	);
+																})()}
+															</TableCell>
+															<TableCell>
+																{purchase.processor ? (
+																	<Badge variant="outline">
+																		{purchase.processor.charAt(0).toUpperCase() +
+																			purchase.processor.slice(1)}
+																	</Badge>
+																) : (
+																	<Badge variant="outline">Unknown</Badge>
+																)}
 															</TableCell>
 														</TableRow>
 													))}
@@ -254,6 +329,32 @@ export const UserDrawer = ({ user, open, onClose }: UserDrawerProps) => {
 											</CardContent>
 										</Card>
 									)}
+								</section>
+
+								{/* Raw JSON Data */}
+								<section>
+									<Collapsible open={isJsonOpen} onOpenChange={setIsJsonOpen} className="w-full">
+										<div className="flex items-center justify-end">
+											<CollapsibleTrigger asChild>
+												<Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">
+													{isJsonOpen ? (
+														<>
+															<ChevronUp className="h-3 w-3 mr-1" />
+															<span>Raw JSON</span>
+														</>
+													) : (
+														<>
+															<ChevronDown className="h-3 w-3 mr-1" />
+															<span>Raw JSON</span>
+														</>
+													)}
+												</Button>
+											</CollapsibleTrigger>
+										</div>
+										<CollapsibleContent>
+											<JsonViewer data={user} className="mt-2" />
+										</CollapsibleContent>
+									</Collapsible>
 								</section>
 							</div>
 						</div>

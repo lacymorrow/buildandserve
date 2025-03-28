@@ -1,10 +1,10 @@
 "use client";
 
+import type { PricingPlan } from "@/content/pricing/pricing-content";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { CheckIcon, EuroIcon } from "lucide-react";
 import { useState } from "react";
-import type { PricingPlan } from "@/content/pricing/pricing-content";
 
 type BilledType = "monthly" | "annually";
 

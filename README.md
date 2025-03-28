@@ -135,7 +135,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ### Shadcn
 
 ```bash
-npx shadcn-ui@latest add
+npx shadcn@latest add
 ```
 
 ### [MagicUI](https://magicui.design/)

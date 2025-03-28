@@ -57,9 +57,6 @@
   "files.watcherExclude": {
     "**/src/app/(app)/(demo)/**": true
   },
-  "[postcss]": {
-    "editor.defaultFormatter": "stylelint.vscode-stylelint"
-  },
   "[mdx]": {
     "editor.defaultFormatter": "unifiedjs.vscode-mdx"
   },
