@@ -14,55 +14,6 @@ import type { NextConfig } from "next";
 import { env } from "@/env";
 
 let nextConfig: NextConfig = {
-	async headers() {
-		return [
-			{
-				// General headers for the entire site
-				source: "/:path*",
-				headers: [
-					// Standard security headers
-					{
-						key: "X-DNS-Prefetch-Control",
-						value: "on",
-					},
-					{
-						key: "Strict-Transport-Security",
-						value: "max-age=63072000; includeSubDomains; preload",
-					},
-					{
-						key: "X-XSS-Protection",
-						value: "1; mode=block",
-					},
-					{
-						key: "X-Frame-Options",
-						value: "SAMEORIGIN",
-					},
-					{
-						key: "X-Content-Type-Options",
-						value: "nosniff",
-					},
-					{
-						key: "Referrer-Policy",
-						value: "origin-when-cross-origin",
-					},
-				],
-			},
-			{
-				// Specific headers for the install page to enable cross-origin isolation
-				source: "/install",
-				headers: [
-					{
-						key: "Cross-Origin-Embedder-Policy",
-						value: "require-corp",
-					},
-					{
-						key: "Cross-Origin-Opener-Policy",
-						value: "same-origin",
-					},
-				],
-			},
-		];
-	},
 	/*
 	 * Redirects are located in the `src/config/routes.ts` file
 	 */
