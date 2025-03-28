@@ -1,4 +1,4 @@
-import { type ComponentPropsWithoutRef, type ReactNode, Suspense } from "react";
+"use client";
 
 import { OAuthButtons } from "@/app/(app)/(authentication)/_components/oauth-buttons";
 import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
@@ -6,19 +6,29 @@ import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from 
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
-import { AuthProviderService } from "@/server/services/auth-provider-service";
 import Link from "next/link";
+import { Suspense, useEffect, useState } from "react";
 
-interface AuthFormProps extends ComponentPropsWithoutRef<"div"> {
-	mode: "sign-in" | "sign-up";
-	children?: ReactNode;
-	title?: string;
-	description?: string;
+interface AuthFormProps {
+	mode?: "sign-in" | "sign-up";
+	className?: string;
+	children?: React.ReactNode;
+	title?: string | React.ReactNode;
+	description?: string | React.ReactNode;
 	withHeader?: boolean;
 	withFooter?: boolean;
 }
 
-export async function AuthForm({
+async function getProviders() {
+	const response = await fetch("/api/providers");
+	if (!response.ok) {
+		console.error("Failed to fetch providers:", await response.text());
+		return [];
+	}
+	return response.json();
+}
+
+export  function AuthForm({
 	mode = "sign-in",
 	className,
 	children,
@@ -37,18 +47,11 @@ export async function AuthForm({
 		? { text: "Don't have an account?", href: routes.auth.signUp, label: "Sign up" }
 		: { text: "Already have an account?", href: routes.auth.signIn, label: "Sign in" };
 
+	const [providers, setProviders] = useState<Provider[]>([]);
 
-	const filteredProviders = await AuthProviderService.getOrderedProviders().then((providers) => {
-		return providers.filter(Boolean) as Array<{
-			id: string;
-			name: string;
-			isExcluded?: boolean;
-		}>;
-	}).catch((error) => {
-		console.error("Error fetching auth providers:", error);
-		// Continue with empty providers array
-		return [];
-	});
+	useEffect(() => {
+		getProviders().then(setProviders);
+	}, []);
 
 	return (
 		<div className={cn("flex flex-col gap-6 overflow-y-auto", className)} {...props}>
@@ -60,11 +63,11 @@ export async function AuthForm({
 			)}
 			<CardContent className="pb-0">
 				<div className="grid gap-6 relative">
-					{filteredProviders.length > 0 ? (
+					{providers.length > 0 ? (
 						<OAuthButtons
 							collapsible
 							variant="icons"
-							providers={filteredProviders}
+							providers={providers}
 						/>
 					) : null}
 

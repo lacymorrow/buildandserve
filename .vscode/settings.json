@@ -40,7 +40,7 @@
   "typescript.preferences.autoImportFileExcludePatterns": [],
   "javascript.preferences.autoImportFileExcludePatterns": [],
   "editor.codeActionsOnSave": {
-    "source.organizeImports": "explicit"
+    // "source.organizeImports": "explicit,
   },
   "typescript.suggest.autoImports": true,
   "javascript.suggest.autoImports": true,
