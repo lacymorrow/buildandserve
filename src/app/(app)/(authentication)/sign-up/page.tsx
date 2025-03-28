@@ -6,8 +6,13 @@ import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
 import { AuthenticationCard } from "../_components/authentication-card";
 import { SignUpForm } from "./_components/sign-up-form";
+import { AuthProviderService } from "@/server/services/auth-provider-service";
 
-export default function SignUpPage() {
+export default async function SignUpPage() {
+	// Fetch auth providers data
+	const orderedProviders = await AuthProviderService.getOrderedProviders();
+
+
 	return (
 		<div className="flex w-full max-w-sm flex-col gap-6">
 			<Link href={routes.home} className="flex items-center gap-2 self-center font-medium">
@@ -17,7 +22,7 @@ export default function SignUpPage() {
 				{siteConfig.name}
 			</Link>
 			<AuthenticationCard>
-				<AuthForm mode="sign-up">
+				<AuthForm mode="sign-up" providers={orderedProviders}>
 					<Divider text="Or continue with email" />
 					<SignUpForm />
 				</AuthForm>

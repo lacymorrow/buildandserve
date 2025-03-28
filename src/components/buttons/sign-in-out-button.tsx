@@ -31,3 +31,5 @@ export async function SignInOutButton() {
 		</form>
 	);
 }
+
+export { SignInOutButton as LoginOutButton };

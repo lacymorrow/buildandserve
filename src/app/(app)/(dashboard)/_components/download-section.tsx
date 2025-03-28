@@ -1,6 +1,6 @@
 import { BuyButton } from "@/components/buttons/buy-button";
 import { GitHubConnectButton } from "@/components/buttons/github-connect-button";
-import { LoginButton } from "@/components/buttons/login-button";
+import { LoginButton } from "@/components/buttons/sign-in-button";
 import { VercelDeployButton } from "@/components/shipkit/vercel-deploy-button";
 import { Button } from "@/components/ui/button";
 import { BASE_URL } from "@/config/base-url";

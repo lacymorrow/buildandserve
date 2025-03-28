@@ -21,10 +21,13 @@ import {
 	DrawerTitle,
 	DrawerTrigger,
 } from "@/components/ui/drawer";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { debounce } from "@/lib/utils/debounce";
 
 interface DrawerDialogProps {
 	asChild?: boolean;
+	routeBack?: boolean;
 	trigger?: React.ReactNode;
 	dialogTitle?: string;
 	dialogDescription?: string;
@@ -36,6 +39,7 @@ interface DrawerDialogProps {
 
 export function Modal({
 	asChild = false,
+	routeBack = false,
 	trigger,
 	dialogTitle,
 	dialogDescription,
@@ -45,14 +49,24 @@ export function Modal({
 	className,
 	...props
 }: DrawerDialogProps) {
+	const router = useRouter();
 	const [isMobile, setIsMobile] = React.useState(true);
 	const [isOpen, setIsOpen] = React.useState(
 		typeof open === "undefined" ? true : open,
 	);
 
+	// Responsive breakpoint for mobile
 	useEffect(() => {
 		setIsMobile(window.innerWidth < 768);
 	}, []);
+
+
+	// Don't immediately close the modal, we need to wait for the modal to animate closed before we should navigate
+	// @see https://nextjs.org/docs/app/building-your-application/routing/parallel-routes#modals
+	const debouncedRouteBack = useMemo(
+		() => debounce(() => router.back(), 300),
+		[router],
+	);
 
 	const handleOpenChange = (open: boolean) => {
 		setIsOpen(open);
@@ -61,6 +75,9 @@ export function Modal({
 			return onOpenChange(open);
 		}
 
+		if (!open && routeBack) {
+			debouncedRouteBack();
+		}
 
 	};
 

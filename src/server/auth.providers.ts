@@ -50,6 +50,7 @@ export const ORDERED_PROVIDERS = [
 	"bitbucket",
 ];
 
+console.log("env", process.env, process.env.DISABLE_PAYLOAD === "true");
 export const providers: NextAuthConfig["providers"] = [
 	/***
 	 * Magic Link Provider - Resend
@@ -251,13 +252,16 @@ export const authProvidersArray = authProviders.map(
 );
 
 export const orderedProviders =
-	// First, remove duplicates by...
-	Array.from(
-		// ...creating a set of the ordered providers and the auth providers (sets are unique)
-		new Set([...ORDERED_PROVIDERS, ...authProvidersArray])
-	)
-		// Finally, back to an array and map the providers to their data
+	// First, filter ordered providers to only include those that exist in authProvidersArray
+	[
+		// Start with ordered providers that exist in authProvidersArray
+		...ORDERED_PROVIDERS.filter((providerId) => authProvidersArray.includes(providerId)),
+		// Then add any remaining providers from authProvidersArray that aren't in ORDERED_PROVIDERS
+		...authProvidersArray.filter((providerId) => !ORDERED_PROVIDERS.includes(providerId)),
+	]
+		// Map the providers to their data
 		.map((providerId) => {
+			console.log("providerId", providerId);
 			const provider = authProviders.find((provider) => provider.id === providerId);
 			if (!provider) {
 				return null;
@@ -269,4 +273,10 @@ export const orderedProviders =
 			}
 
 			return provider;
-		});
+		})
+		// Filter out any null values
+		.filter(Boolean) as Array<{
+		id: string;
+		name: string;
+		isExcluded?: boolean;
+	}>;

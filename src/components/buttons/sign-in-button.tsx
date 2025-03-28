@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import type React from "react";
 
-export const LoginButton = ({
+export const SignInButton = ({
 	className,
 	children = "Login",
 	size = "default",
@@ -32,3 +32,5 @@ export const LoginButton = ({
 		</Link>
 	);
 };
+
+export { SignInButton as LoginButton };

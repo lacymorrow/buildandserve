@@ -1,7 +1,7 @@
 "use client";
 
 import { Icon } from "@/components/assets/icon";
-import { LoginButton } from "@/components/buttons/login-button";
+import { LoginButton } from "@/components/buttons/sign-in-button";
 import { Link } from "@/components/primitives/link-with-transition";
 import { SearchAi } from "@/components/search/search-ai";
 import { UserMenu } from "@/components/shipkit/user-menu";

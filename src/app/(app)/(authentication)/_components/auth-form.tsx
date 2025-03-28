@@ -1,4 +1,6 @@
-"use client";
+'use client';
+
+import { type ComponentPropsWithoutRef, type ReactNode, Suspense } from "react";
 
 import { OAuthButtons } from "@/app/(app)/(authentication)/_components/oauth-buttons";
 import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
@@ -6,30 +8,27 @@ import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from 
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
+import { AuthProviderService } from "@/server/services/auth-provider-service";
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
 
-interface AuthFormProps {
-	mode?: "sign-in" | "sign-up";
-	className?: string;
-	children?: React.ReactNode;
-	title?: string | React.ReactNode;
-	description?: string | React.ReactNode;
+interface AuthProvider {
+	id: string;
+	name: string;
+}
+
+interface AuthFormProps extends ComponentPropsWithoutRef<"div"> {
+	mode: "sign-in" | "sign-up";
+	providers: AuthProvider[];
+	children?: ReactNode;
+	title?: string;
+	description?: string;
 	withHeader?: boolean;
 	withFooter?: boolean;
 }
 
-async function getProviders() {
-	const response = await fetch("/api/auth/providers");
-	if (!response.ok) {
-		console.error("Failed to fetch providers:", await response.text());
-		return [];
-	}
-	return response.json();
-}
-
 export function AuthForm({
 	mode = "sign-in",
+	providers,
 	className,
 	children,
 	title,
@@ -47,16 +46,6 @@ export function AuthForm({
 		? { text: "Don't have an account?", href: routes.auth.signUp, label: "Sign up" }
 		: { text: "Already have an account?", href: routes.auth.signIn, label: "Sign in" };
 
-	const [providers, setProviders] = useState<Array<{
-		id: string;
-		name: string;
-		isExcluded?: boolean;
-	}>>([]);
-
-	useEffect(() => {
-		getProviders().then(setProviders);
-	}, []);
-
 	return (
 		<div className={cn("flex flex-col gap-6 overflow-y-auto", className)} {...props}>
 			{withHeader && (
@@ -67,13 +56,11 @@ export function AuthForm({
 			)}
 			<CardContent className="pb-0">
 				<div className="grid gap-6 relative">
-					{providers.length > 0 ? (
-						<OAuthButtons
-							collapsible
-							variant="icons"
-							providers={providers}
-						/>
-					) : null}
+					<OAuthButtons
+						collapsible
+						variant="icons"
+						providers={providers}
+					/>
 
 					<Suspense fallback={<SuspenseFallback />}>
 						{children}
