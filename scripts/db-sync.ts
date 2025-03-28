@@ -109,11 +109,8 @@ async function syncDatabase() {
 		console.log("🚀 Initializing Payload CMS...");
 		const payload = await getPayloadClient();
 		if (!payload) {
-			throw new Error("Failed to initialize Payload");
-		}
-
-		// 5. Run database seeding if needed
-		if (process.env.SEED_DB === "true") {
+			console.warn("⚠️ Did not initialize Payload");
+		} else if (process.env.SEED_DB === "true") {
 			console.log("🌱 Running database seed...");
 			await seed();
 			console.log("✅ Database seeded");
