@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import type { PaymentData } from "@/server/services/payment-service";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
-import { ArrowUpDown, Eye } from "lucide-react";
+import { ArrowUpDown, Eye, Tag } from "lucide-react";
 import { useState } from "react";
 import { PaymentDrawer } from "./payment-drawer";
 
@@ -76,6 +76,24 @@ export const columns: ColumnDef<PaymentData>[] = [
 			}).format(amount);
 
 			return formatted;
+		},
+	},
+	{
+		accessorKey: "isFreeProduct",
+		header: "Type",
+		cell: ({ row }) => {
+			const isFreeProduct = row.getValue("isFreeProduct");
+			const amount = Number.parseFloat(row.getValue("amount"));
+
+			if (isFreeProduct) {
+				return <Badge variant="default" className="flex items-center gap-1"><Tag className="h-3 w-3" /> Free</Badge>;
+			}
+
+			if (amount === 0) {
+				return <Badge variant="secondary" className="flex items-center gap-1"><Tag className="h-3 w-3" /> Discounted</Badge>;
+			}
+
+			return <Badge variant="default" className="flex items-center gap-1"><Tag className="h-3 w-3" /> Paid</Badge>;
 		},
 	},
 	{

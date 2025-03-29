@@ -99,6 +99,8 @@ export const getAllOrders = async () => {
 				status: attributes.status as "paid" | "refunded" | "pending",
 				productName: attributes.first_order_item?.variant_name ?? "Unknown Product",
 				purchaseDate: new Date(attributes.created_at),
+				// Include discount code if available - use type assertion to avoid TypeScript error
+				discountCode: (attr.discount_code || null) as string | null,
 				attributes,
 			};
 		});

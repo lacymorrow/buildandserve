@@ -15,7 +15,7 @@ import { FolderSyncIcon, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 /**
- * Component to import payments from payment providers
+ * Component to import users and payments from payment providers
  */
 export function ImportPayments() {
 	const { toast } = useToast();
@@ -23,7 +23,7 @@ export function ImportPayments() {
 	const [provider, setProvider] = useState<string | null>(null);
 
 	/**
-	 * Imports payments from a specific provider
+	 * Imports users and payments from a specific provider
 	 * @param provider - The payment provider to import from
 	 */
 	const handleImport = async (provider: "lemonsqueezy" | "polar" | "all") => {
@@ -95,7 +95,7 @@ export function ImportPayments() {
 					) : (
 						<>
 							<FolderSyncIcon className="mr-2 h-4 w-4" />
-							Sync Users and Payments
+							Import Users & Payments
 						</>
 					)}
 				</Button>

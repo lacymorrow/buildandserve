@@ -18,7 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import type { PaymentData } from "@/server/services/payment-service";
 import { format } from "date-fns";
-import { CalendarDays, ChevronDown, ChevronUp, CreditCard, DollarSign, Mail, User } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, CreditCard, DollarSign, Mail, Tag, User } from "lucide-react";
 import { useState } from "react";
 
 interface PaymentDrawerProps {
@@ -30,6 +30,19 @@ interface PaymentDrawerProps {
 export const PaymentDrawer = ({ payment, open, onClose }: PaymentDrawerProps) => {
     const [isJsonOpen, setIsJsonOpen] = useState(false);
     if (!payment) return null;
+
+    // Determine product type label
+    const getProductTypeLabel = () => {
+        if (payment.isFreeProduct) {
+            return { label: "Free Product", variant: "default" as const };
+        }
+        if (payment.amount === 0) {
+            return { label: "Discounted to $0", variant: "secondary" as const };
+        }
+        return { label: "Paid Product", variant: "default" as const };
+    };
+
+    const productType = getProductTypeLabel();
 
     return (
         <Drawer open={open} onOpenChange={onClose}>
@@ -65,19 +78,23 @@ export const PaymentDrawer = ({ payment, open, onClose }: PaymentDrawerProps) =>
                                                             }).format(typeof payment.amount === 'string' ? Number.parseFloat(payment.amount) : payment.amount)}</span>
                                                         </div>
                                                     </div>
-                                                    <Badge
-                                                        variant={
-                                                            payment.status === "paid" ? "default" :
-                                                                payment.status === "refunded" ? "destructive" : "secondary"
-                                                        }
-                                                        className="ml-auto"
-                                                    >
-                                                        {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                                                    </Badge>
+                                                    <div className="ml-auto flex gap-2">
+                                                        <Badge variant={productType.variant}>
+                                                            {productType.label}
+                                                        </Badge>
+                                                        <Badge
+                                                            variant={
+                                                                payment.status === "paid" ? "default" :
+                                                                    payment.status === "refunded" ? "destructive" : "secondary"
+                                                            }
+                                                        >
+                                                            {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                                                        </Badge>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <CardContent className="p-0">
-                                                <div className="grid grid-cols-1 divide-y sm:grid-cols-2 sm:divide-y-0 sm:divide-x">
+                                                <div className="grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-y-0 sm:divide-x">
                                                     <div className="p-4">
                                                         <div className="flex items-center gap-3">
                                                             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
@@ -98,6 +115,19 @@ export const PaymentDrawer = ({ payment, open, onClose }: PaymentDrawerProps) =>
                                                                 <p className="text-sm font-medium text-muted-foreground">Processor</p>
                                                                 <Badge variant="outline" className="mt-1">
                                                                     {payment.processor}
+                                                                </Badge>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                                                                <Tag className="h-5 w-5 text-primary" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-medium text-muted-foreground">Product Type</p>
+                                                                <Badge variant={productType.variant} className="mt-1">
+                                                                    {productType.label}
                                                                 </Badge>
                                                             </div>
                                                         </div>

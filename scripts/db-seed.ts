@@ -1,4 +1,4 @@
-import "../scripts/env-config.js";
+// import "../scripts/env-config.js";
 import { seed as seedCMS } from "@/lib/payload/seed";
 
 async function main() {

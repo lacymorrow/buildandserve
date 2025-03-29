@@ -1,4 +1,4 @@
-import "../scripts/env-config.js";
+// import "../scripts/env-config.js";
 import { db } from "@/server/db";
 import { sql } from "drizzle-orm";
 

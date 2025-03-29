@@ -29,6 +29,7 @@ export interface PaymentData {
 	productName: string;
 	purchaseDate: Date;
 	processor: string;
+	isFreeProduct: boolean;
 }
 
 // Define interface for Purchase (used in user data)
@@ -40,6 +41,7 @@ export interface Purchase {
 	purchaseDate: Date;
 	orderId: string;
 	processor?: string; // Payment processor (lemonsqueezy, polar, etc.)
+	isFreeProduct: boolean;
 }
 
 // Define UserData interface for admin dashboard
@@ -276,8 +278,8 @@ const PaymentService = {
 	},
 
 	/**
-	 * Creates a new payment record
-	 * @param data - The payment data
+	 * Creates a new payment in the database
+	 * @param data Payment data to create
 	 * @returns The created payment
 	 */
 	async createPayment(data: {
@@ -286,51 +288,46 @@ const PaymentService = {
 		amount: number;
 		status: string;
 		processor?: string;
+		isFreeProduct?: boolean;
 		metadata?: Record<string, unknown>;
 	}): Promise<Payment> {
-		logger.debug("Creating payment record", {
-			userId: data.userId,
-			orderId: data.orderId,
-			amount: data.amount,
-			status: data.status,
-			processor: data.processor,
-		});
+		try {
+			// Check if the database is initialized
+			if (!isDatabaseInitialized() || !db) {
+				throw new Error("Database not initialized");
+			}
 
-		if (!db) {
-			logger.error("Database not initialized when creating payment", {
-				userId: data.userId,
-				orderId: data.orderId,
+			// Check if the payment already exists
+			const existingPayment = await db.query.payments.findFirst({
+				where: eq(payments.orderId, data.orderId),
 			});
-			throw new Error("Database is not initialized");
+
+			if (existingPayment) {
+				logger.debug("Payment already exists", { orderId: data.orderId });
+				return existingPayment;
+			}
+
+			// Create the payment
+			const [payment] = await db
+				.insert(payments)
+				.values({
+					userId: data.userId,
+					orderId: data.orderId,
+					amount: data.amount,
+					status: data.status,
+					processor: data.processor || "unknown",
+					isFreeProduct: data.isFreeProduct || false,
+					metadata: data.metadata ? JSON.stringify(data.metadata) : "{}",
+				})
+				.returning();
+
+			logger.debug("Payment created", { id: payment.id, orderId: data.orderId });
+
+			return payment;
+		} catch (error) {
+			console.error("Error creating payment:", error);
+			throw error;
 		}
-
-		const [payment] = await db
-			.insert(payments)
-			.values({
-				...data,
-				processor: data.processor,
-				metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
-				createdAt: new Date(),
-				updatedAt: new Date(),
-			})
-			.returning();
-
-		if (!payment) {
-			logger.error("Failed to create payment record", {
-				userId: data.userId,
-				orderId: data.orderId,
-			});
-			throw new Error("Failed to create payment record");
-		}
-
-		logger.debug("Payment record created", {
-			paymentId: payment.id,
-			userId: data.userId,
-			orderId: data.orderId,
-			processor: payment.processor,
-		});
-
-		return payment;
 	},
 
 	/**
@@ -433,11 +430,15 @@ const PaymentService = {
 
 				// Try to parse metadata for additional info
 				let productName = "Unknown Product";
+				let isFreeProduct = payment.isFreeProduct || false;
 				try {
 					if (payment.metadata) {
 						const metadata = JSON.parse(payment.metadata as string);
 						if (metadata.productName) {
 							productName = metadata.productName;
+						}
+						if (metadata.isFreeProduct !== undefined) {
+							isFreeProduct = metadata.isFreeProduct;
 						}
 					}
 				} catch (error) {
@@ -450,11 +451,12 @@ const PaymentService = {
 					userEmail: user?.email || "unknown@example.com",
 					userName: user?.name || null,
 					userImage: user?.image || null,
-					amount: payment.amount || 0,
+					amount: (payment.amount || 0) / 100, // Convert from cents to dollars
 					status: payment.status as "paid" | "refunded" | "pending",
 					productName,
 					purchaseDate: new Date(payment.createdAt),
 					processor: payment.processor || "unknown",
+					isFreeProduct,
 				});
 			}
 
@@ -472,17 +474,23 @@ const PaymentService = {
 							(u) => u.email?.toLowerCase() === order.userEmail.toLowerCase()
 						);
 
+						// Determine if it's a free product (price is 0 but not a discounted product)
+						// For Lemon Squeezy, we're assuming products with 0 amount that don't have a
+						// discount code are considered free products
+						const isFreeProduct = order.amount === 0 && !order.discountCode;
+
 						paymentData.push({
 							id: order.id,
 							orderId: order.orderId,
 							userEmail: order.userEmail,
 							userName: order.userName,
 							userImage: user?.image || null,
-							amount: order.amount,
+							amount: order.amount, // This amount is already in dollars
 							status: order.status,
 							productName: order.productName,
 							purchaseDate: order.purchaseDate,
 							processor: "lemonsqueezy",
+							isFreeProduct,
 						});
 					}
 				}
@@ -492,7 +500,6 @@ const PaymentService = {
 
 			// Get payments from Polar
 			try {
-				const { getAllOrders: getPolarOrders } = await import("@/lib/polar");
 				const orders = await getPolarOrders();
 
 				for (const order of orders) {
@@ -505,17 +512,22 @@ const PaymentService = {
 							(u) => u.email?.toLowerCase() === order.userEmail.toLowerCase()
 						);
 
+						// For Polar, determine if a product with 0 amount is a free product
+						// or a discounted product (similar logic to Lemon Squeezy)
+						const isFreeProduct = order.amount === 0 && !order.discountCode;
+
 						paymentData.push({
 							id: order.id,
 							orderId: order.orderId,
 							userEmail: order.userEmail,
 							userName: order.userName,
 							userImage: user?.image || null,
-							amount: order.amount,
+							amount: order.amount, // This amount is already in dollars
 							status: order.status,
 							productName: order.productName,
 							purchaseDate: order.purchaseDate,
 							processor: "polar",
+							isFreeProduct,
 						});
 					}
 				}
@@ -523,12 +535,12 @@ const PaymentService = {
 				logger.error("Error fetching Polar orders:", error);
 			}
 
-			// Sort by purchase date (newest first)
-			paymentData.sort((a, b) => b.purchaseDate.getTime() - a.purchaseDate.getTime());
-
-			return paymentData;
+			// Sort by date (newest first)
+			return paymentData.sort((a, b) => {
+				return b.purchaseDate.getTime() - a.purchaseDate.getTime();
+			});
 		} catch (error) {
-			console.error("Error getting payments with users:", error);
+			logger.error("Error getting payments with users:", error);
 			return [];
 		}
 	},
@@ -582,11 +594,12 @@ const PaymentService = {
 					return {
 						id: String(payment.id),
 						productName,
-						amount: payment.amount ?? 0,
+						amount: (payment.amount ?? 0) / 100, // Convert from cents to dollars
 						status: payment.status as "paid" | "refunded" | "pending",
 						purchaseDate: new Date(payment.createdAt),
 						orderId: payment.orderId ?? "",
 						processor: payment.processor || "unknown",
+						isFreeProduct: false,
 					};
 				});
 

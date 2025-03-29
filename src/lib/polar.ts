@@ -27,6 +27,7 @@ interface PolarOrder {
 	status: "paid" | "refunded" | "pending";
 	productName: string;
 	purchaseDate: Date;
+	discountCode: string | null;
 	attributes: Record<string, any>;
 }
 
@@ -201,55 +202,46 @@ const mapToPolarOrder = (order: any): PolarOrder => {
 		amount = convertPriceToIntegerCents(order.total);
 	}
 
-	// Extract subscription-related information
-	const isSubscription = !!(
-		order.isSubscription ||
-		order.is_recurring ||
-		order.subscriptionId ||
-		order.subscription_id ||
-		(order.subscription_status && order.subscription_status !== "canceled") ||
-		(order.attributes?.subscription_status && order.attributes.subscription_status !== "canceled")
-	);
+	// Convert amount from cents to dollars
+	amount = amount / 100;
 
-	// Log subscription detection
-	if (isSubscription) {
-		logger.debug("Detected subscription in order", {
-			orderId: order.id,
-			isSubscription,
-			subscriptionStatus: order.subscription_status || order.attributes?.subscription_status,
-			subscriptionEndDate:
-				order.subscription_end_date ||
-				order.expiresAt ||
-				order.attributes?.subscription_end_date ||
-				order.attributes?.expiresAt,
-		});
-	}
+	// Generate a unique ID for the order if one doesn't exist
+	const id = order.id || `polar-${order.orderId || Date.now()}`;
 
-	// Create the mapped order object with enhanced subscription data
-	const mappedOrder = {
-		id: order.id || "",
-		orderId: order.id || "",
-		userEmail: order.customer?.email || "Unknown",
-		userName: order.customer?.name || null,
-		amount: amount / 100, // Convert from cents to dollars for display
-		status: mapPolarOrderStatus(order.status),
-		productName: order.product?.name || "Unknown Product",
-		purchaseDate: new Date(order.createdAt || Date.now()),
-		attributes: {
-			...order,
-			// Enhance attributes with subscription information
-			isSubscription,
-			is_recurring: isSubscription || order.is_recurring,
-			subscription_status: order.subscription_status || order.attributes?.subscription_status,
-			subscription_end_date:
-				order.subscription_end_date ||
-				order.expiresAt ||
-				order.attributes?.subscription_end_date ||
-				order.attributes?.expiresAt,
-		},
+	// Extract order ID with fallbacks
+	const orderId = order.orderId || order.order_id || order.id || `polar-${Date.now()}`;
+
+	// Extract user email and name with fallbacks
+	const userEmail = order.customer?.email || order.email || order.userEmail || "Unknown email";
+
+	const userName = order.customer?.name || order.customer?.displayName || order.userName || null;
+
+	// Extract product name
+	const productName = order.product?.name || order.productName || "Unknown product";
+
+	// Extract purchase date
+	const purchaseDate = order.created_at || order.createdAt || order.date || new Date();
+
+	// Extract discount code
+	const discountCode = order.discount_code || order.discountCode || order.coupon || null;
+
+	// Extract status with fallbacks or defaults
+	const rawStatus = order.status || order.orderStatus || "pending";
+	const status = mapPolarOrderStatus(rawStatus);
+
+	// Return mapped order
+	return {
+		id,
+		orderId,
+		userEmail,
+		userName,
+		amount,
+		status,
+		productName,
+		purchaseDate: new Date(purchaseDate),
+		discountCode,
+		attributes: order,
 	};
-
-	return mappedOrder;
 };
 
 /**
