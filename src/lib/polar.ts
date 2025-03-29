@@ -202,6 +202,30 @@ const mapToPolarOrder = (order: any): PolarOrder => {
 		amount = convertPriceToIntegerCents(order.total);
 	}
 
+	// Extract subscription-related information
+	const isSubscription = !!(
+		order.isSubscription ||
+		order.is_recurring ||
+		order.subscriptionId ||
+		order.subscription_id ||
+		(order.subscription_status && order.subscription_status !== "canceled") ||
+		(order.attributes?.subscription_status && order.attributes.subscription_status !== "canceled")
+	);
+
+	// Log subscription detection
+	if (isSubscription) {
+		logger.debug("Detected subscription in order", {
+			orderId: order.id,
+			isSubscription,
+			subscriptionStatus: order.subscription_status || order.attributes?.subscription_status,
+			subscriptionEndDate:
+				order.subscription_end_date ||
+				order.expiresAt ||
+				order.attributes?.subscription_end_date ||
+				order.attributes?.expiresAt,
+		});
+	}
+
 	// Convert amount from cents to dollars
 	amount = amount / 100;
 
@@ -229,7 +253,14 @@ const mapToPolarOrder = (order: any): PolarOrder => {
 	const rawStatus = order.status || order.orderStatus || "pending";
 	const status = mapPolarOrderStatus(rawStatus);
 
-	// Return mapped order
+	// Extract subscription end date with fallbacks
+	const subscriptionEndDate =
+		order.subscription_end_date ||
+		order.expiresAt ||
+		order.attributes?.subscription_end_date ||
+		order.attributes?.expiresAt;
+
+	// Return mapped order with enhanced subscription data
 	return {
 		id,
 		orderId,
@@ -240,7 +271,14 @@ const mapToPolarOrder = (order: any): PolarOrder => {
 		productName,
 		purchaseDate: new Date(purchaseDate),
 		discountCode,
-		attributes: order,
+		attributes: {
+			...order,
+			// Enhance attributes with subscription information
+			isSubscription,
+			is_recurring: isSubscription || order.is_recurring,
+			subscription_status: order.subscription_status || order.attributes?.subscription_status,
+			subscription_end_date: subscriptionEndDate,
+		},
 	};
 };
 
