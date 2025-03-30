@@ -100,7 +100,7 @@ export function Modal({
 								<DialogTitle>{dialogTitle}</DialogTitle>
 							) : (
 								<DialogTitle className="sr-only">
-									{dialogTitle ?? "Modal dialog"}
+									{dialogTitle ?? "Modal dialog window"}
 								</DialogTitle>
 							)}
 							{dialogDescription && (

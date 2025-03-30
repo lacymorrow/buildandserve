@@ -7,11 +7,7 @@ import { revalidatePath } from "next/cache";
  * Creates a new project and adds the current user as the owner.
  * @returns The created project with its members
  */
-export async function createProject(
-	name: string,
-	teamId: string,
-	userId: string,
-) {
+export async function createProject(name: string, teamId: string, userId: string) {
 	const project = await projectService.createProject(teamId, name, userId);
 	revalidatePath("/");
 	return project;
@@ -65,11 +61,7 @@ export async function getProjectMembers(projectId: string) {
  * Adds a member to a project.
  * @returns The created project member
  */
-export async function addProjectMember(
-	projectId: string,
-	userId: string,
-	role: string,
-) {
+export async function addProjectMember(projectId: string, userId: string, role: string) {
 	const member = await projectService.addProjectMember(projectId, userId, role);
 	revalidatePath("/");
 	return member;
@@ -89,16 +81,8 @@ export async function removeProjectMember(projectId: string, userId: string) {
  * Updates a project member's role.
  * @returns The updated project member
  */
-export async function updateProjectMemberRole(
-	projectId: string,
-	userId: string,
-	role: string,
-) {
-	const member = await projectService.updateProjectMemberRole(
-		projectId,
-		userId,
-		role,
-	);
+export async function updateProjectMemberRole(projectId: string, userId: string, role: string) {
+	const member = await projectService.updateProjectMemberRole(projectId, userId, role);
 	revalidatePath("/");
 	return member;
 }

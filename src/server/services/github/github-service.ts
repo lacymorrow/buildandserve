@@ -7,21 +7,42 @@ import { Octokit } from "@octokit/rest";
 import { eq } from "drizzle-orm";
 import { cache } from "react";
 
-// Ensure token exists
-if (!env?.GITHUB_ACCESS_TOKEN) {
-	logger.error("GITHUB_ACCESS_TOKEN is required");
+// Conditionally initialize Octokit
+let octokit: Octokit | null = null;
+if (env.NEXT_PUBLIC_FEATURE_GITHUB_API_ENABLED) {
+	if (!env.GITHUB_ACCESS_TOKEN) {
+		logger.error("GitHub API feature is enabled, but GITHUB_ACCESS_TOKEN is missing.");
+	} else {
+		octokit = new Octokit({
+			auth: env.GITHUB_ACCESS_TOKEN,
+		});
+		logger.info("Initialized GitHub service with admin token", {
+			hasToken: true,
+			repoOwner: siteConfig.repo.owner,
+			repoName: siteConfig.repo.name,
+		});
+	}
+} else {
+	logger.debug("GitHub API feature is disabled.");
 }
 
-// Create an Octokit instance with the admin token
-export const octokit = new Octokit({
-	auth: env.GITHUB_ACCESS_TOKEN,
-});
+// Export the potentially null octokit instance
+export { octokit };
 
-logger.info("Initialized GitHub service with admin token", {
-	hasToken: true,
-	repoOwner: siteConfig.repo.owner,
-	repoName: siteConfig.repo.name,
-});
+// --- Helper Function to check if service is enabled ---
+const isGitHubServiceEnabled = (): boolean => {
+	if (!octokit) {
+		if (env.NEXT_PUBLIC_FEATURE_GITHUB_API_ENABLED) {
+			// Log error only if the feature was supposed to be enabled but failed init
+			logger.error(
+				"GitHub Service was enabled but failed to initialize (likely missing token). Returning disabled state."
+			);
+		}
+		return false;
+	}
+	return true;
+};
+// ----------------------------------------------------
 
 interface GitHubAccessParams {
 	githubUsername: string;
@@ -29,12 +50,16 @@ interface GitHubAccessParams {
 
 // Cache for 5 minutes
 export const getRepo = cache(async (owner?: string, repo?: string) => {
+	if (!isGitHubServiceEnabled()) {
+		logger.debug("GitHub Service disabled, skipping getRepo.");
+		return null;
+	}
 	try {
 		// Use provided values or fall back to siteConfig defaults
 		const repoOwner = owner || siteConfig.repo.owner;
 		const repoName = repo || siteConfig.repo.name;
 
-		const response = await octokit.rest.repos.get({
+		const response = await octokit?.rest.repos.get({
 			owner: repoOwner,
 			repo: repoName,
 		});
@@ -50,14 +75,18 @@ export const getRepo = cache(async (owner?: string, repo?: string) => {
  * Grants access to the private repository for a GitHub user
  */
 export async function grantGitHubAccess({ githubUsername }: GitHubAccessParams) {
+	if (!isGitHubServiceEnabled()) {
+		logger.warn("GitHub Service disabled, skipping grantGitHubAccess.");
+		// Decide on return type: throw error or return specific status?
+		// Returning false for now, indicating failure/disabled.
+		return false;
+	}
+
 	logger.info("Starting GitHub access grant", {
 		githubUsername,
 	});
 
-	if (!env?.GITHUB_ACCESS_TOKEN) {
-		logger.warn("GitHub access token missing");
-		return;
-	}
+	// Token existence check is implicitly handled by isGitHubServiceEnabled()
 
 	if (!githubUsername) {
 		logger.error("GitHub username missing");
@@ -94,7 +123,7 @@ export async function grantGitHubAccess({ githubUsername }: GitHubAccessParams) 
 		});
 
 		try {
-			const { data: collaborator } = await octokit.rest.repos.getCollaboratorPermissionLevel({
+			const { data: collaborator } = await octokit?.rest.repos.getCollaboratorPermissionLevel({
 				owner: siteConfig.repo.owner,
 				repo: siteConfig.repo.name,
 				username: githubUsername,
@@ -157,7 +186,7 @@ export async function grantGitHubAccess({ githubUsername }: GitHubAccessParams) 
 		// Add user as collaborator with write access using admin token
 		logger.info("Adding user as repository collaborator", payload);
 
-		await octokit.rest.repos.addCollaborator(payload);
+		await octokit?.rest.repos.addCollaborator(payload);
 
 		logger.info("Successfully added user as repository collaborator", payload);
 
@@ -177,6 +206,10 @@ export async function grantGitHubAccess({ githubUsername }: GitHubAccessParams) 
  * Revokes GitHub access for a user, with safeguards to prevent dangerous operations
  */
 export async function revokeGitHubAccess(userId: string) {
+	if (!isGitHubServiceEnabled()) {
+		logger.warn("GitHub Service disabled, skipping revokeGitHubAccess.");
+		return false; // Indicate failure/disabled
+	}
 	try {
 		// Get user details including their GitHub token and username
 		const user = await db?.query.users.findFirst({
@@ -190,7 +223,7 @@ export async function revokeGitHubAccess(userId: string) {
 
 		if (!user?.githubUsername) {
 			logger.warn("No GitHub username found for user", { userId });
-			return;
+			return true; // Indicate success/disabled
 		}
 
 		if (siteConfig.repo.owner === user.githubUsername) {
@@ -219,18 +252,18 @@ export async function revokeGitHubAccess(userId: string) {
 
 		try {
 			// Remove user as collaborator using admin token
-			const response = await octokit.rest.repos.removeCollaborator({
+			const response = await octokit?.rest.repos.removeCollaborator({
 				owner: siteConfig.repo.owner,
 				repo: siteConfig.repo.name,
 				username: user.githubUsername,
 			});
 
-			if (response.status !== 204) {
-				throw new Error(`Failed to remove collaborator: ${response.status}`);
+			if (response?.status !== 204) {
+				throw new Error(`Failed to remove collaborator: ${response?.status}`);
 			}
 
 			logger.info("Successfully removed user as collaborator", {
-				status: response.status,
+				status: response?.status,
 				username: user.githubUsername,
 			});
 
@@ -267,6 +300,11 @@ export async function revokeGitHubAccess(userId: string) {
  * Checks if a GitHub user has any active deployments or critical operations
  */
 async function checkActiveDeployments(githubUsername: string): Promise<boolean> {
+	if (!isGitHubServiceEnabled()) {
+		logger.debug("GitHub Service disabled, skipping checkActiveDeployments.");
+		return true; // Assume no active deployments if service is off
+	}
+
 	if (!env?.GITHUB_ACCESS_TOKEN) {
 		logger.warn("GITHUB_ACCESS_TOKEN is not set in the environment.");
 		return false;
@@ -302,10 +340,16 @@ async function checkActiveDeployments(githubUsername: string): Promise<boolean> 
  * Get OAuth token scopes
  */
 async function getTokenScopes(token: string): Promise<string[]> {
+	if (!isGitHubServiceEnabled()) {
+		logger.debug("GitHub Service disabled, skipping getTokenScopes.");
+		return [];
+	}
 	try {
+		// Temporarily create an octokit instance for this check if needed,
+		// or rely on the main octokit instance if it's guaranteed to be valid here.
 		const tempOctokit = new Octokit({ auth: token });
-		const { headers } = await tempOctokit.request("GET /user");
-		return headers["x-oauth-scopes"]?.split(", ") ?? [];
+		const response = await tempOctokit.request("GET /");
+		return response.headers["x-oauth-scopes"]?.split(", ") ?? [];
 	} catch (error) {
 		logger.error("Error getting token scopes", { error });
 		return [];
@@ -316,10 +360,14 @@ async function getTokenScopes(token: string): Promise<string[]> {
  * Check if a GitHub username exists
  */
 export async function checkGitHubUsername(username: string): Promise<boolean> {
+	if (!isGitHubServiceEnabled()) {
+		logger.debug("GitHub Service disabled, skipping checkGitHubUsername.");
+		return true; // Or false? Depending on desired behavior when disabled.
+	}
 	logger.info("Checking if GitHub username exists", { username });
 
 	try {
-		await octokit.rest.users.getByUsername({
+		await octokit?.rest.users.getByUsername({
 			username,
 		});
 		logger.info("GitHub username exists", { username });
@@ -338,6 +386,12 @@ export async function checkGitHubUsername(username: string): Promise<boolean> {
  * Check if a user has connected their GitHub account
  */
 export async function checkGitHubConnection(userId: string): Promise<boolean> {
+	if (!isGitHubServiceEnabled()) {
+		logger.debug("GitHub Service disabled, skipping checkGitHubConnection.");
+		// Check DB even if API is disabled?
+		// For now, returning false as connection likely requires API interaction downstream.
+		return false;
+	}
 	logger.info("Checking GitHub connection", { userId });
 
 	const user = await db
@@ -363,6 +417,10 @@ export const getRepoStars = cache(
 		owner = siteConfig.repo.owner,
 		repo = siteConfig.repo.name,
 	}: { owner?: string; repo?: string } = {}) => {
+		if (!isGitHubServiceEnabled()) {
+			logger.debug("GitHub Service disabled, skipping getRepoStars.");
+			return 0;
+		}
 		try {
 			const response = await getRepo(owner, repo);
 			return response?.stargazers_count ?? 0;
@@ -381,6 +439,10 @@ export async function verifyAndStoreGitHubUsername(
 	userId: string,
 	username: string
 ): Promise<boolean> {
+	if (!isGitHubServiceEnabled()) {
+		logger.warn("GitHub Service disabled, skipping verifyAndStoreGitHubUsername.");
+		return false; // Cannot verify or store if service is disabled
+	}
 	logger.info("Verifying and storing GitHub username", { userId, username });
 
 	try {
@@ -419,16 +481,25 @@ export async function verifyAndStoreGitHubUsername(
  * Gets detailed information about repository collaborators
  */
 export async function getCollaboratorDetails(username: string) {
+	if (!isGitHubServiceEnabled()) {
+		logger.debug("GitHub Service disabled, skipping getCollaboratorDetails.");
+		return null;
+	}
+	if (!username) {
+		logger.warn("getCollaboratorDetails called with empty username");
+		return null;
+	}
+
 	try {
 		// Get collaborator permission level
-		const { data: collaborator } = await octokit.rest.repos.getCollaboratorPermissionLevel({
+		const { data: collaborator } = await octokit?.rest.repos.getCollaboratorPermissionLevel({
 			owner: siteConfig.repo.owner,
 			repo: siteConfig.repo.name,
 			username,
 		});
 
 		// Get user profile information
-		const { data: profile } = await octokit.rest.users.getByUsername({
+		const { data: profile } = await octokit?.rest.users.getByUsername({
 			username,
 		});
 

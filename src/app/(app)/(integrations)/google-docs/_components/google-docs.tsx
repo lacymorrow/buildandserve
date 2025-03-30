@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import type React from "react";
 
 import { env } from "@/env";
+import { logger } from "@/lib/logger";
 import { SafeHTML } from "./safe-html";
 
 interface Heading {
@@ -18,29 +19,47 @@ interface ProcessedDocument {
 export const importGoogleDoc = async (
 	documentId: string,
 ): Promise<ProcessedDocument> => {
-	if (!env.GOOGLE_CLIENT_EMAIL || !env.GOOGLE_PRIVATE_KEY) {
-		console.error("Google credentials are not set");
+	if (!env.NEXT_PUBLIC_FEATURE_GOOGLE_SERVICE_ACCOUNT_ENABLED) {
+		logger.warn(
+			"Google Service Account feature is disabled. Skipping Google Doc import.",
+		);
 		return {
-			content: null,
+			content: <p>Google Docs integration is disabled.</p>,
 			headings: [],
 		};
 	}
 
-	const auth = new google.auth.GoogleAuth({
-		credentials: {
-			client_email: env.GOOGLE_CLIENT_EMAIL,
-			private_key: env.GOOGLE_PRIVATE_KEY,
-		},
-		scopes: ["https://www.googleapis.com/auth/documents.readonly"],
-	});
+	if (!env.GOOGLE_CLIENT_EMAIL || !env.GOOGLE_PRIVATE_KEY) {
+		logger.error("Google Service Account credentials are not set");
+		return {
+			content: <p>Error: Google credentials missing.</p>,
+			headings: [],
+		};
+	}
 
-	const docs = google.docs({ version: "v1", auth });
+	try {
+		const auth = new google.auth.GoogleAuth({
+			credentials: {
+				client_email: env.GOOGLE_CLIENT_EMAIL,
+				private_key: env.GOOGLE_PRIVATE_KEY,
+			},
+			scopes: ["https://www.googleapis.com/auth/documents.readonly"],
+		});
 
-	const document = await docs.documents.get({
-		documentId,
-	});
+		const docs = google.docs({ version: "v1", auth });
 
-	return processDocument(document.data);
+		const document = await docs.documents.get({
+			documentId,
+		});
+
+		return processDocument(document.data);
+	} catch (error) {
+		logger.error("Error fetching or processing Google Doc:", { documentId, error });
+		return {
+			content: <p>Error importing Google Doc. Please check logs.</p>,
+			headings: [],
+		};
+	}
 };
 
 function processTextRun(textRun: any): string {

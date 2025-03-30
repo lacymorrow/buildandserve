@@ -1,21 +1,17 @@
-import {
-	getAllOrders as getLemonSqueezyOrders,
-	getLemonSqueezyPaymentStatus,
-	getUserPurchasedProducts as getUserPurchasedLemonsqueezyProducts,
-	hasUserActiveSubscription as hasUserActiveLemonsqueezySubscription,
-	hasUserPurchasedProduct as hasUserPurchasedLemonsqueezyProduct,
-} from "@/lib/lemonsqueezy";
 import { logger } from "@/lib/logger";
-import {
-	getAllOrders as getPolarOrders,
-	getPolarPaymentStatus,
-	getUserPurchasedProducts as getUserPurchasedPolarProducts,
-	hasUserActiveSubscription as hasUserActivePolarSubscription,
-	hasUserPurchasedProduct as hasUserPurchasedPolarProduct,
-} from "@/lib/polar";
 import { db, isDatabaseInitialized } from "@/server/db";
 import { type Payment, payments, users } from "@/server/db/schema";
+import {
+	getEnabledProviders,
+	getProvider,
+	hasProvider,
+	isProviderEnabled,
+	type OrderData,
+	PaymentProvider,
+	type ProductData,
+} from "@/server/providers";
 import { eq } from "drizzle-orm";
+import { userService } from "./user-service";
 
 // Define PaymentData interface for frontend use
 export interface PaymentData {
@@ -30,6 +26,7 @@ export interface PaymentData {
 	purchaseDate: Date;
 	processor: string;
 	isFreeProduct: boolean;
+	isInDatabase: boolean;
 }
 
 // Define interface for Purchase (used in user data)
@@ -52,36 +49,63 @@ export interface UserData {
 	image: string | null;
 	role?: string;
 	hasPaid: boolean;
-	lemonSqueezyStatus: boolean;
-	polarStatus: boolean;
 	hasActiveSubscription: boolean;
 	hadSubscription: boolean; // Tracks if user had a subscription in the past
 	createdAt: Date;
 	lastPurchaseDate: Date | null;
 	totalPurchases: number;
 	purchases?: Purchase[];
+	providerStatuses?: Record<string, boolean>;
 }
 
 // Convert class to object with functions to satisfy linter
 const PaymentService = {
 	/**
-	 * Gets the payment status for a user
+	 * Gets the payment status for a user across all enabled providers
 	 * @param userId - The ID of the user
 	 * @returns Whether the user has paid
 	 */
 	async getUserPaymentStatus(userId: string): Promise<boolean> {
 		logger.debug("Checking payment status", { userId });
 
-		// Check both payment processors
-		const lemonSqueezyStatus = await getLemonSqueezyPaymentStatus(userId);
-		const polarStatus = await getPolarPaymentStatus(userId);
+		// Aggregate status across all enabled providers
+		let status = false;
+		const providers = getEnabledProviders();
+		const providerStatuses: Record<string, boolean> = {};
 
-		const status = lemonSqueezyStatus || polarStatus;
-		logger.debug("Payment status result", {
+		if (providers.length === 0) {
+			logger.warn("No payment providers are enabled");
+			return false;
+		}
+
+		// Check each provider in parallel
+		const statusPromises = providers.map(async (provider) => {
+			try {
+				const providerStatus = await provider.getPaymentStatus(userId);
+				providerStatuses[provider.id] = providerStatus;
+
+				// If any provider returns true, the overall status is true
+				if (providerStatus) {
+					status = true;
+				}
+
+				return { provider: provider.id, status: providerStatus };
+			} catch (error) {
+				logger.error(`Error checking payment status with provider ${provider.id}`, {
+					userId,
+					error,
+					provider: provider.id,
+				});
+				return { provider: provider.id, status: false, error };
+			}
+		});
+
+		const results = await Promise.all(statusPromises);
+
+		logger.debug("Payment status results", {
 			userId,
 			status,
-			lemonSqueezyStatus,
-			polarStatus,
+			providerStatuses: results,
 		});
 
 		return status;
@@ -91,17 +115,17 @@ const PaymentService = {
 	 * Checks if a user has purchased a specific product
 	 * @param userId The user ID
 	 * @param productId The product ID
-	 * @param provider Optional payment provider to check (lemonsqueezy or polar)
+	 * @param provider Optional payment provider to check
 	 * @returns True if the user has purchased the product
 	 */
 	async hasUserPurchasedProduct({
 		userId,
 		productId,
-		provider = "lemonsqueezy",
+		provider,
 	}: {
 		userId: string;
 		productId: string;
-		provider?: "lemonsqueezy" | "polar";
+		provider?: string;
 	}): Promise<boolean> {
 		try {
 			// Check if the database is initialized
@@ -120,24 +144,26 @@ const PaymentService = {
 			}
 
 			// If provider is specified, only check that provider
-			if (provider === "lemonsqueezy") {
-				return await hasUserPurchasedLemonsqueezyProduct(userId, productId);
+			if (provider && hasProvider(provider)) {
+				const paymentProvider = getProvider(provider);
+				if (paymentProvider && isProviderEnabled(provider)) {
+					return await paymentProvider.hasUserPurchasedProduct(userId, productId);
+				}
+				return false;
 			}
 
-			if (provider === "polar") {
-				return await hasUserPurchasedPolarProduct(userId, productId);
+			// Otherwise, check all enabled providers
+			const providers = getEnabledProviders();
+			for (const provider of providers) {
+				const purchased = await provider.hasUserPurchasedProduct(userId, productId);
+				if (purchased) {
+					return true;
+				}
 			}
 
-			// Otherwise, check both providers
-			const lemonsqueezyPurchased = await hasUserPurchasedLemonsqueezyProduct(userId, productId);
-			if (lemonsqueezyPurchased) {
-				return true;
-			}
-
-			const polarPurchased = await hasUserPurchasedPolarProduct(userId, productId);
-			return polarPurchased;
+			return false;
 		} catch (error) {
-			console.error("Error checking if user purchased product:", error);
+			logger.error("Error checking if user purchased product:", error);
 			return false;
 		}
 	},
@@ -145,15 +171,15 @@ const PaymentService = {
 	/**
 	 * Checks if a user has an active subscription
 	 * @param userId The user ID
-	 * @param provider Optional payment provider to check (lemonsqueezy or polar)
+	 * @param provider Optional payment provider to check
 	 * @returns True if the user has an active subscription
 	 */
 	async hasUserActiveSubscription({
 		userId,
-		provider = "lemonsqueezy",
+		provider,
 	}: {
 		userId: string;
-		provider?: "lemonsqueezy" | "polar";
+		provider?: string;
 	}): Promise<boolean> {
 		try {
 			// Check if the database is initialized
@@ -172,24 +198,26 @@ const PaymentService = {
 			}
 
 			// If provider is specified, only check that provider
-			if (provider === "lemonsqueezy") {
-				return await hasUserActiveLemonsqueezySubscription(userId);
+			if (provider && hasProvider(provider)) {
+				const paymentProvider = getProvider(provider);
+				if (paymentProvider && isProviderEnabled(provider)) {
+					return await paymentProvider.hasUserActiveSubscription(userId);
+				}
+				return false;
 			}
 
-			if (provider === "polar") {
-				return await hasUserActivePolarSubscription(userId);
+			// Otherwise, check all enabled providers
+			const providers = getEnabledProviders();
+			for (const provider of providers) {
+				const hasActiveSubscription = await provider.hasUserActiveSubscription(userId);
+				if (hasActiveSubscription) {
+					return true;
+				}
 			}
 
-			// Otherwise, check both providers
-			const lemonsqueezyActive = await hasUserActiveLemonsqueezySubscription(userId);
-			if (lemonsqueezyActive) {
-				return true;
-			}
-
-			const polarActive = await hasUserActivePolarSubscription(userId);
-			return polarActive;
+			return false;
 		} catch (error) {
-			console.error("Error checking if user has active subscription:", error);
+			logger.error("Error checking if user has active subscription:", error);
 			return false;
 		}
 	},
@@ -197,13 +225,10 @@ const PaymentService = {
 	/**
 	 * Gets all products a user has purchased
 	 * @param userId The user ID
-	 * @param provider Optional payment provider to check (lemonsqueezy or polar)
+	 * @param provider Optional payment provider to check
 	 * @returns Array of purchased products
 	 */
-	async getUserPurchasedProducts(
-		userId: string,
-		provider?: "lemonsqueezy" | "polar"
-	): Promise<any[]> {
+	async getUserPurchasedProducts(userId: string, provider?: string): Promise<ProductData[]> {
 		try {
 			// Check if the database is initialized
 			if (!isDatabaseInitialized() || !db) {
@@ -220,26 +245,31 @@ const PaymentService = {
 				return [];
 			}
 
-			let products: any[] = [];
+			let products: ProductData[] = [];
 
 			// If provider is specified, only check that provider
-			if (provider === "lemonsqueezy" || !provider) {
-				const lemonsqueezyProducts = await getUserPurchasedLemonsqueezyProducts(userId);
-				products = [
-					...products,
-					...lemonsqueezyProducts.map((p) => ({ ...p, provider: "lemonsqueezy" })),
-				];
+			if (provider && hasProvider(provider)) {
+				const paymentProvider = getProvider(provider);
+				if (paymentProvider && isProviderEnabled(provider)) {
+					products = await paymentProvider.getUserPurchasedProducts(userId);
+				}
+				return products;
 			}
 
-			if (provider === "polar" || !provider) {
-				const polarProducts = await getUserPurchasedPolarProducts(userId);
-				// Polar products already have provider: "polar" added
-				products = [...products, ...polarProducts];
-			}
+			// Otherwise, get products from all enabled providers
+			const providers = getEnabledProviders();
+			const productPromises = providers.map((provider) =>
+				provider.getUserPurchasedProducts(userId)
+			);
+
+			const providerProducts = await Promise.all(productPromises);
+
+			// Merge products from all providers
+			products = providerProducts.flat();
 
 			return products;
 		} catch (error) {
-			console.error("Error getting user purchased products:", error);
+			logger.error("Error getting user purchased products:", error);
 			return [];
 		}
 	},
@@ -325,7 +355,7 @@ const PaymentService = {
 
 			return payment;
 		} catch (error) {
-			console.error("Error creating payment:", error);
+			logger.error("Error creating payment:", error);
 			throw error;
 		}
 	},
@@ -403,150 +433,168 @@ const PaymentService = {
 
 	/**
 	 * Gets all payments with user information for admin dashboard
-	 * This fetches from all configured payment processors
+	 * This fetches from the database AND all configured payment providers,
+	 * merging the results and indicating which records exist in the database.
 	 * @returns Array of payment data with user information
 	 */
 	async getPaymentsWithUsers(): Promise<PaymentData[]> {
+		const combinedPayments = new Map<string, PaymentData>();
+		let allUsers: (typeof users.$inferSelect)[] = [];
+
 		try {
 			// Check if the database is initialized
 			if (!isDatabaseInitialized() || !db) {
 				logger.warn("Database not initialized when getting payments with users");
-				return [];
-			}
+				// Proceed to fetch from APIs only if DB isn't ready? Or return []?
+				// For now, let's attempt API fetch, but DB-dependent steps will fail.
+			} else {
+				// Get all users from the database (used for matching email to user info)
+				allUsers = await db.query.users.findMany();
 
-			// Get all payments from the database
-			const allPayments = await db.query.payments.findMany();
+				// 1. Get all payments from the database
+				const dbPayments = await db.query.payments.findMany();
+				logger.debug(`Fetched ${dbPayments.length} payments from database.`);
 
-			// Get all users from the database
-			const allUsers = await db.query.users.findMany();
-
-			// Combine them into PaymentData objects
-			const paymentData: PaymentData[] = [];
-
-			// Process database payments
-			for (const payment of allPayments) {
-				// Find the user for this payment
-				const user = allUsers.find((u) => u.id === payment.userId);
-
-				// Try to parse metadata for additional info
-				let productName = "Unknown Product";
-				let isFreeProduct = payment.isFreeProduct || false;
-				try {
-					if (payment.metadata) {
-						const metadata = JSON.parse(payment.metadata as string);
-						if (metadata.productName) {
-							productName = metadata.productName;
+				// Process database payments first
+				for (const payment of dbPayments) {
+					const user = allUsers.find((u) => u.id === payment.userId);
+					let productName = "Unknown Product";
+					let isFreeProduct = payment.isFreeProduct || false;
+					try {
+						if (payment.metadata) {
+							const metadata = JSON.parse(payment.metadata as string);
+							if (metadata.productName) {
+								productName = metadata.productName;
+							}
+							// isFreeProduct might also be in metadata for older records?
+							if (metadata.isFreeProduct !== undefined) {
+								isFreeProduct = metadata.isFreeProduct;
+							}
 						}
-						if (metadata.isFreeProduct !== undefined) {
-							isFreeProduct = metadata.isFreeProduct;
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : String(error);
+						logger.warn(`Failed to parse metadata for DB payment ID: ${payment.id}`, {
+							error: errorMessage,
+						});
+					}
+
+					// Use processor + processorOrderId as the unique key
+					const processorOrderId = payment.processorOrderId || payment.orderId; // Prioritize processorOrderId, fallback to orderId
+					if (!processorOrderId) {
+						logger.warn(`Skipping DB payment ID ${payment.id} due to missing order identifier.`);
+						continue; // Skip if no suitable order ID found
+					}
+					const compositeKey = `${payment.processor || "unknown"}:${processorOrderId}`;
+
+					combinedPayments.set(compositeKey, {
+						id: payment.id.toString(), // Use DB primary key as ID
+						orderId: processorOrderId,
+						userEmail: user?.email || "unknown@example.com",
+						userName: user?.name || null,
+						userImage: user?.image || null,
+						amount: (payment.amount || 0) / 100, // Convert cents to dollars
+						status: payment.status as "paid" | "refunded" | "pending",
+						productName,
+						purchaseDate: payment.purchasedAt || new Date(payment.createdAt), // Prefer purchasedAt if available
+						processor: payment.processor || "unknown",
+						isFreeProduct,
+						isInDatabase: true, // Mark as existing in DB
+					});
+				}
+			} // End of DB fetch block
+
+			// 2. Get payments from all enabled providers
+			const providers = getEnabledProviders();
+			logger.debug(`Fetching payments from ${providers.length} enabled providers.`);
+
+			for (const provider of providers) {
+				try {
+					const apiOrders: OrderData[] = await provider.getAllOrders();
+					logger.debug(`Fetched ${apiOrders.length} orders from provider: ${provider.id}`);
+
+					for (const order of apiOrders) {
+						// Use processor + processorOrderId as the unique key
+						// Ensure order.orderId corresponds to the processor's unique order ID
+						if (!order.orderId) {
+							logger.warn(
+								`Skipping API order from ${provider.id} with internal ID ${order.id} due to missing order identifier.`
+							);
+							continue; // Skip if no order ID from provider
+						}
+						const compositeKey = `${provider.id}:${order.orderId}`;
+
+						const existingEntry = combinedPayments.get(compositeKey);
+
+						if (existingEntry) {
+							// Update existing DB entry with potentially fresher API data
+							// Only update if the record is actually in the DB
+							if (existingEntry.isInDatabase) {
+								existingEntry.status = order.status; // API status might be more up-to-date
+								existingEntry.amount = order.amount; // API amount might be more accurate
+								existingEntry.productName = order.productName || existingEntry.productName; // Update if missing in DB
+								// Potentially update other fields if desired
+								// logger.trace(`Updated payment from API: ${compositeKey}`);
+							}
+						} else {
+							// Add new entry from API (not found in DB)
+							const user = allUsers.find(
+								(u) => u.email?.toLowerCase() === order.userEmail?.toLowerCase()
+							);
+							const isFreeProduct = order.amount === 0 && !order.discountCode; // Determine based on API data
+
+							combinedPayments.set(compositeKey, {
+								id: order.id, // Use provider's internal ID (e.g., "sub_...", "ord_...")
+								orderId: order.orderId, // Use provider's order ID (e.g., "lemonsqueezy-123", "polar-abc")
+								userEmail: order.userEmail || "unknown@example.com",
+								userName: order.userName || user?.name || null, // Use provider name, fallback to matched user name
+								userImage: user?.image || null,
+								amount: order.amount, // Already in dollars from provider.getAllOrders()
+								status: order.status,
+								productName: order.productName || "Unknown Product",
+								purchaseDate: order.purchaseDate,
+								processor: provider.id,
+								isFreeProduct,
+								isInDatabase: false, // Mark as *not* existing in DB
+							});
+							// logger.trace(`Added new payment from API: ${compositeKey}`);
 						}
 					}
 				} catch (error) {
-					// Ignore parsing errors
+					const errorMessage = error instanceof Error ? error.message : String(error);
+					logger.error(`Error fetching or processing orders from provider ${provider.id}`, {
+						error: errorMessage,
+					});
+					// Optionally add placeholder error entries?
 				}
+			} // End of provider loop
 
-				paymentData.push({
-					id: payment.id.toString(),
-					orderId: payment.orderId || "",
-					userEmail: user?.email || "unknown@example.com",
-					userName: user?.name || null,
-					userImage: user?.image || null,
-					amount: (payment.amount || 0) / 100, // Convert from cents to dollars
-					status: payment.status as "paid" | "refunded" | "pending",
-					productName,
-					purchaseDate: new Date(payment.createdAt),
-					processor: payment.processor || "unknown",
-					isFreeProduct,
-				});
-			}
-
-			// Get payments from Lemon Squeezy
-			try {
-				const orders = await getLemonSqueezyOrders();
-
-				for (const order of orders) {
-					// Check if we already have this order in the database
-					const existingOrder = paymentData.find((p) => p.orderId === order.orderId);
-
-					if (!existingOrder) {
-						// Try to find a user with matching email
-						const user = allUsers.find(
-							(u) => u.email?.toLowerCase() === order.userEmail.toLowerCase()
-						);
-
-						// Determine if it's a free product (price is 0 but not a discounted product)
-						// For Lemon Squeezy, we're assuming products with 0 amount that don't have a
-						// discount code are considered free products
-						const isFreeProduct = order.amount === 0 && !order.discountCode;
-
-						paymentData.push({
-							id: order.id,
-							orderId: order.orderId,
-							userEmail: order.userEmail,
-							userName: order.userName,
-							userImage: user?.image || null,
-							amount: order.amount, // This amount is already in dollars
-							status: order.status,
-							productName: order.productName,
-							purchaseDate: order.purchaseDate,
-							processor: "lemonsqueezy",
-							isFreeProduct,
-						});
-					}
-				}
-			} catch (error) {
-				logger.error("Error fetching Lemon Squeezy orders:", error);
-			}
-
-			// Get payments from Polar
-			try {
-				const orders = await getPolarOrders();
-
-				for (const order of orders) {
-					// Check if we already have this order in the database
-					const existingOrder = paymentData.find((p) => p.orderId === order.orderId);
-
-					if (!existingOrder) {
-						// Try to find a user with matching email
-						const user = allUsers.find(
-							(u) => u.email?.toLowerCase() === order.userEmail.toLowerCase()
-						);
-
-						// For Polar, determine if a product with 0 amount is a free product
-						// or a discounted product (similar logic to Lemon Squeezy)
-						const isFreeProduct = order.amount === 0 && !order.discountCode;
-
-						paymentData.push({
-							id: order.id,
-							orderId: order.orderId,
-							userEmail: order.userEmail,
-							userName: order.userName,
-							userImage: user?.image || null,
-							amount: order.amount, // This amount is already in dollars
-							status: order.status,
-							productName: order.productName,
-							purchaseDate: order.purchaseDate,
-							processor: "polar",
-							isFreeProduct,
-						});
-					}
-				}
-			} catch (error) {
-				logger.error("Error fetching Polar orders:", error);
-			}
-
-			// Sort by date (newest first)
-			return paymentData.sort((a, b) => {
-				return b.purchaseDate.getTime() - a.purchaseDate.getTime();
+			// 3. Convert map values to array and sort
+			const finalPaymentData = Array.from(combinedPayments.values()).sort((a, b) => {
+				// Ensure valid dates before comparing
+				const dateA = a.purchaseDate instanceof Date ? a.purchaseDate.getTime() : 0;
+				const dateB = b.purchaseDate instanceof Date ? b.purchaseDate.getTime() : 0;
+				// Sort newest first
+				return dateB - dateA;
 			});
+
+			logger.info(`Returning ${finalPaymentData.length} combined payments.`);
+			return finalPaymentData;
 		} catch (error) {
-			logger.error("Error getting payments with users:", error);
-			return [];
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			logger.error("Error getting combined payments with users:", { error: errorMessage });
+			// Decide if to return partial data from map or empty array
+			const partialData = Array.from(combinedPayments.values()).sort((a, b) => {
+				const dateA = a.purchaseDate instanceof Date ? a.purchaseDate.getTime() : 0;
+				const dateB = b.purchaseDate instanceof Date ? b.purchaseDate.getTime() : 0;
+				return dateB - dateA;
+			});
+			logger.warn(`Returning ${partialData.length} partial payments due to error.`);
+			return partialData.length > 0 ? partialData : []; // Return partial if available, else empty
 		}
 	},
 
 	/**
-	 * Fetches all users with their payment status from all payment processors
+	 * Fetches all users with their payment status from all payment providers
 	 * This is used in the admin dashboard to display user payment information
 	 * @returns Array of users with payment information
 	 */
@@ -599,17 +647,54 @@ const PaymentService = {
 						purchaseDate: new Date(payment.createdAt),
 						orderId: payment.orderId ?? "",
 						processor: payment.processor || "unknown",
-						isFreeProduct: false,
+						isFreeProduct: payment.isFreeProduct || false,
 					};
 				});
 
-				// Check payment status from payment processors
-				const lemonSqueezyStatus = await getLemonSqueezyPaymentStatus(user.id);
-				const polarStatus = await getPolarPaymentStatus(user.id);
+				// Check payment status from all payment providers
+				const providers = getEnabledProviders();
+				const providerStatuses: Record<string, boolean> = {};
+				let hasPaid = false;
+				let hasActiveSubscription = false;
 
-				// Check subscription status from payment processors
-				const lemonSqueezySubscriptionActive = await hasUserActiveLemonsqueezySubscription(user.id);
-				const polarSubscriptionActive = await hasUserActivePolarSubscription(user.id);
+				// Check each provider in parallel
+				const statusPromises = providers.map(async (provider) => {
+					try {
+						const paymentStatus = await provider.getPaymentStatus(user.id);
+						const subscriptionStatus = await provider.hasUserActiveSubscription(user.id);
+
+						providerStatuses[provider.id] = paymentStatus;
+
+						if (paymentStatus) {
+							hasPaid = true;
+						}
+
+						if (subscriptionStatus) {
+							hasActiveSubscription = true;
+						}
+
+						return {
+							provider: provider.id,
+							paymentStatus,
+							subscriptionStatus,
+						};
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : String(error);
+						logger.error(`Error checking ${provider.name} payment status:`, {
+							userId: user.id,
+							error: errorMessage,
+						});
+						return {
+							provider: provider.id,
+							paymentStatus: false,
+							subscriptionStatus: false,
+							error: errorMessage, // Store message instead of raw error
+						};
+					}
+				});
+
+				await Promise.all(statusPromises);
+
 				const hadSubscription = user.metadata
 					? JSON.parse(user.metadata as string)?.hadSubscription || false
 					: false;
@@ -625,598 +710,22 @@ const PaymentService = {
 					name: user.name,
 					image: user.image,
 					role: user.role,
-					hasPaid: lemonSqueezyStatus || polarStatus,
-					lemonSqueezyStatus,
-					polarStatus,
-					hasActiveSubscription: lemonSqueezySubscriptionActive || polarSubscriptionActive,
+					hasPaid,
+					hasActiveSubscription,
 					hadSubscription,
 					createdAt: new Date(user.createdAt),
 					lastPurchaseDate,
 					totalPurchases: userPayments.length,
 					purchases,
+					providerStatuses,
 				});
 			}
 
 			return userData;
 		} catch (error) {
-			console.error("Error getting users with payments:", error);
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			logger.error("Error getting users with payments:", { error: errorMessage });
 			return [];
-		}
-	},
-
-	/**
-	 * Imports payments from Lemon Squeezy into the database
-	 * @returns Stats about the import process
-	 */
-	async importLemonSqueezyPayments(): Promise<{
-		total: number;
-		imported: number;
-		skipped: number;
-		errors: number;
-		usersCreated: number;
-	}> {
-		logger.debug("Starting Lemon Squeezy payment import");
-		const stats = { total: 0, imported: 0, skipped: 0, errors: 0, usersCreated: 0 };
-
-		try {
-			if (!isDatabaseInitialized() || !db) {
-				throw new Error("Database is not initialized");
-			}
-
-			// Get all orders from Lemon Squeezy
-			const lemonSqueezyOrders = await getLemonSqueezyOrders();
-			stats.total = lemonSqueezyOrders.length;
-			logger.debug(`Found ${lemonSqueezyOrders.length} Lemon Squeezy orders`);
-
-			// Process each order
-			for (const order of lemonSqueezyOrders) {
-				try {
-					// Try to find or create user by email
-					let userId = null;
-					const userEmail = order.userEmail;
-					const userName = order.userName;
-
-					if (userEmail && userEmail !== "Unknown") {
-						// Look for existing user with this email
-						const existingUser = await db.query.users.findFirst({
-							where: eq(users.email, userEmail),
-						});
-
-						if (existingUser) {
-							userId = existingUser.id;
-							logger.debug(`Found existing user for email ${userEmail}`);
-
-							// Update user information with data from payment
-							const updates: Record<string, any> = {};
-
-							// Update name if needed
-							if (userName && !existingUser.name) {
-								updates.name = userName;
-							}
-
-							// Extract additional user information from the order
-							// These are cast to any because we've added fields to the response that might not be in the type
-							const orderAny = order as any;
-
-							// Update user profile with any available information that might be missing
-							// Check if address exists on user type before attempting to update
-							const existingUserAny = existingUser as any;
-							if (orderAny.userAddress && existingUserAny.address === undefined) {
-								// Don't directly update address field since it might not exist in schema
-								// We'll store it in metadata instead
-							}
-
-							// Prepare metadata fields to update
-							const metadataUpdates: Record<string, any> = {};
-
-							if (orderAny.userAddress) {
-								metadataUpdates.address = orderAny.userAddress;
-							}
-
-							if (orderAny.userCity || orderAny.userCountry) {
-								// Store location information in metadata
-								metadataUpdates.locationInfo = {
-									city: orderAny.userCity,
-									country: orderAny.userCountry,
-								};
-							}
-
-							if (orderAny.userPhone) {
-								// Store phone in metadata
-								metadataUpdates.phoneNumber = orderAny.userPhone;
-							}
-
-							// Additional custom user data fields
-							if (orderAny.customUserData && Object.keys(orderAny.customUserData).length > 0) {
-								metadataUpdates.customUserData = orderAny.customUserData;
-							}
-
-							// Update or merge metadata
-							interface UserMetadata {
-								lastPaymentInfo: {
-									processor: string;
-									orderId: string;
-									productName: string;
-									amount: number;
-									purchaseDate: Date;
-								};
-								lastImportedAt: string;
-								paymentSources: string[];
-								locationInfo?: {
-									city?: string | null;
-									country?: string | null;
-								};
-								phoneNumber?: string | null;
-								customUserData?: Record<string, any>;
-								address?: string | null;
-								[key: string]: any; // Allow for additional properties
-							}
-
-							let newMetadata: Partial<UserMetadata> = {
-								lastPaymentInfo: {
-									processor: "lemonsqueezy",
-									orderId: order.orderId,
-									productName: order.productName,
-									amount: order.amount,
-									purchaseDate: order.purchaseDate,
-								},
-								lastImportedAt: new Date().toISOString(),
-							};
-
-							// Add all metadata updates to newMetadata
-							Object.assign(newMetadata, metadataUpdates);
-
-							// If user has existing metadata, merge it
-							if (existingUser.metadata) {
-								try {
-									const currentMetadata = JSON.parse(existingUser.metadata as string);
-									// Don't overwrite existing fields that aren't being updated
-									newMetadata = {
-										...currentMetadata,
-										...newMetadata,
-										paymentSources: [...(currentMetadata.paymentSources || []), "lemonsqueezy"],
-									};
-								} catch (err) {
-									logger.warn(`Failed to parse existing metadata for user ${existingUser.id}`, err);
-									// If parsing fails, just set paymentSources
-									newMetadata.paymentSources = ["lemonsqueezy"];
-								}
-							} else {
-								newMetadata.paymentSources = ["lemonsqueezy"];
-							}
-
-							// Update metadata in the updates object
-							updates.metadata = JSON.stringify(newMetadata);
-
-							// Only update if we have changes
-							if (Object.keys(updates).length > 0) {
-								await db
-									.update(users)
-									.set({
-										...updates,
-										updatedAt: new Date(),
-									})
-									.where(eq(users.id, existingUser.id));
-								logger.debug(`Updated user information for ${userEmail}`);
-							}
-						} else {
-							// Create a new user with this email
-							logger.debug(`Creating new user for email ${userEmail}`);
-							try {
-								// Extract additional user information
-								const orderAny = order as any;
-
-								// Prepare metadata with all available user information
-								const userMetadata: Record<string, any> = {
-									source: "lemonsqueezy_import",
-									importedAt: new Date().toISOString(),
-									paymentInfo: {
-										processor: "lemonsqueezy",
-										orderId: order.orderId,
-										productName: order.productName,
-										amount: order.amount,
-										purchaseDate: order.purchaseDate,
-									},
-									// Store all original attributes to preserve any additional info
-									originalData: order.attributes,
-								};
-
-								// Add location information if available
-								if (orderAny.userCity || orderAny.userCountry) {
-									userMetadata.locationInfo = {
-										city: orderAny.userCity,
-										country: orderAny.userCountry,
-									};
-								}
-
-								// Add phone if available
-								if (orderAny.userPhone) {
-									userMetadata.phoneNumber = orderAny.userPhone;
-								}
-
-								// Add custom user data if available
-								if (orderAny.customUserData && Object.keys(orderAny.customUserData).length > 0) {
-									userMetadata.customUserData = orderAny.customUserData;
-								}
-
-								// Add address if available (this might also be directly added to the user record)
-								if (orderAny.userAddress) {
-									userMetadata.address = orderAny.userAddress;
-								}
-
-								const [newUser] = await db
-									.insert(users)
-									.values({
-										email: userEmail,
-										name: userName || null,
-										role: "user",
-										emailVerified: new Date(),
-										createdAt: new Date(),
-										updatedAt: new Date(),
-										// Store additional payment metadata to have a complete user profile
-										metadata: JSON.stringify(userMetadata),
-									})
-									.returning();
-
-								if (newUser) {
-									userId = newUser.id;
-									stats.usersCreated++;
-									logger.debug(`Created new user ${newUser.id} for email ${userEmail}`);
-								} else {
-									throw new Error("Failed to create user");
-								}
-							} catch (createError) {
-								logger.error(`Failed to create user for ${userEmail}`, createError);
-								// Continue without user ID, we'll try to find a matching user ID later
-							}
-						}
-					} else {
-						// No email provided, generate a placeholder
-						logger.debug("No email provided for order, generating placeholder");
-						// We'll still process the payment but leave userId as null
-					}
-
-					// Check if order already exists in the database
-					const existingPayment = await db.query.payments.findFirst({
-						where: eq(payments.orderId, order.orderId),
-					});
-
-					if (existingPayment) {
-						logger.debug(`Order ${order.orderId} already exists, updating`);
-						// Update existing payment in case data has changed
-						await db
-							.update(payments)
-							.set({
-								amount: Math.round(order.amount * 100), // Convert to cents for storage
-								status: order.status === "paid" ? "completed" : order.status,
-								updatedAt: new Date(),
-								// Update userId if we found/created one and it was previously null
-								...(userId && !existingPayment.userId ? { userId } : {}),
-								metadata: JSON.stringify({
-									order_data: order.attributes,
-								}),
-							})
-							.where(eq(payments.orderId, order.orderId));
-						stats.skipped++;
-						continue;
-					}
-
-					// Create new payment record - only if we have a userId
-					if (userId) {
-						await db.insert(payments).values({
-							orderId: order.orderId,
-							userId,
-							amount: Math.round(order.amount * 100), // Convert to cents for storage
-							status: order.status === "paid" ? "completed" : order.status,
-							processor: "lemonsqueezy",
-							createdAt: order.purchaseDate,
-							updatedAt: new Date(),
-							metadata: JSON.stringify({
-								order_data: order.attributes,
-							}),
-						});
-
-						logger.debug(`Imported Lemon Squeezy order ${order.orderId}`);
-						stats.imported++;
-					} else {
-						logger.debug(
-							`Skipping Lemon Squeezy order ${order.orderId} - no user found or created`
-						);
-						stats.skipped++;
-					}
-				} catch (error) {
-					logger.error(`Error importing Lemon Squeezy order ${order.orderId}`, error);
-					stats.errors++;
-				}
-			}
-
-			logger.info("Lemon Squeezy payment import complete", stats);
-			return stats;
-		} catch (error) {
-			logger.error("Error importing Lemon Squeezy payments", error);
-			throw error;
-		}
-	},
-
-	/**
-	 * Imports payments from Polar into the database
-	 * @returns Stats about the import process
-	 */
-	async importPolarPayments(): Promise<{
-		total: number;
-		imported: number;
-		skipped: number;
-		errors: number;
-		usersCreated: number;
-	}> {
-		logger.debug("Starting Polar payment import");
-		const stats = { total: 0, imported: 0, skipped: 0, errors: 0, usersCreated: 0 };
-
-		try {
-			if (!isDatabaseInitialized() || !db) {
-				throw new Error("Database is not initialized");
-			}
-
-			// Get all orders from Polar
-			const polarOrders = await getPolarOrders();
-			stats.total = polarOrders.length;
-			logger.debug(`Found ${polarOrders.length} Polar orders`);
-
-			// Process each order
-			for (const order of polarOrders) {
-				try {
-					// Try to find or create user by email
-					let userId = null;
-					const userEmail = order.userEmail;
-					const userName = order.userName;
-
-					if (userEmail && userEmail !== "Unknown") {
-						// Look for existing user with this email
-						const existingUser = await db.query.users.findFirst({
-							where: eq(users.email, userEmail),
-						});
-
-						if (existingUser) {
-							userId = existingUser.id;
-							logger.debug(`Found existing user for email ${userEmail}`);
-
-							// Update user information with data from payment
-							const updates: Record<string, any> = {};
-
-							// Update name if needed
-							if (userName && !existingUser.name) {
-								updates.name = userName;
-							}
-
-							// Extract additional user information from the order
-							// These are cast to any because we've added fields to the response that might not be in the type
-							const orderAny = order as any;
-
-							// Prepare metadata fields to update
-							const metadataUpdates: Record<string, any> = {};
-
-							if (orderAny.userAddress) {
-								metadataUpdates.address = orderAny.userAddress;
-							}
-
-							if (orderAny.userCity || orderAny.userCountry) {
-								metadataUpdates.locationInfo = {
-									city: orderAny.userCity,
-									country: orderAny.userCountry,
-								};
-							}
-
-							if (orderAny.userPhone) {
-								metadataUpdates.phoneNumber = orderAny.userPhone;
-							}
-
-							// Additional custom user data fields
-							if (orderAny.customUserData && Object.keys(orderAny.customUserData).length > 0) {
-								metadataUpdates.customUserData = orderAny.customUserData;
-							}
-
-							// Update or merge metadata
-							interface UserMetadata {
-								lastPaymentInfo: {
-									processor: string;
-									orderId: string;
-									productName: string;
-									amount: number;
-									purchaseDate: Date;
-								};
-								lastImportedAt: string;
-								paymentSources: string[];
-								locationInfo?: {
-									city?: string | null;
-									country?: string | null;
-								};
-								phoneNumber?: string | null;
-								customUserData?: Record<string, any>;
-								address?: string | null;
-								[key: string]: any; // Allow for additional properties
-							}
-
-							let newMetadata: Partial<UserMetadata> = {
-								lastPaymentInfo: {
-									processor: "polar",
-									orderId: order.orderId,
-									productName: order.productName,
-									amount: order.amount,
-									purchaseDate: order.purchaseDate,
-								},
-								lastImportedAt: new Date().toISOString(),
-							};
-
-							// Add all metadata updates to newMetadata
-							Object.assign(newMetadata, metadataUpdates);
-
-							// If user has existing metadata, merge it
-							if (existingUser.metadata) {
-								try {
-									const currentMetadata = JSON.parse(existingUser.metadata as string);
-									// Don't overwrite existing fields that aren't being updated
-									newMetadata = {
-										...currentMetadata,
-										...newMetadata,
-										paymentSources: [...(currentMetadata.paymentSources || []), "polar"],
-									};
-								} catch (err) {
-									logger.warn(`Failed to parse existing metadata for user ${existingUser.id}`, err);
-									// If parsing fails, just set paymentSources
-									newMetadata.paymentSources = ["polar"];
-								}
-							} else {
-								newMetadata.paymentSources = ["polar"];
-							}
-
-							// Update metadata in the updates object
-							updates.metadata = JSON.stringify(newMetadata);
-
-							// Only update if we have changes
-							if (Object.keys(updates).length > 0) {
-								await db
-									.update(users)
-									.set({
-										...updates,
-										updatedAt: new Date(),
-									})
-									.where(eq(users.id, existingUser.id));
-								logger.debug(`Updated user information for ${userEmail}`);
-							}
-						} else {
-							// Create a new user with this email
-							logger.debug(`Creating new user for email ${userEmail}`);
-							try {
-								// Extract additional user information
-								const orderAny = order as any;
-
-								// Prepare metadata with all available user information
-								const userMetadata: Record<string, any> = {
-									source: "polar_import",
-									importedAt: new Date().toISOString(),
-									paymentInfo: {
-										processor: "polar",
-										orderId: order.orderId,
-										productName: order.productName,
-										amount: order.amount,
-										purchaseDate: order.purchaseDate,
-									},
-									// Store all original attributes to preserve any additional info
-									originalData: order.attributes,
-								};
-
-								// Add location information if available
-								if (orderAny.userCity || orderAny.userCountry) {
-									userMetadata.locationInfo = {
-										city: orderAny.userCity,
-										country: orderAny.userCountry,
-									};
-								}
-
-								// Add phone if available
-								if (orderAny.userPhone) {
-									userMetadata.phoneNumber = orderAny.userPhone;
-								}
-
-								// Add custom user data if available
-								if (orderAny.customUserData && Object.keys(orderAny.customUserData).length > 0) {
-									userMetadata.customUserData = orderAny.customUserData;
-								}
-
-								// Add address if available
-								if (orderAny.userAddress) {
-									userMetadata.address = orderAny.userAddress;
-								}
-
-								const [newUser] = await db
-									.insert(users)
-									.values({
-										email: userEmail,
-										name: userName || null,
-										role: "user",
-										emailVerified: new Date(),
-										createdAt: new Date(),
-										updatedAt: new Date(),
-										// Store additional payment metadata to have a complete user profile
-										metadata: JSON.stringify(userMetadata),
-									})
-									.returning();
-
-								if (newUser) {
-									userId = newUser.id;
-									stats.usersCreated++;
-									logger.debug(`Created new user ${newUser.id} for email ${userEmail}`);
-								} else {
-									throw new Error("Failed to create user");
-								}
-							} catch (createError) {
-								logger.error(`Failed to create user for ${userEmail}`, createError);
-								// Continue without user ID, we'll try to find a matching user ID later
-							}
-						}
-					} else {
-						// No email provided, generate a placeholder
-						logger.debug("No email provided for order, generating placeholder");
-						// We'll still process the payment but leave userId as null
-					}
-
-					// Check if order already exists in the database
-					const existingPayment = await db.query.payments.findFirst({
-						where: eq(payments.orderId, order.orderId),
-					});
-
-					if (existingPayment) {
-						logger.debug(`Order ${order.orderId} already exists, updating`);
-						// Update existing payment in case data has changed
-						await db
-							.update(payments)
-							.set({
-								amount: Math.round(order.amount * 100), // Convert to cents for storage
-								status: order.status === "paid" ? "completed" : order.status,
-								updatedAt: new Date(),
-								// Update userId if we found/created one and it was previously null
-								...(userId && !existingPayment.userId ? { userId } : {}),
-								metadata: JSON.stringify({
-									order_data: order.attributes,
-								}),
-							})
-							.where(eq(payments.orderId, order.orderId));
-						stats.skipped++;
-						continue;
-					}
-
-					// Create new payment record - only if we have a userId
-					if (userId) {
-						await db.insert(payments).values({
-							orderId: order.orderId,
-							userId,
-							amount: Math.round(order.amount * 100), // Convert to cents for storage
-							status: order.status === "paid" ? "completed" : order.status,
-							processor: "polar",
-							createdAt: order.purchaseDate,
-							updatedAt: new Date(),
-							metadata: JSON.stringify({
-								order_data: order.attributes,
-							}),
-						});
-
-						logger.debug(`Imported Polar order ${order.orderId}`);
-						stats.imported++;
-					} else {
-						logger.debug(`Skipping Polar order ${order.orderId} - no user found or created`);
-						stats.skipped++;
-					}
-				} catch (error) {
-					logger.error(`Error importing Polar order ${order.orderId}`, error);
-					stats.errors++;
-				}
-			}
-
-			logger.info("Polar payment import complete", stats);
-			return stats;
-		} catch (error) {
-			logger.error("Error importing Polar payments", error);
-			throw error;
 		}
 	},
 
@@ -1224,50 +733,85 @@ const PaymentService = {
 	 * Imports payments from all providers into the database
 	 * @returns Stats about the import process for each provider
 	 */
-	async importAllPayments(): Promise<{
-		lemonsqueezy: {
-			total: number;
-			imported: number;
-			skipped: number;
-			errors: number;
-			usersCreated: number;
-		};
-		polar: {
-			total: number;
-			imported: number;
-			skipped: number;
-			errors: number;
-			usersCreated: number;
-		};
-	}> {
+	async importAllPayments(): Promise<Record<string, any>> {
 		logger.info("Starting import of all payments");
 
-		let lemonsqueezyStats = { total: 0, imported: 0, skipped: 0, errors: 0, usersCreated: 0 };
-		let polarStats = { total: 0, imported: 0, skipped: 0, errors: 0, usersCreated: 0 };
+		const providers = getEnabledProviders();
+		const results: Record<string, any> = {};
 
-		try {
-			lemonsqueezyStats = await this.importLemonSqueezyPayments();
-		} catch (error) {
-			logger.error("Error during Lemon Squeezy import", error);
-			lemonsqueezyStats.errors++;
+		if (providers.length === 0) {
+			logger.warn("No payment providers are enabled");
+			return results;
 		}
 
-		try {
-			polarStats = await this.importPolarPayments();
-		} catch (error) {
-			logger.error("Error during Polar import", error);
-			polarStats.errors++;
+		// Import payments from each provider
+		for (const provider of providers) {
+			try {
+				logger.info(`Starting payment import for ${provider.name}`);
+				const stats = await provider.importPayments();
+				results[provider.id] = stats;
+				logger.info(`Completed payment import for ${provider.name}`, stats);
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				logger.error(`Error during ${provider.name} import`, { error: errorMessage });
+				results[provider.id] = {
+					error: true,
+					message: errorMessage,
+				};
+			}
 		}
 
-		logger.info("All payment imports complete", {
-			lemonsqueezy: lemonsqueezyStats,
-			polar: polarStats,
-		});
+		logger.info("All payment imports complete", results);
 
-		return {
-			lemonsqueezy: lemonsqueezyStats,
-			polar: polarStats,
-		};
+		return results;
+	},
+
+	/**
+	 * Creates a checkout URL for a product
+	 * @param options Checkout options
+	 * @param providerId The ID of the provider to use
+	 * @returns The checkout URL
+	 */
+	async createCheckoutUrl(
+		options: {
+			productId: string;
+			email?: string;
+			userId?: string;
+			metadata?: Record<string, any>;
+			successUrl?: string;
+			cancelUrl?: string;
+		},
+		providerId: string
+	): Promise<string | null> {
+		try {
+			const provider = getProvider(providerId);
+
+			if (!provider || !isProviderEnabled(providerId)) {
+				logger.error(`Provider ${providerId} not found or not enabled`);
+				return null;
+			}
+
+			return await provider.createCheckoutUrl(options);
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			logger.error(`Error creating checkout URL with provider ${providerId}:`, {
+				error: errorMessage,
+			});
+			return null;
+		}
+	},
+
+	/**
+	 * Gets all available providers
+	 * @returns Array of provider information
+	 */
+	getProviders(): { id: string; name: string; enabled: boolean }[] {
+		const allProviderData = getEnabledProviders().map((provider) => ({
+			id: provider.id,
+			name: provider.name,
+			enabled: provider.isEnabled,
+		}));
+		return allProviderData;
 	},
 };
 

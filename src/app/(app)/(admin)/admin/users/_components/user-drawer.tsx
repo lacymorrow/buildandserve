@@ -66,306 +66,302 @@ export const UserDrawer = ({ user, open, onClose }: UserDrawerProps) => {
 
 	return (
 		<Drawer open={open} onOpenChange={onClose}>
-			<DrawerContent className="max-h-[90vh]">
-				<ScrollArea className="max-h-[calc(90vh-8rem)]">
-					<div className="mx-auto w-full max-w-2xl">
-						<DrawerHeader>
-							<DrawerTitle>User Details</DrawerTitle>
-							<DrawerDescription>
-								Detailed information about {user.name ?? user.email}
-							</DrawerDescription>
-						</DrawerHeader>
+			<DrawerContent className="max-h-[90vh] flex flex-col">
+				<DrawerHeader>
+					<DrawerTitle>User Details</DrawerTitle>
+					<DrawerDescription>
+						Detailed information about {user.name ?? user.email}
+					</DrawerDescription>
+				</DrawerHeader>
 
-						<div className="p-6">
-							<div className="space-y-6">
-								{/* Basic Information */}
-								<section>
-									<h3 className="text-lg font-semibold">Basic Information</h3>
-									<div className="mt-4 grid gap-4">
-										<Card className="overflow-hidden">
-											<div className="bg-muted/40 p-6">
-												<div className="flex items-center gap-4">
-													<div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-														<User className="h-8 w-8 text-primary" />
+				<ScrollArea className="flex-grow overflow-y-auto">
+					<div className="mx-auto w-full max-w-2xl p-6">
+						<div className="space-y-6">
+							<section>
+								<h3 className="text-lg font-semibold">Basic Information</h3>
+								<div className="mt-4 grid gap-4">
+									<Card className="overflow-hidden">
+										<div className="bg-muted/40 p-6">
+											<div className="flex items-center gap-4">
+												<div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+													<User className="h-8 w-8 text-primary" />
+												</div>
+												<div>
+													<h4 className="text-xl font-medium">{user.name || "Unnamed User"}</h4>
+													<div className="flex items-center gap-2 text-sm text-muted-foreground">
+														<Mail className="h-3 w-3" />
+														<span>{user.email}</span>
 													</div>
-													<div>
-														<h4 className="text-xl font-medium">{user.name || "Unnamed User"}</h4>
+												</div>
+											</div>
+										</div>
+										<CardContent className="p-0">
+											<div className="grid grid-cols-1 divide-y sm:grid-cols-2 sm:divide-y-0 sm:divide-x">
+												<div className="p-4">
+													<div className="flex items-center gap-3">
+														<div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+															<Calendar className="h-5 w-5 text-primary" />
+														</div>
+														<div>
+															<p className="text-sm font-medium text-muted-foreground">Joined</p>
+															<p className="font-medium">{format(user.createdAt, "PPP")}</p>
+														</div>
+													</div>
+												</div>
+												<div className="p-4">
+													<div className="flex items-center gap-3">
+														<div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+															<CreditCard className="h-5 w-5 text-primary" />
+														</div>
+														<div>
+															<p className="text-sm font-medium text-muted-foreground">Status</p>
+															<Badge variant={user.hasPaid ? "default" : "secondary"} className="mt-1">
+																{user.hasPaid ? "Paid Customer" : "Not Paid"}
+															</Badge>
+														</div>
+													</div>
+												</div>
+											</div>
+											{user.id && (
+												<div className="border-t p-4">
+													<div className="flex items-center justify-between">
 														<div className="flex items-center gap-2 text-sm text-muted-foreground">
-															<Mail className="h-3 w-3" />
-															<span>{user.email}</span>
+															<span>User ID:</span>
+															<code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+																{user.id}
+															</code>
 														</div>
+														<Button variant="ghost" size="sm" className="h-7 gap-1" asChild>
+															<a href={`mailto:${user.email}`} target="_blank" rel="noopener noreferrer">
+																<Mail className="h-3.5 w-3.5" />
+																<span className="text-xs">Contact</span>
+															</a>
+														</Button>
 													</div>
 												</div>
-											</div>
-											<CardContent className="p-0">
-												<div className="grid grid-cols-1 divide-y sm:grid-cols-2 sm:divide-y-0 sm:divide-x">
-													<div className="p-4">
-														<div className="flex items-center gap-3">
-															<div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-																<Calendar className="h-5 w-5 text-primary" />
-															</div>
-															<div>
-																<p className="text-sm font-medium text-muted-foreground">Joined</p>
-																<p className="font-medium">{format(user.createdAt, "PPP")}</p>
-															</div>
-														</div>
-													</div>
-													<div className="p-4">
-														<div className="flex items-center gap-3">
-															<div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-																<CreditCard className="h-5 w-5 text-primary" />
-															</div>
-															<div>
-																<p className="text-sm font-medium text-muted-foreground">Status</p>
-																<Badge variant={user.hasPaid ? "default" : "secondary"} className="mt-1">
-																	{user.hasPaid ? "Paid Customer" : "Not Paid"}
-																</Badge>
-															</div>
-														</div>
-													</div>
-												</div>
-												{user.id && (
-													<div className="border-t p-4">
-														<div className="flex items-center justify-between">
-															<div className="flex items-center gap-2 text-sm text-muted-foreground">
-																<span>User ID:</span>
-																<code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-																	{user.id}
-																</code>
-															</div>
-															<Button variant="ghost" size="sm" className="h-7 gap-1" asChild>
-																<a href={`mailto:${user.email}`} target="_blank" rel="noopener noreferrer">
-																	<Mail className="h-3.5 w-3.5" />
-																	<span className="text-xs">Contact</span>
-																</a>
-															</Button>
-														</div>
-													</div>
-												)}
-											</CardContent>
-										</Card>
-									</div>
-								</section>
+											)}
+										</CardContent>
+									</Card>
+								</div>
+							</section>
 
-								<Separator />
+							<Separator />
 
-								{/* Payment Information with enhanced UI */}
-								<section>
-									<h3 className="text-lg font-semibold">Payment Information</h3>
-									<div className="mt-4 grid gap-4">
-										<Card>
-											<CardContent className="p-4">
-												<div className="flex items-center justify-between">
-													<div>
-														<p className="text-sm font-medium text-muted-foreground">
-															Payment Status
-														</p>
-														<Badge variant={user.hasPaid ? "default" : "secondary"}>
-															{user.hasPaid ? "Paid" : "Not Paid"}
-														</Badge>
-													</div>
-													<div className="text-right">
-														<p className="text-sm font-medium text-muted-foreground">
-															Total Purchases
-														</p>
-														<p className="text-2xl font-bold">{user.totalPurchases}</p>
-													</div>
-												</div>
-											</CardContent>
-										</Card>
-
-										<Card>
-											<CardContent className="p-4">
-												<div className="flex items-center justify-between">
-													<div>
-														<p className="text-sm font-medium text-muted-foreground">
-															Subscription Status
-														</p>
-														{user.hasActiveSubscription ? (
-															<Badge variant="default">Subscribed</Badge>
-														) : user.hadSubscription ? (
-															<Badge variant="secondary">Inactive</Badge>
-														) : (
-															<Badge variant="outline">None</Badge>
-														)}
-													</div>
-													<div className="text-right">
-														<p className="text-sm font-medium text-muted-foreground">
-															Last Purchase
-														</p>
-														<p className="text-lg">
-															{user.lastPurchaseDate
-																? format(user.lastPurchaseDate, "PPP")
-																: "No purchases"}
-														</p>
-													</div>
-												</div>
-											</CardContent>
-										</Card>
-									</div>
-								</section>
-
-								<Separator />
-
-								{/* Purchase History */}
-								<section>
-									<div className="mb-4 flex items-center justify-between">
-										<h3 className="text-lg font-semibold">Purchase History</h3>
-										{user.purchases && user.purchases.length > 0 && (
-											<Button variant="outline" size="sm">
-												<Package className="mr-2 h-4 w-4" />
-												Export History
-											</Button>
-										)}
-									</div>
-
-									{user.purchases && user.purchases.length > 0 ? (
-										<Card>
-											<div className="p-4 border-b">
-												<div className="flex flex-wrap gap-3">
-													<Badge variant="outline" className="px-3 py-1">
-														Total: {user.totalPurchases} purchase{user.totalPurchases !== 1 ? 's' : ''}
+							<section>
+								<h3 className="text-lg font-semibold">Payment Information</h3>
+								<div className="mt-4 grid gap-4">
+									<Card>
+										<CardContent className="p-4">
+											<div className="flex items-center justify-between">
+												<div>
+													<p className="text-sm font-medium text-muted-foreground">
+														Payment Status
+													</p>
+													<Badge variant={user.hasPaid ? "default" : "secondary"}>
+														{user.hasPaid ? "Paid" : "Not Paid"}
 													</Badge>
-													{user.lemonSqueezyStatus && (
-														<Badge variant="outline" className="px-3 py-1">
-															<CreditCard className="h-4 w-4 mr-1 text-yellow-500" />
-															LemonSqueezy
-														</Badge>
-													)}
-													{user.polarStatus && (
-														<Badge variant="outline" className="px-3 py-1">
-															<CreditCard className="h-4 w-4 mr-1 text-blue-500" />
-															Polar
-														</Badge>
-													)}
-													{user.hasActiveSubscription ? (
-														<Badge variant="default" className="px-3 py-1">
-															Subscribed
-														</Badge>
-													) : user.hadSubscription ? (
-														<Badge variant="secondary" className="px-3 py-1">
-															Subscription Inactive
-														</Badge>
-													) : null}
+												</div>
+												<div className="text-right">
+													<p className="text-sm font-medium text-muted-foreground">
+														Total Purchases
+													</p>
+													<p className="text-2xl font-bold">{user.totalPurchases}</p>
 												</div>
 											</div>
-											<Table>
-												<TableHeader>
-													<TableRow>
-														<TableHead>Product</TableHead>
-														<TableHead>Date</TableHead>
-														<TableHead>Amount</TableHead>
-														<TableHead>Status</TableHead>
-														<TableHead>Provider</TableHead>
-													</TableRow>
-												</TableHeader>
-												<TableBody>
-													{user.purchases.map((purchase) => (
-														<TableRow key={purchase.id}>
-															<TableCell>
-																<div>
-																	<p className="font-medium">{purchase.productName}</p>
-																	<p className="text-xs text-muted-foreground">
-																		Order: {purchase.orderId}
-																	</p>
-																</div>
-															</TableCell>
-															<TableCell>{format(purchase.purchaseDate, "PPP")}</TableCell>
-															<TableCell>
-																<div className="flex items-center gap-2">
-																	<CreditCard className="h-4 w-4 text-muted-foreground" />$
-																	{purchase.amount.toFixed(2)}
-																</div>
-															</TableCell>
-															<TableCell>
-																{(() => {
-																	const isSubscription = isSubscriptionProduct(purchase.productName);
-																	// Check if this specific purchase is an active subscription
-																	const isActive = isSubscription &&
-																		user.hasActiveSubscription &&
-																		(user.purchases?.filter(p =>
-																			isSubscriptionProduct(p.productName) &&
-																			p.status === "paid"
-																		).slice(-1)[0]?.id === purchase.id);
+										</CardContent>
+									</Card>
 
-																	if (isSubscription) {
-																		return (
-																			<Badge variant={isActive ? "default" : "secondary"}>
-																				{isActive ? "Subscribed" : "Inactive"}
-																			</Badge>
-																		);
-																	}
+									<Card>
+										<CardContent className="p-4">
+											<div className="flex items-center justify-between">
+												<div>
+													<p className="text-sm font-medium text-muted-foreground">
+														Subscription Status
+													</p>
+													{user.hasActiveSubscription ? (
+														<Badge variant="default">Subscribed</Badge>
+													) : user.hadSubscription ? (
+														<Badge variant="secondary">Inactive</Badge>
+													) : (
+														<Badge variant="outline">None</Badge>
+													)}
+												</div>
+												<div className="text-right">
+													<p className="text-sm font-medium text-muted-foreground">
+														Last Purchase
+													</p>
+													<p className="text-lg">
+														{user.lastPurchaseDate
+															? format(user.lastPurchaseDate, "PPP")
+															: "No purchases"}
+													</p>
+												</div>
+											</div>
+										</CardContent>
+									</Card>
+								</div>
+							</section>
 
+							<Separator />
+
+							<section>
+								<div className="mb-4 flex items-center justify-between">
+									<h3 className="text-lg font-semibold">Purchase History</h3>
+									{user.purchases && user.purchases.length > 0 && (
+										<Button variant="outline" size="sm">
+											<Package className="mr-2 h-4 w-4" />
+											Export History
+										</Button>
+									)}
+								</div>
+
+								{user.purchases && user.purchases.length > 0 ? (
+									<Card>
+										<div className="p-4 border-b">
+											<div className="flex flex-wrap gap-3">
+												<Badge variant="outline" className="px-3 py-1">
+													Total: {user.totalPurchases} purchase{user.totalPurchases !== 1 ? 's' : ''}
+												</Badge>
+												{user.providerStatuses?.lemonsqueezy && (
+													<Badge variant="outline" className="px-3 py-1">
+														<CreditCard className="h-4 w-4 mr-1 text-yellow-500" />
+														LemonSqueezy
+													</Badge>
+												)}
+												{user.providerStatuses?.polar && (
+													<Badge variant="outline" className="px-3 py-1">
+														<CreditCard className="h-4 w-4 mr-1 text-blue-500" />
+														Polar
+													</Badge>
+												)}
+												{user.hasActiveSubscription ? (
+													<Badge variant="default" className="px-3 py-1">
+														Subscribed
+													</Badge>
+												) : user.hadSubscription ? (
+													<Badge variant="secondary" className="px-3 py-1">
+														Subscription Inactive
+													</Badge>
+												) : null}
+											</div>
+										</div>
+										<Table>
+											<TableHeader>
+												<TableRow>
+													<TableHead>Product</TableHead>
+													<TableHead>Date</TableHead>
+													<TableHead>Amount</TableHead>
+													<TableHead>Status</TableHead>
+													<TableHead>Provider</TableHead>
+												</TableRow>
+											</TableHeader>
+											<TableBody>
+												{user.purchases.map((purchase) => (
+													<TableRow key={purchase.id}>
+														<TableCell>
+															<div>
+																<p className="font-medium">{purchase.productName}</p>
+																<p className="text-xs text-muted-foreground">
+																	Order: {purchase.orderId}
+																</p>
+															</div>
+														</TableCell>
+														<TableCell>{format(purchase.purchaseDate, "PPP")}</TableCell>
+														<TableCell>
+															<div className="flex items-center gap-2">
+																<CreditCard className="h-4 w-4 text-muted-foreground" />$
+																{purchase.amount.toFixed(2)}
+															</div>
+														</TableCell>
+														<TableCell>
+															{(() => {
+																const isSubscription = isSubscriptionProduct(purchase.productName);
+																// Check if this specific purchase is an active subscription
+																const isActive = isSubscription &&
+																	user.hasActiveSubscription &&
+																	(user.purchases?.filter(p =>
+																		isSubscriptionProduct(p.productName) &&
+																		p.status === "paid"
+																	).slice(-1)[0]?.id === purchase.id);
+
+																if (isSubscription) {
 																	return (
-																		<Badge variant={getStatusBadgeVariant(purchase.status)}>
-																			{purchase.status.charAt(0).toUpperCase() +
-																				purchase.status.slice(1)}
+																		<Badge variant={isActive ? "default" : "secondary"}>
+																			{isActive ? "Subscribed" : "Inactive"}
 																		</Badge>
 																	);
-																})()}
-															</TableCell>
-															<TableCell>
-																{purchase.processor ? (
-																	<Badge variant="outline">
-																		{purchase.processor.charAt(0).toUpperCase() +
-																			purchase.processor.slice(1)}
+																}
+
+																return (
+																	<Badge variant={getStatusBadgeVariant(purchase.status)}>
+																		{purchase.status.charAt(0).toUpperCase() +
+																			purchase.status.slice(1)}
 																	</Badge>
-																) : (
-																	<Badge variant="outline">Unknown</Badge>
-																)}
-															</TableCell>
-														</TableRow>
-													))}
-												</TableBody>
-											</Table>
-										</Card>
-									) : (
-										<Card>
-											<CardContent className="flex flex-col items-center justify-center py-6 text-center">
-												<Package className="mb-2 h-8 w-8 text-muted-foreground" />
-												<p className="text-sm text-muted-foreground">
-													No purchase history available
-												</p>
-											</CardContent>
-										</Card>
-									)}
-								</section>
+																);
+															})()}
+														</TableCell>
+														<TableCell>
+															{purchase.processor ? (
+																<Badge variant="outline">
+																	{purchase.processor.charAt(0).toUpperCase() +
+																		purchase.processor.slice(1)}
+																</Badge>
+															) : (
+																<Badge variant="outline">Unknown</Badge>
+															)}
+														</TableCell>
+													</TableRow>
+												))}
+											</TableBody>
+										</Table>
+									</Card>
+								) : (
+									<Card>
+										<CardContent className="flex flex-col items-center justify-center py-6 text-center">
+											<Package className="mb-2 h-8 w-8 text-muted-foreground" />
+											<p className="text-sm text-muted-foreground">
+												No purchase history available
+											</p>
+										</CardContent>
+									</Card>
+								)}
+							</section>
 
-								{/* Raw JSON Data */}
-								<section>
-									<Collapsible open={isJsonOpen} onOpenChange={setIsJsonOpen} className="w-full">
-										<div className="flex items-center justify-end">
-											<CollapsibleTrigger asChild>
-												<Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">
-													{isJsonOpen ? (
-														<>
-															<ChevronUp className="h-3 w-3 mr-1" />
-															<span>Raw JSON</span>
-														</>
-													) : (
-														<>
-															<ChevronDown className="h-3 w-3 mr-1" />
-															<span>Raw JSON</span>
-														</>
-													)}
-												</Button>
-											</CollapsibleTrigger>
-										</div>
-										<CollapsibleContent>
-											<JsonViewer data={user} className="mt-2" />
-										</CollapsibleContent>
-									</Collapsible>
-								</section>
-							</div>
+							<Separator />
+
+							<section>
+								<Collapsible open={isJsonOpen} onOpenChange={setIsJsonOpen} className="w-full">
+									<div className="flex items-center justify-end">
+										<CollapsibleTrigger asChild>
+											<Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">
+												{isJsonOpen ? (
+													<>
+														<ChevronUp className="h-3 w-3 mr-1" />
+														<span>Raw JSON</span>
+													</>
+												) : (
+													<>
+														<ChevronDown className="h-3 w-3 mr-1" />
+														<span>Raw JSON</span>
+													</>
+												)}
+											</Button>
+										</CollapsibleTrigger>
+									</div>
+									<CollapsibleContent>
+										<JsonViewer data={user} className="mt-2" />
+									</CollapsibleContent>
+								</Collapsible>
+							</section>
 						</div>
-
-						<DrawerFooter>
-							<DrawerClose asChild>
-								<Button variant="outline">Close</Button>
-							</DrawerClose>
-						</DrawerFooter>
 					</div>
 				</ScrollArea>
+
+				<DrawerFooter className="mt-auto pt-4 border-t">
+					<DrawerClose asChild>
+						<Button variant="outline">Close</Button>
+					</DrawerClose>
+				</DrawerFooter>
 			</DrawerContent>
 		</Drawer>
 	);

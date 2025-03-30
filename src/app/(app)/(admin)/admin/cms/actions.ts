@@ -35,3 +35,47 @@ export async function seedCMSAction() {
 		};
 	}
 }
+
+/**
+ * Server action to check the configuration status of the CMS.
+ */
+export async function getCMSStatusAction() {
+	const session = await auth();
+
+	if (!isAdmin({ email: session?.user?.email })) {
+		// Return a specific status for unauthorized access
+		return { configured: false, message: "Unauthorized to check status." };
+	}
+
+	const payloadSecret = process.env.PAYLOAD_SECRET;
+	const databaseUrl = process.env.DATABASE_URL;
+	// Check the feature flag as well
+	const isPayloadEnabled = process.env.NEXT_PUBLIC_FEATURE_PAYLOAD_ENABLED === "true";
+
+	if (payloadSecret && databaseUrl && isPayloadEnabled) {
+		return {
+			configured: true,
+			message:
+				"CMS is enabled and configured (Feature flag, PAYLOAD_SECRET, and DATABASE_URL are set).",
+		};
+	}
+
+	const missingVars = [];
+	if (!payloadSecret) missingVars.push("PAYLOAD_SECRET");
+	if (!databaseUrl) missingVars.push("DATABASE_URL");
+	if (!isPayloadEnabled) missingVars.push("NEXT_PUBLIC_FEATURE_PAYLOAD_ENABLED (should be 'true')");
+
+	let message = `CMS configuration incomplete. Missing environment variables: ${missingVars.join(
+		", "
+	)}.`;
+
+	if (!isPayloadEnabled && payloadSecret && databaseUrl) {
+		message =
+			"CMS backend is configured (Secrets set), but the feature flag NEXT_PUBLIC_FEATURE_PAYLOAD_ENABLED is not 'true'.";
+	}
+
+	return {
+		configured: false,
+		message,
+	};
+}

@@ -20,6 +20,10 @@ export interface PaymentData {
 
 // Configuration
 const configureLemonSqueezy = (): void => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.info("Lemon Squeezy feature disabled. Skipping setup.");
+		return;
+	}
 	if (!env?.LEMONSQUEEZY_API_KEY) {
 		logger.error("LEMONSQUEEZY_API_KEY is not set in the environment.");
 		return;
@@ -34,6 +38,10 @@ configureLemonSqueezy();
  * Fetches orders for a specific email from Lemon Squeezy
  */
 export const getOrdersByEmail = async (email: string) => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to get LS orders by email, but feature is disabled.");
+		return [];
+	}
 	try {
 		const response = await listOrders({
 			filter: {
@@ -56,6 +64,10 @@ export const getOrdersByEmail = async (email: string) => {
  * Fetches all orders from Lemon Squeezy
  */
 export const getAllOrders = async () => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to get all LS orders, but feature is disabled.");
+		return [];
+	}
 	try {
 		const response = await listOrders({});
 
@@ -115,6 +127,10 @@ export const getAllOrders = async () => {
  * This ensures we catch payments even if they used a different email
  */
 export const getLemonSqueezyPaymentStatus = async (userId: string): Promise<boolean> => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to get LS payment status, but feature is disabled.");
+		return false;
+	}
 	try {
 		const user = await db?.query.users.findFirst({
 			where: eq(users.id, userId),
@@ -150,6 +166,10 @@ export const getLemonSqueezyPaymentStatus = async (userId: string): Promise<bool
 };
 
 export const fetchLemonSqueezyProducts = async () => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to fetch LS products, but feature is disabled.");
+		return [];
+	}
 	const response = await listProducts({});
 	return response.data ?? [];
 };
@@ -161,6 +181,10 @@ export const hasUserPurchasedProduct = async (
 	userId: string,
 	variantId: string | number
 ): Promise<boolean> => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to check LS product purchase, but feature is disabled.");
+		return false;
+	}
 	try {
 		logger.debug("Checking if user has purchased product", { userId, variantId });
 
@@ -214,6 +238,10 @@ export const hasUserPurchasedProduct = async (
  * Checks if a user has an active subscription
  */
 export const hasUserActiveSubscription = async (userId: string): Promise<boolean> => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to check LS subscription, but feature is disabled.");
+		return false;
+	}
 	try {
 		logger.debug("Checking if user has active subscription", { userId });
 

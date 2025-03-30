@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
 import { cn } from "@/lib/utils";
 import { signInWithOAuthAction } from "@/server/actions/auth";
+import { enabledAuthProviders } from "@/config/auth-provider-details";
 import { DiscordLogoIcon, GitHubLogoIcon, TwitterLogoIcon } from "@radix-ui/react-icons";
 import { IconBrandBitbucket, IconBrandGitlab } from "@tabler/icons-react";
 import { cva } from "class-variance-authority";
@@ -14,6 +15,7 @@ import { ChevronsUpDownIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { MagicLinkForm } from "./magic-link-form";
+import { env } from "@/env";
 
 const oauthButtonVariants = cva("flex items-center justify-center gap-sm", {
 	variants: {
@@ -30,7 +32,6 @@ const oauthButtonVariants = cva("flex items-center justify-center gap-sm", {
 interface OAuthButtonsProps {
 	variant?: "default" | "icons";
 	className?: string;
-	providers: Provider[];
 	collapsible?: boolean;
 }
 
@@ -40,15 +41,12 @@ interface Provider {
 	isExcluded?: boolean;
 }
 
-export function OAuthButtons({ variant = "default", className, providers, collapsible = false }: OAuthButtonsProps) {
+export function OAuthButtons({ variant = "default", className, collapsible = false }: OAuthButtonsProps) {
 	// Redirect back to the page that the user was on before signing in
 	const searchParams = useSearchParams();
 	const nextUrl = searchParams?.get(SEARCH_PARAM_KEYS.nextUrl);
 	const options = nextUrl ? { redirectTo: nextUrl } : {};
 	const [currentVariant, setCurrentVariant] = useState<"default" | "icons">(variant);
-
-	const hasResendProvider = providers.some((provider) => provider.id === "resend");
-	const hasCredentialsProvider = providers.some((provider) => provider.id === "credentials");
 
 	const handleSignIn = (providerId: string) => {
 		void signInWithOAuthAction({ providerId, options });
@@ -88,7 +86,7 @@ export function OAuthButtons({ variant = "default", className, providers, collap
 						</Button>
 					</div>
 				)}
-				{providers.map((provider, index) => {
+				{enabledAuthProviders.map((provider) => {
 					const { id, name, isExcluded } = provider;
 
 					if (isExcluded) {
@@ -129,7 +127,7 @@ export function OAuthButtons({ variant = "default", className, providers, collap
 				})}
 			</div>
 
-			{hasResendProvider && <MagicLinkContent />}
+			{env.NEXT_PUBLIC_FEATURE_AUTH_RESEND_ENABLED && <MagicLinkContent />}
 		</>
 	);
 }

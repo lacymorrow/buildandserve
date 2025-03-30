@@ -1,9 +1,9 @@
 import { routes } from "@/config/routes";
 import type { NextAuthConfig } from "next-auth";
-import { connectGitHub } from "./actions/github";
-import { providers } from "./auth.providers";
-import { db } from "./db";
-import { userService } from "./services/user-service";
+import { connectGitHub } from "@/server/actions/github";
+import { providers } from "@/server/auth.providers";
+import { db } from "@/server/db";
+import { userService } from "@/server/services/user-service";
 
 // Extend the default session user type
 declare module "next-auth" {

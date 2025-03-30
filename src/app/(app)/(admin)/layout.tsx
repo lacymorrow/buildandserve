@@ -7,12 +7,14 @@ import { redirect } from "next/navigation";
 import type React from "react";
 
 const navLinks = [
-	// { href: routes.admin.cms, label: "Setup" },
+	{ href: routes.admin.dashboard, label: "Dashboard" },
 	{ href: routes.admin.users, label: "Users" },
 	{ href: routes.admin.github, label: "GitHub" },
 	{ href: routes.admin.feedback, label: "Feedback" },
 	{ href: routes.admin.payments, label: "Payments" },
 	{ href: routes.admin.cms, label: "CMS" },
+	{ href: routes.admin.integrations, label: "Integrations" },
+	{ href: routes.admin.settings, label: "Settings" },
 ];
 
 

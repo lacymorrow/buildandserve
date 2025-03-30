@@ -4,8 +4,11 @@ import React from "react";
 import { AppLayout } from "@/components/layouts/app-layout";
 import { BodyProvider } from "@/components/providers/body-provider";
 import { metadata as defaultMetadata } from "@/config/metadata";
+import { initializePaymentProviders } from "@/server/providers";
 
 export const metadata: Metadata = defaultMetadata;
+
+await initializePaymentProviders();
 
 export default async function Layout({
 	children,

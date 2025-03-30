@@ -62,7 +62,7 @@ export const routes = {
 
 	// App routes
 	app: {
-		dashboard: "/dashboard",
+		dashboard: "/app",
 		apiKeys: "/api-keys",
 		logs: "/logs",
 		network: "/network",
@@ -73,18 +73,22 @@ export const routes = {
 		activity: "/activity",
 		projects: "/projects",
 		teams: "/teams",
+		settings: "/app/settings",
 	},
 
 	// Admin routes
 	admin: {
 		index: "/admin",
+		dashboard: "/admin",
 		activity: "/admin/activity",
 		users: "/admin/users",
 		github: "/admin/github",
 		cms: "/admin/cms",
+		integrations: "/admin/integrations",
 		ai: "/admin/ai",
 		feedback: "/admin/feedback",
 		payments: "/admin/payments",
+		settings: "/admin/settings",
 	},
 
 	settings: {
@@ -192,7 +196,7 @@ export const routes = {
 		bones: `https://${siteConfig.branding.productNames.bones.toLowerCase()}.${siteConfig.branding.domain}`,
 		log: `https://log.${siteConfig.branding.productNames.bones.toLowerCase()}.${siteConfig.branding.domain}`,
 		ui: `https://ui.${siteConfig.branding.productNames.bones.toLowerCase()}.${siteConfig.branding.domain}`,
-		buy: siteConfig.store.format.buyUrl("muscles"),
+		buy: siteConfig.store.format.buyUrl("shipkit"),
 		discord: "https://discord.gg/XxKrKNvEje",
 		twitter: siteConfig.links.twitter,
 		twitter_follow: siteConfig.links.twitter_follow,

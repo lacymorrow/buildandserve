@@ -4,7 +4,7 @@ import { Modal } from "@/components/primitives/modal";
 
 export default async function Page() {
 	return (
-		<Modal dialogTitle="Sign in" routeBack={true}>
+		<Modal routeBack={true}>
 			<SignIn />
 		</Modal>
 	);

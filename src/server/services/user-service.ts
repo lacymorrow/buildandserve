@@ -7,6 +7,8 @@ import { BaseService } from "./base-service";
 import { PaymentService } from "./payment-service";
 import { deleteFromS3 } from "./s3";
 import { teamService } from "./team-service";
+import crypto from "crypto";
+import type { User } from "@/server/db/schema";
 
 export class UserService extends BaseService<typeof users> {
 	constructor() {
@@ -405,6 +407,79 @@ export class UserService extends BaseService<typeof users> {
 			userId,
 			fileId,
 		});
+	}
+
+	/**
+	 * Finds a user by email or creates one if they don't exist.
+	 * Intended for use cases like payment imports where only email is known initially.
+	 * @param email - The email address to find or create.
+	 * @param userData - Optional data for creating a new user (e.g., name).
+	 * @returns An object containing the user and a boolean indicating if the user was created.
+	 */
+	async findOrCreateUserByEmail(
+		email: string,
+		userData?: { name?: string | null; image?: string | null }
+	): Promise<{ user: User; created: boolean }> {
+		if (!db) {
+			throw new Error("Database is not initialized");
+		}
+		if (!email) {
+			throw new Error("Email is required to find or create a user.");
+		}
+
+		let user = await this.getUserByEmail(email);
+		let created = false;
+
+		if (!user) {
+			logger.info("User not found by email, creating new user.", { email });
+			// Create the user
+			const newUserId = crypto.randomUUID(); // Ensure crypto is imported at the top
+			const [newUserRecord] = await db
+				.insert(users)
+				.values({
+					id: newUserId,
+					email: email,
+					name: userData?.name ?? null,
+					image: userData?.image ?? null,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+					// emailVerified might need specific handling depending on requirements
+				})
+				.returning();
+
+			if (!newUserRecord) {
+				throw new Error(`Failed to create user with email: ${email}`);
+			}
+
+			user = newUserRecord;
+			created = true;
+
+			// Create personal team for the new user
+			await this.createPersonalTeam(user.id);
+
+			// Create default API key
+			const apiKey = await apiKeyService.createApiKey({
+				userId: user.id,
+				name: "Default API Key",
+				description: "Created automatically during import/creation",
+			});
+			logger.info("Created default API key for newly created user", {
+				userId: user.id,
+				apiKeyId: apiKey.id,
+			});
+		} else {
+			logger.debug("Found existing user by email.", { email, userId: user.id });
+			// Optionally update existing user data if userData is provided and different
+			// const updates: Partial<User> = {};
+			// if (userData?.name && !user.name) updates.name = userData.name;
+			// if (userData?.image && !user.image) updates.image = userData.image;
+			// if (Object.keys(updates).length > 0) {
+			//   await this.update(user.id, updates);
+			//   user = { ...user, ...updates }; // Update local user object
+			// }
+		}
+
+		return { user, created };
 	}
 }
 

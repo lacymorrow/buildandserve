@@ -1,12 +1,13 @@
 ---
 description: Things to Avoid - Anti-patterns and Common Mistakes
 globs: *.ts, *.tsx, *.js, *.jsx, src/**/*
+alwaysApply: false
 ---
 
 # Don't Do These Things
 
 ## Next.js
-- Don't use pages router (use app router)
+- Prefer use pages router (use app router)
 - Don't nest server components in client components
 - Don't use `use client` in server components
 - Don't fetch data with server actions

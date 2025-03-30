@@ -2,6 +2,7 @@ import { Link } from "@/components/primitives/link-with-transition";
 import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/primitives/page-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { BuyButton } from "@/components/buttons/buy-button";
 import {
 	Card,
 	CardContent,
@@ -121,12 +122,11 @@ export default async function DashboardPage() {
 	const userId = session?.user?.id ?? "";
 
 	// Run all async operations in parallel
-	const [isUserAdmin, hasGitHubConnection, hasVercelConnection, hasPurchased, isCustomer, isSubscribed] = await Promise.all([
+	const [isUserAdmin, hasGitHubConnection, hasVercelConnection, isCustomer, isSubscribed] = await Promise.all([
 		isAdmin({ email: session?.user?.email }),
 		checkGitHubConnection(userId),
 		checkVercelConnection(userId),
-		PaymentService.getUserPaymentStatus(userId),
-		PaymentService.hasUserPurchasedProduct({ userId, productId: siteConfig.store.products.shipkit, provider: "lemonsqueezy" }),
+		PaymentService.hasUserPurchasedProduct({ userId, productId: siteConfig.store.products.shipkit }),
 		PaymentService.hasUserActiveSubscription({ userId }),
 	]);
 
@@ -137,7 +137,7 @@ export default async function DashboardPage() {
 				user={session?.user}
 				hasGitHubConnection={hasGitHubConnection}
 				hasVercelConnection={hasVercelConnection}
-				hasPurchased={hasPurchased}
+				hasPurchased={isCustomer}
 			/>
 
 			<PageHeader>
@@ -167,12 +167,16 @@ export default async function DashboardPage() {
 							)}
 						</div>
 						<PageHeaderDescription>
-							Here's what's happening with your projects
+							Check out what's happening with your projects
 						</PageHeaderDescription>
 					</div>
-					<div className="flex items-center gap-2">
-						<DownloadSection />
-					</div>
+					{isCustomer ? (
+						<div className="flex items-center gap-2">
+							<DownloadSection />
+						</div>
+					) : (
+						<BuyButton />
+					)}
 				</div>
 			</PageHeader>
 

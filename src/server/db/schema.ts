@@ -46,11 +46,13 @@ export const payments = createTable("payment", {
 	id: serial("id").primaryKey(),
 	userId: varchar("user_id", { length: 255 }).notNull(),
 	orderId: varchar("order_id", { length: 255 }),
+	processorOrderId: varchar("processor_order_id", { length: 255 }),
 	amount: integer("amount"),
 	status: varchar("status", { length: 255 }).notNull(),
 	processor: varchar("processor", { length: 50 }),
 	isFreeProduct: boolean("is_free_product").default(false),
 	metadata: text("metadata").default("{}"),
+	purchasedAt: timestamp("purchased_at", { withTimezone: true }),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)
 		.notNull(),

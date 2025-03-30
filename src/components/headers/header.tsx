@@ -67,9 +67,9 @@ export const Header: React.FC<HeaderProps> = ({
 	searchPlaceholder = `Search ${siteConfig.name}...`,
 }) => {
 	const signInRedirectUrl = useSignInRedirectUrl();
-	const [{ y }] = useWindowScroll();
-	const isOpaque = useMemo(() => variant === "floating" && y && y > 100, [y, variant]);
 	const { data: session } = useSession();
+	// const [{ y }] = useWindowScroll();
+	// const isOpaque = useMemo(() => variant === "floating" && y && y > 100, [y, variant]);
 
 	return (
 		<>
@@ -77,9 +77,9 @@ export const Header: React.FC<HeaderProps> = ({
 				className={cn(
 					headerVariants({ variant }),
 					variant === "floating" && styles.header,
-					variant === "floating" && isOpaque && styles.opaque,
-					variant === "floating" &&
-					isOpaque &&
+					// variant === "floating" && isOpaque && styles.opaque,
+					// variant === "floating" &&
+					// isOpaque &&
 					"-top-[12px] [--background:#fafafc70] dark:[--background:#1c1c2270]"
 				)}
 			>

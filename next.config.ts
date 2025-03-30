@@ -1,3 +1,9 @@
+import {
+	buildTimeFeatureFlags,
+	isBuilderEnabled,
+	isPayloadEnabled,
+	isMDXEnabled,
+} from "@/config/features-config";
 import { FILE_UPLOAD_MAX_SIZE } from "@/config/file";
 import { redirects } from "@/config/routes";
 import BuilderDevTools from "@builder.io/dev-tools/next";
@@ -5,15 +11,11 @@ import createMDX from "@next/mdx";
 import { withPayload } from "@payloadcms/next/withPayload";
 import type { NextConfig } from "next";
 
-/**
- * Validate environment variables
- *
- * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially useful
- * for Docker builds.
- */
-import { env } from "@/env";
-
 let nextConfig: NextConfig = {
+	env: {
+		...buildTimeFeatureFlags,
+		// You can add other build-time env variables here if needed
+	},
 	/*
 	 * Redirects are located in the `src/config/routes.ts` file
 	 */
@@ -117,16 +119,16 @@ let nextConfig: NextConfig = {
 		// Remove all console logs
 		// removeConsole: true
 		// Remove console logs only in production, excluding error logs
-		removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false,
+		// removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false,
 
 		// Use DISABLE_LOGGING to disable all logging except error logs
 		// Use DISABLE_ERROR_LOGGING to disable error logging too
-		// removeConsole:
-		// 	process.env.DISABLE_LOGGING === "true"
-		// 		? process.env.DISABLE_ERROR_LOGGING === "true"
-		// 			? true
-		// 			: { exclude: ["error"] }
-		// 		: false,
+		removeConsole:
+			process.env.DISABLE_LOGGING === "true"
+				? process.env.DISABLE_ERROR_LOGGING === "true"
+					? true
+					: { exclude: ["error"] }
+				: false,
 	},
 
 	outputFileTracingExcludes: {
@@ -163,13 +165,10 @@ let nextConfig: NextConfig = {
  * Order matters!
  */
 // Builder config
-nextConfig =
-	!env?.NEXT_PUBLIC_BUILDER_API_KEY || !!env?.DISABLE_BUILDER
-		? nextConfig
-		: BuilderDevTools()(nextConfig);
+nextConfig = isBuilderEnabled ? BuilderDevTools()(nextConfig) : nextConfig;
 
 // Payload config
-nextConfig = !env?.DATABASE_URL || !!env?.DISABLE_PAYLOAD ? nextConfig : withPayload(nextConfig);
+nextConfig = isPayloadEnabled ? withPayload(nextConfig) : nextConfig;
 
 /*
  * MDX config - should be last or second to last
@@ -192,7 +191,7 @@ const withMDX = createMDX({
 		rehypePlugins: [],
 	},
 });
-nextConfig = withMDX(nextConfig);
+nextConfig = isMDXEnabled ? withMDX(nextConfig) : nextConfig;
 
 /*
  * Logflare config - should be last

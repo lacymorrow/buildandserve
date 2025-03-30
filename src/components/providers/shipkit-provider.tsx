@@ -2,6 +2,7 @@ import { ErrorToast } from "@/components/primitives/error-toast";
 import { JsonLd } from "@/components/primitives/json-ld";
 import { AnalyticsProvider } from "@/components/providers/analytics-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { Toaster as LegacyToaster } from "@/components/ui/toaster"
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TRPCReactProvider } from "@/lib/trpc/react";
 import HolyLoader from "holy-loader";
@@ -52,6 +53,8 @@ export function ShipkitProvider({
 
 								{/* Toast - Display messages to the user */}
 								<Toaster />
+
+								<LegacyToaster />
 
 								{/* Error Toast - Display error messages to the user based on search params */}
 								<Suspense>

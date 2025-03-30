@@ -8,17 +8,10 @@ import { CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from 
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
-import { AuthProviderService } from "@/server/services/auth-provider-service";
 import Link from "next/link";
-
-interface AuthProvider {
-	id: string;
-	name: string;
-}
 
 interface AuthFormProps extends ComponentPropsWithoutRef<"div"> {
 	mode: "sign-in" | "sign-up";
-	providers: AuthProvider[];
 	children?: ReactNode;
 	title?: string;
 	description?: string;
@@ -28,7 +21,6 @@ interface AuthFormProps extends ComponentPropsWithoutRef<"div"> {
 
 export function AuthForm({
 	mode = "sign-in",
-	providers,
 	className,
 	children,
 	title,
@@ -59,7 +51,6 @@ export function AuthForm({
 					<OAuthButtons
 						collapsible
 						variant="icons"
-						providers={providers}
 					/>
 
 					<Suspense fallback={<SuspenseFallback />}>
@@ -73,14 +64,14 @@ export function AuthForm({
 					</div>
 				</div>
 			</CardContent>
-			{withFooter && (
-				<CardFooter>
+			<CardFooter>
+				{withFooter && (
 					<div className="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-primary">
 						By signing up, you agree to our <Link href={routes.terms}>Terms of Service</Link> and{" "}
 						<Link href={routes.privacy}>Privacy Policy</Link>.
 					</div>
-				</CardFooter>
-			)}
+				)}
+			</CardFooter>
 		</div>
 	);
 }

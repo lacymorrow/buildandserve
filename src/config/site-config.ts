@@ -135,8 +135,8 @@ export const siteConfig: SiteConfig = {
 		domain: "shipkit.io",
 		protocol: "web+shipkit",
 		githubOrg: "shipkit-io",
-		githubRepo: "bones",
-		vercelProjectName: "bones-app",
+		githubRepo: "shipkit",
+		vercelProjectName: "shipkit-app",
 		databaseName: "shipkit",
 	},
 

@@ -74,6 +74,10 @@ const initializePolarClient = (): Polar | null => {
  * Fetches orders for a specific email from Polar
  */
 export const getOrdersByEmail = async (email: string): Promise<PolarOrder[]> => {
+	if (!env.NEXT_PUBLIC_FEATURE_POLAR_ENABLED) {
+		logger.debug("Polar feature is disabled. Skipping getOrdersByEmail.");
+		return [];
+	}
 	try {
 		const polarClient = initializePolarClient();
 		if (!polarClient) {
@@ -106,6 +110,10 @@ export const getOrdersByEmail = async (email: string): Promise<PolarOrder[]> => 
  * Fetches all orders from Polar
  */
 export const getAllOrders = async (): Promise<PolarOrder[]> => {
+	if (!env.NEXT_PUBLIC_FEATURE_POLAR_ENABLED) {
+		logger.debug("Polar feature is disabled. Skipping getAllOrders.");
+		return [];
+	}
 	try {
 		const polarClient = initializePolarClient();
 		if (!polarClient) {
@@ -118,8 +126,18 @@ export const getAllOrders = async (): Promise<PolarOrder[]> => {
 		// Using a more generic approach to handle potential SDK differences
 		const response = await polarClient.orders.list({} as any);
 
+		// Log the raw response for debugging
+		logger.debug("Raw Polar API response:", { response: JSON.stringify(response, null, 2) });
+
 		// Extract orders from the response
 		const orders = extractOrdersFromResponse(response);
+
+		// Log the first extracted order (if any) to see its structure
+		if (orders.length > 0) {
+			logger.debug("First extracted Polar order structure:", {
+				firstOrder: JSON.stringify(orders[0], null, 2),
+			});
+		}
 
 		// Transform the Polar orders to our PolarOrder interface
 		return orders.map((order) => mapToPolarOrder(order));
@@ -304,13 +322,18 @@ const mapPolarOrderStatus = (status: string | undefined): "paid" | "refunded" | 
  * Gets the payment status for a user by checking both their ID and email
  */
 export const getPolarPaymentStatus = async (userId: string): Promise<boolean> => {
+	if (!env.NEXT_PUBLIC_FEATURE_POLAR_ENABLED) {
+		logger.debug("Polar feature is disabled. Skipping getPolarPaymentStatus.");
+		return false;
+	}
+
+	logger.debug("Checking Polar payment status for user", { userId });
+
 	try {
 		const polarClient = initializePolarClient();
 		if (!polarClient) {
 			return false;
 		}
-
-		logger.debug("Checking Polar payment status", { userId });
 
 		// First check the database for existing payment records
 		const payment = await db?.query.payments.findFirst({
@@ -355,6 +378,10 @@ export const getPolarPaymentStatus = async (userId: string): Promise<boolean> =>
  * Fetch products from Polar
  */
 export const fetchPolarProducts = async () => {
+	if (!env.NEXT_PUBLIC_FEATURE_POLAR_ENABLED) {
+		logger.debug("Polar feature is disabled. Skipping fetchPolarProducts.");
+		return [];
+	}
 	try {
 		const polarClient = initializePolarClient();
 		if (!polarClient) {
@@ -410,6 +437,10 @@ const extractProductsFromResponse = (response: any): any[] => {
  * Get a single order by ID
  */
 export const getOrderById = async (orderId: string): Promise<PolarOrder | null> => {
+	if (!env.NEXT_PUBLIC_FEATURE_POLAR_ENABLED) {
+		logger.debug("Polar feature is disabled. Skipping getOrderById.");
+		return null;
+	}
 	try {
 		const polarClient = initializePolarClient();
 		if (!polarClient) {
@@ -442,6 +473,15 @@ export const getOrderById = async (orderId: string): Promise<PolarOrder | null> 
  * Process a webhook event from Polar
  */
 export const processPolarWebhook = async (event: any) => {
+	if (!env.NEXT_PUBLIC_FEATURE_POLAR_ENABLED) {
+		logger.warn("Received Polar webhook, but Polar feature is disabled. Skipping processing.", {
+			eventType: event?.type,
+		});
+		return; // Or return a specific response indicating disabled feature
+	}
+
+	logger.info("Processing Polar webhook event", { type: event?.type });
+
 	try {
 		const polarClient = initializePolarClient();
 		if (!polarClient) {
@@ -499,6 +539,10 @@ export const createCheckoutUrl = async (options: {
 	userId?: string;
 	metadata?: Record<string, any>;
 }): Promise<string | null> => {
+	if (!env.NEXT_PUBLIC_FEATURE_POLAR_ENABLED) {
+		logger.debug("Polar feature is disabled. Skipping createCheckoutUrl.");
+		return null;
+	}
 	try {
 		const polarClient = initializePolarClient();
 		if (!polarClient) {
@@ -563,6 +607,11 @@ export const hasUserPurchasedProduct = async (
 	userId: string,
 	productId: string
 ): Promise<boolean> => {
+	if (!env.NEXT_PUBLIC_FEATURE_POLAR_ENABLED) {
+		logger.debug("Polar feature is disabled. Skipping hasUserPurchasedProduct.");
+		return false;
+	}
+	logger.debug("Checking if user purchased product", { userId, productId });
 	try {
 		// Check if the user has any payment
 		const hasPayment = await getPolarPaymentStatus(userId);
@@ -599,9 +648,14 @@ export const hasUserPurchasedProduct = async (
  * @returns True if the user has an active subscription
  */
 export const hasUserActiveSubscription = async (userId: string): Promise<boolean> => {
-	try {
-		logger.debug("Checking if user has active Polar subscription", { userId });
+	if (!env.NEXT_PUBLIC_FEATURE_POLAR_ENABLED) {
+		logger.debug("Polar feature is disabled. Skipping hasUserActiveSubscription.");
+		return false;
+	}
 
+	logger.debug("Checking for active Polar subscription for user", { userId });
+
+	try {
 		// Check if the user has any payment
 		const hasPayment = await getPolarPaymentStatus(userId);
 		if (!hasPayment) {
@@ -701,6 +755,13 @@ export const hasUserActiveSubscription = async (userId: string): Promise<boolean
  * @returns Array of purchased products
  */
 export const getUserPurchasedProducts = async (userId: string): Promise<any[]> => {
+	if (!env.NEXT_PUBLIC_FEATURE_POLAR_ENABLED) {
+		logger.debug("Polar feature is disabled. Skipping getUserPurchasedProducts.");
+		return [];
+	}
+
+	logger.debug("Fetching user purchased Polar products", { userId });
+
 	try {
 		// Check if the user has any payment
 		const hasPayment = await getPolarPaymentStatus(userId);

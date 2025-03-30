@@ -24,11 +24,12 @@ import { Testimonials } from "./lib/payload/collections/Testimonials";
 import { Users } from "./lib/payload/collections/Users";
 // Import globals
 import { Settings } from "./lib/payload/globals/Settings";
+import { env } from "@/env";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
-export default buildConfig({
+const config = {
 	secret: process.env.PAYLOAD_SECRET ?? process.env.AUTH_SECRET ?? "supersecret",
 	routes: {
 		admin: "/cms",
@@ -151,7 +152,7 @@ export default buildConfig({
 	}),
 	sharp,
 	// Add onInit hook to seed data when Payload initializes
-	async onInit(payload) {
+	async onInit(payload: any) {
 		console.info("⏭️  Payload CMS initialized");
 		try {
 			// Skip seeding if PAYLOAD_AUTO_SEED is explicitly set to "false"
@@ -190,23 +191,20 @@ export default buildConfig({
 	plugins: [
 		payloadCloudPlugin(),
 
-		// S3 storage
-		...(process.env.S3_BUCKET &&
-		process.env.S3_ACCESS_KEY_ID &&
-		process.env.S3_SECRET_ACCESS_KEY &&
-		process.env.S3_REGION
+		// S3 storage plugin - Conditionally added based on feature flag
+		...(env.NEXT_PUBLIC_FEATURE_S3_ENABLED
 			? [
 					s3Storage({
 						collections: {
 							media: true,
 						},
-						bucket: process.env.S3_BUCKET,
+						bucket: process.env.AWS_BUCKET_NAME ?? "", // Use AWS_BUCKET_NAME from env
 						config: {
 							credentials: {
-								accessKeyId: process.env.S3_ACCESS_KEY_ID,
-								secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+								accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "", // Use AWS_ACCESS_KEY_ID
+								secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "", // Use AWS_SECRET_ACCESS_KEY
 							},
-							region: process.env.S3_REGION,
+							region: process.env.AWS_REGION, // Use AWS_REGION
 							// ... Other S3 configuration
 						},
 					}),
@@ -214,7 +212,7 @@ export default buildConfig({
 			: []),
 
 		// Vercel Blob storage
-		...(process.env.BLOB_READ_WRITE_TOKEN
+		...(env.NEXT_PUBLIC_FEATURE_VERCEL_BLOB_ENABLED
 			? [
 					vercelBlobStorage({
 						collections: {
@@ -228,7 +226,7 @@ export default buildConfig({
 	telemetry: false,
 
 	// If AUTH_RESEND_KEY is set, use the resend adapter
-	...(process.env.AUTH_RESEND_KEY
+	...(env.NEXT_PUBLIC_FEATURE_AUTH_RESEND_ENABLED
 		? {
 				email: resendAdapter({
 					defaultFromAddress: RESEND_FROM,
@@ -237,7 +235,9 @@ export default buildConfig({
 				}),
 			}
 		: {}),
-});
+};
+
+export default env.NEXT_PUBLIC_FEATURE_PAYLOAD_ENABLED ? buildConfig(config) : undefined;
 
 /**
  * Check if seeding is needed by looking for a marker in the database

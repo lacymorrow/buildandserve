@@ -2,9 +2,11 @@
 
 import { routes } from "@/config/routes";
 import { logger } from "@/lib/logger";
+import { env } from "@/env";
 import { auth } from "@/server/auth";
 import { db, isDatabaseInitialized } from "@/server/db";
 import { users } from "@/server/db/schema";
+import { getProvider } from "@/server/providers";
 import { isAdmin } from "@/server/services/admin-service";
 import { PaymentService } from "@/server/services/payment-service";
 import { RateLimitService } from "@/server/services/rate-limit-service";
@@ -39,6 +41,12 @@ export async function createLemonSqueezyPayment(data: {
 	total: number;
 	productName: string;
 }) {
+	// Check if the LemonSqueezy feature is enabled
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.error("LemonSqueezy feature is disabled. Cannot create payment.");
+		throw new Error("LemonSqueezy payments are not enabled.");
+	}
+
 	const requestId = crypto.randomUUID();
 	const startTime = Date.now();
 
@@ -262,7 +270,9 @@ export async function createPolarCheckoutUrl(
  */
 export async function importPayments(
 	provider: ImportProvider
-): Promise<ImportStats | { lemonsqueezy: ImportStats; polar: ImportStats }> {
+): Promise<ImportStats | Record<string, any>> {
+	// Declare userId outside the try block to make it available in catch
+	let userId: string | undefined;
 	try {
 		// Get auth session and verify the user is admin
 		const session = await auth();
@@ -271,7 +281,9 @@ export async function importPayments(
 			redirect(routes.auth.signIn);
 		}
 
-		const { id: userId, email } = session.user;
+		// Assign userId here
+		userId = session.user.id;
+		const { email } = session.user;
 
 		// Check if the database is initialized
 		if (!db) {
@@ -291,6 +303,7 @@ export async function importPayments(
 			logger.warn("Unauthorized payment import attempt", {
 				userId,
 				role: user?.role,
+				user,
 			});
 			throw new Error("Unauthorized: Only admins can import payments");
 		}
@@ -300,19 +313,35 @@ export async function importPayments(
 
 		logger.info(`Starting payment import for provider: ${provider}`, { userId });
 
-		// Call the appropriate import method based on the provider
-		switch (provider) {
-			case "lemonsqueezy":
-				return await PaymentService.importLemonSqueezyPayments();
-			case "polar":
-				return await PaymentService.importPolarPayments();
-			case "all":
-				return await PaymentService.importAllPayments();
-			default:
-				throw new Error(`Invalid provider: ${provider}`);
+		// Handle import based on the provider argument
+		if (provider === "all") {
+			// Import from all enabled providers
+			// This returns Record<string, any>
+			return await PaymentService.importAllPayments();
 		}
+
+		// If not 'all', import from the specific provider
+		const specificProvider = getProvider(provider);
+
+		if (!specificProvider) {
+			throw new Error(`Provider \"${provider}\" not found.`);
+		}
+
+		if (!specificProvider.isEnabled) {
+			throw new Error(`Provider \"${provider}\" is not enabled.`);
+		}
+
+		// Call the specific provider's import method
+		// This returns ImportStats
+		const stats: ImportStats = await specificProvider.importPayments();
+		return stats;
 	} catch (error) {
-		logger.error("Error importing payments", { error });
+		logger.error("Error importing payments", {
+			userId, // Now accessible here
+			provider,
+			error: error instanceof Error ? error.message : String(error),
+		});
+		// Re-throw the error so the client knows the operation failed
 		throw error;
 	}
 }
