@@ -12,7 +12,7 @@ import Resend from "next-auth/providers/resend";
 import Twitter from "next-auth/providers/twitter";
 import { AuthService } from "@/server/services/auth-service";
 // Import the list of enabled provider IDs from the single source of truth
-import { availableProviderIds } from "@/config/auth-provider-details";
+import { availableProviderIds } from "@/server/auth-providers";
 
 // Define types for Vercel OAuth
 interface VercelTokens {

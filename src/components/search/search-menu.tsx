@@ -17,7 +17,9 @@ import {
 	CommandSeparator,
 } from "@/components/ui/command";
 import { DialogTitle } from "@/components/ui/dialog";
+import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
+import { is } from "@/lib/utils/is";
 import type { DialogProps } from "@radix-ui/react-dialog";
 
 export interface SearchMenuProps extends DialogProps {
@@ -62,7 +64,7 @@ export interface SearchMenuProps extends DialogProps {
  * Can be configured for different use cases with props
  */
 export function SearchMenu({
-	title = "Search Documentation",
+	title = `Search ${siteConfig.name}`,
 	buttonVariant = "outline",
 	buttonText = "Search...",
 	showShortcut = true,
@@ -73,6 +75,8 @@ export function SearchMenu({
 	const router = useRouter();
 	const [open, setOpen] = React.useState(false);
 	const { setTheme } = useTheme();
+	const [isClient, setIsClient] = React.useState(false);
+	const [isMacOS, setIsMacOS] = React.useState(false);
 
 	React.useEffect(() => {
 		const down = (e: KeyboardEvent) => {
@@ -100,6 +104,11 @@ export function SearchMenu({
 		command();
 	}, []);
 
+	React.useEffect(() => {
+		setIsClient(true);
+		setIsMacOS(is.mac);
+	}, []);
+
 	return (
 		<>
 			<Button
@@ -114,8 +123,16 @@ export function SearchMenu({
 			>
 				<span className="inline-flex text-xs">{buttonText}</span>
 				{showShortcut && (
-					<kbd className="pointer-events-none absolute right-[0.3rem] top-[0.3rem] hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-						<span className="text-xs">⌘</span>K
+					<kbd
+						className={cn(
+							"pointer-events-none absolute right-[0.3rem] top-[0.3rem] hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium lg:flex text-xs",
+							"transition-opacity duration-300",
+							isClient ? "opacity-100" : "opacity-0"
+						)}
+					>
+						<span>
+							{isMacOS ? "⌘" : "Ctrl+"}
+						</span>K
 					</kbd>
 				)}
 			</Button>

@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
 import { cn } from "@/lib/utils";
 import { signInWithOAuthAction } from "@/server/actions/auth";
-import { enabledAuthProviders } from "@/config/auth-provider-details";
+import { enabledAuthProviders } from "@/server/auth-providers";
 import { DiscordLogoIcon, GitHubLogoIcon, TwitterLogoIcon } from "@radix-ui/react-icons";
 import { IconBrandBitbucket, IconBrandGitlab } from "@tabler/icons-react";
 import { cva } from "class-variance-authority";

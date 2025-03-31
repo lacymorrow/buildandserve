@@ -35,7 +35,6 @@ export const routes = {
 
 	// App routes
 	download: "/download",
-	components: "/components",
 	tasks: "/tasks",
 
 	checkoutSuccess: "/checkout/success",
@@ -62,18 +61,16 @@ export const routes = {
 
 	// App routes
 	app: {
-		dashboard: "/app",
+		dashboard: "/dashboard",
 		apiKeys: "/api-keys",
 		logs: "/logs",
 		network: "/network",
 		live: "/live",
 		tools: "/tools",
 		downloads: "/downloads",
-		admin: "/admin",
 		activity: "/activity",
 		projects: "/projects",
 		teams: "/teams",
-		settings: "/settings",
 	},
 
 	// Admin routes

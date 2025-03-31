@@ -1,7 +1,7 @@
 import { routes } from "@/config/routes";
 import type { NextAuthConfig } from "next-auth";
 import { connectGitHub } from "@/server/actions/github";
-import { providers } from "@/server/auth.providers";
+import { providers } from "@/server/auth-providers.config";
 import { db } from "@/server/db";
 import { userService } from "@/server/services/user-service";
 
