@@ -237,7 +237,7 @@ const config = {
 		: {}),
 };
 
-export default env.NEXT_PUBLIC_FEATURE_PAYLOAD_ENABLED ? buildConfig(config) : undefined;
+export default buildConfig(config);
 
 /**
  * Check if seeding is needed by looking for a marker in the database

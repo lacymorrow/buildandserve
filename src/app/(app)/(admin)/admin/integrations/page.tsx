@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import React from "react";
 import { getIntegrationStatuses } from "@/server/services/integration-service";
+import { IntegrationsClientContent } from "./integrations-client-content";
 
 // Define the structure for each integration's status (matching the action)
 interface IntegrationStatus {
@@ -34,45 +35,6 @@ interface CategorizedIntegrationStatuses {
 	[category: string]: IntegrationStatus[];
 }
 
-// Integration Card component can remain a simple function
-const renderIntegrationCard = (status: IntegrationStatus) => (
-	<Card key={status.name} className="flex flex-col">
-		<CardHeader>
-			<CardTitle className="flex items-center justify-between">
-				{status.name}
-				<Badge variant={status.enabled ? "default" : "destructive"}>
-					{status.enabled ? "Enabled" : "Disabled"}
-				</Badge>
-			</CardTitle>
-			<CardDescription>Configuration Status</CardDescription>
-		</CardHeader>
-		<CardContent className="flex-grow flex flex-col justify-between">
-			<div className="mb-4 flex items-start space-x-2 text-sm">
-				{status.configured ? (
-					<CheckCircle className="h-4 w-4 mt-0.5 text-green-600 flex-shrink-0" />
-				) : (
-					<XCircle className="h-4 w-4 mt-0.5 text-red-600 flex-shrink-0" />
-				)}
-				<p className="text-muted-foreground">{status.message}</p>
-			</div>
-			{status.adminUrl && (
-				<Link
-					href={status.adminUrl}
-					target="_blank"
-					rel="noopener noreferrer"
-					className={cn(
-						buttonVariants({ variant: "outline", size: "sm" }),
-						"mt-auto w-full"
-					)}
-				>
-					Open Admin
-					<ExternalLink className="ml-2 h-4 w-4" />
-				</Link>
-			)}
-		</CardContent>
-	</Card>
-);
-
 // Make the page component async
 export default async function IntegrationsPage() {
 	let categorizedIntegrations: CategorizedIntegrationStatuses = {};
@@ -80,7 +42,6 @@ export default async function IntegrationsPage() {
 
 	try {
 		const statuses = await getIntegrationStatuses();
-		// Filter out categories with no integrations (except Authorization if present)
 		categorizedIntegrations = Object.entries(statuses)
 			.filter(([category, integrations]) => integrations.length > 0 || category === "Authorization")
 			.reduce((acc, [category, integrations]) => {
@@ -107,24 +68,8 @@ export default async function IntegrationsPage() {
 				</Alert>
 			)}
 
-			{!fetchError && Object.keys(categorizedIntegrations).length > 0 && (
-				<div className="space-y-10">
-					{Object.entries(categorizedIntegrations).map(
-						([category, integrations]) =>
-							// Skip rendering if a category somehow ended up empty after filtering
-							integrations.length > 0 && (
-								<section key={category}>
-									<h2 className="text-xl font-semibold tracking-tight mb-4">
-										{category}
-									</h2>
-									<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-										{integrations.map(renderIntegrationCard)}
-									</div>
-									<Separator className="my-8" />
-								</section>
-							)
-					)}
-				</div>
+			{!fetchError && (
+				<IntegrationsClientContent categorizedIntegrations={categorizedIntegrations} />
 			)}
 
 			{!fetchError && Object.keys(categorizedIntegrations).length === 0 && (

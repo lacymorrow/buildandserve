@@ -65,6 +65,9 @@ const isPostHogEnabled = !!process.env.NEXT_PUBLIC_POSTHOG_KEY;
 
 const isUmamiEnabled = !!process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID;
 
+// ======== Derived Features ==========
+const isFileUploadEnabled = isS3Enabled || isVercelBlobEnabled;
+
 // Object containing flags to be injected into process.env
 // Use string values as process.env converts everything to strings
 export const buildTimeFeatureFlags = {
@@ -98,5 +101,7 @@ export const buildTimeFeatureFlags = {
 	// Analytics
 	NEXT_PUBLIC_FEATURE_POSTHOG_ENABLED: String(isPostHogEnabled),
 	NEXT_PUBLIC_FEATURE_UMAMI_ENABLED: String(isUmamiEnabled),
+
+	NEXT_PUBLIC_FEATURE_FILE_UPLOAD_ENABLED: String(isFileUploadEnabled),
 };
 // =======================================================

@@ -77,7 +77,7 @@ Need help? We're here for you:
 
 - 💬 [GitHub Discussions](https://github.com/shipkit-io/shipkit/discussions)
 - 🐦 [Follow Updates](https://twitter.com/lacybuilds)
-- 📧 [Email Support](mailto:support@shipkit.io)
+- 📧 [Contact Support](https://shipkit.io/contact)
 - 🌐 [Website](https://shipkit.io)
 
 ## Found a bug?

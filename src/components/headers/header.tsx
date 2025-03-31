@@ -182,18 +182,20 @@ export const Header: React.FC<HeaderProps> = ({
 									Documentation
 								</Link>
 							)}
-							{navLinks.map((link) => (
-								<Link
-									key={`${link.href}-${link.label}`}
-									href={link.href}
-									className={cn(
-										"transition-colors hover:text-foreground",
-										link.isCurrent ? "text-foreground" : "text-muted-foreground"
-									)}
-								>
-									{link.label}
-								</Link>
-							))}
+							{navLinks.map((link) => {
+								return (
+									<Link
+										key={`${link.href}-${link.label}`}
+										href={link.href}
+										className={cn(
+											"transition-colors hover:text-foreground",
+											link.isCurrent ? "text-foreground" : "text-muted-foreground"
+										)}
+									>
+										{link.label}
+									</Link>
+								)
+							})}
 						</div>
 						<div className="flex items-center gap-2">
 							{!session && <ThemeToggle variant="ghost" size="icon" className="rounded-full" />}

@@ -11,6 +11,8 @@ import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
 import Twitter from "next-auth/providers/twitter";
 import { AuthService } from "@/server/services/auth-service";
+// Import the list of enabled provider IDs from the single source of truth
+import { availableProviderIds } from "@/config/auth-provider-details";
 
 // Define types for Vercel OAuth
 interface VercelTokens {
@@ -37,28 +39,13 @@ interface VercelUserProfile {
 	};
 }
 
-// Prevent these providers from being shown as buttons
-export const EXCLUDED_PROVIDERS = ["credentials", "resend", "vercel"];
-
-// Order providers buttons - These will be shown first
-export const ORDERED_PROVIDERS = [
-	"credentials",
-	"google",
-	"twitter",
-	"discord",
-	"github",
-	"gitlab",
-	"bitbucket",
-];
-
-// we use process.env instead of env because this is called on the client side too and we don't want to throw an error
+// Use availableProviderIds imported from the config file to conditionally add providers
 export const providers: NextAuthConfig["providers"] = [
 	/***
 	 * Magic Link Provider - Resend
 	 * @see https://authjs.dev/getting-started/providers/resend
 	 */
-
-	...(env.NEXT_PUBLIC_FEATURE_AUTH_RESEND_ENABLED
+	...(availableProviderIds.includes("resend")
 		? [
 				Resend({
 					apiKey: process.env.AUTH_RESEND_KEY ?? "",
@@ -74,8 +61,7 @@ export const providers: NextAuthConfig["providers"] = [
 	 * Credentials Provider - Username/Password
 	 * @see https://authjs.dev/getting-started/providers/credentials
 	 */
-
-	...(env.NEXT_PUBLIC_FEATURE_AUTH_CREDENTIALS_ENABLED
+	...(availableProviderIds.includes("credentials")
 		? [
 				Credentials({
 					name: "credentials", // Used by Oauth buttons to determine the active sign-in options
@@ -123,8 +109,7 @@ export const providers: NextAuthConfig["providers"] = [
 	 * OAuth Providers
 	 * @see https://authjs.dev/getting-started/providers
 	 */
-
-	...(env.NEXT_PUBLIC_FEATURE_AUTH_BITBUCKET_ENABLED
+	...(availableProviderIds.includes("bitbucket")
 		? [
 				Bitbucket({
 					clientId: process.env.AUTH_BITBUCKET_ID ?? "",
@@ -133,7 +118,7 @@ export const providers: NextAuthConfig["providers"] = [
 				}),
 			]
 		: []),
-	...(env.NEXT_PUBLIC_FEATURE_AUTH_DISCORD_ENABLED
+	...(availableProviderIds.includes("discord")
 		? [
 				Discord({
 					clientId: process.env.AUTH_DISCORD_ID ?? "",
@@ -142,7 +127,7 @@ export const providers: NextAuthConfig["providers"] = [
 				}),
 			]
 		: []),
-	...(env.NEXT_PUBLIC_FEATURE_AUTH_GITHUB_ENABLED
+	...(availableProviderIds.includes("github")
 		? [
 				GitHub({
 					clientId: process.env.AUTH_GITHUB_ID ?? "",
@@ -167,7 +152,7 @@ export const providers: NextAuthConfig["providers"] = [
 				}),
 			]
 		: []),
-	...(env.NEXT_PUBLIC_FEATURE_AUTH_GITLAB_ENABLED
+	...(availableProviderIds.includes("gitlab")
 		? [
 				GitLab({
 					clientId: process.env.AUTH_GITLAB_ID ?? "",
@@ -176,7 +161,7 @@ export const providers: NextAuthConfig["providers"] = [
 				}),
 			]
 		: []),
-	...(env.NEXT_PUBLIC_FEATURE_AUTH_GOOGLE_ENABLED
+	...(availableProviderIds.includes("google")
 		? [
 				Google({
 					clientId: process.env.AUTH_GOOGLE_ID ?? "",
@@ -185,8 +170,7 @@ export const providers: NextAuthConfig["providers"] = [
 				}),
 			]
 		: []),
-
-	...(env.NEXT_PUBLIC_FEATURE_AUTH_TWITTER_ENABLED
+	...(availableProviderIds.includes("twitter")
 		? [
 				Twitter({
 					clientId: process.env.AUTH_TWITTER_ID ?? "",
@@ -197,42 +181,46 @@ export const providers: NextAuthConfig["providers"] = [
 		: []),
 
 	// Vercel OAuth Provider - ONLY FOR CONNECTING ACCOUNTS, NOT FOR SIGNING IN
-	env.NEXT_PUBLIC_FEATURE_AUTH_VERCEL_ENABLED && {
-		id: "vercel",
-		name: "Vercel",
-		type: "oauth" as const,
-		clientId: process.env.VERCEL_CLIENT_ID,
-		clientSecret: process.env.VERCEL_CLIENT_SECRET,
-		authorization: {
-			url: "https://vercel.com/oauth/authorize",
-			params: {
-				scope: "user team",
-			},
-		},
-		token: "https://api.vercel.com/v2/oauth/access_token",
-		userinfo: {
-			url: "https://api.vercel.com/v2/user",
-			async request({ tokens, client }: { tokens: VercelTokens; client: VercelClient }) {
-				const response = await fetch("https://api.vercel.com/v2/user", {
-					headers: {
-						Authorization: `Bearer ${tokens.access_token}`,
+	...(availableProviderIds.includes("vercel")
+		? [
+				{
+					id: "vercel",
+					name: "Vercel",
+					type: "oauth" as const,
+					clientId: process.env.VERCEL_CLIENT_ID,
+					clientSecret: process.env.VERCEL_CLIENT_SECRET,
+					authorization: {
+						url: "https://vercel.com/oauth/authorize",
+						params: {
+							scope: "user team",
+						},
 					},
-				});
-				const profile = await response.json();
-				return profile.user;
-			},
-		},
-		profile(profile: VercelUserProfile) {
-			return {
-				id: profile.id || profile.uid || "",
-				name: profile.name || profile.username || "",
-				email: profile.email,
-				image: profile.avatar?.url || null,
-				emailVerified: null,
-			};
-		},
-		allowDangerousEmailAccountLinking: true,
-	},
+					token: "https://api.vercel.com/v2/oauth/access_token",
+					userinfo: {
+						url: "https://api.vercel.com/v2/user",
+						async request({ tokens, client }: { tokens: VercelTokens; client: VercelClient }) {
+							const response = await fetch("https://api.vercel.com/v2/user", {
+								headers: {
+									Authorization: `Bearer ${tokens.access_token}`,
+								},
+							});
+							const profile = await response.json();
+							return profile.user;
+						},
+					},
+					profile(profile: VercelUserProfile) {
+						return {
+							id: profile.id || profile.uid || "",
+							name: profile.name || profile.username || "",
+							email: profile.email,
+							image: profile.avatar?.url || null,
+							emailVerified: null,
+						};
+					},
+					allowDangerousEmailAccountLinking: true,
+				},
+			]
+		: []),
 ].filter(Boolean) as NextAuthConfig["providers"];
 
 // Note: The logic for generating the list of UI-displayable providers

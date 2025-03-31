@@ -1,6 +1,7 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { ALLOWED_FILE_TYPES, FILE_UPLOAD_MAX_SIZE } from "@/config/file";
+import { env } from "@/env";
 import { logger } from "@/lib/logger";
 import { deleteFileAction, uploadFileAction } from "@/server/actions/file";
 
@@ -20,11 +21,9 @@ interface FileWithPreview {
 	fileId?: number;
 }
 
-interface FileDropzoneProps {
-	enabled?: boolean; // Prop to control if the component is active
-}
+const enabled = env.NEXT_PUBLIC_FEATURE_FILE_UPLOAD_ENABLED;
 
-export function FileDropzone({ enabled = true }: FileDropzoneProps) {
+export function FileDropzone() {
 	const [files, setFiles] = useState<FileWithPreview[]>([]);
 	const [isDragActive, setIsDragActive] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,7 +42,7 @@ export function FileDropzone({ enabled = true }: FileDropzoneProps) {
 	};
 
 	const uploadFile = async (fileWithPreview: FileWithPreview) => {
-		if (!enabled) {
+		if (!env.NEXT_PUBLIC_FEATURE_FILE_UPLOAD_ENABLED) {
 			toast.error("File uploads are currently disabled.");
 			return {
 				success: false,

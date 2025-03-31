@@ -1,5 +1,6 @@
 "use client";
 
+import { getCMSStatusAction, seedCMSAction } from "@/app/(app)/(admin)/admin/integrations/actions";
 import { Link } from "@/components/primitives/link-with-transition";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +22,6 @@ import {
 	XCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { seedCMSAction, getCMSStatusAction } from "./actions";
 
 interface CMSStatus {
 	configured: boolean;

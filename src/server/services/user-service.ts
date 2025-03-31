@@ -69,18 +69,6 @@ export class UserService extends BaseService<typeof users> {
 				// Create personal team for new user
 				await this.createPersonalTeam(newUser.id);
 
-				// Create an API key for the user
-				const apiKey = await apiKeyService.createApiKey({
-					userId: newUser.id,
-					name: "Default API Key",
-					description: "Created automatically on user registration",
-				});
-
-				logger.info("Created default API key for new user", {
-					userId: newUser.id,
-					apiKeyId: apiKey.id,
-				});
-
 				// Check for existing payments
 				const hasPaid = await PaymentService.getUserPaymentStatus(newUser.id);
 				if (hasPaid) {
@@ -94,21 +82,6 @@ export class UserService extends BaseService<typeof users> {
 				throw new Error(`Failed to create user: ${authUser.id}`);
 			}
 		} else {
-			// Check if user has an API key, create one if they don't
-			const userApiKeys = await apiKeyService.getUserApiKeys(dbUser.id);
-			if (userApiKeys.length === 0) {
-				const apiKey = await apiKeyService.createApiKey({
-					userId: dbUser.id,
-					name: "Default API Key",
-					description: "Created automatically on first login",
-				});
-
-				logger.info("Created default API key for existing user", {
-					userId: dbUser.id,
-					apiKeyId: apiKey.id,
-				});
-			}
-
 			// Check for existing payments for existing users too
 			const hasPaid = await PaymentService.getUserPaymentStatus(dbUser.id);
 			if (hasPaid) {

@@ -20,7 +20,7 @@ export const routes = {
 	docs: "/docs",
 	blog: "/blog",
 	contact: "/contact",
-	support: `mailto:${siteConfig.email.support}`,
+	support: "/contact",
 
 	// Legal routes
 	terms: "/terms-of-service",
@@ -73,22 +73,17 @@ export const routes = {
 		activity: "/activity",
 		projects: "/projects",
 		teams: "/teams",
-		settings: "/app/settings",
+		settings: "/settings",
 	},
 
 	// Admin routes
 	admin: {
 		index: "/admin",
-		dashboard: "/admin",
-		activity: "/admin/activity",
 		users: "/admin/users",
 		github: "/admin/github",
-		cms: "/admin/cms",
 		integrations: "/admin/integrations",
-		ai: "/admin/ai",
 		feedback: "/admin/feedback",
 		payments: "/admin/payments",
-		settings: "/admin/settings",
 	},
 
 	settings: {

@@ -104,6 +104,11 @@ export class RBACService extends BaseService<typeof roles> {
 		// Get user's roles based on context
 		const userRoles = await this.getUserRoles(userId, context);
 
+		// If userRoles is undefined (db error), return false
+		if (!userRoles) {
+			return false;
+		}
+
 		// Get permissions for these roles
 		const roleIds = userRoles.map((r) => r.role);
 
@@ -112,7 +117,7 @@ export class RBACService extends BaseService<typeof roles> {
 		}
 
 		const perms = await db
-			.select()
+			?.select()
 			.from(permissions)
 			.innerJoin(rolePermissions, eq(permissions.id, rolePermissions.permissionId))
 			.where(
@@ -123,7 +128,8 @@ export class RBACService extends BaseService<typeof roles> {
 				)
 			);
 
-		return perms.length > 0;
+		// If perms is undefined or empty, return false
+		return !!perms && perms.length > 0;
 	}
 
 	/**
@@ -138,7 +144,7 @@ export class RBACService extends BaseService<typeof roles> {
 	) {
 		if (context?.teamId) {
 			// Get team roles
-			return await db?.query.teamMembers.findMany({
+			return db?.query.teamMembers.findMany({
 				where: and(eq(teamMembers.userId, userId), eq(teamMembers.teamId, context.teamId)),
 				with: {
 					team: true,
@@ -148,7 +154,7 @@ export class RBACService extends BaseService<typeof roles> {
 
 		if (context?.projectId) {
 			// Get project roles
-			return await db?.query.projectMembers.findMany({
+			return db?.query.projectMembers.findMany({
 				where: and(
 					eq(projectMembers.userId, userId),
 					eq(projectMembers.projectId, context.projectId)
@@ -160,7 +166,7 @@ export class RBACService extends BaseService<typeof roles> {
 		}
 
 		// Get global roles (future implementation)
-		return [];
+		return []; // Return empty array if no context or db error
 	}
 
 	/**
@@ -183,7 +189,7 @@ export class RBACService extends BaseService<typeof roles> {
 	 */
 	async removePermissionsFromRole(roleId: string, permissionIds: string[]) {
 		return await db
-			.delete(rolePermissions)
+			?.delete(rolePermissions)
 			.where(
 				and(
 					eq(rolePermissions.roleId, roleId),
@@ -236,21 +242,23 @@ export class RBACService extends BaseService<typeof roles> {
 	 * Gets all roles assigned to a user across all contexts (teams and projects)
 	 */
 	async getAllUserRoles(userId: string) {
-		// Get team roles
-		const teamRoles = await db?.query.teamMembers.findMany({
-			where: eq(teamMembers.userId, userId),
-			columns: {
-				role: true,
-			},
-		});
+		// Get team roles, default to empty array if db is undefined
+		const teamRoles =
+			(await db?.query.teamMembers.findMany({
+				where: eq(teamMembers.userId, userId),
+				columns: {
+					role: true,
+				},
+			})) || [];
 
-		// Get project roles
-		const projectRoles = await db?.query.projectMembers.findMany({
-			where: eq(projectMembers.userId, userId),
-			columns: {
-				role: true,
-			},
-		});
+		// Get project roles, default to empty array if db is undefined
+		const projectRoles =
+			(await db?.query.projectMembers.findMany({
+				where: eq(projectMembers.userId, userId),
+				columns: {
+					role: true,
+				},
+			})) || [];
 
 		// Combine and deduplicate roles
 		const allRoles = [...teamRoles, ...projectRoles].map((r) => r.role);

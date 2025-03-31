@@ -57,11 +57,7 @@ export class RateLimitService {
 	/**
 	 * Checks if a request should be rate limited
 	 */
-	async checkLimit(
-		identifier: string,
-		action: string,
-		config: RateLimitConfig,
-	): Promise<void> {
+	async checkLimit(identifier: string, action: string, config: RateLimitConfig): Promise<void> {
 		// Skip rate limiting if Redis is not available
 		if (!this.enabled) {
 			logger.debug("Rate limiting disabled, skipping check", {
@@ -72,8 +68,7 @@ export class RateLimitService {
 		}
 
 		const limiter = this.getLimiter(`${action}:${identifier}`, config);
-		const { success, limit, reset, remaining } =
-			await limiter.limit(identifier);
+		const { success, limit, reset, remaining } = await limiter.limit(identifier);
 
 		if (!success) {
 			ErrorService.throwRateLimited("Too many requests", {
@@ -89,7 +84,7 @@ export class RateLimitService {
 	 */
 	async getStatus(
 		identifier: string,
-		action: string,
+		action: string
 	): Promise<{
 		limit: number;
 		remaining: number;
@@ -126,12 +121,7 @@ export class RateLimitService {
 		if (!this.enabled) return;
 
 		const key = `ratelimit:${action}:${identifier}`;
-		await redis!
-			.pipeline()
-			.del(`${key}:limit`)
-			.del(`${key}:remaining`)
-			.del(`${key}:reset`)
-			.exec();
+		await redis!.pipeline().del(`${key}:limit`).del(`${key}:remaining`).del(`${key}:reset`).exec();
 	}
 }
 
