@@ -178,15 +178,14 @@ export const SearchAi = ({ ...props }: ButtonProps) => {
 	};
 
 	React.useEffect(() => {
-		const down = (e: KeyboardEvent) => {
-			if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key.toLowerCase() === "f" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
 				e.preventDefault();
 				setOpen(true);
 			}
 		};
-
-		document.addEventListener("keydown", down);
-		return () => document.removeEventListener("keydown", down);
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
 	}, []);
 
 	React.useEffect(() => {

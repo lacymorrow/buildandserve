@@ -143,13 +143,6 @@ export function UserMenuDropdown({
 							<DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
 						</Link>
 					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link href={routes.app.apiKeys}>
-							<LockClosedIcon className="mr-2 size-4" />
-							API Keys
-							<DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
-						</Link>
-					</DropdownMenuItem>
 
 					{showOnboarding && (
 						<DropdownMenuItem asChild>

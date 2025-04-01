@@ -13,9 +13,9 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { updateTheme } from "@/server/actions/settings";
 import { UserIcon } from "lucide-react";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
 type Theme = "light" | "dark" | "system";
@@ -38,6 +38,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 	const { toast } = useToast();
 	const [isOpen, setIsOpen] = React.useState(false);
 	const { hasActiveSubscription } = useSubscription();
+	const router = useRouter();
 
 	const isAdmin = useIsAdmin();
 
@@ -82,27 +83,48 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 			// Only handle if Command/Control is pressed
 			if (!(e.metaKey || e.ctrlKey)) return;
 
-			switch (e.key) {
-				case "l":
-					e.preventDefault();
-					await handleThemeChange("light");
-					break;
-				case "d":
-					if (e.shiftKey) {
+			// Theme shortcuts (Cmd/Ctrl + Shift + Letter)
+			if (e.shiftKey) {
+				switch (e.key.toLowerCase()) { // Use toLowerCase for consistency
+					case "l": // Light Theme: Cmd/Ctrl + Shift + L
+						e.preventDefault();
+						await handleThemeChange("light");
+						break;
+					case "d": // Dark Theme: Cmd/Ctrl + Shift + D
 						e.preventDefault();
 						await handleThemeChange("dark");
-					}
-					break;
-				case "b":
-					e.preventDefault();
-					await handleThemeChange("system");
-					break;
+						break;
+					case "y": // System Theme: Cmd/Ctrl + Shift + Y
+						e.preventDefault();
+						await handleThemeChange("system");
+						break;
+				}
+			}
+
+			// App navigation/action shortcuts (Cmd/Ctrl + Shift + Letter/Symbol)
+			if (session?.user && e.shiftKey) { // Require Shift for all these actions now
+				switch (e.key.toLowerCase()) {
+					case "a": // Admin Dashboard: Cmd/Ctrl + Shift + A
+						if (isAdmin) {
+							e.preventDefault();
+							router.push(routes.admin.index);
+						}
+						break;
+					case ",": // Settings: Cmd/Ctrl + Shift + ,
+						e.preventDefault();
+						router.push(routes.settings.index);
+						break;
+					case "x": // Sign Out: Cmd/Ctrl + Shift + X
+						e.preventDefault();
+						await signOut({ callbackUrl: routes.home }); // Redirect home after sign out
+						break;
+				}
 			}
 		};
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleThemeChange]);
+	}, [handleThemeChange, session?.user, isAdmin, router, toast]);
 
 	return (
 		<div className={cn("relative rounded-full flex items-center justify-center aspect-square", size === "sm" ? "size-9" : "size-9")}>

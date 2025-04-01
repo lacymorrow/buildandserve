@@ -19,7 +19,7 @@ export function CommandMenu() {
 
 	React.useEffect(() => {
 		const down = (e: KeyboardEvent) => {
-			if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+			if (e.key.toLowerCase() === "f" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
 				e.preventDefault()
 				setOpen((open) => !open)
 			}
