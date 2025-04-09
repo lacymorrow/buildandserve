@@ -26,7 +26,7 @@ import {
 import * as React from "react";
 import ReactMarkdown from "react-markdown";
 import { ShortcutAction } from "@/config/keyboard-shortcuts";
-import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context";
+import { useKeyboardShortcut } from "@/components/providers/keyboard-shortcut-context";
 import { ShortcutDisplay } from "@/components/primitives/shortcut-display";
 
 const MIN_HEIGHT = 64;

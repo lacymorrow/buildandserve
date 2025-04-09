@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
 		/* Basic Application Information
 		 * @see https://developer.mozilla.org/en-US/docs/Web/Manifest#name
 		 */
-		name: siteConfig.title, // Use siteConfig.title for full name
+		name: `${siteConfig.name} - ${siteConfig.title}`, // Use siteConfig.title for full name
 		short_name: siteConfig.name, // Use siteConfig.name for short name
 		description: siteConfig.description, // Description shown in app stores and install prompts
 

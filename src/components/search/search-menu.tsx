@@ -20,7 +20,7 @@ import {
 import { DialogTitle } from "@/components/ui/dialog";
 import { ShortcutAction } from "@/config/keyboard-shortcuts";
 import { siteConfig } from "@/config/site-config";
-import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context";
+import { useKeyboardShortcut } from "@/components/providers/keyboard-shortcut-context";
 import { useIsMac } from "@/hooks/use-is-mac";
 import { cn } from "@/lib/utils";
 import type { DialogProps } from "@radix-ui/react-dialog";

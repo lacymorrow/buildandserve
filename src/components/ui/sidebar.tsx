@@ -24,7 +24,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import * as React from "react"
 import { ShortcutAction } from "@/config/keyboard-shortcuts"
-import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context"
+import { useKeyboardShortcut } from "@/components/providers/keyboard-shortcut-context"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7

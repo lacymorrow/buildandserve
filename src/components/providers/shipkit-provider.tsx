@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 
 import '@/styles/globals.css';
+import { KeyboardShortcutProvider } from "@/components/providers/keyboard-shortcut-context";
 
 interface ShipkitProviderProps {
 	children: ReactNode;
@@ -47,19 +48,22 @@ export function ShipkitProvider({
 					<ThemeProvider attribute="class" defaultTheme="system">
 						<TooltipProvider delayDuration={100}>
 							<AnalyticsProvider>
+								<KeyboardShortcutProvider>
 
-								{/* Content */}
-								{children}
 
-								{/* Toast - Display messages to the user */}
-								<Toaster />
+									{/* Content */}
+									{children}
 
-								<LegacyToaster />
+									{/* Toast - Display messages to the user */}
+									<Toaster />
 
-								{/* Error Toast - Display error messages to the user based on search params */}
-								<Suspense>
-									<ErrorToast />
-								</Suspense>
+									<LegacyToaster />
+
+									{/* Error Toast - Display error messages to the user based on search params */}
+									<Suspense>
+										<ErrorToast />
+									</Suspense>
+								</KeyboardShortcutProvider>
 							</AnalyticsProvider>
 						</TooltipProvider>
 					</ThemeProvider>

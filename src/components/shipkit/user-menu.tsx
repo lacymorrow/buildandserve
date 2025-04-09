@@ -18,7 +18,7 @@ import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { ShortcutAction, type ShortcutActionType } from "@/config/keyboard-shortcuts";
-import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context";
+import { useKeyboardShortcut } from "@/components/providers/keyboard-shortcut-context";
 
 type Theme = "light" | "dark" | "system";
 

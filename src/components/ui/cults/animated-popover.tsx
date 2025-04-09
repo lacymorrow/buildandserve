@@ -13,7 +13,7 @@ import React, {
 
 import { cn } from "@/lib/utils";
 import { ShortcutAction } from "@/config/keyboard-shortcuts";
-import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context";
+import { useKeyboardShortcut } from "@/components/providers/keyboard-shortcut-context";
 
 const TRANSITION = {
   type: "spring",
