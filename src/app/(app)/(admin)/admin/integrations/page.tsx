@@ -1,24 +1,11 @@
-import { Link } from "@/components/primitives/link-with-transition";
+export const dynamic = 'force-dynamic';
+
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
-import {
-	CheckCircle,
-	ExternalLink,
-	Settings,
-	XCircle,
-} from "lucide-react";
-import React from "react";
 import { getIntegrationStatuses } from "@/server/services/integration-service";
+import {
+	Settings,
+	XCircle
+} from "lucide-react";
 import { IntegrationsClientContent } from "./integrations-client-content";
 
 // Define the structure for each integration's status (matching the action)

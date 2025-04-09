@@ -5,6 +5,8 @@ import { TypographyProvider } from "@/components/providers/typography-provider";
 import * as AlertComponents from "@/components/ui/alert";
 import { FileTree } from "@/components/ui/file-tree";
 import { siteConfig } from "@/config/site-config";
+import * as RadixIcons from "@radix-ui/react-icons";
+import * as LucideIcons from "lucide-react";
 import type { MDXComponents } from "mdx/types";
 
 // const fumadocsComponents = await import('fumadocs-ui/mdx');
@@ -17,6 +19,9 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
 				{children}
 			</TypographyProvider>
 		),
+
+		...LucideIcons,
+		...RadixIcons,
 
 		...AlertComponents,
 		Card,
