@@ -7,6 +7,11 @@ import { forgotPasswordSchema, resetPasswordSchema, signInActionSchema } from "@
 import { AuthService } from "@/server/services/auth-service";
 import type { UserRole } from "@/types/user";
 import { createServerAction } from "zsa";
+import type { ActionState } from "@/lib/utils/middleware";
+import { z } from "zod";
+import { env } from "@/env";
+import { resend } from "@/lib/resend";
+import { BASE_URL } from "@/config/base-url";
 
 export interface AuthOptions {
 	redirectTo?: string;
@@ -47,75 +52,83 @@ export const signInAction = createServerAction()
 		return null;
 	});
 
-export const signInWithCredentialsAction = async ({
-	email,
-	password,
-	redirect = true,
-	redirectTo = routes.home,
-}: {
-	email: string;
-	password: string;
-	redirect?: boolean;
-	redirectTo?: string;
-}) => {
-	try {
-		console.log("signInWithCredentialsAction called with:", { email, redirect, redirectTo });
+const CredentialsSchema = z.object({
+	email: z.string().email(),
+	password: z.string().min(8),
+});
 
-		// Call the AuthService to handle the sign-in
+export const signInWithCredentialsAction = async (_prevState: ActionState, formData: FormData) => {
+	// console.log("signInWithCredentialsAction called with:", {
+	// 	email: formData.get("email"),
+	// 	redirect: formData.get("redirect"),
+	// 	redirectTo: formData.get("redirectTo"),
+	// });
+
+	const email = formData.get("email") as string;
+	const password = formData.get("password") as string;
+	const redirect = formData.get("redirect") !== "false"; // Default to true
+	const redirectTo = formData.get("redirectTo") as string | undefined;
+
+	try {
 		const result = await AuthService.signInWithCredentials({
 			email,
 			password,
-			redirect: false, // Important: Set to false to prevent automatic redirects from the server
+			redirect: false, // Prevent server-side redirect
 			redirectTo,
 		});
-
-		console.log("Sign in result:", result);
-
-		// Return the result for client-side handling
+		// console.log("Sign in result:", result);
 		return result;
-	} catch (error) {
+	} catch (error: any) {
 		console.error("Error in signInWithCredentialsAction:", error);
-
-		// Propagate the error to the client
-		if (error instanceof Error) {
-			// Return an error object that can be handled by the client
-			return {
-				error: error.message,
-				ok: false,
-			};
-		}
-
-		// For unknown errors, return a generic error
-		return {
-			error: STATUS_CODES.AUTH_ERROR.message,
-			ok: false,
-		};
+		return { success: false, error: error.message || "Sign in failed" };
 	}
 };
 
-export const signUpWithCredentialsAction = async (data: SignUpInData) => {
+export const signUpWithCredentialsAction = async (_prevState: ActionState, formData: FormData) => {
+	// console.log("signUpWithCredentialsAction called with:", {
+	// 	email: formData.get("email"),
+	// 	passwordExists: !!formData.get("password"),
+	// });
+
+	const parsed = CredentialsSchema.safeParse(Object.fromEntries(formData));
+
+	if (!parsed.success) {
+		return { success: false, error: "Invalid form data" };
+	}
 	try {
-		console.log("signUpWithCredentialsAction called with:", {
-			email: data.email,
-			redirect: data.redirect,
-			redirectTo: data.redirectTo,
-		});
+		const result = await AuthService.signUpWithCredentials(parsed.data);
+		// console.log("Sign up result:", result);
 
-		// Call the AuthService to handle the sign-up
-		const result = await AuthService.signUpWithCredentials({
-			email: data.email,
-			password: data.password,
-			redirect: false, // Important: Set to false to prevent automatic redirects from the server
-			redirectTo: data.redirectTo, // Use redirectTo as expected by the method signature
-		});
+		if (!result.success || !result.user) {
+			return { success: false, error: result.error || "Sign up failed" };
+		}
 
-		console.log("Sign up result:", result);
+		// Send verification email (moved from auth service for clarity)
+		try {
+			if (!resend) {
+				console.warn("Resend client not initialized - skipping verification email");
+			} else {
+				const RESEND_FROM = env.RESEND_FROM || "noreply@example.com";
+				// console.log(RESEND_FROM);
+				await resend.emails.send({
+					from: RESEND_FROM,
+					to: parsed.data.email,
+					subject: "Welcome to Our App - Verify Your Email",
+					html: `
+            <p>Welcome! Please verify your email by clicking the link below:</p>
+            <a href="${BASE_URL}/verify-email?token=${result.user.verificationToken}">Verify Email</a>
+          `,
+				});
+			}
+		} catch (emailError) {
+			console.error("Failed to send verification email", emailError);
+			// Proceed with sign-up even if email fails, but log the error
+		}
 
-		// Return the result for client-side handling
-		return result;
-	} catch (error) {
+		return { success: true, user: result.user }; // Only return necessary info
+	} catch (error: any) {
 		console.error("Error in signUpWithCredentialsAction:", error);
-		throw error;
+		return { success: false, error: error.message || "Sign up failed" };
 	}
 };
 

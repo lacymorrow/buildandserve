@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { headers } from "next/headers";
 
 /*
@@ -12,9 +12,16 @@ import { headers } from "next/headers";
 export const dynamic = "force-dynamic"; // Disable caching for webhook endpoint
 
 export async function POST(request: NextRequest) {
+	// console.log({
+	// 	message: "Vercel webhook received",
+	// 	url: request.url,
+	// 	method: request.method,
+	// 	headers: Object.fromEntries(request.headers.entries()),
+	// });
+
 	try {
 		// Get headers including Vercel's signature
-		const headersList = headers();
+		const headersList = await headers();
 		const signature = headersList.get("x-vercel-signature");
 		const timestamp = headersList.get("x-vercel-timestamp");
 

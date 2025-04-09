@@ -1,7 +1,7 @@
 "use client";
 
 import { Link } from "@/components/primitives/link-with-transition";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { routes } from "@/config/routes";
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ export const SignInButton = ({
 	className,
 	children = "Login",
 	size = "default",
-	variant = "default"
+	variant = "link"
 }: {
 	className?: string;
 	children?: React.ReactNode;
@@ -26,9 +26,7 @@ export const SignInButton = ({
 			href={`${routes.auth.signIn}?${SEARCH_PARAM_KEYS.nextUrl}=${pathname}`}
 			className={cn("hover:text-foreground", className)}
 		>
-			<Button size={size} variant={variant}>
-				{children}
-			</Button>
+			{children}
 		</Link>
 	);
 };

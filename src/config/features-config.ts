@@ -9,7 +9,7 @@
 
 // ======== Calculate Feature Flags at Build Time =========
 const isDatabaseEnabled = !!process.env.DATABASE_URL;
-export const isPayloadEnabled = isDatabaseEnabled && process.env.DISABLE_PAYLOAD !== "true";
+export const isPayloadEnabled = isDatabaseEnabled && process.env.ENABLE_PAYLOAD === "true";
 
 const isCredentialsAuthEnabled =
 	isPayloadEnabled && process.env.AUTH_CREDENTIALS_ENABLED === "true";
@@ -30,6 +30,9 @@ export const isBuilderEnabled =
 	!!process.env.NEXT_PUBLIC_BUILDER_API_KEY && process.env.DISABLE_BUILDER !== "true";
 
 export const isMDXEnabled = process.env.DISABLE_MDX !== "true";
+
+// PWA is enabled only if explicitly enabled via environment variable
+export const isPwaEnabled = process.env.ENABLE_PWA === "true";
 
 // ======== External Service Features =========
 const isGitHubApiEnabled =
@@ -75,6 +78,7 @@ export const buildTimeFeatureFlags = {
 	NEXT_PUBLIC_FEATURE_PAYLOAD_ENABLED: String(isPayloadEnabled),
 	NEXT_PUBLIC_FEATURE_BUILDER_ENABLED: String(isBuilderEnabled),
 	NEXT_PUBLIC_FEATURE_MDX_ENABLED: String(isMDXEnabled),
+	NEXT_PUBLIC_FEATURE_PWA_ENABLED: String(isPwaEnabled),
 
 	NEXT_PUBLIC_FEATURE_AUTH_RESEND_ENABLED: String(isResendAuthEnabled),
 	NEXT_PUBLIC_FEATURE_AUTH_CREDENTIALS_ENABLED: String(isCredentialsAuthEnabled),

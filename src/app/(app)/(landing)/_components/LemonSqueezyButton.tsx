@@ -66,7 +66,9 @@ export function LemonSqueezyCheckoutButton() {
 				: false;
 
 			if (hasPaid) {
-				console.log("User has already paid");
+				// console.log("User has already paid");
+				// Redirect logic or UI update can go here
+				// e.g., router.push("/dashboard");
 				return;
 			}
 

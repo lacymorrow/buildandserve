@@ -5,6 +5,15 @@ import { cleanup } from "@testing-library/react";
 import { sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, expect, vi } from "vitest";
 
+// Augment the global namespace for TypeScript
+declare global {
+	// biome-ignore lint/style/noVar: <explanation>
+	var IS_REACT_ACT_ENVIRONMENT: boolean;
+}
+
+// Set React testing environment
+global.IS_REACT_ACT_ENVIRONMENT = true;
+
 // Extend Vitest's expect method with testing-library methods
 expect.extend(matchers);
 
@@ -74,15 +83,15 @@ vi.mock("next/image", () => ({
 	default: vi.fn().mockImplementation(() => null),
 }));
 
-// Mock AsyncLocalStorage for Next.js
-vi.mock("next/dist/server/app-render/async-local-storage", () => ({
-	AsyncLocalStorage: class {
-		disable() {}
-		getStore() {
-			return null;
-		}
-		run() {
-			return null;
-		}
-	},
-}));
+// // Mock AsyncLocalStorage for Next.js
+// vi.mock("next/dist/server/app-render/async-local-storage", () => ({
+// 	AsyncLocalStorage: class {
+// 		disable() {}
+// 		getStore() {
+// 			return null;
+// 		}
+// 		run() {
+// 			return null;
+// 		}
+// 	},
+// }));

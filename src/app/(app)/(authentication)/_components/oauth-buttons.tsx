@@ -1,7 +1,6 @@
 "use client";
 
 import { Icons } from "@/components/assets/icons";
-import { Divider } from "@/components/primitives/divider";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
@@ -16,6 +15,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { MagicLinkForm } from "./magic-link-form";
 import { env } from "@/env";
+import { Divider } from "@/components/primitives/divider";
 
 const oauthButtonVariants = cva("flex items-center justify-center gap-sm", {
 	variants: {

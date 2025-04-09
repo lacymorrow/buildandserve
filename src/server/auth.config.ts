@@ -69,7 +69,7 @@ export const authOptions: NextAuthConfig = {
 
 			// Handle GitHub OAuth connection
 			if (account?.provider === "github" && account.access_token) {
-				console.log("GitHub OAuth signIn callback", {
+				console.debug("GitHub OAuth signIn callback", {
 					user,
 					account,
 				});
@@ -81,7 +81,6 @@ export const authOptions: NextAuthConfig = {
 						githubUsername: (user as any).githubUsername || (profile?.login as string),
 						accessToken: account.access_token,
 					});
-					console.log("GitHub account connected successfully");
 					return true;
 				} catch (error) {
 					console.error("Error connecting GitHub account:", error);
@@ -89,12 +88,9 @@ export const authOptions: NextAuthConfig = {
 				}
 			}
 
-			console.log("signIn callback", { user, account, profile });
-
 			// Special handling for credentials provider
 			// This ensures the user exists in both databases and handles session creation properly
 			if (account?.provider === "credentials") {
-				console.log("Credentials provider detected in signIn callback");
 				// The user should already exist in both databases from validateCredentials
 				// Just return true to allow sign in
 				return true;
@@ -109,7 +105,6 @@ export const authOptions: NextAuthConfig = {
 					name: user.name,
 					image: user.image,
 				});
-				console.log("Ensured user exists in Shipkit database:", user.id);
 			} catch (error) {
 				console.error("Error ensuring user exists in Shipkit database:", error);
 				// Don't fail the sign-in if this fails, just log the error
@@ -119,7 +114,6 @@ export const authOptions: NextAuthConfig = {
 			return true;
 		},
 		jwt({ token, user, account, trigger, session }) {
-			console.log("jwt callback", { token, user, account, trigger, session });
 			// Save user data to the token
 			if (user) {
 				token.id = user.id;
@@ -152,16 +146,11 @@ export const authOptions: NextAuthConfig = {
 			// Handle direct GitHub username updates passed from session update
 			// This is critical for UI updates when connecting or disconnecting GitHub
 			if (session?.user?.githubUsername !== undefined) {
-				console.log(
-					"Updating token GitHub username from session update:",
-					session.user.githubUsername
-				);
 				token.githubUsername = session.user.githubUsername;
 			}
 
 			// Handle account updates directly from session
 			if (session?.user?.accounts) {
-				console.log("Updating token with accounts from session update", session.user.accounts);
 				token.accounts = session.user.accounts;
 			}
 
@@ -197,7 +186,6 @@ export const authOptions: NextAuthConfig = {
 
 				// Copy accounts from token to session if they exist
 				if (token.accounts) {
-					console.log("Copying accounts from token to session:", token.accounts);
 					session.user.accounts = token.accounts as {
 						provider: string;
 						providerAccountId: string;
@@ -218,7 +206,6 @@ export const authOptions: NextAuthConfig = {
 					});
 
 					if (accounts) {
-						console.log("Setting accounts from database query:", accounts);
 						session.user.accounts = accounts;
 					}
 				} catch (error) {
@@ -226,7 +213,6 @@ export const authOptions: NextAuthConfig = {
 				}
 			}
 
-			console.log("Session callback returning session:", session);
 			return session;
 		},
 	},

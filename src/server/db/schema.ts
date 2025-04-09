@@ -356,10 +356,17 @@ export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
 	}),
 }));
 
-export const userRelations = relations(users, ({ many }) => ({
+export const userRelations = relations(users, ({ many, one }) => ({
+	accounts: many(accounts),
+	files: many(userFiles),
 	teamMemberships: many(teamMembers),
 	projectMemberships: many(projectMembers),
 	temporaryLinks: many(temporaryLinks),
+	credits: one(userCredits, {
+		fields: [users.id],
+		references: [userCredits.userId],
+	}),
+	creditTransactions: many(creditTransactions),
 }));
 
 export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
@@ -491,3 +498,74 @@ export const feedback = createTable("feedback", {
 		.notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(() => new Date()),
 });
+
+// Add user credits table
+export const userCredits = createTable(
+	"user_credit",
+	{
+		id: varchar("id", { length: 255 })
+			.notNull()
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: varchar("user_id", { length: 255 })
+			.notNull()
+			.unique() // Each user has one credit balance record
+			.references(() => users.id, { onDelete: "cascade" }),
+		balance: integer("balance").notNull().default(0),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.default(sql`CURRENT_TIMESTAMP`)
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
+			() => new Date()
+		),
+	},
+	(table) => ({
+		userIdIdx: index("user_credit_user_id_idx").on(table.userId),
+	})
+);
+
+export type UserCredit = typeof userCredits.$inferSelect;
+export type NewUserCredit = typeof userCredits.$inferInsert;
+
+// Add credit transactions table
+export const creditTransactions = createTable(
+	"credit_transaction",
+	{
+		id: varchar("id", { length: 255 })
+			.notNull()
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: varchar("user_id", { length: 255 })
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		amount: integer("amount").notNull(), // Positive for earning, negative for spending
+		type: varchar("type", { length: 50 }).notNull(), // e.g., 'purchase', 'usage', 'refund', 'bonus'
+		description: text("description"),
+		metadata: text("metadata"), // Optional JSON string for additional data
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.default(sql`CURRENT_TIMESTAMP`)
+			.notNull(),
+	},
+	(table) => ({
+		userIdIdx: index("credit_transaction_user_id_idx").on(table.userId),
+		typeIdx: index("credit_transaction_type_idx").on(table.type),
+	})
+);
+
+export type CreditTransaction = typeof creditTransactions.$inferSelect;
+export type NewCreditTransaction = typeof creditTransactions.$inferInsert;
+
+// Define relations for the new tables
+export const userCreditsRelations = relations(userCredits, ({ one }) => ({
+	user: one(users, { fields: [userCredits.userId], references: [users.id] }),
+}));
+
+export const creditTransactionsRelations = relations(
+	creditTransactions,
+	({ one }) => ({
+		user: one(users, {
+			fields: [creditTransactions.userId],
+			references: [users.id],
+		}),
+	})
+);

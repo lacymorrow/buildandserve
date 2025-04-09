@@ -3,6 +3,7 @@ import {
 	isBuilderEnabled,
 	isPayloadEnabled,
 	isMDXEnabled,
+	isPwaEnabled,
 } from "@/config/features-config";
 import { FILE_UPLOAD_MAX_SIZE } from "@/config/file";
 import { redirects } from "@/config/routes";
@@ -10,6 +11,7 @@ import BuilderDevTools from "@builder.io/dev-tools/next";
 import createMDX from "@next/mdx";
 import { withPayload } from "@payloadcms/next/withPayload";
 import type { NextConfig } from "next";
+import withPWA from "next-pwa";
 
 let nextConfig: NextConfig = {
 	env: {
@@ -101,7 +103,7 @@ let nextConfig: NextConfig = {
 	 * Miscellaneous configuration
 	 */
 	devIndicators: {
-		position: "bottom-right" as const,
+		position: "bottom-left" as const,
 	},
 
 	/*
@@ -137,7 +139,6 @@ let nextConfig: NextConfig = {
 			"**/*.spec.*",
 			"**/*.stories.*",
 			"**/tests/**",
-			"**/docs/**",
 			"**/.git/**",
 			"**/.github/**",
 			"**/.vscode/**",
@@ -156,7 +157,7 @@ let nextConfig: NextConfig = {
 		],
 	},
 	outputFileTracingIncludes: {
-		"src/server/services/payment-service.ts": ["node_modules/drizzle-orm/**"],
+		"*": ["./docs/**/*", "./src/content/**/*"],
 	},
 };
 
@@ -192,6 +193,18 @@ const withMDX = createMDX({
 	},
 });
 nextConfig = isMDXEnabled ? withMDX(nextConfig) : nextConfig;
+
+/*
+ * PWA config
+ */
+const pwaConfig = {
+	dest: "public",
+	register: true,
+	skipWaiting: true,
+	disable: !isPwaEnabled || process.env.NODE_ENV === "development",
+};
+
+nextConfig = isPwaEnabled ? (withPWA as any)(pwaConfig)(nextConfig) as NextConfig : nextConfig;
 
 /*
  * Logflare config - should be last

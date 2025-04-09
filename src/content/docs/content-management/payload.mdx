@@ -9,19 +9,18 @@ description: 'Using Payload CMS with ShipKit'
 
 ## Configuration
 
-Add these environment variables to enable Payload CMS:
+To enable Payload CMS, follow these steps:
+
+1. Make sure you have a Postgres database set up
+2. Add the following environment variables to your `.env.local` file:
 
 ```env
-# Required
-PAYLOAD_SECRET=your_payload_secret_key
-DATABASE_URL=your_postgres_database_url
-
-# Optional - Disable Payload in development
-DISABLE_PAYLOAD=true
-
-# Optional - Control automatic data seeding
-PAYLOAD_AUTO_SEED=false
+DATABASE_URL=postgres://username:password@localhost:5432/database
+ENABLE_PAYLOAD=true
+PAYLOAD_SECRET=randomsecretkey # Used for encrypting passwords and sessions
 ```
+
+If you need to disable Payload CMS (for example, during development when you don't need it), you can omit the `ENABLE_PAYLOAD` variable or set it to any value other than "true".
 
 ### Generate a Secure Secret
 

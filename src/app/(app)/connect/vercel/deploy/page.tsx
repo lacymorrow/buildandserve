@@ -48,7 +48,6 @@ export default async function VercelDeployPage({
 	searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
 	const deploymentInfo = extractDeploymentInfo(await searchParams);
-	console.log(deploymentInfo);
 
 	return (
 		<>

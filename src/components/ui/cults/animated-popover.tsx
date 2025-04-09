@@ -12,6 +12,8 @@ import React, {
 } from "react";
 
 import { cn } from "@/lib/utils";
+import { ShortcutAction } from "@/config/keyboard-shortcuts";
+import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context";
 
 const TRANSITION = {
   type: "spring",
@@ -142,19 +144,14 @@ export function PopoverContent({ children, className }: PopoverContentProps) {
     closePopover,
   );
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        closePopover();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [closePopover]);
+  useKeyboardShortcut(
+    ShortcutAction.CLOSE_POPOVER,
+    (event) => {
+      closePopover();
+    },
+    () => isOpen,
+    [closePopover, isOpen]
+  );
 
   return (
     <AnimatePresence>
@@ -163,14 +160,14 @@ export function PopoverContent({ children, className }: PopoverContentProps) {
           ref={formContainerRef}
           layoutId={`popover-${uniqueId}`}
           className={cn(
-            "absolute z-50 h-[200px] w-[364px] overflow-hidden border border-zinc-950/10 bg-white outline-none dark:bg-zinc-700", // Changed z-90 to z-50
+            "absolute z-50 h-[200px] w-[364px] overflow-hidden border border-zinc-950/10 bg-white outline-none dark:bg-zinc-700",
             className,
           )}
           style={{
             borderRadius: 12,
-            top: "auto", // Remove any top positioning
-            left: "auto", // Remove any left positioning
-            transform: "none", // Remove any transform
+            top: "auto",
+            left: "auto",
+            transform: "none",
           }}
         >
           {children}
@@ -337,7 +334,6 @@ export function PopoverBody({
   return <div className={cn("p-4", className)}>{children}</div>;
 }
 
-// New component: PopoverButton
 export function PopoverButton({
   children,
   onClick,

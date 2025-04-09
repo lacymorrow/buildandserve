@@ -12,3 +12,31 @@ export const fontSans = FontSans({
 	subsets: ["latin"],
 	variable: "--font-sans",
 });
+
+export interface GoogleFont {
+	family: string;
+	// Add other properties if needed, e.g., category, variants
+}
+
+// A curated list of popular Google Fonts
+// See: https://fonts.google.com/
+export const GOOGLE_FONTS: GoogleFont[] = [
+	{ family: "Inter" }, // Default likely
+	{ family: "Roboto" },
+	{ family: "Open Sans" },
+	{ family: "Lato" },
+	{ family: "Montserrat" },
+	{ family: "Poppins" },
+	{ family: "Source Sans Pro" },
+	{ family: "Oswald" },
+	{ family: "Raleway" },
+	{ family: "Nunito" },
+	{ family: "Merriweather" },
+	{ family: "Playfair Display" },
+	{ family: "Ubuntu" },
+	{ family: "Work Sans" },
+	{ family: "Fira Sans" },
+	{ family: "Noto Sans JP" }, // Example CJK font
+	{ family: "Roboto Mono" }, // Example Monospace font
+	{ family: "Comic Neue" }, // Example fun font
+];

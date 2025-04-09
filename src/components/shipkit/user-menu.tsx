@@ -17,6 +17,8 @@ import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
+import { ShortcutAction, type ShortcutActionType } from "@/config/keyboard-shortcuts";
+import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context";
 
 type Theme = "light" | "dark" | "system";
 
@@ -29,7 +31,7 @@ interface UserMenuProps {
 export const UserMenu: React.FC<UserMenuProps> = ({
 	size = "default",
 	className,
-	showUpgrade = false
+	showUpgrade = false,
 }) => {
 	const pathname = usePathname();
 	const { data: session, status } = useSession();
@@ -39,16 +41,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 	const [isOpen, setIsOpen] = React.useState(false);
 	const { hasActiveSubscription } = useSubscription();
 	const router = useRouter();
-
 	const isAdmin = useIsAdmin();
 
 	const handleThemeChange = React.useCallback(
 		async (value: string) => {
 			const newTheme = value as Theme;
-			// Update the theme immediately for a snappy UI
 			setTheme(newTheme);
-
-			// Then persist to the database
 			if (session?.user) {
 				try {
 					const result = await updateTheme(newTheme);
@@ -77,57 +75,80 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 		[session?.user, setTheme, toast]
 	);
 
-	// Handle keyboard shortcuts
-	React.useEffect(() => {
-		const handleKeyDown = async (e: KeyboardEvent) => {
-			// Only handle if Command/Control is pressed
-			if (!(e.metaKey || e.ctrlKey)) return;
-
-			// Theme shortcuts (Cmd/Ctrl + Shift + Letter)
-			if (e.shiftKey) {
-				switch (e.key.toLowerCase()) { // Use toLowerCase for consistency
-					case "l": // Light Theme: Cmd/Ctrl + Shift + L
-						e.preventDefault();
-						await handleThemeChange("light");
-						break;
-					case "d": // Dark Theme: Cmd/Ctrl + Shift + D
-						e.preventDefault();
-						await handleThemeChange("dark");
-						break;
-					case "y": // System Theme: Cmd/Ctrl + Shift + Y
-						e.preventDefault();
-						await handleThemeChange("system");
-						break;
-				}
+	// ---- Refactored Shortcut Handling ----
+	const handleShortcut = React.useCallback(
+		(event: KeyboardEvent, action: ShortcutActionType) => {
+			event.preventDefault();
+			switch (action) {
+				case ShortcutAction.SET_THEME_LIGHT:
+					void handleThemeChange("light");
+					break;
+				case ShortcutAction.SET_THEME_DARK:
+					void handleThemeChange("dark");
+					break;
+				case ShortcutAction.SET_THEME_SYSTEM:
+					void handleThemeChange("system");
+					break;
+				case ShortcutAction.GOTO_ADMIN:
+					if (isAdmin) router.push(routes.admin.index);
+					break;
+				case ShortcutAction.GOTO_SETTINGS:
+					router.push(routes.settings.index);
+					break;
+				case ShortcutAction.LOGOUT_USER:
+					void signOut({ callbackUrl: routes.home });
+					break;
 			}
+		},
+		[handleThemeChange, isAdmin, router]
+	);
 
-			// App navigation/action shortcuts (Cmd/Ctrl + Shift + Letter/Symbol)
-			if (session?.user && e.shiftKey) { // Require Shift for all these actions now
-				switch (e.key.toLowerCase()) {
-					case "a": // Admin Dashboard: Cmd/Ctrl + Shift + A
-						if (isAdmin) {
-							e.preventDefault();
-							router.push(routes.admin.index);
-						}
-						break;
-					case ",": // Settings: Cmd/Ctrl + Shift + ,
-						e.preventDefault();
-						router.push(routes.settings.index);
-						break;
-					case "x": // Sign Out: Cmd/Ctrl + Shift + X
-						e.preventDefault();
-						await signOut({ callbackUrl: routes.home }); // Redirect home after sign out
-						break;
-				}
-			}
-		};
+	const isAuthenticated = status === "authenticated";
 
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleThemeChange, session?.user, isAdmin, router, toast]);
+	useKeyboardShortcut(
+		ShortcutAction.SET_THEME_LIGHT,
+		(event) => handleShortcut(event, ShortcutAction.SET_THEME_LIGHT),
+		undefined,
+		[handleShortcut]
+	);
+	useKeyboardShortcut(
+		ShortcutAction.SET_THEME_DARK,
+		(event) => handleShortcut(event, ShortcutAction.SET_THEME_DARK),
+		undefined,
+		[handleShortcut]
+	);
+	useKeyboardShortcut(
+		ShortcutAction.SET_THEME_SYSTEM,
+		(event) => handleShortcut(event, ShortcutAction.SET_THEME_SYSTEM),
+		undefined,
+		[handleShortcut]
+	);
+	useKeyboardShortcut(
+		ShortcutAction.GOTO_ADMIN,
+		(event) => handleShortcut(event, ShortcutAction.GOTO_ADMIN),
+		() => isAuthenticated && isAdmin,
+		[handleShortcut, isAuthenticated, isAdmin]
+	);
+	useKeyboardShortcut(
+		ShortcutAction.GOTO_SETTINGS,
+		(event) => handleShortcut(event, ShortcutAction.GOTO_SETTINGS),
+		() => isAuthenticated,
+		[handleShortcut, isAuthenticated]
+	);
+	useKeyboardShortcut(
+		ShortcutAction.LOGOUT_USER,
+		(event) => handleShortcut(event, ShortcutAction.LOGOUT_USER),
+		() => isAuthenticated,
+		[handleShortcut, isAuthenticated]
+	);
 
 	return (
-		<div className={cn("relative rounded-full flex items-center justify-center aspect-square", size === "sm" ? "size-9" : "size-9")}>
+		<div
+			className={cn(
+				"relative rounded-full flex items-center justify-center aspect-square",
+				size === "sm" ? "size-9" : "size-9"
+			)}
+		>
 			{/* Loading state */}
 			{status === "loading" && (
 				<BorderBeam size={size === "sm" ? 20 : 25} duration={1.5} delay={9} />
@@ -166,16 +187,15 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 					{pathname !== routes.auth.signIn && pathname !== routes.auth.signUp ? (
 						<Link
 							href={signInRedirectUrl}
-							className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "rounded-full cursor-pointer")}
+							className={cn(
+								buttonVariants({ variant: "ghost", size: "icon" }),
+								"rounded-full cursor-pointer"
+							)}
 						>
 							<UserIcon className="size-6" />
 						</Link>
 					) : (
-						<Button
-							variant="ghost"
-							size="icon"
-							className={cn("relative rounded-full", className)}
-						>
+						<Button variant="ghost" size="icon" className={cn("relative rounded-full", className)}>
 							<UserIcon className="size-6" />
 						</Button>
 					)}

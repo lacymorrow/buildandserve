@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { docsConfig } from "@/components/search/example";
+import { ShortcutDisplay } from "@/components/primitives/shortcut-display";
 import { Button } from "@/components/ui/button";
 import {
 	CommandDialog,
@@ -17,9 +18,11 @@ import {
 	CommandSeparator,
 } from "@/components/ui/command";
 import { DialogTitle } from "@/components/ui/dialog";
+import { ShortcutAction } from "@/config/keyboard-shortcuts";
 import { siteConfig } from "@/config/site-config";
+import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context";
+import { useIsMac } from "@/hooks/use-is-mac";
 import { cn } from "@/lib/utils";
-import { is } from "@/lib/utils/is";
 import type { DialogProps } from "@radix-ui/react-dialog";
 
 export interface SearchMenuProps extends DialogProps {
@@ -76,26 +79,24 @@ export function SearchMenu({
 	const [open, setOpen] = React.useState(false);
 	const { setTheme } = useTheme();
 	const [isClient, setIsClient] = React.useState(false);
-	const [isMacOS, setIsMacOS] = React.useState(false);
 
-	React.useEffect(() => {
-		const down = (e: KeyboardEvent) => {
-			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-			if ((e.key === "f" && (e.metaKey || e.ctrlKey) && e.shiftKey) || e.key === "/") {
-				if (
-					!(e.target instanceof HTMLElement) ||
-					!e.target.isContentEditable
-				) {
-					e.preventDefault();
-					setOpen((open) => !open);
-				}
+	useKeyboardShortcut(
+		ShortcutAction.OPEN_SEARCH_MENU,
+		(event) => {
+			const target = event.target as HTMLElement;
+			if (
+				target instanceof HTMLInputElement ||
+				target instanceof HTMLTextAreaElement ||
+				target.isContentEditable
+			) {
+				return;
 			}
-		};
-
-		document.addEventListener("keydown", down);
-		return () => document.removeEventListener("keydown", down);
-	}, [setOpen]);
+			event.preventDefault();
+			setOpen((prevOpen) => !prevOpen);
+		},
+		undefined,
+		[setOpen]
+	);
 
 	const runCommand = React.useCallback((command: () => unknown) => {
 		setOpen(false);
@@ -104,7 +105,6 @@ export function SearchMenu({
 
 	React.useEffect(() => {
 		setIsClient(true);
-		setIsMacOS(is.mac);
 	}, []);
 
 	return (
@@ -121,17 +121,14 @@ export function SearchMenu({
 			>
 				<span className="inline-flex text-xs">{buttonText}</span>
 				{showShortcut && (
-					<kbd
+					<ShortcutDisplay
+						action={ShortcutAction.OPEN_SEARCH_MENU}
 						className={cn(
-							"pointer-events-none absolute right-[0.3rem] top-[0.3rem] hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium lg:flex text-xs",
+							"pointer-events-none absolute right-[0.3rem] top-[0.3rem] hidden lg:flex text-xs",
 							"transition-opacity duration-300",
 							isClient ? "opacity-100" : "opacity-0"
 						)}
-					>
-						<span>
-							{isMacOS ? "⌘" : "Ctrl+"}
-						</span>K
-					</kbd>
+					/>
 				)}
 			</Button>
 			<CommandDialog open={open} onOpenChange={setOpen}>
@@ -143,16 +140,18 @@ export function SearchMenu({
 						{docsConfig.mainNav
 							.filter((navitem) => !navitem.external)
 							.map((navItem) => (
-								<CommandItem
-									key={navItem.href}
-									value={navItem.title}
-									onSelect={() => {
-										runCommand(() => router.push(navItem.href as string));
-									}}
-								>
-									<FileIcon className="mr-2 h-4 w-4" />
-									{navItem.title}
-								</CommandItem>
+								<>
+									<CommandItem
+										key={navItem.href}
+										value={navItem.title}
+										onSelect={() => {
+											runCommand(() => router.push(navItem.href as string));
+										}}
+									>
+										<FileIcon className="mr-2 h-4 w-4" />
+										{navItem.title}
+									</CommandItem>
+								</>
 							))}
 					</CommandGroup>
 					{!minimal && (

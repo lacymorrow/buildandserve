@@ -27,7 +27,7 @@ export const env = createEnv({
 		DISABLE_LOGGING: z.string().optional(),
 		DISABLE_ERROR_LOGGING: z.string().optional(),
 		DISABLE_BUILDER: z.string().optional(), // Disable Builder CMS
-		DISABLE_PAYLOAD: z.string().optional(), // Disable Payload CMS
+		ENABLE_PAYLOAD: z.string().optional(), // Enable Payload CMS
 
 		// ======== Database ========
 		DATABASE_URL: z.string().url().optional(),
@@ -161,7 +161,7 @@ export const env = createEnv({
 		DISABLE_LOGGING: process.env.DISABLE_LOGGING,
 		DISABLE_ERROR_LOGGING: process.env.DISABLE_ERROR_LOGGING,
 		DISABLE_BUILDER: process.env.DISABLE_BUILDER,
-		DISABLE_PAYLOAD: process.env.DISABLE_PAYLOAD,
+		ENABLE_PAYLOAD: process.env.ENABLE_PAYLOAD,
 
 		// Database
 		DATABASE_URL: process.env.DATABASE_URL,

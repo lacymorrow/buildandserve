@@ -1,14 +1,21 @@
 import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
 import { constructMetadata } from "@/config/metadata";
-import { getDocFromParams } from "@/lib/docs";
+import { getDocFromParams, getAllDocSlugsFromFileSystem } from "@/lib/docs";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 interface PageProps {
 	params: Promise<{
-		slug: string[]
-	}>
+		slug: string[];
+	}>;
+}
+
+export async function generateStaticParams() {
+	const slugs = await getAllDocSlugsFromFileSystem();
+	return slugs.map((slug: string) => ({
+		slug: slug === '' ? [] : slug.split('/'),
+	}));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

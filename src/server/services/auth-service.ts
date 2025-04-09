@@ -121,7 +121,7 @@ export const AuthService = {
 					})) as unknown as PayloadUser;
 				} catch (error) {
 					// User doesn't exist in Payload CMS
-					console.log(`User ${id} not found in Payload CMS, will create`);
+					console.debug(`User ${id} not found in Payload CMS, will create`);
 				}
 			} else {
 				console.error("Payload CMS is not initialized");
@@ -157,7 +157,7 @@ export const AuthService = {
 				name: name || email,
 				image,
 			});
-			console.log(`Ensured user ${id} exists in Shipkit database`);
+			// console.log(`Ensured user ${id} exists in Shipkit database`);
 
 			return { id, email };
 		} catch (error) {
@@ -181,10 +181,10 @@ export const AuthService = {
 						collection: "users",
 						id: userId,
 					});
-					console.log(`Cleaned up user ${userId} from Payload CMS`);
+					console.debug(`Cleaned up user ${userId} from Payload CMS`);
 				} catch (error) {
 					// Ignore if user doesn't exist
-					console.log(`User ${userId} not found in Payload CMS during cleanup`);
+					console.debug(`User ${userId} not found in Payload CMS during cleanup`);
 				}
 			}
 
@@ -192,11 +192,15 @@ export const AuthService = {
 			try {
 				if (db) {
 					await db.delete(users).where(eq(users.id, userId));
-					console.log(`Cleaned up user ${userId} from Shipkit database`);
+					// console.log(`Cleaned up user ${userId} from Shipkit database`);
 				}
 			} catch (error) {
 				// Ignore if user doesn't exist
-				console.log(`User ${userId} not found in Shipkit database during cleanup`);
+				if (!(error instanceof Error && error.message.includes("Record to delete not found"))) {
+					console.warn(`Error cleaning up user ${userId} from Shipkit database:`, error);
+				} else {
+					console.debug(`User ${userId} not found in Shipkit database during cleanup`);
+				}
 			}
 		} catch (error) {
 			console.error(`Error during cleanup for user ${userId}:`, error);
@@ -229,7 +233,7 @@ export const AuthService = {
 						id: userId,
 						data: payloadUpdateData,
 					});
-					console.log(`Updated user ${userId} in Payload CMS`);
+					// console.log(`Updated user ${userId} in Payload CMS`);
 				} catch (error) {
 					console.error(`Failed to update user ${userId} in Payload CMS:`, error);
 					throw new Error("Failed to update user in Payload CMS");
@@ -251,7 +255,7 @@ export const AuthService = {
 							updatedAt: new Date(),
 						})
 						.where(eq(users.id, userId));
-					console.log(`Updated user ${userId} in Shipkit database`);
+					// console.log(`Updated user ${userId} in Shipkit database`);
 				} catch (error) {
 					console.error(`Failed to update user ${userId} in Shipkit database:`, error);
 					throw new Error("Failed to update user in Shipkit database");
@@ -279,7 +283,7 @@ export const AuthService = {
 						collection: "users",
 						id: userId,
 					});
-					console.log(`Deleted user ${userId} from Payload CMS`);
+					// console.log(`Deleted user ${userId} from Payload CMS`);
 				} catch (error) {
 					console.error(`Failed to delete user ${userId} from Payload CMS:`, error);
 					throw new Error("Failed to delete user from Payload CMS");
@@ -301,7 +305,7 @@ export const AuthService = {
 				}
 			}
 
-			console.log(`Successfully deleted user ${userId} from both databases`);
+			// console.log(`Successfully deleted user ${userId} from both databases`);
 		} catch (error) {
 			console.error(`Error deleting user ${userId}:`, error);
 			throw error;
@@ -400,7 +404,7 @@ export const AuthService = {
 
 			// Generate a consistent ID for both databases
 			const userId = this.generateConsistentId();
-			console.log(`Generated consistent ID ${userId} for new user`);
+			// console.log(`Generated consistent ID ${userId} for new user`);
 
 			// Create new user in Payload CMS with the consistent ID
 			const newUser = await payload.create({
@@ -418,7 +422,7 @@ export const AuthService = {
 				throw new Error("Failed to create Payload CMS user");
 			}
 
-			console.log(`Created user in Payload CMS with ID ${userId}`);
+			console.debug(`Created user in Payload CMS with ID ${userId}`);
 
 			// Create the user in the Shipkit database with the same ID
 			await userService.ensureUserExists({
@@ -428,7 +432,7 @@ export const AuthService = {
 				image: null,
 			});
 
-			console.log(`Created user in Shipkit database with ID ${userId}`);
+			console.debug(`Created user in Shipkit database with ID ${userId}`);
 
 			// Sign in the user and return the result directly
 			return await signIn("credentials", {
@@ -489,7 +493,7 @@ export const AuthService = {
 				},
 			});
 
-			console.log(`Updated session for user ${userId} with new data`);
+			console.debug(`Updated session for user ${userId} with new data`);
 			return updatedSession;
 		} catch (error) {
 			console.error(`Error updating session for user ${userId}:`, error);
@@ -534,7 +538,7 @@ export const AuthService = {
 				},
 			});
 
-			console.log(`Password reset email sent to ${email}`);
+			console.debug(`Password reset email sent to ${email}`);
 			return { success: true };
 		} catch (error) {
 			console.error("Error in forgotPassword:", error);
@@ -565,7 +569,7 @@ export const AuthService = {
 				overrideAccess: true,
 			});
 
-			console.log("Password reset successful");
+			// console.log("Password reset successful");
 			return { success: true };
 		} catch (error) {
 			console.error("Error in resetPassword:", error);
@@ -581,12 +585,12 @@ export const AuthService = {
 		try {
 			// Log the credentials for debugging (excluding password)
 			if (credentials && typeof credentials === "object") {
-				console.log("Validating credentials:", {
+				console.debug("Validating credentials:", {
 					...(credentials as Record<string, unknown>),
 					password: "[REDACTED]",
 				});
 			} else {
-				console.log("Invalid credentials format:", typeof credentials);
+				console.debug("Invalid credentials format:", typeof credentials);
 			}
 
 			const parsedCredentials = signInSchema.safeParse(credentials);
@@ -654,7 +658,7 @@ export const AuthService = {
 						image: user.image,
 					});
 
-					console.log("User authenticated successfully:", user.id);
+					// console.log("User authenticated successfully:", user.id);
 					return user;
 				} catch (loginError) {
 					console.warn(`Login failed for existing user: ${email}`, loginError);

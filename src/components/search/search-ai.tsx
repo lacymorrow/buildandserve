@@ -25,6 +25,9 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import ReactMarkdown from "react-markdown";
+import { ShortcutAction } from "@/config/keyboard-shortcuts";
+import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context";
+import { ShortcutDisplay } from "@/components/primitives/shortcut-display";
 
 const MIN_HEIGHT = 64;
 const MAX_HEIGHT = 200;
@@ -79,7 +82,6 @@ export const SearchAi = ({ ...props }: ButtonProps) => {
 	>(null);
 	const [isAIResponseExpanded, setIsAIResponseExpanded] = React.useState(false);
 	const [isClient, setIsClient] = React.useState(false);
-	const [isMacOS, setIsMacOS] = React.useState(false);
 
 	const { textareaRef, adjustHeight } = useAutoResizeTextarea({
 		minHeight: MIN_HEIGHT,
@@ -177,20 +179,19 @@ export const SearchAi = ({ ...props }: ButtonProps) => {
 		void handleSearch();
 	};
 
-	React.useEffect(() => {
-		const handleKeyDown = (e: KeyboardEvent) => {
-			if (e.key.toLowerCase() === "f" && (e.metaKey || e.ctrlKey) && e.shiftKey) {
-				e.preventDefault();
-				setOpen(true);
-			}
-		};
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, []);
+	// Use the central hook to open the AI search dialog
+	useKeyboardShortcut(
+		ShortcutAction.OPEN_AI_SEARCH,
+		(event) => {
+			event.preventDefault();
+			setOpen(true);
+		},
+		undefined,
+		[setOpen]
+	);
 
 	React.useEffect(() => {
 		setIsClient(true);
-		setIsMacOS(is.mac);
 	}, []);
 
 	const handleModalToggle = () => {
@@ -208,18 +209,17 @@ export const SearchAi = ({ ...props }: ButtonProps) => {
 			<Button
 				variant="outline"
 				className={cn(
-					"relative h-8 w-full justify-start rounded-[0.5rem] bg-muted/50 text-sm font-normal text-muted-foreground shadow-none sm:pr-12 md:max-w-40 lg:max-w-64",
+					"group relative h-8 w-full justify-start rounded-[0.5rem] bg-muted/50 text-sm font-normal text-muted-foreground shadow-none sm:pr-12 md:max-w-40 lg:max-w-64",
 				)}
-				onClick={() => setOpen(true)}
+				onClick={handleModalToggle}
 				{...props}
 			>
 				<span className="hidden lg:inline-flex">Search docs...</span>
 				<span className="inline-flex lg:hidden">Search...</span>
-				<kbd className="pointer-events-none absolute right-[0.3rem] top-[0.3rem] hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 lg:flex">
-					<span className="text-xs" suppressHydrationWarning>
-						{isMacOS ? "⌘" : "Ctrl"}
-					</span>K
-				</kbd>
+				<ShortcutDisplay
+					action={ShortcutAction.OPEN_AI_SEARCH}
+					className="pointer-events-none absolute top-1 right-1 opacity-100 group-hover:flex"
+				/>
 			</Button>
 
 			<Dialog open={open} onOpenChange={handleModalToggle}>
@@ -252,9 +252,11 @@ export const SearchAi = ({ ...props }: ButtonProps) => {
 												adjustHeight();
 											}}
 											onKeyDown={(e) => {
-												if (e.key === "Enter" && !e.shiftKey) {
+												if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
 													e.preventDefault();
-													handleSubmit();
+													if (!isLoading && query.trim()) {
+														void handleSubmit();
+													}
 												}
 											}}
 										/>
@@ -384,9 +386,9 @@ export const SearchAi = ({ ...props }: ButtonProps) => {
 											className="rounded-md p-1 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
 										>
 											{isAIResponseExpanded ? (
-												<ChevronUp className="h-4 w-4" />
-											) : (
 												<ChevronDown className="h-4 w-4" />
+											) : (
+												<ChevronUp className="h-4 w-4" />
 											)}
 										</button>
 									</div>

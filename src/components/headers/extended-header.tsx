@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/ui/theme";
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger
 } from "@/components/ui/tooltip";
 import { routes } from "@/config/routes";
@@ -26,6 +27,8 @@ import { useMemo } from "react";
 import { BuyButton } from "../buttons/buy-button";
 
 import styles from "@/styles/header.module.css";
+import { motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 
 interface NavLink {
 	href: string;
@@ -71,7 +74,6 @@ export const Header: React.FC<HeaderProps> = ({
 	navLinks = defaultNavLinks,
 	variant = "default",
 }) => {
-	const pathname = usePathname();
 	const [{ y }] = useWindowScroll();
 	const isOpaque = useMemo(() => variant === "floating" && y && y > 100, [y, variant]);
 	const { data: session } = useSession();
@@ -210,22 +212,50 @@ export const Header: React.FC<HeaderProps> = ({
 							<UserMenu size="sm" />
 
 							{!session && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<div className="relative -m-4 p-4" style={{ colorScheme: "light" }}>
-											<BuyButton />
-										</div>
-									</TooltipTrigger>
-									<TooltipContent
-										side="bottom"
-										sideOffset={3}
-										className="-mt-3 select-none border-none bg-transparent p-0 text-xs text-muted-foreground shadow-none data-[state=delayed-open]:animate-fadeDown"
-									>
-										<LoginButton className="hover:text-foreground">
-											or Login
-										</LoginButton>
-									</TooltipContent>
-								</Tooltip>
+								<AnimatePresence mode="wait">
+									{y && y > 700 ? (
+										<motion.div
+											key="compact"
+											initial={{ opacity: 0, scale: 0.9 }}
+											animate={{ opacity: 1, scale: 1 }}
+											exit={{ opacity: 0, scale: 0.9 }}
+											transition={{ duration: 0.1 }}
+										>
+											<TooltipProvider delayDuration={0}>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<div className="relative -m-4 p-4">
+															<BuyButton />
+														</div>
+													</TooltipTrigger>
+													<TooltipContent
+														side="bottom"
+														sideOffset={3}
+														className="-mt-3 select-none border-none bg-transparent p-0 text-xs text-muted-foreground shadow-none data-[state=delayed-open]:animate-fadeDown"
+													>
+														<LoginButton className="hover:text-foreground">
+															or Login
+														</LoginButton>
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										</motion.div>
+									) : (
+										<motion.div
+											key="full"
+											initial={{ opacity: 0, scale: 0.9 }}
+											animate={{ opacity: 1, scale: 1 }}
+											exit={{ opacity: 0, scale: 0.9 }}
+											transition={{ duration: 0.1 }}
+										>
+											<LoginButton
+												className={cn(buttonVariants({ variant: "outline" }), "")}
+											>
+												Dashboard
+											</LoginButton>
+										</motion.div>
+									)}
+								</AnimatePresence>
 							)}
 						</div>
 					</div>

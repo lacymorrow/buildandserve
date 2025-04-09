@@ -2,24 +2,19 @@ import {
 	createFeedback,
 	updateFeedbackStatus,
 } from "@/server/services/feedback-service";
-import { isDatabaseInitialized } from "@/server/db";
+import { db } from "@/server/db";
 import { describe, expect, it, beforeAll } from "vitest";
 
 const options = {
 	skipEmail: true,
 };
 
-let hasDatabase = false;
+// No longer need beforeAll to check database
 
-// Check database availability before running tests
-beforeAll(async () => {
-	hasDatabase = await isDatabaseInitialized();
-});
-
-// Skip all tests if database is not available
+// Skip all tests if database object is not available
 const testSuite = () => {
-	if (!hasDatabase) {
-		return describe.skip("Feedback Service (skipped - database not available)", () => {
+	if (!db) {
+		return describe.skip("Feedback Service (skipped - db object not available)", () => {
 			it("dummy test", () => {});
 		});
 	}

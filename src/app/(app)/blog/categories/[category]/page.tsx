@@ -1,15 +1,35 @@
-import { Link } from "@/components/primitives/link-with-transition"; // Add this line
+import { Link } from "@/components/primitives/link-with-transition";
 import { Badge } from "@/components/ui/badge";
 import { getBlogCategories, getBlogPosts } from "@/lib/blog";
 import { cn } from "@/lib/utils";
 
-export default async function CategoryPage({ searchParams }: { searchParams: Promise<{ category: string }> }) {
-	const resolvedParams = await searchParams;
-	const category = resolvedParams.category;
+// Generate static paths for all blog categories
+export async function generateStaticParams() {
+	const posts = await getBlogPosts();
+	const categories = getBlogCategories(posts);
+
+	return categories.map((cat) => ({
+		// URL-encode the category name for the param
+		category: encodeURIComponent(cat.name),
+	}));
+}
+
+// Use params for route segments, not searchParams
+interface CategoryPageProps {
+	params: {
+		category: string;
+	};
+}
+
+// Note: The component signature is updated to use params
+export default async function CategoryPage({ params }: CategoryPageProps) {
+	// const resolvedParams = await searchParams; // Remove this
+	// Decode the category name from the URL parameter
+	const category = decodeURIComponent(params.category);
 
 	const posts = await getBlogPosts();
 	const categories = getBlogCategories(posts);
-	const selectedCategory = typeof category === "string" ? category : undefined;
+	const selectedCategory = category;
 
 	// Filter categories if a category is selected
 	const filteredCategories = selectedCategory

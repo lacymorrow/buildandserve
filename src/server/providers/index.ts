@@ -15,11 +15,19 @@ export { BasePaymentProvider } from "./base-provider";
 export * from "./types";
 export { paymentProviderRegistry }; // Keep registry exported
 
+// Flag to track if initialization has run
+let hasInitialized = false;
+
 /**
  * Initialize all available payment providers asynchronously using dynamic imports.
  * This function should be called explicitly once during application startup.
  */
 export async function initializePaymentProviders(): Promise<void> {
+	// Prevent re-initialization
+	if (hasInitialized) {
+		return;
+	}
+
 	logger.info("Initializing payment providers...");
 
 	const initializers: Promise<void>[] = [];
@@ -75,6 +83,9 @@ export async function initializePaymentProviders(): Promise<void> {
 		totalRegistered: paymentProviderRegistry.count,
 		enabled: paymentProviderRegistry.enabledCount, // Note: This relies on initialize() setting isEnabled correctly
 	});
+
+	// Mark as initialized
+	hasInitialized = true;
 }
 
 /**

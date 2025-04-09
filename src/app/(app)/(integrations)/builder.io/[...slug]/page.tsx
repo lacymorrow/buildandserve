@@ -6,6 +6,9 @@ import { RenderBuilderContent } from "./builder-io";
 import { env } from "@/env";
 import "@/styles/builder-io.css";
 
+// Revalidate this page every 60 seconds
+export const revalidate = 60;
+
 interface PageProps {
 	params: Promise<{
 		slug: string[];

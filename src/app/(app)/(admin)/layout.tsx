@@ -29,12 +29,12 @@ export default async function AdminLayout({
 	}
 
 	return (
-		<div className="flex min-h-screen flex-col">
+		<div className="min-h-screen">
 			<Header
 				navLinks={navLinks}
 				variant="sticky"
 			/>
-			<div className="container flex-1 py-6 md:py-10">{children}</div>
+			<div className="container mx-auto flex-1 py-6 md:py-10">{children}</div>
 		</div>
 	);
 }

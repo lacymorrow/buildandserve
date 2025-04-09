@@ -23,6 +23,8 @@ import { ViewVerticalIcon } from "@radix-ui/react-icons"
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import * as React from "react"
+import { ShortcutAction } from "@/config/keyboard-shortcuts"
+import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -74,9 +76,6 @@ const SidebarProvider = React.forwardRef<
   ) => {
     const isMobile = useIsMobile()
     const [openMobile, setOpenMobile] = React.useState(false)
-
-    // This is the internal state of the sidebar.
-    // We use openProp and setOpenProp for control from outside the component.
     const [_open, _setOpen] = React.useState(defaultOpen)
     const open = openProp ?? _open
     const setOpen = React.useCallback(
@@ -94,32 +93,23 @@ const SidebarProvider = React.forwardRef<
       [setOpenProp, open]
     )
 
-    // Helper to toggle the sidebar.
     const toggleSidebar = React.useCallback(() => {
       return isMobile
         ? setOpenMobile((open) => !open)
         : setOpen((open) => !open)
     }, [isMobile, setOpen, setOpenMobile])
 
-    // Adds a keyboard shortcut to toggle the sidebar.
-    React.useEffect(() => {
-      const handleKeyDown = (event: KeyboardEvent) => {
-        if (
-          event.key.toLowerCase() === "b" &&
-          (event.metaKey || event.ctrlKey) &&
-          event.shiftKey
-        ) {
-          event.preventDefault()
-          toggleSidebar()
-        }
-      }
+    // Use the central hook for the shortcut
+    useKeyboardShortcut(
+      ShortcutAction.TOGGLE_SIDEBAR,
+      (event) => {
+        event.preventDefault(); // Keep preventDefault
+        toggleSidebar();
+      },
+      undefined, // No specific active condition
+      [toggleSidebar] // Dependency array
+    );
 
-      window.addEventListener("keydown", handleKeyDown)
-      return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [toggleSidebar])
-
-    // We add a state so that we can do data-state="expanded" or "collapsed".
-    // This makes it easier to style the sidebar with Tailwind classes.
     const state = open ? "expanded" : "collapsed"
 
     const contextValue = React.useMemo<SidebarContextProps>(

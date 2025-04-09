@@ -6,6 +6,10 @@
 /* ! Shadcn UI Default Styles - Uncomment to use */
 /* @import "./shadcn-ui-default.css"; */
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
 	text-rendering: optimizeLegibility;
 	-webkit-font-smoothing: antialiased;

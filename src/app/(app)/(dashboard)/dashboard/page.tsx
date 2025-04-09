@@ -149,19 +149,19 @@ export default async function DashboardPage() {
 
 							</PageHeaderHeading>
 							{isCustomer && (
-								<Badge variant="outline">
+								<Badge variant="outline" className="whitespace-nowrap">
 									Customer
 								</Badge>
 							)}
 
 							{isSubscribed && (
-								<Badge variant="outline">
+								<Badge variant="outline" className="whitespace-nowrap">
 									Active Subscription
 								</Badge>
 							)}
 
 							{isUserAdmin && (
-								<Badge variant="outline">
+								<Badge variant="outline" className="whitespace-nowrap">
 									Admin
 								</Badge>
 							)}
@@ -170,7 +170,7 @@ export default async function DashboardPage() {
 							Check out what's happening with your projects
 						</PageHeaderDescription>
 					</div>
-					{isCustomer ? (
+					{(isCustomer || isSubscribed) ? (
 						<div className="flex items-center gap-2">
 							<DownloadSection />
 						</div>

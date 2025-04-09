@@ -24,10 +24,15 @@ import { Testimonials } from "./lib/payload/collections/Testimonials";
 import { Users } from "./lib/payload/collections/Users";
 // Import globals
 import { Settings } from "./lib/payload/globals/Settings";
-import { env } from "@/env";
+import { env } from "./env";
+import { siteConfig } from "./config/site-config";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
+
+// Retrieve payload-specific config
+const { adminTitleSuffix, adminIconPath, adminLogoPath, dbSchemaName, emailFromName } =
+	siteConfig.payload;
 
 const config = {
 	secret: process.env.PAYLOAD_SECRET ?? process.env.AUTH_SECRET ?? "supersecret",
@@ -40,32 +45,29 @@ const config = {
 		importMap: {
 			baseDir: path.resolve(dirname),
 		},
-		// Add custom branding configuration
+		// Use config values for branding
 		meta: {
-			titleSuffix: "- ShipKit CMS",
-			// Use the new icons format for favicon
+			titleSuffix: adminTitleSuffix,
 			icons: [
 				{
 					rel: "icon",
 					type: "image/x-icon",
-					url: "/favicon.ico",
+					url: siteConfig.manifest.icons.favicon, // Use manifest favicon
 				},
 			],
-			// Use the new openGraph format for ogImage
 			openGraph: {
 				images: [
 					{
-						url: "/app/og-image.png",
+						url: siteConfig.ogImage,
 					},
 				],
-				siteName: "ShipKit CMS",
+				siteName: siteConfig.name + adminTitleSuffix,
 			},
 		},
 		components: {
-			// Use component paths for graphics
 			graphics: {
-				Logo: "./lib/payload/components/payload-logo",
-				Icon: "./lib/payload/components/payload-icon",
+				Logo: adminLogoPath,
+				Icon: adminIconPath,
 			},
 		},
 	},
@@ -78,7 +80,7 @@ const config = {
 	// ! Database
 	// This allows us to use the same database for Payload and the application, payload will use a different schema.
 	db: postgresAdapter({
-		schemaName: "payload",
+		schemaName: dbSchemaName, // Use config value
 		pool: {
 			connectionString: process.env.DATABASE_URL ?? "",
 		},
@@ -230,7 +232,7 @@ const config = {
 		? {
 				email: resendAdapter({
 					defaultFromAddress: RESEND_FROM,
-					defaultFromName: "Payload CMS",
+					defaultFromName: emailFromName, // Use config value
 					apiKey: process.env.AUTH_RESEND_KEY || "",
 				}),
 			}
