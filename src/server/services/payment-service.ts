@@ -532,6 +532,8 @@ const PaymentService = {
 								existingEntry.status = order.status; // API status might be more up-to-date
 								existingEntry.amount = order.amount; // API amount might be more accurate
 								existingEntry.productName = order.productName || existingEntry.productName; // Update if missing in DB
+								// Recalculate isFreeProduct based on the updated amount and API data (if available)
+								existingEntry.isFreeProduct = order.amount === 0 && !order.discountCode;
 								// Potentially update other fields if desired
 								// logger.trace(`Updated payment from API: ${compositeKey}`);
 							}
