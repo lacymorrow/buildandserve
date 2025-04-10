@@ -2,7 +2,7 @@ import { Header } from "@/components/headers/header";
 import { routes } from "@/config/routes";
 import { auth } from "@/server/auth";
 import { isAdmin } from "@/server/services/admin-service";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import type React from "react";
 
@@ -21,7 +21,7 @@ export default async function AdminLayout({
 	children: React.ReactNode;
 }) {
 	const session = await auth();
-	const userIsAdmin = isAdmin({ email: session?.user?.email });
+	const userIsAdmin = await isAdmin({ email: session?.user?.email });
 
 	if (!userIsAdmin) {
 		console.warn("User is not an admin, redirecting to home", session?.user?.email);

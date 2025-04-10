@@ -1,8 +1,10 @@
 "use client"
 
 import { useRef, useEffect, useState } from "react"
+import { useTheme } from "next-themes"
 
 export const ShipkitLogoParticles = () => {
+	const { theme } = useTheme()
 	const canvasRef = useRef<HTMLCanvasElement>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const mousePositionRef = useRef({ x: 0, y: 0 })
@@ -45,6 +47,10 @@ export const ShipkitLogoParticles = () => {
 			burstMaxRadius: number
 		}[] = []
 
+		// Define theme-based colors
+		const particleBaseColor = theme === "dark" ? "white" : "black"
+		const particleScatterColor = theme === "dark" ? "#00DCFF" : "#4F46E5" // Cyan for dark, Indigo for light
+
 		// Track global fission state
 		const globalFissionState = {
 			active: false,
@@ -60,7 +66,7 @@ export const ShipkitLogoParticles = () => {
 		function createTextImage() {
 			if (!ctx || !canvas) return 0
 
-			ctx.fillStyle = "white"
+			ctx.fillStyle = particleBaseColor // Use theme-based color for text rendering
 			ctx.save()
 
 			// Set up text properties
@@ -104,8 +110,8 @@ export const ShipkitLogoParticles = () => {
 						baseX: x,
 						baseY: y,
 						size: Math.random() * 1 + 0.5,
-						color: "white",
-						scatteredColor: "#00DCFF", // Use a single color for all particles
+						color: particleBaseColor,
+						scatteredColor: particleScatterColor,
 						isAWS: false, // Keep this for compatibility but it's not used
 						life: Math.random() * 100 + 50,
 						// Fission animation properties
@@ -157,20 +163,20 @@ export const ShipkitLogoParticles = () => {
 				globalFissionState.timer = 0
 
 				// Set all particles to exploding state
-				particles.forEach((p) => {
+				for (const p of particles) {
 					p.burstState = "exploding"
 					p.burstProgress = 0
-				})
+				}
 			}
 
 			// If fission is active, check if we need to transition states
 			if (globalFissionState.active) {
 				if (globalFissionState.timer > globalFissionState.burstDuration && particles[0]?.burstState === "exploding") {
 					// Transition to returning state
-					particles.forEach((p) => {
+					for (const p of particles) {
 						p.burstState = "returning"
 						p.burstProgress = 0
-					})
+					}
 				} else if (globalFissionState.timer > globalFissionState.burstDuration + globalFissionState.returnDuration) {
 					// End the fission animation
 					globalFissionState.active = false
@@ -178,11 +184,11 @@ export const ShipkitLogoParticles = () => {
 					globalFissionState.nextBurstTime = Math.random() * 5000 + 5000 // 5-10 seconds
 
 					// Reset all particles to normal state
-					particles.forEach((p) => {
+					for (const p of particles) {
 						p.burstState = "normal"
 						p.burstRadius = 0
 						p.burstProgress = 0
-					})
+					}
 				}
 			}
 
@@ -190,7 +196,7 @@ export const ShipkitLogoParticles = () => {
 				const p = particles[i]
 				let currentX = p.x
 				let currentY = p.y
-				let particleColor = "white"
+				let particleColor = particleBaseColor // Default to theme base color
 
 				// Handle fission animation states
 				if (p.burstState === "exploding") {
@@ -206,9 +212,16 @@ export const ShipkitLogoParticles = () => {
 					currentX = p.baseX + Math.cos(p.burstAngle) * p.burstRadius
 					currentY = p.baseY + Math.sin(p.burstAngle) * p.burstRadius
 
-					// Change color based on progress
-					const intensity = Math.min(255, Math.floor(p.burstProgress * 255))
-					particleColor = `rgb(${intensity}, ${Math.floor(220 * p.burstProgress)}, ${255})`
+					// Change color based on progress - Adjust for light/dark themes
+					if (theme === "dark") {
+						const intensity = Math.min(255, Math.floor(p.burstProgress * 255))
+						particleColor = `rgb(${intensity}, ${Math.floor(220 * p.burstProgress)}, ${255})`
+					} else {
+						// Darker explosion effect for light theme
+						const intensity = Math.max(0, Math.floor(50 * (1 - p.burstProgress))) // Start darker, fade towards base
+						const blueIntensity = Math.max(0, Math.floor(100 * (1 - p.burstProgress)))
+						particleColor = `rgb(${intensity}, ${intensity}, ${blueIntensity})`
+					}
 				} else if (p.burstState === "returning") {
 					// Calculate progress (0 to 1)
 					p.burstProgress += deltaTime / globalFissionState.returnDuration
@@ -222,9 +235,17 @@ export const ShipkitLogoParticles = () => {
 					currentX = p.baseX + Math.cos(p.burstAngle) * p.burstRadius
 					currentY = p.baseY + Math.sin(p.burstAngle) * p.burstRadius
 
-					// Fade color back to white
-					const intensity = Math.floor(255 * p.burstProgress)
-					particleColor = `rgb(${255}, ${Math.floor(255 - 35 * (1 - p.burstProgress))}, ${Math.floor(255 - 55 * (1 - p.burstProgress))})`
+					// Fade color back to base color - Adjust for light/dark themes
+					if (theme === "dark") {
+						const intensity = Math.floor(255 * p.burstProgress)
+						particleColor = `rgb(${255}, ${Math.floor(255 - 35 * (1 - p.burstProgress))}, ${Math.floor(255 - 55 * (1 - p.burstProgress))})`
+					} else {
+						// Fade from darker explosion color back to black
+						const progressInv = 1 - p.burstProgress
+						const intensity = Math.floor(50 * progressInv) // Fade from dark grey to black
+						const blueIntensity = Math.floor(100 * progressInv)
+						particleColor = `rgb(${intensity}, ${intensity}, ${blueIntensity})`
+					}
 				} else {
 					// Normal state - handle mouse interaction
 					const dx = mouseX - p.x
@@ -239,11 +260,11 @@ export const ShipkitLogoParticles = () => {
 						currentX = p.baseX - moveX
 						currentY = p.baseY - moveY
 
-						particleColor = p.scatteredColor
+						particleColor = p.scatteredColor // Use theme-based scatter color
 					} else {
 						currentX += (p.baseX - currentX) * 0.1
 						currentY += (p.baseY - currentY) * 0.1
-						particleColor = "white"
+						particleColor = particleBaseColor // Use theme-based base color
 					}
 				}
 
@@ -343,7 +364,7 @@ export const ShipkitLogoParticles = () => {
 			canvas.removeEventListener("touchend", handleTouchEnd)
 			cancelAnimationFrame(animationFrameId)
 		}
-	}, [isMobile])
+	}, [isMobile, theme])
 
 	return (
 		<div ref={containerRef} className="relative h-full w-full overflow-hidden">

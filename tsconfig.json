@@ -55,6 +55,7 @@
   ],
   "exclude": [
     "node_modules",
+    "tests",
     "public",
     "src/components/blocks/**/*.ts",
     "src/components/blocks/**/*.tsx",

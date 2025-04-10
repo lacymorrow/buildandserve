@@ -23,13 +23,6 @@ export interface AuthOptions {
 	email?: string;
 }
 
-interface SignUpInData {
-	email: string;
-	password: string;
-	redirect?: boolean;
-	redirectTo?: string;
-}
-
 export const signInWithOAuthAction = async ({
 	providerId,
 	options,
@@ -54,32 +47,43 @@ export const signInAction = createServerAction()
 
 const CredentialsSchema = z.object({
 	email: z.string().email(),
-	password: z.string().min(8),
+	password: z.string().min(4),
+	redirect: z.boolean().optional(),
+	redirectTo: z.string().optional(),
 });
 
-export const signInWithCredentialsAction = async (_prevState: ActionState, formData: FormData) => {
-	// console.log("signInWithCredentialsAction called with:", {
-	// 	email: formData.get("email"),
-	// 	redirect: formData.get("redirect"),
-	// 	redirectTo: formData.get("redirectTo"),
-	// });
+type SignInCredentialsInput = z.infer<typeof CredentialsSchema>;
 
-	const email = formData.get("email") as string;
-	const password = formData.get("password") as string;
-	const redirect = formData.get("redirect") !== "false"; // Default to true
-	const redirectTo = formData.get("redirectTo") as string | undefined;
+export const signInWithCredentialsAction = async (input: SignInCredentialsInput) => {
+	// Log the received input for debugging
+	console.log("signInWithCredentialsAction received input:", JSON.stringify(input, null, 2));
+
+	// Validate input using the schema (optional but good practice)
+	const parsed = CredentialsSchema.safeParse(input);
+	if (!parsed.success) {
+		console.error("Invalid input to signInWithCredentialsAction:", parsed.error);
+		return { success: false, error: "Invalid input data" };
+	}
+
+	const { email, password, redirect, redirectTo } = parsed.data;
 
 	try {
 		const result = await AuthService.signInWithCredentials({
 			email,
 			password,
-			redirect: false, // Prevent server-side redirect
+			redirect: redirect ?? false, // Use provided redirect, default to false
 			redirectTo,
 		});
 		// console.log("Sign in result:", result);
 		return result;
 	} catch (error: any) {
 		console.error("Error in signInWithCredentialsAction:", error);
+
+		// Check if it's an AuthError from next-auth
+		if (error.type === "CredentialsSignin" || error.code === "CredentialsSignin") {
+			return { success: false, error: STATUS_CODES.CREDENTIALS.message };
+		}
+
 		return { success: false, error: error.message || "Sign in failed" };
 	}
 };

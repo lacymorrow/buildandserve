@@ -36,7 +36,7 @@ export default function NotFound() {
 						<PageHeaderDescription className="mb-8">
 							The page you&apos;re looking for has drifted into deep space. Let&apos;s get you back
 							to familiar territory.
-							PageHeaderDescription						</PageHeaderDescription>
+						</PageHeaderDescription>
 					</PageHeader>
 					<Link
 						href="/"

@@ -30,7 +30,6 @@ export function useSubscription(provider?: SubscriptionProvider) {
 					`Checking subscription for user ${session.user.email || session.user.id} with provider: ${provider || "all"}`
 				);
 				const result = await checkUserSubscription(provider);
-				console.log(`Subscription check result:`, result);
 				setHasActiveSubscription(result.hasSubscription);
 				setError(null);
 			} catch (error) {

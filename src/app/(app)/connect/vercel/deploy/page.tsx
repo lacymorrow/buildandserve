@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { ConfettiSideCannons } from "@/components/ui/magicui/confetti/confetti-side-cannons";
 import { routes } from "@/config/routes";
 import { ArrowUpRight, CheckCircle } from "lucide-react";
+import { CopyButton } from "@/components/ui/copy-button";
 
 interface DeploymentInfo {
 	teamId: string | undefined;
@@ -85,6 +86,16 @@ export default async function VercelDeployPage({
 								<Link href={deploymentInfo.repositoryUrl} className="text-sm underline">
 									GitHub Repository →
 								</Link>
+								<div className="flex items-center space-x-2 bg-muted p-2 rounded-md">
+									<code className="text-sm flex-grow overflow-x-auto">
+										git clone {deploymentInfo.repositoryUrl}
+									</code>
+									<CopyButton
+										value={`git clone ${deploymentInfo.repositoryUrl}`}
+										successTitle="Command copied!"
+										className="h-6 w-6"
+									/>
+								</div>
 							</div>
 
 						</div>

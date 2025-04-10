@@ -2,6 +2,7 @@
 
 import { Link } from "@/components/primitives/link-with-transition";
 import { cn } from "@/lib/utils";
+import { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 
 interface NavItem {
@@ -39,8 +40,20 @@ export function SidebarNav({
 					)}
 				>
 					{item.title}
+					{/* Todo: Add link status dot */}
+					{/* <LinkStatusDot /> */}
 				</Link>
 			))}
 		</nav>
 	);
+}
+
+function LinkStatusDot() {
+	const { pending } = useLinkStatus();
+
+	if (pending) {
+		return <div className="w-2 h-2 bg-green-500 rounded-full" />;
+	}
+
+	return null;
 }

@@ -19,19 +19,21 @@ import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { ShortcutAction, type ShortcutActionType } from "@/config/keyboard-shortcuts";
 import { useKeyboardShortcut } from "@/components/providers/keyboard-shortcut-context";
-
+import type { User } from "next-auth";
 type Theme = "light" | "dark" | "system";
 
 interface UserMenuProps {
 	size?: "default" | "sm";
 	className?: string;
 	showUpgrade?: boolean;
+	user?: User;
 }
 
 export const UserMenu: React.FC<UserMenuProps> = ({
 	size = "default",
 	className,
 	showUpgrade = false,
+	user,
 }) => {
 	const pathname = usePathname();
 	const { data: session, status } = useSession();
@@ -43,11 +45,13 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 	const router = useRouter();
 	const isAdmin = useIsAdmin();
 
+	const currentUser = user ?? session?.user;
+
 	const handleThemeChange = React.useCallback(
 		async (value: string) => {
 			const newTheme = value as Theme;
 			setTheme(newTheme);
-			if (session?.user) {
+			if (currentUser) {
 				try {
 					const result = await updateTheme(newTheme);
 					if (!result.success) {
@@ -72,7 +76,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 				}
 			}
 		},
-		[session?.user, setTheme, toast]
+		[currentUser, setTheme, toast]
 	);
 
 	// ---- Refactored Shortcut Handling ----
@@ -155,11 +159,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 			)}
 
 			{/* Not authenticated */}
-			{session?.user ? (
+			{currentUser ? (
 				<UserMenuDropdown
 					isOpen={isOpen}
 					setIsOpen={setIsOpen}
-					session={session}
+					user={currentUser}
 					isAdmin={isAdmin}
 					showUpgrade={showUpgrade}
 					hasActiveSubscription={hasActiveSubscription}
@@ -174,11 +178,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 					>
 						<Avatar className={cn(size === "sm" ? "size-6" : "size-8")}>
 							<AvatarImage
-								src={session?.user?.image || ""}
-								alt={session?.user?.name || "User avatar"}
+								src={currentUser?.image || ""}
+								alt={currentUser?.name || "User avatar"}
 								draggable={false}
 							/>
-							<AvatarFallback>{session?.user?.name?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+							<AvatarFallback>{currentUser?.name?.[0]?.toUpperCase() || "?"}</AvatarFallback>
 						</Avatar>
 					</Button>
 				</UserMenuDropdown>

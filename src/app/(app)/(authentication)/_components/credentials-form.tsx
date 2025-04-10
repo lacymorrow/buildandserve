@@ -20,7 +20,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { LockClosedIcon } from "@radix-ui/react-icons";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ interface CredentialsFormProps {
 }
 
 export function CredentialsForm({ className }: CredentialsFormProps) {
+	const pathname = usePathname();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const searchParams = useSearchParams();
 	const router = useRouter();
@@ -71,17 +72,6 @@ export function CredentialsForm({ className }: CredentialsFormProps) {
 				return;
 			}
 
-			// Check if the sign-in was successful
-			if (typeof result === "string") {
-				// If result is a string, it's likely a URL to redirect to
-				toast.success("Signed in successfully");
-				// Update the session before redirecting
-				await updateSession();
-				router.push(nextUrl || routes.home);
-				router.refresh(); // Refresh to update the session
-				return;
-			}
-
 			if (result?.error) {
 				// Handle specific error codes from NextAuth
 				if (result.error === "CredentialsSignin") {
@@ -93,22 +83,20 @@ export function CredentialsForm({ className }: CredentialsFormProps) {
 				throw new Error(result.error);
 			}
 
-			if (result?.url) {
-				// Handle successful sign-in with client-side redirect
-				toast.success("Signed in successfully");
-				// Update the session before redirecting
-				await updateSession();
-				router.push(result.url);
-				router.refresh(); // Refresh to update the session
-				return;
-			}
-
 			// If we get here, something unexpected happened but we'll try to handle it gracefully
 			// Still try to update the session and redirect
 			await updateSession();
 			toast.success("Signed in successfully");
-			router.push(nextUrl || routes.home);
-			router.refresh(); // Refresh to update the session
+			const resultUrl = new URL(typeof result === "string" ? result : result?.url || nextUrl || routes.home);
+			// If we are already on the page, same page, we need to do a full window.reload.
+
+			if (pathname === resultUrl.pathname) {
+				window.location.reload();
+			} else {
+				router.push(resultUrl.toString());
+				router.refresh(); // Refresh to update the session
+			}
+
 		} catch (error) {
 			console.error("Error signing in:", error);
 

@@ -1,11 +1,14 @@
 import { Header } from "@/components/headers/extended-header";
 import MainLayout from "@/components/layouts/main-layout";
+import { auth } from "@/server/auth";
 import type React from "react";
 
-export default function Layout({
+export default async function Layout({
 	children,
 }: {
 	children: React.ReactNode;
 }) {
-	return <MainLayout header={<Header variant="sticky" />}>{children}</MainLayout>;
+	const session = await auth();
+
+	return <MainLayout header={<Header user={session?.user} variant="sticky" />}>{children}</MainLayout>;
 }

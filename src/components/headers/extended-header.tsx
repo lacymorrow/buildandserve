@@ -23,12 +23,13 @@ import { cva } from "class-variance-authority";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import type React from "react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { BuyButton } from "../buttons/buy-button";
 
 import styles from "@/styles/header.module.css";
 import { motion } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
+import type { User } from "next-auth";
 
 interface NavLink {
 	href: string;
@@ -43,6 +44,7 @@ interface HeaderProps {
 	logoText?: string;
 	searchPlaceholder?: string;
 	variant?: "default" | "sticky" | "floating";
+	user?: User;
 }
 
 const defaultNavLinks = [
@@ -73,10 +75,13 @@ export const Header: React.FC<HeaderProps> = ({
 	logoText = siteConfig.name,
 	navLinks = defaultNavLinks,
 	variant = "default",
+	user,
 }) => {
 	const [{ y }] = useWindowScroll();
 	const isOpaque = useMemo(() => variant === "floating" && y && y > 100, [y, variant]);
 	const { data: session } = useSession();
+
+	const isLoggedIn = !!session?.user || !!user;
 
 	return (
 		<>
@@ -100,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
 							<span className="sr-only">{logoText}</span>
 						</Link>
 						<div className="hidden items-center justify-between gap-md text-sm md:flex">
-							{session && (
+							{isLoggedIn && (
 								<Link
 									key={routes.docs}
 									href={routes.docs}
@@ -160,7 +165,7 @@ export const Header: React.FC<HeaderProps> = ({
 										{link.label}
 									</Link>
 								))}
-								{!session && (
+								{!isLoggedIn && (
 									<>
 										<Link
 											href={routes.auth.signIn}
@@ -177,7 +182,7 @@ export const Header: React.FC<HeaderProps> = ({
 										)} />
 									</>
 								)}
-								{session && (
+								{isLoggedIn && (
 									<>
 										<Link
 											href={routes.docs}
@@ -205,11 +210,12 @@ export const Header: React.FC<HeaderProps> = ({
 						<SearchAi />
 
 						<div className="flex items-center gap-2">
-							{!session && (
+							{/* If they are not signed in, we need to show the theme toggle. */}
+							{!isLoggedIn && (
 								<ThemeToggle variant="ghost" size="icon" className="rounded-full" />
 							)}
 
-							<UserMenu size="sm" />
+							<UserMenu user={user} size="sm" />
 
 							{!session && (
 								<AnimatePresence mode="wait">

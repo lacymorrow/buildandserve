@@ -27,11 +27,10 @@ import {
 	SunIcon
 } from "@radix-ui/react-icons";
 import { Sparkles } from "lucide-react";
-import type { Session } from "next-auth";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import type * as React from "react";
-
+import type { User } from "next-auth";
 export interface MenuItemProps {
 	href?: string;
 	onClick?: () => void;
@@ -44,7 +43,7 @@ export interface MenuItemProps {
 interface UserMenuDropdownProps {
 	isOpen: boolean;
 	setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-	session: Session | null;
+	user?: User;
 	isAdmin?: boolean;
 	showUpgrade?: boolean;
 	hasActiveSubscription?: boolean;
@@ -63,7 +62,7 @@ interface UserMenuDropdownProps {
 export function UserMenuDropdown({
 	isOpen,
 	setIsOpen,
-	session,
+	user,
 	isAdmin = false,
 	showUpgrade = false,
 	hasActiveSubscription = false,
@@ -99,8 +98,8 @@ export function UserMenuDropdown({
 			>
 				<DropdownMenuLabel className="font-normal">
 					<div className="flex flex-col space-y-1">
-						<p className="text-sm font-medium leading-none">{session?.user?.name || "Guest User"}</p>
-						<p className="text-xs leading-none text-muted-foreground">{session?.user?.email || "Not signed in"}</p>
+						<p className="text-sm font-medium leading-none">{user?.name || "Guest User"}</p>
+						<p className="text-xs leading-none text-muted-foreground">{user?.email || "Not signed in"}</p>
 					</div>
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />
@@ -146,7 +145,7 @@ export function UserMenuDropdown({
 
 					{showOnboarding && (
 						<DropdownMenuItem asChild>
-							<RestartOnboardingButton user={session?.user} className="w-full justify-start" />
+							<RestartOnboardingButton user={user} className="w-full justify-start" />
 						</DropdownMenuItem>
 					)}
 
