@@ -49,6 +49,16 @@ interface Tool {
 }
 
 const tools: Tool[] = [
+	// https://www.bgvault.tech/
+	{
+		title: "BG Vault - Backgrounds",
+		description: "Free, beautiful backgrounds for your project.Built with Tailwind CSS.Click to preview, toggle light / dark mode, and copy the code.Works with any project with tailwind css.",
+		icon: FileIcon,
+		href: "https://www.bgvault.tech/",
+		isExternal: true,
+		category: "Design",
+		keywords: ["background", "tailwind", "css", "design"],
+	},
 	// https://ui.jln.dev
 	{
 		title: "Shadcn UI Themes",
