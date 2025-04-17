@@ -64,9 +64,9 @@ const defaultGroups: FooterElement[] = [
 			items: [
 				{ href: routes.terms, label: "Terms of Service" },
 				{ href: routes.privacy, label: "Privacy Policy" },
-				<div className="flex justify-start" key="feedback">
+				<li className="flex justify-start" key="feedback">
 					<FeedbackPopover />
-				</div>,
+				</li>,
 			],
 		},
 	},
