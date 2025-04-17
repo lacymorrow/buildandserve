@@ -19,12 +19,6 @@ import { useSignInRedirectUrl } from "@/hooks/use-auth-redirect";
 import styles from "@/styles/header.module.css";
 import { BuyButton } from "../buttons/buy-button";
 
-interface NavLink {
-	href: string;
-	label: string;
-	isCurrent?: boolean;
-}
-
 interface HeaderProps {
 	navLinks?: NavLink[];
 	logoHref?: string;

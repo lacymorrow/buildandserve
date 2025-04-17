@@ -4,9 +4,7 @@ import React from "react";
 import { AppLayout } from "@/components/layouts/app-layout";
 import { BodyProvider } from "@/components/providers/body-provider";
 import { metadata as defaultMetadata } from "@/config/metadata";
-import { KeyboardShortcutProvider } from "@/components/providers/keyboard-shortcut-context";
 import { initializePaymentProviders } from "@/server/providers";
-import { FontSelector } from "@/app/(app)/devtools/_components/font-selector";
 
 export const metadata: Metadata = defaultMetadata;
 

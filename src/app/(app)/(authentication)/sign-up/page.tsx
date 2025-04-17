@@ -4,9 +4,9 @@ import { Divider } from "@/components/primitives/divider";
 import { Link } from "@/components/primitives/link-with-transition";
 import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
+import { env } from "@/env";
 import { AuthenticationCard } from "../_components/authentication-card";
 import { SignUpForm } from "./_components/sign-up-form";
-import { env } from "@/env";
 
 export default async function SignUpPage() {
 	return (

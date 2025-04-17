@@ -7,6 +7,8 @@
     "biomejs.biome",
     "dexxiez.shadcn-color-preview",
     "aaron-bond.better-comments",
-    "davidanson.vscode-markdownlint"
+    "davidanson.vscode-markdownlint",
+    "unifiedjs.vscode-mdx",
+    "github.vscode-github-actions"
   ]
 }

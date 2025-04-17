@@ -1,19 +1,10 @@
-import {
-	buildTimeFeatureFlags,
-	isBuilderEnabled,
-	isMDXEnabled,
-	isPayloadEnabled,
-	isPwaEnabled,
-} from "@/config/features-config";
+import { buildTimeFeatureFlags } from "@/config/features-config";
 import { FILE_UPLOAD_MAX_SIZE } from "@/config/file";
 import { redirects } from "@/config/routes";
-import BuilderDevTools from "@builder.io/dev-tools/next";
-import createMDX from "@next/mdx";
-import { withPayload } from "@payloadcms/next/withPayload";
+import { withPlugins } from "@/config/with-plugins";
 import type { NextConfig } from "next";
-import withPWA from "next-pwa";
 
-let nextConfig: NextConfig = {
+const nextConfig: NextConfig = {
 	env: {
 		...buildTimeFeatureFlags,
 		// You can add other build-time env variables here if needed
@@ -97,6 +88,7 @@ let nextConfig: NextConfig = {
 		// @see: https://nextjs.org/docs/app/api-reference/next-config-js/viewTransition
 		viewTransition: true,
 		webVitalsAttribution: ["CLS", "LCP", "TTFB", "FCP", "FID"],
+		// instrumentationHook: true, // Removed from experimental
 	},
 
 	/*
@@ -181,71 +173,8 @@ let nextConfig: NextConfig = {
 };
 
 /*
- * Configurations
- * Order matters!
+ * Apply Next.js configuration plugins using the withPlugins utility.
+ * The utility handles loading and applying functions exported from files
+ * in the specified directory (default: src/config/nextjs).
  */
-// Builder config
-nextConfig = isBuilderEnabled ? BuilderDevTools()(nextConfig) : nextConfig;
-
-// Payload config
-nextConfig = isPayloadEnabled ? withPayload(nextConfig) : nextConfig;
-
-/*
- * MDX config - should be last or second to last
- */
-const withMDX = createMDX({
-	extension: /\.mdx?$/,
-	options: {
-		remarkPlugins: [
-			[
-				// @ts-expect-error
-				"remark-frontmatter",
-				{
-					type: "yaml",
-					marker: "-",
-				},
-			],
-			// @ts-expect-error
-			["remark-mdx-frontmatter", {}],
-		],
-		rehypePlugins: [],
-	},
-});
-nextConfig = isMDXEnabled ? withMDX(nextConfig) : nextConfig;
-
-/*
- * PWA config
- */
-const pwaConfig = {
-	dest: "public",
-	register: true,
-	skipWaiting: true,
-	disable: !isPwaEnabled || process.env.NODE_ENV === "development",
-};
-
-nextConfig = isPwaEnabled ? ((withPWA as any)(pwaConfig)(nextConfig) as NextConfig) : nextConfig;
-
-/*
- * Logflare config - should be last
- */
-/** @type {import("./withLogFlare.js").LogFlareOptions} */
-// const logFlareOptions = {
-// 	// apiKey: "sk_tk4XH5TBd76VPKWEkDQ7706z9WReI7sQK9bSelC5", // Move to env
-// 	prefix: "[LogFlare]",
-// 	logLevel: process.env.NODE_ENV === "production" ? "log" : "debug",
-// 	logToFile: true,
-// 	logFilePath: "./logflare.log",
-// 	useColors: true,
-// 	useEmoji: true,
-// 	colors: {
-// 		// Override default colors if needed
-// 		error: "\x1b[41m\x1b[37m", // White text on red background
-// 	},
-// 	emojis: {
-// 		// Override default emojis if needed
-// 		debug: "🔍",
-// 	},
-// };
-// nextConfig = withLogFlare(logFlareOptions)(nextConfig);
-
-export default nextConfig;
+export default withPlugins(nextConfig);
