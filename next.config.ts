@@ -1,8 +1,8 @@
 import {
 	buildTimeFeatureFlags,
 	isBuilderEnabled,
-	isPayloadEnabled,
 	isMDXEnabled,
+	isPayloadEnabled,
 	isPwaEnabled,
 } from "@/config/features-config";
 import { FILE_UPLOAD_MAX_SIZE } from "@/config/file";
