@@ -328,8 +328,8 @@ export const siteConfig: SiteConfig = {
 		launchHandler: { client_mode: ["navigate-existing", "auto"] },
 		icons: {
 			favicon: "/favicon.ico",
-			appIcon192: "/shipkit/web-app-manifest-192x192.png",
-			appIcon512: "/shipkit/web-app-manifest-512x512.png",
+			appIcon192: "/app/web-app-manifest-192x192.png",
+			appIcon512: "/app/web-app-manifest-512x512.png",
 		},
 		relatedApplications: [],
 	},

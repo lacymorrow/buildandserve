@@ -84,14 +84,14 @@ export default function manifest(): MetadataRoute.Manifest {
 		 */
 		screenshots: [
 			{
-				src: "/assets/screenshots/screenshot-desktop.png", // Updated path
+				src: "/app/screenshots/screenshot-desktop.png", // Updated path
 				sizes: "1280x720",
 				type: "image/png",
 				form_factor: "wide", // Indicates this is for wide screens (desktop)
 				label: `Desktop view of ${siteConfig.branding.projectName}`,
 			},
 			{
-				src: "/assets/screenshots/screenshot-mobile.png", // Updated path
+				src: "/app/screenshots/screenshot-mobile.png", // Updated path
 				sizes: "720x1280",
 				type: "image/png",
 				form_factor: "narrow", // Indicates this is for narrow screens (mobile)
