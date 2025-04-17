@@ -1,17 +1,6 @@
-"use client";
-
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+import { DeleteAccountCard } from "@/app/(app)/settings/_components/delete-account-card";
+import { GitHubConnectButton } from "@/components/buttons/github-connect-button";
+import { VercelConnectButton } from "@/components/shipkit/vercel-connect-button";
 import {
 	Card,
 	CardContent,
@@ -21,39 +10,38 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { deleteAccount } from "@/server/actions/settings";
-import { signOut } from "next-auth/react";
-import * as React from "react";
-import { toast } from "sonner";
+import { auth } from "@/server/auth";
+import { checkVercelConnection } from "@/server/services/vercel/vercel-service";
+import { redirect } from "next/navigation";
 
-export default function AccountPage() {
-	const [isPending, startTransition] = React.useTransition();
-	const [isOpen, setIsOpen] = React.useState(false);
+export default async function AccountPage() {
+	const session = await auth();
+	if (!session?.user) redirect("/login");
 
-	function handleDeleteAccount() {
-		if (isPending) return;
+	const userId = session.user.id;
 
-		startTransition(async () => {
-			try {
-				const result = await deleteAccount();
+	// Check if user has connected Vercel using our server-side function
+	const hasVercelConnection = await checkVercelConnection(userId);
 
-				if (!result.success) {
-					toast.error(result.error ?? "Failed to delete account");
-					return;
-				}
-
-				toast.success(result.message);
-
-				// Sign out and redirect to home page
-				await signOut({ callbackUrl: "/" });
-			} catch (error) {
-				console.error("Delete account error:", error);
-				toast.error("An unexpected error occurred");
-			} finally {
-				setIsOpen(false);
-			}
-		});
-	}
+	// Define the connected accounts based on session data
+	const connectedAccounts = [
+		{
+			name: "GitHub",
+			connected: !!session?.user?.githubUsername,
+			username: session?.user?.githubUsername,
+		},
+		{
+			name: "GitLab",
+			connected: false,
+			username: null,
+		},
+		{
+			name: "Bitbucket",
+			connected: false,
+			username: null,
+		},
+		// Add more providers here as they become available
+	];
 
 	return (
 		<div className="space-y-6">
@@ -64,48 +52,83 @@ export default function AccountPage() {
 				</p>
 			</div>
 			<Separator />
+
+			{/* Vercel Connection */}
 			<Card>
 				<CardHeader>
-					<CardTitle>Delete Account</CardTitle>
+					<CardTitle>Vercel Connection</CardTitle>
 					<CardDescription>
-						Permanently delete your account and all associated data.
+						Connect your Vercel account to deploy projects directly.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<p className="text-sm text-muted-foreground">
-						This action cannot be undone. All your data will be permanently
-						deleted.
-					</p>
+					<div className="space-y-2">
+						<p>
+							{hasVercelConnection
+								? "Your Vercel account is connected. You can now deploy projects directly to Vercel."
+								: "Connect your Vercel account to deploy projects directly from Shipkit."}
+						</p>
+					</div>
 				</CardContent>
 				<CardFooter>
-					<AlertDialog open={isOpen} onOpenChange={setIsOpen}>
-						<AlertDialogTrigger asChild>
-							<Button variant="destructive">Delete Account</Button>
-						</AlertDialogTrigger>
-						<AlertDialogContent>
-							<AlertDialogHeader>
-								<AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-								<AlertDialogDescription>
-									This action cannot be undone. This will permanently delete
-									your account and remove all associated data from our servers.
-								</AlertDialogDescription>
-							</AlertDialogHeader>
-							<AlertDialogFooter>
-								<AlertDialogCancel disabled={isPending}>
-									Cancel
-								</AlertDialogCancel>
-								<AlertDialogAction
-									onClick={handleDeleteAccount}
-									disabled={isPending}
-									className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-								>
-									{isPending ? "Deleting..." : "Delete Account"}
-								</AlertDialogAction>
-							</AlertDialogFooter>
-						</AlertDialogContent>
-					</AlertDialog>
+					<VercelConnectButton user={session?.user} className="w-full" />
 				</CardFooter>
 			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>GitHub Connection</CardTitle>
+					<CardDescription>
+						Connect your GitHub account to access the repository.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<GitHubConnectButton />
+				</CardContent>
+			</Card>
+
+			{/* Connected Accounts */}
+			{/* <Card>
+				<CardHeader>
+					<CardTitle>Connected Accounts</CardTitle>
+					<CardDescription>
+						Manage your connected accounts and authentication methods.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					{connectedAccounts.map((account) => (
+						<div
+							key={account.name}
+							className="flex items-center justify-between space-x-4"
+						>
+							<div className="flex flex-col space-y-1">
+								<span className="font-medium">{account.name}</span>
+								{account.connected ? (
+									<span className="text-sm text-muted-foreground">
+										Connected as {account.username}
+									</span>
+								) : (
+									<span className="text-sm text-muted-foreground">
+										Not connected
+									</span>
+								)}
+							</div>
+							<Button
+								onClick={() => {
+
+								}}
+								variant={account.connected ? "outline" : "default"}
+								disabled={!account.name.toLowerCase().includes("github")}
+							>
+								{account.connected ? "Disconnect" : "Connect"}
+							</Button>
+						</div>
+					))}
+				</CardContent>
+			</Card> */}
+
+			{/* Delete Account */}
+			<DeleteAccountCard />
 		</div>
 	);
 }

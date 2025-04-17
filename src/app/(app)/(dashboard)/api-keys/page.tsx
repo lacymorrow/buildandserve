@@ -28,13 +28,17 @@ export default async function ApiKeysPage() {
 
 		// Filter out deleted API keys and map to the format expected by DataTable
 		const activeApiKeys = userApiKeys
-			.filter(({ apiKey }) => !apiKey.deletedAt)
+			?.filter(({ apiKey }) => !apiKey.deletedAt)
 			.map(({ apiKey }) => ({
 				...apiKey,
 				createdAt: new Date(apiKey.createdAt),
 				lastUsedAt: apiKey.lastUsedAt ? new Date(apiKey.lastUsedAt) : null,
 				expiresAt: apiKey.expiresAt ? new Date(apiKey.expiresAt) : null,
 			}));
+
+		if (!activeApiKeys) {
+			return <div>No API keys found.</div>;
+		}
 
 		return (
 			<div className="container mx-auto py-10">

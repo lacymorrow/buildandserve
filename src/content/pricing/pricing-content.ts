@@ -1,4 +1,4 @@
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 
 export interface PricingPlan {
 	title: string;
@@ -73,11 +73,7 @@ export const oneTimePlans: PricingPlan[] = [
 		description: "Enterprise-grade with custom features",
 		price: { oneTime: 149 },
 		href: siteConfig.store.format.buyUrl("brains"),
-		features: [
-			"Everything in Muscles +",
-			"Custom Integrations",
-			"Advanced AI Tools",
-		],
+		features: ["Everything in Muscles +", "Custom Integrations", "Advanced AI Tools"],
 		isComingSoon: true,
 	},
 ];
@@ -101,11 +97,7 @@ export const subscriptionPlans: PricingPlan[] = [
 			monthly: 49,
 			annually: 39,
 		},
-		features: [
-			"20 users included",
-			"10 GB of storage",
-			"Priority email support",
-		],
+		features: ["20 users included", "10 GB of storage", "Priority email support"],
 		infos: ["50 users included", "30 GB of storage", "Phone and email support"],
 		href: "#",
 		isBestValue: true,
@@ -117,11 +109,7 @@ export const subscriptionPlans: PricingPlan[] = [
 			monthly: 99,
 			annually: 79,
 		},
-		features: [
-			"50 users included",
-			"30 GB of storage",
-			"Phone & email support",
-		],
+		features: ["50 users included", "30 GB of storage", "Phone & email support"],
 		infos: ["100 users included", "60 GB of storage", "24/7 support"],
 		href: "#",
 	},

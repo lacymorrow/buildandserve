@@ -42,7 +42,7 @@ export function CardsDemo() {
 			</div>
 			<div className="space-y-4 lg:col-span-6 xl:col-span-5 xl:space-y-4">
 				<div className="hidden gap-1 sm:grid-cols-[260px_1fr] md:grid">
-					<CardsCalendar />
+					{/* <CardsCalendar /> */}
 					<div className="pt-3 sm:pl-2 sm:pt-0 xl:pl-3">
 						<CardsActivityGoal />
 					</div>

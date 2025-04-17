@@ -1,12 +1,13 @@
-import { AuthForm } from "@/app/(app)/(authentication)/_components/login-form";
-import { SignInForm } from "@/app/(app)/(authentication)/sign-in/_components/sign-in-form";
-import { ConfettiSideCannons } from "@/components/magicui/confetti/confetti-side-cannons";
+import { AuthForm } from "@/app/(app)/(authentication)/_components/auth-form";
+import { SignIn } from "@/app/(app)/(authentication)/sign-in/_components/sign-in";
+import { LoginButton } from "@/components/buttons/sign-in-button";
 import { Link } from "@/components/primitives/link-with-transition";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfettiSideCannons } from "@/components/ui/magicui/confetti/confetti-side-cannons";
 import { SparklesCore } from "@/components/ui/sparkles";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { logger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
 import { downloadRepoAnonymously } from "@/server/actions/github/download-repo";
@@ -141,6 +142,7 @@ export default async function CheckoutSuccessPage({ searchParams: searchParamsPr
 					orderId: orderId,
 					status: status,
 					amount: 0,
+					processor: paymentProcessor,
 					metadata: JSON.stringify({
 						searchParams,
 						customData,
@@ -194,7 +196,7 @@ export default async function CheckoutSuccessPage({ searchParams: searchParamsPr
 				{/* Content */}
 				<div className="relative z-10 mx-auto flex min-h-screen max-w-5xl flex-col items-center justify-center px-4 py-20">
 					<h1 className="mb-8 text-center text-xl font-bold">
-						Success
+						Success!
 					</h1>
 					<div className="mb-8 text-center">
 						<h2 className="mb-2 text-4xl font-semibold">
@@ -223,9 +225,7 @@ export default async function CheckoutSuccessPage({ searchParams: searchParamsPr
 							</Button>
 						</Card>
 					) : (
-						<AuthForm mode="sign-in" title="Sign in to get started" description="Get repository access and deploy your site in minutes">
-							<SignInForm />
-						</AuthForm>
+						<LoginButton />
 					)}
 
 					{canDownload && (

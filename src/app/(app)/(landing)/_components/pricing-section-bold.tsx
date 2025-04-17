@@ -1,8 +1,6 @@
-import { siteConfig } from "@/config/site";
-import { CheckIcon } from "lucide-react";
-import type React from "react";
-import advancedGradient from "./advanced-gradient.jpg";
 import type { PricingPlan } from "@/content/pricing/pricing-content";
+import { CheckIcon } from "lucide-react";
+import advancedGradient from "./advanced-gradient.jpg";
 
 export interface PricingSectionBoldProps {
 	plans: PricingPlan[];

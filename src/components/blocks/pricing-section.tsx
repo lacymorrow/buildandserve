@@ -2,7 +2,7 @@ import { Link } from "@/components/primitives/link-with-transition"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { routes } from "@/config/routes"
-import { siteConfig } from "@/config/site"
+import { siteConfig } from "@/config/site-config"
 import { cn } from "@/lib/utils"
 import { ArrowRight, Check, Sparkles } from 'lucide-react'
 
@@ -17,7 +17,7 @@ export function PricingSectionSingle() {
 
 					<CardHeader className="relative space-y-4 p-8 text-center sm:p-12">
 						<div className="flex items-center justify-center gap-2">
-							<h2 className="text-3xl font-bold sm:text-4xl">Shipkit</h2>
+							<h2 className="text-3xl font-bold sm:text-4xl">{siteConfig.name}</h2>
 							<Sparkles className="h-6 w-6 text-purple-400" />
 						</div>
 

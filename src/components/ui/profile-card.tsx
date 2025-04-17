@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { ExternalLink, Link as LinkIcon, Mail, MapPin } from "lucide-react";
 import Image from "next/image";
 

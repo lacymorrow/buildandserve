@@ -1,9 +1,9 @@
 "use client";
 
+import { Link } from "@/components/primitives/link-with-transition";
 import type { BlogPost } from "@/lib/blog";
 import { cn } from "@/lib/utils";
 import { ChevronDownIcon } from "lucide-react";
-import { Link } from "@/components/primitives/link-with-transition";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 

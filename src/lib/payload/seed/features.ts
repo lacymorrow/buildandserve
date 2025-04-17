@@ -30,7 +30,7 @@ export const seedFeatures = async () => {
 					console.error(`Error creating feature: ${feature.name}`, error);
 					throw error;
 				}
-			}),
+			})
 		);
 
 		console.info(`✅ Created ${createdFeatures.length} features`);

@@ -1,5 +1,5 @@
 import type { Route } from "next";
-import { siteConfig } from "./site";
+import { siteConfig } from "./site-config";
 type ParamValue = string | number | null;
 export type RouteParams = Record<string, ParamValue>;
 
@@ -20,11 +20,11 @@ export const routes = {
 	docs: "/docs",
 	blog: "/blog",
 	contact: "/contact",
-	support: `mailto:${siteConfig.email.support}`,
 
 	// Legal routes
 	terms: "/terms-of-service",
 	privacy: "/privacy-policy",
+	eula: "/eula",
 
 	// Marketing routes
 	faq: "/faq",
@@ -34,21 +34,24 @@ export const routes = {
 
 	// App routes
 	download: "/download",
-	components: "/components",
 	tasks: "/tasks",
 
 	checkoutSuccess: "/checkout/success",
 
-	// Integration routes
-	vercelDeploy: "/connect/vercel/deploy",
-	vercelDeployWebhook: "/connect/vercel/deploy/webhook",
-	// Auth routes
+	// CMS routes
+	cms: {
+		index: "/cms",
+		signIn: "/cms/sign-in",
+		api: "/cms-api",
+	},
+
 	// Auth routes
 	auth: {
 		signIn: "/sign-in",
 		signUp: "/sign-up",
 		signOut: "/sign-out",
 		forgotPassword: "/forgot-password",
+		resetPassword: "/reset-password",
 		signInPage: "/api/auth/signin",
 		signOutPage: "/api/auth/signout",
 		signOutIn: "/sign-out-in",
@@ -62,10 +65,8 @@ export const routes = {
 		logs: "/logs",
 		network: "/network",
 		live: "/live",
-		settings: "/settings",
 		tools: "/tools",
 		downloads: "/downloads",
-		admin: "/admin",
 		activity: "/activity",
 		projects: "/projects",
 		teams: "/teams",
@@ -73,27 +74,61 @@ export const routes = {
 
 	// Admin routes
 	admin: {
-		root: "/admin",
-		activity: "/admin/activity",
+		index: "/admin",
 		users: "/admin/users",
 		github: "/admin/github",
-		cms: "/admin/cms",
-		ai: "/admin/ai",
+		integrations: "/admin/integrations",
 		feedback: "/admin/feedback",
 		payments: "/admin/payments",
 	},
 
+	settings: {
+		index: "/settings",
+		account: "/settings/account",
+		profile: "/settings/profile",
+		appearance: "/settings/appearance",
+		security: "/settings/security",
+	},
+
+	// API routes
+	api: {
+		download: "/api/download",
+		apiKeys: "/api/api-keys",
+		apiKey: createRoute("/api/api-keys/:key", { key: null }),
+		live: "/api/live-logs",
+		sse: "/api/sse-logs",
+		sendTestLog: "/api/send-test-log",
+		activityStream: "/api/activity/stream",
+		logger: "/v1",
+	},
+
+	// Integration routes
+	githubConnect: "/connect/github",
+	vercelDeploy: "/connect/vercel/deploy",
+	vercelDeployWebhook: "/connect/vercel/deploy/webhook",
+
 	// Example routes
 	examples: {
-		root: "/examples",
+		index: "/examples",
 		dashboard: "/examples/dashboard",
 		forms: "/examples/forms",
 		authentication: "/examples/authentication",
 		notifications: "/examples/forms/notifications",
 		profile: "/examples/forms/profile",
+		vercelDeploy: "/examples/vercel-deploy",
 	},
+
+	// Pages Router demo routes
+	pages: {
+		index: "/pages",
+		static: "/pages/static",
+		dynamic: "/pages/dynamic",
+		apiExample: "/pages/api-example",
+		markdown: "/pages/markdown",
+	},
+
 	ai: {
-		root: "/ai",
+		index: "/ai",
 		codeCompletion: "/ai/code-completion",
 		crossEncoder: "/ai/cross-encoder",
 		spam: "/ai/spam",
@@ -129,27 +164,20 @@ export const routes = {
 		deepseekWeb: "/ai/deepseek-web",
 	},
 
-	// API routes
-	api: {
-		download: "/api/download",
-		apiKeys: "/api/api-keys",
-		apiKey: createRoute("/api/api-keys/:key", { key: null }),
-		live: "/api/live-logs",
-		sse: "/api/sse-logs",
-		sendTestLog: "/api/send-test-log",
-		activityStream: "/api/activity/stream",
-		logger: "/v1",
-		githubConnect: "/api/github/connect",
-		githubDisconnect: "/api/github/disconnect",
-	},
-
 	// Worker routes
 	workers: {
 		logger: "/workers/workers/logger-worker.js",
 	},
+
 	// Demo routes
 	demo: {
+		// CMS Demo routes
+		builderio: "/builder",
+		payloadCms: "/payload",
+
 		network: "/network",
+
+		// TRPC example from T3.gg
 		trpc: "/trpc",
 	},
 
@@ -159,7 +187,7 @@ export const routes = {
 		bones: `https://${siteConfig.branding.productNames.bones.toLowerCase()}.${siteConfig.branding.domain}`,
 		log: `https://log.${siteConfig.branding.productNames.bones.toLowerCase()}.${siteConfig.branding.domain}`,
 		ui: `https://ui.${siteConfig.branding.productNames.bones.toLowerCase()}.${siteConfig.branding.domain}`,
-		buy: siteConfig.store.format.buyUrl("muscles"),
+		buy: siteConfig.store.format.buyUrl("shipkit"),
 		discord: "https://discord.gg/XxKrKNvEje",
 		twitter: siteConfig.links.twitter,
 		twitter_follow: siteConfig.links.twitter_follow,
@@ -169,9 +197,13 @@ export const routes = {
 		docs: "/docs",
 		email: `mailto:${siteConfig.creator.email}`,
 		github: siteConfig.repo.url,
-		vercelDeployShipkit: `https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2F${siteConfig.repo.owner}%2F${siteConfig.repo.name}&env=NEXT_PUBLIC_BUILDER_API_KEY&envDescription=Builder.io%20API&envLink=https%3A%2F%2Fwww.builder.io%2F&project-name=${siteConfig.branding.projectName.toLowerCase()}-app&repository-name=${siteConfig.branding.projectName.toLowerCase()}-app&redirect-url=https%3A%2F%2F${siteConfig.branding.domain}%2Fconnect%2Fvercel%2Fdeploy&developer-id=oac_KkY2TcPxIWTDtL46WGqwZ4BF&production-deploy-hook=${siteConfig.branding.projectName}%20Deploy&demo-title=${siteConfig.branding.projectName}%20Preview&demo-description=The%20official%20${siteConfig.branding.projectName}%20Preview.%20A%20full%20featured%20demo%20with%20dashboards%2C%20AI%20tools%2C%20and%20integrations%20with%20Docs%2C%20Payload%2C%20and%20Builder.io&demo-url=https%3A%2F%2F${siteConfig.branding.domain}%2Fdemo&demo-image=//assets.vercel.com%2Fimage%2Fupload%2Fcontentful%2Fimage%2Fe5382hct74si%2F4JmubmYDJnFtstwHbaZPev%2F0c3576832aae5b1a4d98c8c9f98863c3%2FVercel_Home_OG.png`,
-		vercelImportShipkit: `https://vercel.com/new/import?s=https%3A%2F%2Fgithub.com%2F${siteConfig.repo.owner}%2F${siteConfig.repo.name}&hasTrialAvailable=1&project-name=${siteConfig.branding.projectName.toLowerCase()}&framework=nextjs&buildCommand=pnpm%20run%20build&installCommand=pnpm%20install&demo-title=${siteConfig.branding.projectName}&demo-description=${siteConfig.branding.projectName}.%20The%20complete%20site%20building%20toolkit%20with%20dashboards%2C%20AI%20tools%2C%20and%20integrations%20with%20Docs%2C%20Payload%2C%20and%20Builder.io&demo-url=https%3A%2F%2F${siteConfig.branding.domain}%2Fdemo&demo-image=//assets.vercel.com%2Fimage%2Fupload%2Fcontentful%2Fimage%2Fe5382hct74si%2F4JmubmYDJnFtstwHbaZPev%2F0c3576832aae5b1a4d98c8c9f98863c3%2FVercel_Home_OG.png&developer-id=oac_KkY2TcPxIWTDtL46WGqwZ4BF&production-deploy-hook=${siteConfig.branding.projectName}%20Deploy`,
-		vercelDeployBones: `https://vercel.com/new/clone?repository-url=https://github.com/${siteConfig.branding.githubOrg}/${siteConfig.branding.githubRepo}&project-name=${siteConfig.branding.vercelProjectName}&repository-name=${siteConfig.branding.vercelProjectName}&redirect-url=https://${siteConfig.branding.domain}/connect/vercel/deploy&developer-id=oac_KkY2TcPxIWTDtL46WGqwZ4BF&production-deploy-hook=${siteConfig.branding.projectName}%20Deploy&demo-title=${siteConfig.branding.projectName}%20Preview&demo-description=The%20official%20${siteConfig.branding.projectName}%20Preview.%20A%20full%20featured%20demo%20with%20dashboards,%20AI%20tools,%20and%20integrations%20with%20Docs,%20Payload,%20and%20Builder.io&demo-url=https://${siteConfig.branding.domain}/demo&demo-image=//assets.vercel.com/image/upload/contentful/image/e5382hct74si/4JmubmYDJnFtstwHbaZPev/0c3576832aae5b1a4d98c8c9f98863c3/Vercel_Home_OG.png`,
+		vercelDeployShipkit:
+			"https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flacymorrow%2Fshipkit&env=ADMIN_EMAILS&envDescription=Required%20environment%20variables%20for%20Shipkit&envLink=https%3A%2F%2Fshipkit.io%2Fdocs%2Fenv&project-name=shipkit-app&repository-name=shipkit-app&redirect-url=https://shipkit.io/connect/vercel/deploy&developer-id=oac_KkY2TcPxIWTDtL46WGqwZ4BF&production-deploy-hook=Shipkit%20Deploy&demo-title=Shipkit%20Preview&demo-description=The%20official%20Shipkit%20Preview.%20A%20full%20featured%20demo%20with%20dashboards%2C%20AI%20tools%2C%20and%20integrations%20with%20Docs%2C%20Payload%2C%20and%20Builder.io&demo-url=https%3A%2F%2Fshipkit.io%2Fdemo&demo-image=//assets.vercel.com%2Fimage%2Fupload%2Fcontentful%2Fimage%2Fe5382hct74si%2F4JmubmYDJnFtstwHbaZPev%2F0c3576832aae5b1a4d98c8c9f98863c3%2FVercel_Home_OG.png",
+			// &integration-ids=oac_KkY2TcPxIWTDtL46WGqwZ4BF
+		vercelImportShipkit:
+			"https://vercel.com/new/import?s=https%3A%2F%2Fgithub.com%2Flacymorrow%2Fshipkit&hasTrialAvailable=1&project-name=shipkit&framework=nextjs&buildCommand=pnpm%20run%20build&installCommand=pnpm%20install&env=ADMIN_EMAILS&integration-ids=oac_KkY2TcPxIWTDtL46WGqwZ4BF&envDescription=Set%20administrator%20access%20for%20your%20deployment&envLink=https%3A%2F%2Fshipkit.io%2Fdocs%2Fenv&redirect-url=https://shipkit.io/connect/vercel/deploy&demo-title=Shipkit&demo-description=Shipkit.%20The%20complete%20site%20building%20toolkit%20with%20dashboards%2C%20AI%20tools%2C%20and%20integrations%20with%20Docs%2C%20Payload%2C%20and%20Builder.io&demo-url=https%3A%2F%2Fshipkit.io%2Fdemo&demo-image=//assets.vercel.com%2Fimage%2Fupload%2Fcontentful%2Fimage%2Fe5382hct74si%2F4JmubmYDJnFtstwHbaZPev%2F0c3576832aae5b1a4d98c8c9f98863c3%2FVercel_Home_OG.png&developer-id=oac_KkY2TcPxIWTDtL46WGqwZ4BF&production-deploy-hook=Shipkit%20Deploy",
+		vercelDeployBones:
+			"https://vercel.com/new/clone?repository-url=https://github.com/shipkit-io/bones&env=ADMIN_EMAILS&envDescription=Set%20administrator%20access%20for%20your%20deployment&envLink=https%3A%2F%2Fshipkit.io%2Fdocs%2Fenv&project-name=bones-app&repository-name=bones-app&redirect-url=https://shipkit.io/connect/vercel/deploy&developer-id=oac_KkY2TcPxIWTDtL46WGqwZ4BF&production-deploy-hook=Shipkit%20Deploy&demo-title=Shipkit%20Preview&demo-description=The%20official%20Shipkit%20Preview.%20A%20full%20featured%20demo%20with%20dashboards,%20AI%20tools,%20and%20integrations%20with%20Docs,%20Payload,%20and%20Builder.io&demo-url=https://shipkit.io/demo&demo-image=//assets.vercel.com/image/upload/contentful/image/e5382hct74si/4JmubmYDJnFtstwHbaZPev/0c3576832aae5b1a4d98c8c9f98863c3/Vercel_Home_OG.png",
 	},
 };
 

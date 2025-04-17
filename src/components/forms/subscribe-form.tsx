@@ -6,7 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { addAudienceUser } from "@/server/actions/resend-actions";
 import { ArrowRightIcon } from "@radix-ui/react-icons";
-import React, { useState } from "react";
+import type React from "react";
+import { useState } from "react";
 
 export const SubscribeForm: React.FC = () => {
 	const [email, setEmail] = useState("");
@@ -53,10 +54,7 @@ export const SubscribeForm: React.FC = () => {
 	};
 
 	return (
-		<form
-			onSubmit={handleSubmit}
-			className="flex flex-col gap-md"
-		>
+		<form onSubmit={handleSubmit} className="flex flex-col gap-md">
 			<p className="">Sign up to be notified of new features and updates.</p>
 			<div className="relative flex items-center justify-center">
 				<Input
@@ -72,7 +70,7 @@ export const SubscribeForm: React.FC = () => {
 					variant="outline"
 					disabled={status === "loading"}
 					className={cn(
-						"absolute bottom-0 right-0 top-0 z-10 rounded-s-none border-0 border-s-0 bg-transparent text-primary",
+						"absolute bottom-0 right-0 top-0 z-10 rounded-s-none border-0 border-s-0 bg-transparent text-primary"
 					)}
 				>
 					{status === "loading" ? (

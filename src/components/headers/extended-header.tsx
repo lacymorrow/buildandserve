@@ -1,17 +1,21 @@
 "use client";
 
+import { Icon } from "@/components/assets/icon";
+import { LoginButton } from "@/components/buttons/sign-in-button";
 import { Link } from "@/components/primitives/link-with-transition";
+import { SearchAi } from "@/components/search/search-ai";
+import { UserMenu } from "@/components/shipkit/user-menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/ui/theme";
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger
 } from "@/components/ui/tooltip";
-import { UserMenu } from "@/components/ui/user-menu";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
 import { HamburgerMenuIcon } from "@radix-ui/react-icons";
 import { useWindowScroll } from "@uidotdev/usehooks";
@@ -19,12 +23,11 @@ import { cva } from "class-variance-authority";
 import { useSession } from "next-auth/react";
 import type React from "react";
 import { useMemo } from "react";
-
-import { LoginButton } from "@/components/buttons/login-button";
-import { Logo } from "@/components/images/logo";
-import { SearchAi } from "@/components/search/search-ai";
-import styles from "@/styles/header.module.css";
 import { BuyButton } from "../buttons/buy-button";
+
+import styles from "@/styles/header.module.css";
+import { AnimatePresence, motion } from "framer-motion";
+import type { User } from "next-auth";
 
 interface NavLink {
 	href: string;
@@ -39,6 +42,7 @@ interface HeaderProps {
 	logoText?: string;
 	searchPlaceholder?: string;
 	variant?: "default" | "sticky" | "floating";
+	user?: User;
 }
 
 const defaultNavLinks = [
@@ -65,14 +69,17 @@ const headerVariants = cva(
 
 export const Header: React.FC<HeaderProps> = ({
 	logoHref = routes.home,
-	logoIcon = <Logo className="h-5 w-5" />,
+	logoIcon = <Icon className="h-5 w-5" />,
 	logoText = siteConfig.name,
 	navLinks = defaultNavLinks,
 	variant = "default",
+	user,
 }) => {
 	const [{ y }] = useWindowScroll();
 	const isOpaque = useMemo(() => variant === "floating" && y && y > 100, [y, variant]);
 	const { data: session } = useSession();
+
+	const isLoggedIn = !!session?.user || !!user;
 
 	return (
 		<>
@@ -96,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
 							<span className="sr-only">{logoText}</span>
 						</Link>
 						<div className="hidden items-center justify-between gap-md text-sm md:flex">
-							{session && (
+							{isLoggedIn && (
 								<Link
 									key={routes.docs}
 									href={routes.docs}
@@ -156,7 +163,7 @@ export const Header: React.FC<HeaderProps> = ({
 										{link.label}
 									</Link>
 								))}
-								{!session && (
+								{!isLoggedIn && (
 									<>
 										<Link
 											href={routes.auth.signIn}
@@ -173,7 +180,7 @@ export const Header: React.FC<HeaderProps> = ({
 										)} />
 									</>
 								)}
-								{session && (
+								{isLoggedIn && (
 									<>
 										<Link
 											href={routes.docs}
@@ -198,44 +205,65 @@ export const Header: React.FC<HeaderProps> = ({
 						</SheetContent>
 					</Sheet>
 					<div className="flex items-center gap-2 md:ml-auto lg:gap-4">
-						<SearchAi />
+						<SearchAi className="hidden md:block" />
 
 						<div className="flex items-center gap-2">
-							{!session && (
-								<ThemeToggle variant="ghost" size="icon" className="rounded-full" />
+							{/* If they are not signed in, we need to show the theme toggle. */}
+							{!isLoggedIn && (
+								<ThemeToggle variant="ghost" size="icon" className="hidden md:block rounded-full" />
 							)}
 
-							<UserMenu size="sm" />
+							<UserMenu user={user} size="sm" />
 
-							{!session && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<div className="relative -m-4 p-4" style={{ colorScheme: "light" }}>
-											<BuyButton />
-										</div>
-									</TooltipTrigger>
-									<TooltipContent
-										side="bottom"
-										sideOffset={3}
-										className="-mt-3 select-none border-none bg-transparent p-0 text-xs text-muted-foreground shadow-none data-[state=delayed-open]:animate-fadeDown"
-									>
-										<LoginButton className="hover:text-foreground">
-											or Login
-										</LoginButton>
-									</TooltipContent>
-								</Tooltip>
+							<div className="hidden md:flex items-center gap-2">
+								{!session && (
+									<AnimatePresence mode="wait">
+										{y && y > 700 ? (
+											<motion.div
+												key="compact"
+												initial={{ opacity: 0, scale: 0.9 }}
+												animate={{ opacity: 1, scale: 1 }}
+												exit={{ opacity: 0, scale: 0.9 }}
+												transition={{ duration: 0.1 }}
+											>
+												<TooltipProvider delayDuration={0}>
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<div className="relative -m-4 p-4">
+																<BuyButton />
+															</div>
+														</TooltipTrigger>
+														<TooltipContent
+															side="bottom"
+															sideOffset={3}
+															className="-mt-3 select-none border-none bg-transparent p-0 text-xs text-muted-foreground shadow-none data-[state=delayed-open]:animate-fadeDown"
+														>
+															<LoginButton className="hover:text-foreground">
+																or Login
+															</LoginButton>
+														</TooltipContent>
+													</Tooltip>
+												</TooltipProvider>
+											</motion.div>
+										) : (
+											<motion.div
+												key="full"
+												initial={{ opacity: 0, scale: 0.9 }}
+												animate={{ opacity: 1, scale: 1 }}
+												exit={{ opacity: 0, scale: 0.9 }}
+												transition={{ duration: 0.1 }}
+											>
+												<LoginButton
+													className={cn(buttonVariants({ variant: "outline" }), "")}
+												>
+													Dashboard
+												</LoginButton>
+											</motion.div>
+										)}
+									</AnimatePresence>
+								)}
+							</div>
 
-								// <AnimatePresence>
-								// 	{y && y > 700 ? (
-								// 		// <motion.div
-								// 		// 	key="compact"
-								// 		// 	initial={{ opacity: 0, scale: 0.9 }}
-								// 		// 	animate={{ opacity: 1, scale: 1 }}
-								// 		// 	exit={{ opacity: 0, scale: 0.9 }}
-								// 		// 	transition={{ duration: 0.1 }}
-								// 		// >
-								// 	)}
-							)}
 						</div>
 					</div>
 				</nav>

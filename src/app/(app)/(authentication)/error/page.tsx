@@ -1,8 +1,8 @@
 "use client";
 
+import { Link } from "@/components/primitives/link-with-transition";
 import { buttonVariants } from "@/components/ui/button";
 import { routes } from "@/config/routes";
-import { Link } from "@/components/primitives/link-with-transition";
 import { useSearchParams } from "next/navigation";
 
 enum Error {

@@ -29,7 +29,7 @@ const sectionStyles = cva(
 
 export interface SectionProps
 	extends React.HTMLAttributes<HTMLElement>,
-		VariantProps<typeof sectionStyles> {
+	VariantProps<typeof sectionStyles> {
 	children: React.ReactNode;
 }
 

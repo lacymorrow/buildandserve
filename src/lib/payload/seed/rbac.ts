@@ -1,14 +1,7 @@
 import { payload } from "../payload";
 
 // Define common resources and actions
-const resources = [
-	"team",
-	"project",
-	"user",
-	"api_key",
-	"billing",
-	"settings",
-] as const;
+const resources = ["team", "project", "user", "api_key", "billing", "settings"] as const;
 
 const actions = ["create", "read", "update", "delete", "manage"] as const;
 
@@ -96,8 +89,8 @@ export const seedRBAC = async () => {
 						},
 					});
 					return permission;
-				}),
-			),
+				})
+			)
 		);
 
 		console.info(`✅ Created ${createdPermissions.length} permissions`);
@@ -107,14 +100,11 @@ export const seedRBAC = async () => {
 			defaultRoles.map(async (roleData) => {
 				// Find relevant permissions for this role
 				const rolePermissions = createdPermissions.filter((permission) => {
-					const rolePerms = roleData.permissions.find(
-						(p) => p.resource === permission?.resource,
-					);
+					const rolePerms = roleData.permissions.find((p) => p.resource === permission?.resource);
 					return (
 						rolePerms &&
 						(rolePerms.actions.includes(permission?.action as Action) ||
-							(rolePerms.actions.includes("manage" as Action) &&
-								permission?.action === "manage"))
+							(rolePerms.actions.includes("manage" as Action) && permission?.action === "manage"))
 					);
 				});
 
@@ -130,7 +120,7 @@ export const seedRBAC = async () => {
 				});
 
 				return role;
-			}),
+			})
 		);
 
 		console.info(`✅ Created ${createdRoles.length} roles`);

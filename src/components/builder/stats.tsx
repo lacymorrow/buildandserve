@@ -2,7 +2,6 @@
 
 import { cn } from '@/lib/utils'
 import { Builder } from '@builder.io/react'
-import * as React from 'react'
 
 interface Stat {
 	value: string

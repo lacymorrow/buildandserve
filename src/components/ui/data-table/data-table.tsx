@@ -27,6 +27,7 @@ import {
 } from "@tanstack/react-table";
 import * as React from "react";
 
+import { Loader } from "@/components/primitives/loader";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -38,7 +39,6 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Loading } from "@/components/ui/loading";
 import {
 	Table,
 	TableBody,
@@ -289,7 +289,7 @@ export function DataTable<TData, TValue>({
 									colSpan={columns.length + (onEdit || onDelete || rowActions ? 1 : 0)}
 									className="h-24 text-center"
 								>
-									{isLoading ? <Loading /> : "No results."}
+									{isLoading ? <Loader /> : "No results."}
 								</TableCell>
 							</TableRow>
 						)}

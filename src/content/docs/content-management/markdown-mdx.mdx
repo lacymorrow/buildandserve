@@ -1,0 +1,76 @@
+---
+title: 'Markdown and MDX'
+description: 'Using Markdown and MDX for content in ShipKit'
+---
+
+# Markdown and MDX
+
+ShipKit supports Markdown and MDX for content authoring, providing a developer-friendly way to create and manage content.
+
+## Overview
+
+Markdown is a lightweight markup language that allows you to write formatted content using plain text. MDX extends Markdown by allowing you to include JSX components directly in your content.
+
+## File Structure
+
+Markdown and MDX files in ShipKit are organized in the `src/content` directory:
+
+```
+src/content/
+├── docs/            # Documentation content
+├── blog/            # Blog posts
+src/pages/           # Static pages
+```
+
+## Creating Content
+
+1. Create a new `.md` or `.mdx` file in the appropriate directory
+2. Add frontmatter at the top of the file for metadata
+3. Write your content using Markdown syntax
+4. For MDX, import and use React components as needed
+
+## Frontmatter
+
+Use frontmatter to define metadata for your content:
+
+```md
+---
+title: 'My Page Title'
+description: 'A brief description of the page'
+date: '2023-01-01'
+author: 'John Doe'
+---
+
+# Content starts here
+```
+
+## Using Components in MDX
+
+MDX allows you to import and use React components:
+
+```mdx
+---
+title: 'Interactive Page'
+---
+
+import { Button } from '@/components/ui/button';
+
+# Interactive Content
+
+Click the button below:
+
+<Button>Click Me</Button>
+```
+
+## Accessing Content
+
+Content created with Markdown and MDX is automatically available at the URL matching its file path:
+
+- `src/content/pages/about.mdx` will be available at `/about`
+- `src/content/blog/hello-world.mdx` will be available at `/blog/hello-world`
+
+## Resources
+
+- [Markdown Guide](https://www.markdownguide.org/)
+- [MDX Documentation](https://mdxjs.com/)
+- [Next.js MDX Integration](https://nextjs.org/docs/advanced-features/using-mdx)

@@ -1,11 +1,22 @@
 import type { Metadata, Viewport } from "next";
 import type { OpenGraph } from "next/dist/lib/metadata/types/opengraph-types";
 import type { Twitter } from "next/dist/lib/metadata/types/twitter-types";
-import { siteConfig } from "./site";
+import { siteConfig } from "./site-config";
+
+// Helper function to safely extract the default title string
+const getDefaultTitleString = (title: Metadata["title"]): string | undefined => {
+	if (typeof title === "string") {
+		return title;
+	}
+	if (title && typeof title === "object" && "default" in title) {
+		return title.default ?? undefined; // Return undefined if title.default is null
+	}
+	return undefined;
+};
 
 const defaultOpenGraph: OpenGraph = {
 	type: "website",
-	locale: "en_US",
+	locale: siteConfig.metadata.locale,
 	url: siteConfig.url,
 	title: siteConfig.title,
 	description: siteConfig.description,
@@ -13,22 +24,22 @@ const defaultOpenGraph: OpenGraph = {
 	images: [
 		{
 			url: siteConfig.ogImage,
-			width: 1200,
-			height: 630,
+			width: siteConfig.metadata.openGraph.imageWidth,
+			height: siteConfig.metadata.openGraph.imageHeight,
 			alt: siteConfig.name,
 		},
 	],
 };
 
 const defaultTwitter: Twitter = {
-	card: "summary_large_image",
+	card: siteConfig.metadata.twitter.card,
 	title: siteConfig.title,
 	description: siteConfig.description,
 	images: [
 		{
 			url: siteConfig.ogImage,
-			width: 1200,
-			height: 630,
+			width: siteConfig.metadata.openGraph.imageWidth,
+			height: siteConfig.metadata.openGraph.imageHeight,
 			alt: siteConfig.name,
 		},
 	],
@@ -51,59 +62,23 @@ export const defaultMetadata: Metadata = {
 	],
 	creator: siteConfig.creator.name,
 	publisher: siteConfig.name,
-	formatDetection: {
-		email: false,
-		address: false,
-		telephone: false,
-	},
-	generator: "Next.js",
+	formatDetection: siteConfig.metadata.formatDetection,
+	generator: siteConfig.metadata.generator,
 	keywords: siteConfig.metadata.keywords,
-	referrer: "origin-when-cross-origin",
-	robots: {
-		index: true,
-		follow: true,
-		googleBot: {
-			index: true,
-			follow: true,
-			"max-video-preview": -1,
-			"max-image-preview": "large",
-			"max-snippet": -1,
-		},
-	},
-	verification: {
-		google: "YOUR_VERIFICATION_CODE",
-		yandex: "your-yandex-verification",
-	},
-	alternates: {
-		canonical: siteConfig.url,
-		// languages: {
-		// 	"en-US": "/en-US",
-		// },
-	},
+	referrer: siteConfig.metadata.referrer,
+	robots: siteConfig.metadata.robots,
+	// verification: { ... } // Keep commented or move to siteConfig if needed
+	alternates: siteConfig.metadata.alternates,
 	openGraph: defaultOpenGraph,
 	twitter: defaultTwitter,
-	appleWebApp: {
-		capable: true,
-		title: siteConfig.title,
-		statusBarStyle: "default",
-		startupImage: [
-			{
-				url: "/apple-touch-icon.png",
-				media: "(device-width: 768px) and (device-height: 1024px)",
-			},
-		],
-	},
-	appLinks: {
-		web: {
-			url: siteConfig.url,
-			should_fallback: true,
-		},
-	},
-	archives: [`${siteConfig.url}/blog`],
-	assets: [`${siteConfig.url}/assets`],
-	bookmarks: [`${siteConfig.url}/`],
-	category: "technology",
-	classification: "Business Software",
+	appleWebApp: siteConfig.metadata.appleWebApp,
+	appLinks: siteConfig.metadata.appLinks,
+	archives: [siteConfig.metadata.blogPath],
+	assets: [siteConfig.metadata.assetsPath],
+	bookmarks: [siteConfig.metadata.bookmarksPath],
+	category: siteConfig.metadata.category,
+	classification: siteConfig.metadata.classification,
+	manifest: "/manifest.json",
 };
 
 export const metadata: Metadata = defaultMetadata;
@@ -133,44 +108,51 @@ export const constructMetadata = ({
 	images = [],
 	noIndex = false,
 	...metadata
-}: ConstructMetadataProps = {}): Metadata => ({
-	...defaultMetadata,
-	...metadata,
-	openGraph: {
-		...defaultOpenGraph,
-		title: metadata.title ?? defaultOpenGraph.title,
-		description: metadata.description ?? defaultOpenGraph.description,
-		images: images.length > 0 ? images : defaultOpenGraph.images,
-	},
-	twitter: {
-		...defaultTwitter,
-		title: metadata.title ?? defaultTwitter.title,
-		description: metadata.description ?? defaultTwitter.description,
-		images: images.length > 0 ? images : defaultTwitter.images,
-	},
-	robots: noIndex ? { index: false, follow: true } : defaultMetadata.robots,
-});
+}: ConstructMetadataProps = {}): Metadata => {
+	// Use helper function to get title strings
+	const metaTitleString = getDefaultTitleString(metadata.title);
+	const defaultMetaTitleString = getDefaultTitleString(defaultMetadata.title);
+
+	return {
+		...defaultMetadata,
+		...metadata,
+		openGraph: {
+			...defaultOpenGraph,
+			// Assign the extracted title string or fallback
+			title: metaTitleString ?? defaultMetaTitleString,
+			// Ensure description is not null
+			description: (metadata.description ?? defaultMetadata.description) || undefined,
+			images: images.length > 0 ? images : defaultOpenGraph.images,
+		},
+		twitter: {
+			...defaultTwitter,
+			// Assign the extracted title string or fallback
+			title: metaTitleString ?? defaultMetaTitleString,
+			// Ensure description is not null
+			description: (metadata.description ?? defaultMetadata.description) || undefined,
+			images: images.length > 0 ? images : defaultTwitter.images,
+		},
+		robots: noIndex ? { index: false, follow: true } : defaultMetadata.robots,
+	};
+};
 
 // Route-specific metadata for better CTR
 export const routeMetadata = {
 	home: {
 		title: `${siteConfig.branding.projectName} - ${siteConfig.title}`,
-		description:
-			`Transform your app idea into reality with ${siteConfig.branding.projectName}'s all-in-one development platform. Built with Next.js, TypeScript, and modern tools for rapid, production-ready deployment.`,
+		description: `Transform your app idea into reality with ${siteConfig.name}'s all-in-one development platform. Built with Next.js, TypeScript, and modern tools for rapid, production-ready deployment.`,
 	},
 	features: {
-		title: `Features - Modern App Development Made Simple | ${siteConfig.branding.projectName}`,
-		description:
-			`Discover how ${siteConfig.branding.projectName} accelerates app development with Builder.io, Payload CMS, Auth.js, and more. Get enterprise-grade features without the complexity.`,
+		title: `Features - Modern App Development Made Simple | ${siteConfig.name}`,
+		description: `Discover how ${siteConfig.name} accelerates app development with Builder.io, Payload CMS, Auth.js, and more. Get enterprise-grade features without the complexity.`,
 	},
 	pricing: {
-		title: `Simple, Transparent Pricing | ${siteConfig.branding.projectName}`,
+		title: `Simple, Transparent Pricing | ${siteConfig.name}`,
 		description:
-			`Choose the perfect plan for your app. Start free, scale as you grow. All plans include core features, world-class support, and automatic updates.`,
+			"Choose the perfect plan for your app. Start free, scale as you grow. All plans include core features, world-class support, and automatic updates.",
 	},
 	docs: {
-		title: `Documentation - Build Better Apps Faster | ${siteConfig.branding.projectName}`,
-		description:
-			`Comprehensive guides, API references, and examples to help you build production-ready apps with ${siteConfig.branding.projectName}. From quick starts to advanced topics.`,
+		title: `Documentation - Build Better Apps Faster | ${siteConfig.name}`,
+		description: `Comprehensive guides, API references, and examples to help you build production-ready apps with ${siteConfig.name}. From quick starts to advanced topics.`,
 	},
 };

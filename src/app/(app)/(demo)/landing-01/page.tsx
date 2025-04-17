@@ -1,5 +1,3 @@
-"use client";
-
 import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/primitives/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

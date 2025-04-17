@@ -9,7 +9,6 @@ import {
 	primaryKey,
 	serial,
 	text,
-	time,
 	timestamp,
 	varchar,
 } from "drizzle-orm/pg-core";
@@ -47,9 +46,13 @@ export const payments = createTable("payment", {
 	id: serial("id").primaryKey(),
 	userId: varchar("user_id", { length: 255 }).notNull(),
 	orderId: varchar("order_id", { length: 255 }),
+	processorOrderId: varchar("processor_order_id", { length: 255 }),
 	amount: integer("amount"),
 	status: varchar("status", { length: 255 }).notNull(),
+	processor: varchar("processor", { length: 50 }),
+	isFreeProduct: boolean("is_free_product").default(false),
 	metadata: text("metadata").default("{}"),
+	purchasedAt: timestamp("purchased_at", { withTimezone: true }),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)
 		.notNull(),
@@ -57,6 +60,10 @@ export const payments = createTable("payment", {
 });
 export type Payment = typeof payments.$inferSelect;
 export type NewPayment = typeof payments.$inferInsert;
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+	user: one(users, { fields: [payments.userId], references: [users.id] }),
+}));
 
 export const posts = createTable(
 	"post",
@@ -97,7 +104,6 @@ export const users = createTable("user", {
 	role: varchar("role", { length: 50 }).default("user").notNull(),
 	bio: text("bio"),
 	theme: varchar("theme", { length: 20 }).default("system"),
-	emailNotifications: boolean("email_notifications").default(true),
 	metadata: text("metadata"),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)
@@ -221,7 +227,6 @@ export const authenticators = createTable(
  * - Users can belong to multiple teams.
  * - Teams can have multiple projects.
  * - Projects can have multiple API keys.
- * - Logs are associated with API keys.
  */
 
 export const teamType = pgEnum("team_type", ["personal", "workspace"]);
@@ -236,9 +241,7 @@ export const teams = createTable("team", {
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)
 		.notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-		() => new Date(),
-	),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(() => new Date()),
 	deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
@@ -261,9 +264,7 @@ export const teamMembers = createTable("team_member", {
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)
 		.notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-		() => new Date(),
-	),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(() => new Date()),
 });
 
 export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
@@ -283,9 +284,7 @@ export const projects = createTable("project", {
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)
 		.notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-		() => new Date(),
-	),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(() => new Date()),
 	expiresAt: timestamp("expires_at", { withTimezone: true }),
 });
 
@@ -304,9 +303,7 @@ export const projectMembers = createTable("project_member", {
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)
 		.notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-		() => new Date(),
-	),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(() => new Date()),
 });
 
 export const apiKeys = createTable("api_key", {
@@ -318,9 +315,7 @@ export const apiKeys = createTable("api_key", {
 	userId: varchar("user_id", { length: 255 })
 		// .notNull()
 		.references(() => users.id),
-	projectId: varchar("project_id", { length: 255 }).references(
-		() => projects.id,
-	),
+	projectId: varchar("project_id", { length: 255 }).references(() => projects.id),
 	name: varchar("name", { length: 255 }).notNull(),
 	description: text("description"),
 	expiresAt: timestamp("expires_at"),
@@ -361,32 +356,17 @@ export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
 	}),
 }));
 
-export const userRelations = relations(users, ({ many }) => ({
+export const userRelations = relations(users, ({ many, one }) => ({
+	accounts: many(accounts),
+	files: many(userFiles),
 	teamMemberships: many(teamMembers),
 	projectMemberships: many(projectMembers),
 	temporaryLinks: many(temporaryLinks),
-	notificationChannels: many(notificationChannels),
-	notificationPreferences: many(notificationPreferences),
-	notificationHistory: many(notificationHistory),
-}));
-
-export const logs = createTable("log", {
-	id: serial("id").primaryKey(),
-	timestamp: timestamp("timestamp", { withTimezone: true })
-		.default(sql`CURRENT_TIMESTAMP`)
-		.notNull(),
-	level: text("level").notNull(),
-	message: text("message").notNull(),
-	prefix: text("prefix"),
-	emoji: text("emoji"),
-	metadata: text("metadata"), // Store as JSON string
-	apiKeyId: varchar("api_key_id", { length: 255 })
-		.notNull()
-		.references(() => apiKeys.id),
-});
-
-export const logRelations = relations(logs, ({ one }) => ({
-	apiKey: one(apiKeys, { fields: [logs.apiKeyId], references: [apiKeys.id] }),
+	credits: one(userCredits, {
+		fields: [users.id],
+		references: [userCredits.userId],
+	}),
+	creditTransactions: many(creditTransactions),
 }));
 
 export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
@@ -400,9 +380,6 @@ export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
 	}),
 }));
 
-export const paymentsRelations = relations(payments, ({ one }) => ({
-	user: one(users, { fields: [payments.userId], references: [users.id] }),
-}));
 // Define the webhookEvents table for storing webhook events
 export const webhookEvents = createTable("webhook_event", {
 	id: serial("id").primaryKey(),
@@ -450,9 +427,7 @@ export const roles = createTable("role", {
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)
 		.notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-		() => new Date(),
-	),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(() => new Date()),
 });
 
 export const permissions = createTable("permission", {
@@ -485,7 +460,7 @@ export const rolePermissions = createTable(
 	},
 	(table) => ({
 		pk: primaryKey({ columns: [table.roleId, table.permissionId] }),
-	}),
+	})
 );
 
 // Add relations
@@ -497,19 +472,16 @@ export const permissionsRelations = relations(permissions, ({ many }) => ({
 	roles: many(rolePermissions),
 }));
 
-export const rolePermissionsRelations = relations(
-	rolePermissions,
-	({ one }) => ({
-		role: one(roles, {
-			fields: [rolePermissions.roleId],
-			references: [roles.id],
-		}),
-		permission: one(permissions, {
-			fields: [rolePermissions.permissionId],
-			references: [permissions.id],
-		}),
+export const rolePermissionsRelations = relations(rolePermissions, ({ one }) => ({
+	role: one(roles, {
+		fields: [rolePermissions.roleId],
+		references: [roles.id],
 	}),
-);
+	permission: one(permissions, {
+		fields: [rolePermissions.permissionId],
+		references: [permissions.id],
+	}),
+}));
 
 // Add feedback table
 export const feedback = createTable("feedback", {
@@ -524,262 +496,76 @@ export const feedback = createTable("feedback", {
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)
 		.notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-		() => new Date(),
-	),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(() => new Date()),
 });
 
-// Entry categories for better organization
-export const guideCategories = createTable("guide_category", {
-	id: serial("id").primaryKey(),
-	name: varchar("name", { length: 100 }).notNull(),
-	description: text("description").notNull(),
-	icon: varchar("icon", { length: 50 }).notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Cross-references between entries
-export const guideCrossReferences = createTable("guide_cross_reference", {
-	id: serial("id").primaryKey(),
-	sourceEntryId: integer("source_entry_id")
-		.references(() => guideEntries.id)
-		.notNull(),
-	targetEntryId: integer("target_entry_id")
-		.references(() => guideEntries.id)
-		.notNull(),
-	context: text("context").notNull(), // Why these entries are related
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// Entry revisions for tracking changes
-export const guideEntryRevisions = createTable("guide_entry_revision", {
-	id: serial("id").primaryKey(),
-	entryId: integer("entry_id")
-		.references(() => guideEntries.id, { onDelete: "cascade" })
-		.notNull(),
-	content: text("content").notNull(),
-	reason: text("reason").notNull(),
-	contributorId: varchar("contributor_id", { length: 255 }).references(
-		() => users.id,
-		{ onDelete: "set null" },
-	),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// Enhance the main guide entries table
-export const guideEntries = createTable(
-	"guide_entry",
+// Add user credits table
+export const userCredits = createTable(
+	"user_credit",
 	{
-		id: serial("id").primaryKey(),
-		searchTerm: text("search_term").notNull(),
-		content: text("content").notNull(),
-		categoryId: integer("category_id").references(() => guideCategories.id),
-		popularity: integer("popularity").default(0).notNull(),
-		reliability: integer("reliability").default(42).notNull(),
-		dangerLevel: integer("danger_level").default(0).notNull(),
-		travelAdvice: text("travel_advice"),
-		whereToFind: text("where_to_find"),
-		whatToAvoid: text("what_to_avoid"),
-		funFact: text("fun_fact"),
-		advertisement: text("advertisement"),
-		contributorId: varchar("contributor_id", { length: 255 }).references(
-			() => users.id,
-			{ onDelete: "set null" },
+		id: varchar("id", { length: 255 })
+			.notNull()
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: varchar("user_id", { length: 255 })
+			.notNull()
+			.unique() // Each user has one credit balance record
+			.references(() => users.id, { onDelete: "cascade" }),
+		balance: integer("balance").notNull().default(0),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.default(sql`CURRENT_TIMESTAMP`)
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
+			() => new Date()
 		),
-		searchVector: text("search_vector").notNull().default(""),
-		createdAt: timestamp("created_at").defaultNow().notNull(),
-		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	},
-	(table) => {
-		return {
-			searchTermIdx: index("guide_entries_search_term_idx").on(
-				table.searchTerm,
-			),
-			searchVectorIdx: index("guide_entries_search_vector_idx").on(
-				table.searchVector,
-			),
-			popularityIdx: index("guide_entries_popularity_idx").on(table.popularity),
-			categoryIdx: index("guide_entries_category_idx").on(table.categoryId),
-		};
-	},
+	(table) => ({
+		userIdIdx: index("user_credit_user_id_idx").on(table.userId),
+	})
 );
 
-// Then define relations
-export const entriesRelations = relations(guideEntries, ({ one, many }) => ({
-	category: one(guideCategories, {
-		fields: [guideEntries.categoryId],
-		references: [guideCategories.id],
-	}),
-	contributor: one(users, {
-		fields: [guideEntries.contributorId],
-		references: [users.id],
-	}),
-	revisions: many(guideEntryRevisions),
-	// sourceCrossReferences: many(guideCrossReferences, {
-	// 	relationName: "sourceCrossReferences",
-	// 	fields: [guideEntries.id],
-	// 	references: [guideCrossReferences.sourceEntryId],
-	// }),
-	// targetCrossReferences: many(guideCrossReferences, {
-	// 	relationName: "targetCrossReferences",
-	// 	fields: [guideEntries.id],
-	// 	references: [guideCrossReferences.targetEntryId],
-	// }),
+export type UserCredit = typeof userCredits.$inferSelect;
+export type NewUserCredit = typeof userCredits.$inferInsert;
+
+// Add credit transactions table
+export const creditTransactions = createTable(
+	"credit_transaction",
+	{
+		id: varchar("id", { length: 255 })
+			.notNull()
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: varchar("user_id", { length: 255 })
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		amount: integer("amount").notNull(), // Positive for earning, negative for spending
+		type: varchar("type", { length: 50 }).notNull(), // e.g., 'purchase', 'usage', 'refund', 'bonus'
+		description: text("description"),
+		metadata: text("metadata"), // Optional JSON string for additional data
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.default(sql`CURRENT_TIMESTAMP`)
+			.notNull(),
+	},
+	(table) => ({
+		userIdIdx: index("credit_transaction_user_id_idx").on(table.userId),
+		typeIdx: index("credit_transaction_type_idx").on(table.type),
+	})
+);
+
+export type CreditTransaction = typeof creditTransactions.$inferSelect;
+export type NewCreditTransaction = typeof creditTransactions.$inferInsert;
+
+// Define relations for the new tables
+export const userCreditsRelations = relations(userCredits, ({ one }) => ({
+	user: one(users, { fields: [userCredits.userId], references: [users.id] }),
 }));
 
-// Export types
-export type GuideEntry = typeof guideEntries.$inferSelect;
-export type NewGuideEntry = typeof guideEntries.$inferInsert;
-export type GuideCategory = typeof guideCategories.$inferSelect;
-export type GuideCrossReference = typeof guideCrossReferences.$inferSelect;
-export type GuideEntryRevision = typeof guideEntryRevisions.$inferSelect;
-
-// Notification channel types
-export const notificationChannelType = pgEnum("notification_channel_type", [
-	"email",
-	"sms",
-	"push",
-	"slack",
-]);
-
-// Notification types
-export const notificationType = pgEnum("notification_type", [
-	"security",
-	"system",
-	"marketing",
-	"team",
-]);
-
-// Notification channels table
-export const notificationChannels = createTable("notification_channel", {
-	id: varchar("id", { length: 255 })
-		.notNull()
-		.primaryKey()
-		.$defaultFn(() => crypto.randomUUID()),
-	userId: varchar("user_id", { length: 255 })
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	type: notificationChannelType("type").notNull(),
-	enabled: boolean("enabled").default(true),
-	configuration: text("configuration").default("{}"), // JSON string for channel-specific config
-	createdAt: timestamp("created_at", { withTimezone: true })
-		.default(sql`CURRENT_TIMESTAMP`)
-		.notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-		() => new Date(),
-	),
-});
-
-// Notification preferences table
-export const notificationPreferences = createTable("notification_preference", {
-	id: varchar("id", { length: 255 })
-		.notNull()
-		.primaryKey()
-		.$defaultFn(() => crypto.randomUUID()),
-	userId: varchar("user_id", { length: 255 })
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	type: notificationType("type").notNull(),
-	channels: text("channels").default("[]"), // JSON array of enabled channel types
-	quietHoursStart: time("quiet_hours_start", { withTimezone: true }),
-	quietHoursEnd: time("quiet_hours_end", { withTimezone: true }),
-	timezone: varchar("timezone", { length: 100 }).default("UTC"),
-	frequency: varchar("frequency", { length: 50 }).default("instant"), // instant, daily, weekly
-	createdAt: timestamp("created_at", { withTimezone: true })
-		.default(sql`CURRENT_TIMESTAMP`)
-		.notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-		() => new Date(),
-	),
-});
-
-// Notification history table
-export const notificationHistory = createTable("notification_history", {
-	id: varchar("id", { length: 255 })
-		.notNull()
-		.primaryKey()
-		.$defaultFn(() => crypto.randomUUID()),
-	userId: varchar("user_id", { length: 255 })
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	type: notificationType("type").notNull(),
-	channel: notificationChannelType("channel").notNull(),
-	title: varchar("title", { length: 255 }).notNull(),
-	content: text("content").notNull(),
-	metadata: text("metadata").default("{}"), // JSON string for additional data
-	status: varchar("status", { length: 50 }).notNull().default("sent"), // sent, delivered, failed
-	sentAt: timestamp("sent_at", { withTimezone: true })
-		.default(sql`CURRENT_TIMESTAMP`)
-		.notNull(),
-	deliveredAt: timestamp("delivered_at", { withTimezone: true }),
-	error: text("error"),
-});
-
-// Notification templates table
-export const notificationTemplates = createTable("notification_template", {
-	id: varchar("id", { length: 255 })
-		.notNull()
-		.primaryKey()
-		.$defaultFn(() => crypto.randomUUID()),
-	name: varchar("name", { length: 255 }).notNull(),
-	description: text("description"),
-	type: notificationType("type").notNull(),
-	channel: notificationChannelType("channel").notNull(),
-	subject: varchar("subject", { length: 255 }), // For email templates
-	content: text("content").notNull(),
-	variables: text("variables").default("[]"), // JSON array of variable names
-	metadata: text("metadata").default("{}"), // JSON string for additional data
-	createdAt: timestamp("created_at", { withTimezone: true })
-		.default(sql`CURRENT_TIMESTAMP`)
-		.notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-		() => new Date(),
-	),
-});
-
-// Add relations
-export const notificationChannelsRelations = relations(
-	notificationChannels,
+export const creditTransactionsRelations = relations(
+	creditTransactions,
 	({ one }) => ({
 		user: one(users, {
-			fields: [notificationChannels.userId],
+			fields: [creditTransactions.userId],
 			references: [users.id],
 		}),
-	}),
-);
-
-export const notificationPreferencesRelations = relations(
-	notificationPreferences,
-	({ one }) => ({
-		user: one(users, {
-			fields: [notificationPreferences.userId],
-			references: [users.id],
-		}),
-	}),
-);
-
-export const notificationHistoryRelations = relations(
-	notificationHistory,
-	({ one }) => ({
-		user: one(users, {
-			fields: [notificationHistory.userId],
-			references: [users.id],
-		}),
-	}),
-);
-
-// Add relations for revisions
-export const guideEntryRevisionsRelations = relations(
-	guideEntryRevisions,
-	({ one }) => ({
-		entry: one(guideEntries, {
-			fields: [guideEntryRevisions.entryId],
-			references: [guideEntries.id],
-		}),
-		contributor: one(users, {
-			fields: [guideEntryRevisions.contributorId],
-			references: [users.id],
-		}),
-	}),
+	})
 );

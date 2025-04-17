@@ -48,8 +48,9 @@ export interface NavSection {
 export const getDocBySlug = cache(async (slug = "index") => {
 	try {
 		const doc = await import(`@/content/docs/${slug}.mdx`).catch((error) => {
-			// console.error(`Error importing doc: ${slug}`, error);
-			return null;
+			// Append /index to the slug if it doesn't exist
+			const newSlug = slug.endsWith("/") ? `${slug}index` : `${slug}/index`;
+			return import(`@/content/docs/${newSlug}.mdx`);
 		});
 
 		if (!doc) {
@@ -66,9 +67,7 @@ export const getDocBySlug = cache(async (slug = "index") => {
 			...frontmatter,
 			slug,
 			content: Content,
-			lastModified: frontmatter?.updatedAt
-				? new Date(frontmatter.updatedAt)
-				: new Date(),
+			lastModified: frontmatter?.updatedAt ? new Date(frontmatter.updatedAt) : new Date(),
 			section: frontmatter.section ?? "core",
 		};
 	} catch (error) {
@@ -197,9 +196,7 @@ function processDirectory(dir: string): NavSection[] {
 		}
 		// Process root MDX files
 		const rootItems: NavItem[] = [];
-		for (const entry of entries.filter(
-			(entry) => entry.isFile() && entry.name.endsWith(".mdx"),
-		)) {
+		for (const entry of entries.filter((entry) => entry.isFile() && entry.name.endsWith(".mdx"))) {
 			const filePath = path.join(rootPath, dir, entry.name);
 			const content = fs.readFileSync(filePath, "utf-8");
 			const { data } = matter(content);
@@ -231,9 +228,7 @@ export const getDocsNavigation = cache(async (): Promise<NavSection[]> => {
 });
 
 // Add helper function to get doc from params
-export async function getDocFromParams(
-	params: Promise<{ slug?: string | string[] }>,
-) {
+export async function getDocFromParams(params: Promise<{ slug?: string | string[] }>) {
 	try {
 		const resolvedParams = await params;
 		const slug =
@@ -247,4 +242,62 @@ export async function getDocFromParams(
 		console.error("Error getting doc from params:", error);
 		throw error; // Let Next.js handle the 404
 	}
+}
+
+// Recursively scans the docs directory and returns all slugs
+async function findDocSlugsRecursive(
+	dir: string,
+	rootPath: string,
+	currentSlugParts: string[] = []
+): Promise<string[]> {
+	let slugs: string[] = [];
+	const fullPath = path.join(rootPath, dir);
+
+	try {
+		const entries = fs.readdirSync(fullPath, { withFileTypes: true });
+
+		for (const entry of entries) {
+			const entryPath = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				const subSlugs = await findDocSlugsRecursive(entryPath, rootPath, [
+					...currentSlugParts,
+					entry.name,
+				]);
+				slugs = slugs.concat(subSlugs);
+			} else if (entry.isFile() && entry.name.endsWith(".mdx")) {
+				const fileNameWithoutExtension = entry.name.replace(".mdx", "");
+				// Handle index files correctly (slug should be the directory path)
+				const slug =
+					fileNameWithoutExtension === "index"
+						? currentSlugParts.join("/")
+						: [...currentSlugParts, fileNameWithoutExtension].join("/");
+				slugs.push(slug);
+			}
+		}
+	} catch (error) {
+		// Ignore errors like directory not found, etc., for robustness
+		console.warn(
+			`Warning: Could not read directory ${fullPath} while scanning for doc slugs:`,
+			error
+		);
+	}
+
+	return slugs;
+}
+
+export async function getAllDocSlugsFromFileSystem(): Promise<string[]> {
+	const rootPath = path.join(process.cwd(), "src/content/docs");
+	// Start scanning from the root, also add the root slug explicitly if index.mdx exists
+	const allSlugs = await findDocSlugsRecursive("", rootPath);
+
+	// Check if root index.mdx exists and add '' slug if not already present
+	try {
+		if (fs.existsSync(path.join(rootPath, "index.mdx")) && !allSlugs.includes("")) {
+			allSlugs.push("");
+		}
+	} catch (error) {
+		console.warn("Warning: Could not check for root index.mdx:", error);
+	}
+
+	return allSlugs;
 }

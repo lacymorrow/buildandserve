@@ -1,9 +1,6 @@
 "use server";
 
 import { routes } from "@/config/routes";
-import { logger } from "@/lib/logger";
-import { auth } from "@/server/auth";
-import { getOrdersByEmail } from "@/lib/lemonsqueezy";
 import { redirect } from "next/navigation";
 
 /**
@@ -31,6 +28,6 @@ export async function downloadRepo() {
  */
 export async function downloadRepoAnonymously(formData: FormData) {
 	redirect(
-		`${routes.api.download}?email=${formData.get("email")}&orderId=${formData.get("orderId")}`,
+		`${routes.api.download}?email=${formData.get("email")}&orderId=${formData.get("orderId")}`
 	);
 }

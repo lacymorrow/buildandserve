@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import { Icons } from "@/components/images/icons"
+import { Icons } from "@/components/assets/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

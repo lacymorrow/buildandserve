@@ -1,3 +1,9 @@
-import { RootLayout } from "@/components/layouts/root-layout";
+import "@/styles/payload-admin.css";
 
-export default RootLayout;
+export default function CMSLayout({ children }: { children: React.ReactNode }) {
+	return (
+		<>
+			{children}
+		</>
+	);
+}

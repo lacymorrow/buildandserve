@@ -1,10 +1,16 @@
+import { Link } from "@/components/primitives/link-with-transition";
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
+} from "@/components/ui/accordion";
 import { buttonVariants } from "@/components/ui/button";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
 import { type VariantProps, cva } from "class-variance-authority";
-import { Link } from "@/components/primitives/link-with-transition";
-import type { FC, HTMLAttributes, ReactNode } from "react";
+import React, { type FC, type HTMLAttributes, type ReactNode } from "react";
 import { v4 as uuid } from "uuid";
 
 interface LinkItem {
@@ -127,7 +133,57 @@ export const Footer: FC<FooterProps> = ({
 					<div className="flex flex-col gap-2xl">
 						<Link href={routes.home}><h1 className="text-4xl font-bold">{siteConfig.name}</h1></Link>
 					</div>
-					<div className="flex flex-col flex-wrap md:flex-row lg:gap-20">{groupElements}</div>
+					{/* Desktop Layout */}
+					<div className="hidden md:flex flex-col flex-wrap md:flex-row lg:gap-20">{groupElements}</div>
+					{/* Mobile Layout */}
+					<div className="flex flex-col gap-md md:hidden w-full">
+						<Accordion type="multiple" className="w-full">
+							{groups
+								.filter((el) => el.type === "group")
+								.map((element) => {
+									// We already filtered, so this cast is safe
+									const group = (element as { type: "group"; content: FooterGroup })
+										.content;
+									return (
+										<AccordionItem value={group.header.label} key={uuid()}>
+											<AccordionTrigger className="font-semibold">
+												{group.header.href ? (
+													<Link href={group.header.href}>{group.header.label}</Link>
+												) : (
+													group.header.label
+												)}
+											</AccordionTrigger>
+											<AccordionContent>
+												<ul className="space-y-2 pt-2">
+													{group.items.map((item) => {
+														const key = uuid();
+														if (isLinkItem(item)) {
+															return (
+																<li key={key}>
+																	<Link
+																		className={cn(
+																			buttonVariants({ variant: "link" }),
+																			"p-0 h-auto",
+																		)}
+																		href={item.href}
+																	>
+																		{item.label}
+																	</Link>
+																</li>
+															);
+														}
+														// Render custom ReactNode items directly
+														return React.isValidElement(item) ?
+															React.cloneElement(item, { key: key }) :
+															null;
+													})}
+												</ul>
+											</AccordionContent>
+										</AccordionItem>
+									);
+								})}
+						</Accordion>
+					</div>
 				</div>
 			</div>
 		</footer >

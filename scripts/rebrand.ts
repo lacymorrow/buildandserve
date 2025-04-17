@@ -17,22 +17,22 @@
  * All arguments are optional. If not provided, the script will prompt for them.
  */
 
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import readline from 'readline';
+import { execSync } from "child_process";
+import fs from "fs";
+import path from "path";
+import readline from "readline";
 
 // Create readline interface for prompting
 const rl = readline.createInterface({
 	input: process.stdin,
-	output: process.stdout
+	output: process.stdout,
 });
 
 // Helper function to prompt for input
 const prompt = (question: string, defaultValue?: string): Promise<string> => {
 	return new Promise((resolve) => {
-		rl.question(`${question}${defaultValue ? ` (default: ${defaultValue})` : ''}: `, (answer) => {
-			resolve(answer || defaultValue || '');
+		rl.question(`${question}${defaultValue ? ` (default: ${defaultValue})` : ""}: `, (answer) => {
+			resolve(answer || defaultValue || "");
 		});
 	});
 };
@@ -43,10 +43,10 @@ const argMap: Record<string, string> = {};
 const flags: Record<string, boolean> = {};
 
 for (let i = 0; i < args.length; i++) {
-	if (args[i].startsWith('--')) {
+	if (args[i].startsWith("--")) {
 		const arg = args[i].substring(2);
 		// Check if it's a flag (no value)
-		if (i + 1 >= args.length || args[i + 1].startsWith('--')) {
+		if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
 			flags[arg] = true;
 		} else {
 			argMap[arg] = args[i + 1];
@@ -56,30 +56,31 @@ for (let i = 0; i < args.length; i++) {
 }
 
 // Check for dry run flag
-const isDryRun = flags['dry-run'] || false;
+const isDryRun = flags["dry-run"] || false;
 
 // Main function
 async function main() {
-	console.log('🚀 Rebranding Script');
-	console.log('====================');
-	console.log('This script will update your site configuration with new branding information.');
+	console.log("🚀 Rebranding Script");
+	console.log("====================");
+	console.log("This script will update your site configuration with new branding information.");
 	if (isDryRun) {
-		console.log('\n⚠️ DRY RUN MODE: No files will be modified');
+		console.log("\n⚠️ DRY RUN MODE: No files will be modified");
 	}
-	console.log('');
+	console.log("");
 
 	// Get essential branding information
-	const projectName = argMap.name || await prompt('Project Name', 'Shipkit');
-	const projectSlug = argMap.slug || await prompt('Project Slug', projectName.toLowerCase().replace(/\s+/g, '-'));
-	const domain = argMap.domain || await prompt('Domain', `${projectSlug}.com`);
+	const projectName = argMap.name || (await prompt("Project Name", "Shipkit"));
+	const projectSlug =
+		argMap.slug || (await prompt("Project Slug", projectName.toLowerCase().replace(/\s+/g, "-")));
+	const domain = argMap.domain || (await prompt("Domain", `${projectSlug}.com`));
 
 	// Get creator information (optional)
-	const creatorName = argMap['creator-name'] || await prompt('Your Name (optional)', '');
+	const creatorName = argMap["creator-name"] || (await prompt("Your Name (optional)", ""));
 
 	// Derive other values from the essential information
 	const githubOrg = `${projectSlug}-org`;
 	const githubRepo = projectSlug;
-	const creatorUsername = creatorName ? creatorName.toLowerCase().replace(/\s+/g, '') : projectSlug;
+	const creatorUsername = creatorName ? creatorName.toLowerCase().replace(/\s+/g, "") : projectSlug;
 	const creatorEmail = `hello@${domain}`;
 	const creatorDomain = creatorName ? `${creatorUsername}.com` : domain;
 	const creatorTwitter = creatorUsername;
@@ -92,26 +93,17 @@ async function main() {
 	const brainsName = "Enterprise";
 
 	// Update site.ts
-	console.log('\nUpdating site configuration...');
+	console.log("\nUpdating site configuration...");
 
-	const siteConfigPath = path.join(process.cwd(), 'src', 'config', 'site.ts');
-	let siteConfig = fs.readFileSync(siteConfigPath, 'utf8');
+	const siteConfigPath = path.join(process.cwd(), "src", "config", "site.ts");
+	let siteConfig = fs.readFileSync(siteConfigPath, "utf8");
 
 	// Update branding section
-	siteConfig = siteConfig.replace(
-		/name: "([^"]+)"/,
-		`name: "${projectName}"`
-	);
+	siteConfig = siteConfig.replace(/name: "([^"]+)"/, `name: "${projectName}"`);
 
-	siteConfig = siteConfig.replace(
-		/url: "([^"]+)"/,
-		`url: "https://${domain}"`
-	);
+	siteConfig = siteConfig.replace(/url: "([^"]+)"/, `url: "https://${domain}"`);
 
-	siteConfig = siteConfig.replace(
-		/ogImage: "([^"]+)"/,
-		`ogImage: "https://${domain}/og"`
-	);
+	siteConfig = siteConfig.replace(/ogImage: "([^"]+)"/, `ogImage: "https://${domain}/og"`);
 
 	// Update branding section
 	const brandingRegex = /branding: \{[\s\S]*?\},/;
@@ -195,75 +187,74 @@ async function main() {
 	siteConfig = siteConfig.replace(keywordsRegex, newKeywords);
 
 	// Read .env.example and package.json
-	const envExamplePath = path.join(process.cwd(), '.env.example');
-	let envExample = fs.readFileSync(envExamplePath, 'utf8');
+	const envExamplePath = path.join(process.cwd(), ".env.example");
+	let envExample = fs.readFileSync(envExamplePath, "utf8");
 
 	envExample = envExample.replace(
 		/DATABASE_URL="postgresql:\/\/postgres:password@localhost:5432\/([^"]+)"/,
 		`DATABASE_URL="postgresql://postgres:password@localhost:5432/${databaseName}"`
 	);
 
-	const packageJsonPath = path.join(process.cwd(), 'package.json');
-	let packageJson = fs.readFileSync(packageJsonPath, 'utf8');
+	const packageJsonPath = path.join(process.cwd(), "package.json");
+	let packageJson = fs.readFileSync(packageJsonPath, "utf8");
 
-	packageJson = packageJson.replace(
-		/"name": "([^"]+)"/,
-		`"name": "${projectSlug}"`
-	);
+	packageJson = packageJson.replace(/"name": "([^"]+)"/, `"name": "${projectSlug}"`);
 
 	// If dry run, just show what would be changed
 	if (isDryRun) {
-		console.log('\n📝 Changes that would be made:');
-		console.log('\n1. src/config/site.ts:');
+		console.log("\n📝 Changes that would be made:");
+		console.log("\n1. src/config/site-config.ts:");
 		console.log(`  - Project name: Shipkit -> ${projectName}`);
 		console.log(`  - Domain: shipkit.io -> ${domain}`);
 		console.log(`  - GitHub: lacymorrow/shipkit -> ${githubOrg}/${githubRepo}`);
 		console.log(`  - Creator: Lacy Morrow -> ${creatorName || `${projectName} Team`}`);
 
-		console.log('\n2. .env.example:');
+		console.log("\n2. .env.example:");
 		console.log(`  - Database name: shipkit -> ${databaseName}`);
 
-		console.log('\n3. package.json:');
+		console.log("\n3. package.json:");
 		console.log(`  - Package name: ship-kit -> ${projectSlug}`);
 
-		console.log('\n⚠️ No files were modified (dry run)');
+		console.log("\n⚠️ No files were modified (dry run)");
 	} else {
 		// Write updated files
 		fs.writeFileSync(siteConfigPath, siteConfig);
-		console.log('✅ Updated src/config/site.ts');
+		console.log("✅ Updated src/config/site-config.ts");
 
 		fs.writeFileSync(envExamplePath, envExample);
-		console.log('✅ Updated .env.example');
+		console.log("✅ Updated .env.example");
 
 		fs.writeFileSync(packageJsonPath, packageJson);
-		console.log('✅ Updated package.json');
+		console.log("✅ Updated package.json");
 
 		// Run prettier to format files
-		console.log('\nFormatting files...');
+		console.log("\nFormatting files...");
 		try {
-			execSync('pnpm format', { stdio: 'inherit' });
+			execSync("pnpm format", { stdio: "inherit" });
 		} catch (error) {
-			console.error('Error formatting files:', error);
+			console.error("Error formatting files:", error);
 		}
 	}
 
-	console.log('\n✅ Rebranding complete!');
-	console.log(`Your project has been ${isDryRun ? 'prepared to be' : ''} rebranded to "${projectName}".`);
+	console.log("\n✅ Rebranding complete!");
+	console.log(
+		`Your project has been ${isDryRun ? "prepared to be" : ""} rebranded to "${projectName}".`
+	);
 
 	if (!isDryRun) {
-		console.log('\nNext steps:');
-		console.log('1. Review the changes in src/config/site.ts');
-		console.log('2. Update your .env file with the new database name');
-		console.log('3. Restart your development server');
+		console.log("\nNext steps:");
+		console.log("1. Review the changes in src/config/site-config.ts");
+		console.log("2. Update your .env file with the new database name");
+		console.log("3. Restart your development server");
 	} else {
-		console.log('\nTo apply these changes, run the script without the --dry-run flag.');
+		console.log("\nTo apply these changes, run the script without the --dry-run flag.");
 	}
 
 	rl.close();
 }
 
 main().catch((error) => {
-	console.error('Error:', error);
+	console.error("Error:", error);
 	rl.close();
 	process.exit(1);
 });

@@ -1,6 +1,5 @@
 "use client";
 
-import { Link } from "@/components/primitives/link-with-transition";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -18,9 +17,11 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ShortcutDisplay } from "@/components/primitives/shortcut-display";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ShortcutAction, ShortcutActionType } from "@/config/keyboard-shortcuts";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { useSignInRedirectUrl } from "@/hooks/use-sign-in-redirect-url";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,9 @@ import { DesktopIcon, MoonIcon, SunIcon } from "@radix-ui/react-icons";
 import { UserIcon } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context";
 import * as React from "react";
 
 type Theme = "light" | "dark" | "system";
@@ -44,6 +48,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className 
 	const { theme, setTheme } = useTheme();
 	const { toast } = useToast();
 	const [isOpen, setIsOpen] = React.useState(false);
+	const router = useRouter();
 
 	const isAdmin = session?.user?.email && siteConfig.admin.isAdmin(session.user.email);
 
@@ -82,33 +87,71 @@ export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className 
 		[session?.user, setTheme, toast]
 	);
 
-	// Handle keyboard shortcuts
-	React.useEffect(() => {
-		const handleKeyDown = async (e: KeyboardEvent) => {
-			// Only handle if Command/Control is pressed
-			if (!(e.metaKey || e.ctrlKey)) return;
-
-			switch (e.key) {
-				case "l":
-					e.preventDefault();
-					await handleThemeChange("light");
+	const handleShortcut = React.useCallback(
+		(event: KeyboardEvent, action: ShortcutActionType) => {
+			event.preventDefault();
+			switch (action) {
+				case ShortcutAction.SET_THEME_LIGHT:
+					void handleThemeChange("light");
 					break;
-				case "d":
-					if (e.shiftKey) {
-						e.preventDefault();
-						await handleThemeChange("dark");
-					}
+				case ShortcutAction.SET_THEME_DARK:
+					void handleThemeChange("dark");
 					break;
-				case "b":
-					e.preventDefault();
-					await handleThemeChange("system");
+				case ShortcutAction.SET_THEME_SYSTEM:
+					void handleThemeChange("system");
+					break;
+				case ShortcutAction.GOTO_ADMIN:
+					if (isAdmin) router.push(routes.admin.root);
+					break;
+				case ShortcutAction.GOTO_SETTINGS:
+					router.push(routes.app.settings);
+					break;
+				case ShortcutAction.LOGOUT_USER:
+					void signOut({ callbackUrl: routes.home });
 					break;
 			}
-		};
+		},
+		[handleThemeChange, isAdmin, router]
+	);
 
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [handleThemeChange]);
+	const isAuthenticated = status === "authenticated";
+
+	useKeyboardShortcut(
+		ShortcutAction.SET_THEME_LIGHT,
+		(event) => handleShortcut(event, ShortcutAction.SET_THEME_LIGHT),
+		undefined,
+		[handleShortcut]
+	);
+	useKeyboardShortcut(
+		ShortcutAction.SET_THEME_DARK,
+		(event) => handleShortcut(event, ShortcutAction.SET_THEME_DARK),
+		undefined,
+		[handleShortcut]
+	);
+	useKeyboardShortcut(
+		ShortcutAction.SET_THEME_SYSTEM,
+		(event) => handleShortcut(event, ShortcutAction.SET_THEME_SYSTEM),
+		undefined,
+		[handleShortcut]
+	);
+	useKeyboardShortcut(
+		ShortcutAction.GOTO_ADMIN,
+		(event) => handleShortcut(event, ShortcutAction.GOTO_ADMIN),
+		() => isAuthenticated && isAdmin,
+		[handleShortcut, isAuthenticated, isAdmin]
+	);
+	useKeyboardShortcut(
+		ShortcutAction.GOTO_SETTINGS,
+		(event) => handleShortcut(event, ShortcutAction.GOTO_SETTINGS),
+		() => isAuthenticated,
+		[handleShortcut, isAuthenticated]
+	);
+	useKeyboardShortcut(
+		ShortcutAction.LOGOUT_USER,
+		(event) => handleShortcut(event, ShortcutAction.LOGOUT_USER),
+		() => isAuthenticated,
+		[handleShortcut, isAuthenticated]
+	);
 
 	// Loading state
 	if (status === "loading") {
@@ -169,26 +212,14 @@ export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className 
 						<DropdownMenuItem asChild>
 							<Link href={routes.admin.root}>
 								Admin
-								<DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
+								<ShortcutDisplay action={ShortcutAction.GOTO_ADMIN} as={DropdownMenuShortcut} />
 							</Link>
 						</DropdownMenuItem>
 					)}
 					<DropdownMenuItem asChild>
-						<Link href={routes.app.dashboard}>
-							Dashboard
-							<DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
 						<Link href={routes.app.settings}>
 							Settings
-							<DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link href={routes.app.apiKeys}>
-							API Keys
-							<DropdownMenuShortcut>⌘K</DropdownMenuShortcut>
+							<ShortcutDisplay action={ShortcutAction.GOTO_SETTINGS} as={DropdownMenuShortcut} />
 						</Link>
 					</DropdownMenuItem>
 				</DropdownMenuGroup>
@@ -199,35 +230,29 @@ export const UserMenu: React.FC<UserMenuProps> = ({ size = "default", className 
 						<span>Theme</span>
 					</DropdownMenuSubTrigger>
 					<DropdownMenuSubContent>
-						<DropdownMenuRadioGroup value={theme || "system"} onValueChange={handleThemeChange}>
-							<DropdownMenuRadioItem value="light" className="flex items-center gap-2">
-								<SunIcon className="size-4" />
-								<span>Light</span>
-								<DropdownMenuShortcut>⌘L</DropdownMenuShortcut>
+						<DropdownMenuRadioGroup value={theme} onValueChange={handleThemeChange}>
+							<DropdownMenuRadioItem value="light">
+								<SunIcon className="mr-2 size-4" />
+								Light
+								<ShortcutDisplay action={ShortcutAction.SET_THEME_LIGHT} as={DropdownMenuShortcut} />
 							</DropdownMenuRadioItem>
-							<DropdownMenuRadioItem value="dark" className="flex items-center gap-2">
-								<MoonIcon className="size-4" />
-								<span>Dark</span>
-								<DropdownMenuShortcut>⇧⌘D</DropdownMenuShortcut>
+							<DropdownMenuRadioItem value="dark">
+								<MoonIcon className="mr-2 size-4" />
+								Dark
+								<ShortcutDisplay action={ShortcutAction.SET_THEME_DARK} as={DropdownMenuShortcut} />
 							</DropdownMenuRadioItem>
-							<DropdownMenuRadioItem value="system" className="flex items-center gap-2">
-								<DesktopIcon className="size-4" />
-								<span>System</span>
-								<DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
+							<DropdownMenuRadioItem value="system">
+								<DesktopIcon className="mr-2 size-4" />
+								System
+								<ShortcutDisplay action={ShortcutAction.SET_THEME_SYSTEM} as={DropdownMenuShortcut} />
 							</DropdownMenuRadioItem>
 						</DropdownMenuRadioGroup>
 					</DropdownMenuSubContent>
 				</DropdownMenuSub>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem
-					className="text-red-600 dark:text-red-400"
-					onClick={() => {
-						setIsOpen(false);
-						signOut();
-					}}
-				>
+				<DropdownMenuItem onClick={() => void signOut({ callbackUrl: routes.home })}>
 					Sign out
-					<DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+					<ShortcutDisplay action={ShortcutAction.LOGOUT_USER} as={DropdownMenuShortcut} />
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>

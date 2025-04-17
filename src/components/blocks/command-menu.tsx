@@ -9,6 +9,9 @@ import {
 	CommandItem,
 	CommandList,
 } from "@/components/ui/command"
+import { ShortcutDisplay } from "@/components/primitives/shortcut-display"
+import { ShortcutAction } from "@/config/keyboard-shortcuts"
+import { useKeyboardShortcut } from "@/contexts/keyboard-shortcut-context"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import * as React from "react"
@@ -17,16 +20,15 @@ export function CommandMenu() {
 	const router = useRouter()
 	const [open, setOpen] = React.useState(false)
 
-	React.useEffect(() => {
-		const down = (e: KeyboardEvent) => {
-			if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-				e.preventDefault()
-				setOpen((open) => !open)
-			}
-		}
-		document.addEventListener("keydown", down)
-		return () => document.removeEventListener("keydown", down)
-	}, [])
+	useKeyboardShortcut(
+		ShortcutAction.OPEN_COMMAND_MENU,
+		(event) => {
+			event.preventDefault()
+			setOpen((prevOpen) => !prevOpen)
+		},
+		undefined,
+		[setOpen]
+	)
 
 	return (
 		<>
@@ -39,9 +41,10 @@ export function CommandMenu() {
 			>
 				<span className="hidden lg:inline-flex">Search docs...</span>
 				<span className="inline-flex lg:hidden">Search...</span>
-				<kbd className="pointer-events-none absolute right-1.5 top-2 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-					<span className="text-xs">⌘</span>K
-				</kbd>
+				<ShortcutDisplay
+					action={ShortcutAction.OPEN_COMMAND_MENU}
+					className="pointer-events-none absolute right-1.5 top-2 hidden opacity-100 sm:flex"
+				/>
 			</Button>
 			<CommandDialog open={open} onOpenChange={setOpen}>
 				<CommandInput placeholder="Type a command or search..." />

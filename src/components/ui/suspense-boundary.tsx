@@ -1,8 +1,8 @@
 "use client";
 
+import { Loader, type LoaderProps } from "@/components/primitives/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Loading, type LoadingProps } from "@/components/ui/loading";
 import { AlertCircle } from "lucide-react";
 import * as React from "react";
 
@@ -10,7 +10,7 @@ export interface SuspenseBoundaryProps extends React.PropsWithChildren {
 	/**
 	 * Custom loading props to pass to the loading component
 	 */
-	loadingProps?: LoadingProps;
+	loadingProps?: LoaderProps;
 
 	/**
 	 * Whether to show a retry button when an error occurs
@@ -46,7 +46,7 @@ export const SuspenseBoundary = ({
 	onRetry,
 }: SuspenseBoundaryProps) => {
 	return (
-		<React.Suspense fallback={<Loading {...loadingProps} />}>
+		<React.Suspense fallback={<Loader {...loadingProps} />}>
 			<ErrorBoundary
 				fallback={
 					errorComponent ?? (

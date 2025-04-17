@@ -1,8 +1,7 @@
 import type { RenderOptions } from "@testing-library/react";
 import { render } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
-import React from "react";
-import { RootLayout } from "../src/components/layouts/root-layout";
+import { AppLayout } from "../src/components/layouts/app-layout";
 
 // Mock ResizeObserver
 class ResizeObserverMock {
@@ -15,7 +14,7 @@ global.ResizeObserver = ResizeObserverMock;
 
 // Create a wrapper component that includes providers
 function TestWrapper({ children }: { children: ReactNode }) {
-	return <RootLayout>{children}</RootLayout>;
+	return <AppLayout>{children}</AppLayout>;
 }
 
 // Create a custom render function that includes the wrapper

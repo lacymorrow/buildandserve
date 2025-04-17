@@ -46,6 +46,7 @@ export const AppSidebar = React.forwardRef<HTMLDivElement, AppSidebarProps>(
 		return (
 			<>
 				<Sidebar
+					id="app-sidebar"
 					ref={ref}
 					variant={variant}
 					collapsible="icon"
@@ -56,7 +57,7 @@ export const AppSidebar = React.forwardRef<HTMLDivElement, AppSidebarProps>(
 						<TeamSwitcher />
 					</SidebarHeader>
 					<SidebarContent>
-						<ScrollArea className="">
+						<ScrollArea className="[&>div>div]:!block">
 
 							<NavMain />
 							<ProjectsList />

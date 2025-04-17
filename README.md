@@ -77,7 +77,7 @@ Need help? We're here for you:
 
 - 💬 [GitHub Discussions](https://github.com/shipkit-io/shipkit/discussions)
 - 🐦 [Follow Updates](https://twitter.com/lacybuilds)
-- 📧 [Email Support](mailto:support@shipkit.io)
+- 📧 [Contact Support](https://shipkit.io/contact)
 - 🌐 [Website](https://shipkit.io)
 
 ## Found a bug?
@@ -135,7 +135,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ### Shadcn
 
 ```bash
-npx shadcn-ui@latest add
+npx shadcn@latest add
 ```
 
 ### [MagicUI](https://magicui.design/)

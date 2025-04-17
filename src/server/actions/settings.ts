@@ -2,8 +2,8 @@
 
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
-import { users } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
+import { accounts, users } from "@/server/db/schema";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 interface ProfileData {
@@ -26,7 +26,6 @@ interface ProfileData {
 
 interface SettingsData {
 	theme: "light" | "dark" | "system";
-	emailNotifications: boolean;
 }
 
 export async function updateProfile(data: ProfileData) {
@@ -62,14 +61,10 @@ export async function updateSettings(data: SettingsData) {
 			return { success: false, error: "Not authenticated" };
 		}
 
-		// Ensure boolean type
-		const emailNotifications = Boolean(data.emailNotifications);
-
 		await db
 			?.update(users)
 			.set({
 				theme: data.theme,
-				emailNotifications,
 				updatedAt: new Date(),
 			})
 			.where(eq(users.id, session.user.id));
@@ -118,5 +113,45 @@ export async function updateTheme(theme: "light" | "dark" | "system") {
 	} catch (error) {
 		console.error("Failed to update theme:", error);
 		return { success: false, error: "Failed to update theme" };
+	}
+}
+
+/**
+ * Disconnects a provider from the user's account
+ */
+export async function disconnectAccount(
+	provider: string
+): Promise<{ success: boolean; message?: string; error?: string }> {
+	try {
+		const session = await auth();
+		if (!session?.user?.id) {
+			return { success: false, error: "You must be logged in to disconnect accounts" };
+		}
+
+		// Delete the account connection
+		await db
+			?.delete(accounts)
+			.where(and(eq(accounts.userId, session.user.id), eq(accounts.provider, provider)));
+
+		// Update the session directly
+		const { update } = await import("@/server/auth");
+		await update({
+			user: {
+				// Explicitly set accounts to simulate removal
+				accounts: session.user.accounts?.filter((account) => account.provider !== provider) || [],
+			},
+		});
+
+		revalidatePath("/settings");
+		return {
+			success: true,
+			message: `${provider.charAt(0).toUpperCase() + provider.slice(1)} account disconnected successfully`,
+		};
+	} catch (error) {
+		console.error(`Failed to disconnect ${provider} account:`, error);
+		return {
+			success: false,
+			error: `Failed to disconnect ${provider} account. Please try again.`,
+		};
 	}
 }

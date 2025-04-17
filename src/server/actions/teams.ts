@@ -3,10 +3,7 @@
 import { cacheConfigs, cacheService } from "@/server/services/cache-service";
 import { ErrorService } from "@/server/services/error-service";
 import { metrics, metricsService } from "@/server/services/metrics-service";
-import {
-	rateLimitService,
-	rateLimits,
-} from "@/server/services/rate-limit-service";
+import { rateLimitService, rateLimits } from "@/server/services/rate-limit-service";
 import { teamService } from "@/server/services/team-service";
 import { ValidationService } from "@/server/services/validation-service";
 import { revalidatePath } from "next/cache";
@@ -25,11 +22,7 @@ import {
 export async function createTeam(userId: string, name: string) {
 	try {
 		// Rate limiting
-		await rateLimitService.checkLimit(
-			userId,
-			"createTeam",
-			rateLimits.web.forms,
-		);
+		await rateLimitService.checkLimit(userId, "createTeam", rateLimits.web.forms);
 
 		// Validation
 		await ValidationService.validateOrThrow(createTeamSchema, { userId, name });
@@ -63,11 +56,7 @@ export async function createTeam(userId: string, name: string) {
 export async function getUserTeams(userId: string) {
 	try {
 		// Rate limiting
-		await rateLimitService.checkLimit(
-			userId,
-			"getUserTeams",
-			rateLimits.api.default,
-		);
+		await rateLimitService.checkLimit(userId, "getUserTeams", rateLimits.api.default);
 
 		// Validation
 		await ValidationService.validateOrThrow(userIdSchema, { userId });
@@ -82,7 +71,7 @@ export async function getUserTeams(userId: string) {
 				await metricsService.incrementCounter(metrics.api.requests);
 				return teams;
 			},
-			cacheConfigs.short,
+			cacheConfigs.short
 		);
 	} catch (error) {
 		await metricsService.incrementCounter(metrics.api.errors);
@@ -97,11 +86,7 @@ export async function getUserTeams(userId: string) {
 export async function getTeamMembers(teamId: string) {
 	try {
 		// Rate limiting
-		await rateLimitService.checkLimit(
-			teamId,
-			"getTeamMembers",
-			rateLimits.api.default,
-		);
+		await rateLimitService.checkLimit(teamId, "getTeamMembers", rateLimits.api.default);
 
 		// Validation
 		await ValidationService.validateOrThrow(teamIdSchema, { teamId });
@@ -116,7 +101,7 @@ export async function getTeamMembers(teamId: string) {
 				await metricsService.incrementCounter(metrics.api.requests);
 				return members;
 			},
-			cacheConfigs.short,
+			cacheConfigs.short
 		);
 	} catch (error) {
 		await metricsService.incrementCounter(metrics.api.errors);
@@ -131,11 +116,7 @@ export async function getTeamMembers(teamId: string) {
 export async function updateTeam(teamId: string, data: { name?: string }) {
 	try {
 		// Rate limiting
-		await rateLimitService.checkLimit(
-			teamId,
-			"updateTeam",
-			rateLimits.web.forms,
-		);
+		await rateLimitService.checkLimit(teamId, "updateTeam", rateLimits.web.forms);
 
 		// Validation
 		await ValidationService.validateOrThrow(updateTeamSchema, {
@@ -172,11 +153,7 @@ export async function updateTeam(teamId: string, data: { name?: string }) {
 export async function deleteTeam(teamId: string) {
 	try {
 		// Rate limiting
-		await rateLimitService.checkLimit(
-			teamId,
-			"deleteTeam",
-			rateLimits.web.forms,
-		);
+		await rateLimitService.checkLimit(teamId, "deleteTeam", rateLimits.web.forms);
 
 		// Validation
 		await ValidationService.validateOrThrow(teamIdSchema, { teamId });
@@ -207,18 +184,10 @@ export async function deleteTeam(teamId: string) {
  * Adds a member to a team.
  * @returns The created team member
  */
-export async function addTeamMember(
-	teamId: string,
-	userId: string,
-	role: string,
-) {
+export async function addTeamMember(teamId: string, userId: string, role: string) {
 	try {
 		// Rate limiting
-		await rateLimitService.checkLimit(
-			teamId,
-			"addTeamMember",
-			rateLimits.web.forms,
-		);
+		await rateLimitService.checkLimit(teamId, "addTeamMember", rateLimits.web.forms);
 
 		// Validation
 		await ValidationService.validateOrThrow(teamMemberSchema, {
@@ -256,11 +225,7 @@ export async function addTeamMember(
 export async function removeTeamMember(teamId: string, userId: string) {
 	try {
 		// Rate limiting
-		await rateLimitService.checkLimit(
-			teamId,
-			"removeTeamMember",
-			rateLimits.web.forms,
-		);
+		await rateLimitService.checkLimit(teamId, "removeTeamMember", rateLimits.web.forms);
 
 		// Validation
 		await ValidationService.validateOrThrow(teamMemberSchema, {
@@ -295,18 +260,10 @@ export async function removeTeamMember(teamId: string, userId: string) {
  * Updates a team member's role.
  * @returns The updated team member
  */
-export async function updateTeamMemberRole(
-	teamId: string,
-	userId: string,
-	role: string,
-) {
+export async function updateTeamMemberRole(teamId: string, userId: string, role: string) {
 	try {
 		// Rate limiting
-		await rateLimitService.checkLimit(
-			teamId,
-			"updateTeamMemberRole",
-			rateLimits.web.forms,
-		);
+		await rateLimitService.checkLimit(teamId, "updateTeamMemberRole", rateLimits.web.forms);
 
 		// Validation
 		await ValidationService.validateOrThrow(teamMemberSchema, {

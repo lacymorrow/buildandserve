@@ -65,9 +65,9 @@ export function ExamplesNav({ current, className, ...props }: ExamplesNavProps) 
 			<ScrollArea className="max-w-[600px] lg:max-w-none mx-auto px-md [mask-image:linear-gradient(to_right,transparent,white_7%,white_93%,transparent)]">
 				<div className={cn("flex items-center justify-center", className)} {...props}>
 					{!isHome && <ExampleLink
-						href={routes.examples.root}
-						example={{ name: "Examples", href: routes.examples.root, code: "", hidden: false }}
-						isActive={pathname === routes.examples.root}
+						href={routes.examples.index}
+						example={{ name: "Examples", href: routes.examples.index, code: "", hidden: false }}
+						isActive={pathname === routes.examples.index}
 					/>}
 					{examples.map((example) => (
 						<ExampleLink

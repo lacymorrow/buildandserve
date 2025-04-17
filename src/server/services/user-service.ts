@@ -1,12 +1,14 @@
 import { logger } from "@/lib/logger";
-import { db, isDatabaseInitialized } from "@/server/db";
+import { db } from "@/server/db";
 import { projectMembers, teamMembers, userFiles, users } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
+import { apiKeyService } from "./api-key-service";
 import { BaseService } from "./base-service";
 import { PaymentService } from "./payment-service";
-import { teamService } from "./team-service";
-import { apiKeyService } from "./api-key-service";
 import { deleteFromS3 } from "./s3";
+import { teamService } from "./team-service";
+import crypto from "crypto";
+import type { User } from "@/server/db/schema";
 
 export class UserService extends BaseService<typeof users> {
 	constructor() {
@@ -38,10 +40,6 @@ export class UserService extends BaseService<typeof users> {
 		name?: string | null;
 		image?: string | null;
 	}) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -71,18 +69,6 @@ export class UserService extends BaseService<typeof users> {
 				// Create personal team for new user
 				await this.createPersonalTeam(newUser.id);
 
-				// Create an API key for the user
-				const apiKey = await apiKeyService.createApiKey({
-					userId: newUser.id,
-					name: "Default API Key",
-					description: "Created automatically on user registration",
-				});
-
-				logger.info("Created default API key for new user", {
-					userId: newUser.id,
-					apiKeyId: apiKey.id,
-				});
-
 				// Check for existing payments
 				const hasPaid = await PaymentService.getUserPaymentStatus(newUser.id);
 				if (hasPaid) {
@@ -96,21 +82,6 @@ export class UserService extends BaseService<typeof users> {
 				throw new Error(`Failed to create user: ${authUser.id}`);
 			}
 		} else {
-			// Check if user has an API key, create one if they don't
-			const userApiKeys = await apiKeyService.getUserApiKeys(dbUser.id);
-			if (userApiKeys.length === 0) {
-				const apiKey = await apiKeyService.createApiKey({
-					userId: dbUser.id,
-					name: "Default API Key",
-					description: "Created automatically on first login",
-				});
-
-				logger.info("Created default API key for existing user", {
-					userId: dbUser.id,
-					apiKeyId: apiKey.id,
-				});
-			}
-
 			// Check for existing payments for existing users too
 			const hasPaid = await PaymentService.getUserPaymentStatus(dbUser.id);
 			if (hasPaid) {
@@ -129,10 +100,6 @@ export class UserService extends BaseService<typeof users> {
 	 * @returns A list of projects with their details.
 	 */
 	async getUserProjects(userId: string) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -160,10 +127,6 @@ export class UserService extends BaseService<typeof users> {
 	 * @returns A list of teams with their details.
 	 */
 	async getUserTeams(userId: string) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -190,10 +153,6 @@ export class UserService extends BaseService<typeof users> {
 	 * @returns The user if found, null otherwise.
 	 */
 	async getUserByEmail(email: string) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -209,10 +168,6 @@ export class UserService extends BaseService<typeof users> {
 	 * @returns The user with their teams and projects.
 	 */
 	async getUserWithAssociations(userId: string) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -251,10 +206,6 @@ export class UserService extends BaseService<typeof users> {
 			image?: string | null;
 		}
 	) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -273,10 +224,6 @@ export class UserService extends BaseService<typeof users> {
 	 * @returns The updated user.
 	 */
 	async verifyEmail(userId: string) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -295,10 +242,6 @@ export class UserService extends BaseService<typeof users> {
 	 * @returns A list of users with their roles.
 	 */
 	async getTeamUsers(teamId: string) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -317,10 +260,6 @@ export class UserService extends BaseService<typeof users> {
 	 * @returns A list of users with their roles.
 	 */
 	async getProjectUsers(projectId: string) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -340,10 +279,6 @@ export class UserService extends BaseService<typeof users> {
 	 * @returns True if the user has access.
 	 */
 	async hasTeamAccess(userId: string, teamId: string) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -362,10 +297,6 @@ export class UserService extends BaseService<typeof users> {
 	 * @returns True if the user has access.
 	 */
 	async hasProjectAccess(userId: string, projectId: string) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -384,10 +315,6 @@ export class UserService extends BaseService<typeof users> {
 	 * @returns The created file record
 	 */
 	async addUserFile(userId: string, file: { title: string; location: string }) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
@@ -418,20 +345,13 @@ export class UserService extends BaseService<typeof users> {
 	 * @param fileId - The ID of the file to delete
 	 */
 	async deleteUserFile(userId: string, fileId: number) {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
-
 		if (!db) {
 			throw new Error("Database is not initialized");
 		}
 
 		// First, get the file to check ownership and get the location
 		const file = await db.query.userFiles.findFirst({
-			where: and(
-				eq(userFiles.id, fileId),
-				eq(userFiles.userId, userId)
-			),
+			where: and(eq(userFiles.id, fileId), eq(userFiles.userId, userId)),
 		});
 
 		if (!file) {
@@ -454,17 +374,85 @@ export class UserService extends BaseService<typeof users> {
 		}
 
 		// Delete from database
-		await db
-			.delete(userFiles)
-			.where(and(
-				eq(userFiles.id, fileId),
-				eq(userFiles.userId, userId)
-			));
+		await db.delete(userFiles).where(and(eq(userFiles.id, fileId), eq(userFiles.userId, userId)));
 
 		logger.info("Deleted file from user profile", {
 			userId,
 			fileId,
 		});
+	}
+
+	/**
+	 * Finds a user by email or creates one if they don't exist.
+	 * Intended for use cases like payment imports where only email is known initially.
+	 * @param email - The email address to find or create.
+	 * @param userData - Optional data for creating a new user (e.g., name).
+	 * @returns An object containing the user and a boolean indicating if the user was created.
+	 */
+	async findOrCreateUserByEmail(
+		email: string,
+		userData?: { name?: string | null; image?: string | null }
+	): Promise<{ user: User; created: boolean }> {
+		if (!db) {
+			throw new Error("Database is not initialized");
+		}
+		if (!email) {
+			throw new Error("Email is required to find or create a user.");
+		}
+
+		let user = await this.getUserByEmail(email);
+		let created = false;
+
+		if (!user) {
+			logger.info("User not found by email, creating new user.", { email });
+			// Create the user
+			const newUserId = crypto.randomUUID(); // Ensure crypto is imported at the top
+			const [newUserRecord] = await db
+				.insert(users)
+				.values({
+					id: newUserId,
+					email: email,
+					name: userData?.name ?? null,
+					image: userData?.image ?? null,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+					// emailVerified might need specific handling depending on requirements
+				})
+				.returning();
+
+			if (!newUserRecord) {
+				throw new Error(`Failed to create user with email: ${email}`);
+			}
+
+			user = newUserRecord;
+			created = true;
+
+			// Create personal team for the new user
+			await this.createPersonalTeam(user.id);
+
+			// Create default API key
+			const apiKey = await apiKeyService.createApiKey({
+				userId: user.id,
+				name: "Default API Key",
+				description: "Created automatically during import/creation",
+			});
+			logger.info("Created default API key for newly created user", {
+				userId: user.id,
+				apiKeyId: apiKey.id,
+			});
+		} else {
+			logger.debug("Found existing user by email.", { email, userId: user.id });
+			// Optionally update existing user data if userData is provided and different
+			// const updates: Partial<User> = {};
+			// if (userData?.name && !user.name) updates.name = userData.name;
+			// if (userData?.image && !user.image) updates.image = userData.image;
+			// if (Object.keys(updates).length > 0) {
+			//   await this.update(user.id, updates);
+			//   user = { ...user, ...updates }; // Update local user object
+			// }
+		}
+
+		return { user, created };
 	}
 }
 

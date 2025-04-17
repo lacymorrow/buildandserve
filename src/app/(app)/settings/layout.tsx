@@ -1,31 +1,33 @@
+import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
 import { Separator } from "@/components/ui/separator";
 import { SidebarNav } from "@/components/ui/sidebar-nav";
-import { redirect } from "next/navigation";
-import type { ReactNode } from "react";
-import { Header } from "../../../components/headers/header";
+import { routes } from "@/config/routes";
 import { auth } from "@/server/auth";
+import { redirect } from "next/navigation";
+import { type ReactNode, Suspense } from "react";
+import { Header } from "../../../components/headers/header";
 
 const sidebarNavItems = [
 	{
 		title: "Profile",
-		href: "/settings",
+		href: routes.settings.profile,
 	},
 	{
 		title: "Appearance",
-		href: "/settings/appearance",
+		href: routes.settings.appearance,
 	},
 	{
 		title: "Security",
-		href: "/settings/security",
+		href: routes.settings.security,
 	},
 	// Todo: Add notifications
 	// {
 	// 	title: "Notifications",
-	// 	href: "/settings/notifications",
+	// 	href: routes.settings.notifications,
 	// },
 	{
 		title: "Account",
-		href: "/settings/account",
+		href: routes.settings.account,
 	},
 ] as const;
 
@@ -37,7 +39,7 @@ export default async function SettingsLayout({ children }: SettingsLayoutProps) 
 	const session = await auth();
 
 	if (!session) {
-		redirect("/sign-in");
+		redirect(routes.auth.signIn);
 	}
 
 	// Convert readonly array to mutable array for SidebarNav
@@ -63,7 +65,9 @@ export default async function SettingsLayout({ children }: SettingsLayoutProps) 
 						<aside className="lg:w-1/5">
 							<SidebarNav items={navItems} />
 						</aside>
-						<div className="flex-1 lg:max-w-2xl">{children}</div>
+						<div className="flex-1 lg:max-w-2xl">
+							<Suspense fallback={<SuspenseFallback />}>{children}</Suspense>
+						</div>
 					</div>
 				</div>
 			</main>

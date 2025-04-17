@@ -1,9 +1,8 @@
-import { VercelDeployButton } from "@/components/buttons/vercel-deploy-button";
 import { Link } from "@/components/primitives/link-with-transition";
 import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/primitives/page-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { BuyButton } from "@/components/buttons/buy-button";
 import {
 	Card,
 	CardContent,
@@ -12,38 +11,32 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { CodeWindow } from "@/components/ui/code-window";
-import { GitHubConnectButton } from "@/components/ui/github-connect-button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
-import { downloadRepo } from "@/server/actions/github/download-repo";
+import { siteConfig } from "@/config/site-config";
 import { auth } from "@/server/auth";
+import { isAdmin } from "@/server/services/admin-service";
 import { checkGitHubConnection } from "@/server/services/github/github-service";
 import { PaymentService } from "@/server/services/payment-service";
+import { checkVercelConnection } from "@/server/services/vercel/vercel-service";
 import {
 	ActivityIcon,
 	AlertCircle,
 	Box,
 	Download,
-	DownloadIcon,
 	GitBranch,
 	GitPullRequest,
 	Globe,
 	HardDrive,
 	History,
 	LineChart,
-	Search,
-	Settings,
 	Shield,
 	Star,
 	Users
 } from "lucide-react";
-import { redirect } from "next/navigation";
-import { apiKeyService } from "@/server/services/api-key-service";
-import { BASE_URL } from "@/config/base-url";
-
+import { DownloadSection } from "../_components/download-section";
+import { OnboardingCheck } from "../_components/onboarding-check";
 // Recent activity type
 interface Activity {
 	id: string;
@@ -126,63 +119,69 @@ docker run -p 3000:3000 shipkit`;
 
 export default async function DashboardPage() {
 	const session = await auth();
+	const userId = session?.user?.id ?? "";
 
-	const hasGitHubConnection = await checkGitHubConnection(session?.user?.id ?? "");
-
-	// Get the user's API key
-	let apiKey: string | undefined;
-	if (session?.user?.id) {
-		const userApiKeys = await apiKeyService.getUserApiKeys(session.user.id);
-		if (userApiKeys.length > 0) {
-			apiKey = userApiKeys[0].apiKey.key;
-		}
-		console.log(apiKey);
-	}
-
-	// Redirect after deploy to /vercel/deploy/${apiKey}
-	const deployUrl = new URL(routes.external.vercelImportShipkit);
-	const redirectUrl = deployUrl.searchParams.get("redirect-url");
-	if (apiKey) {
-		deployUrl.searchParams.set("redirect-url", encodeURIComponent(`${redirectUrl ?? BASE_URL}${routes.vercelDeploy}/${apiKey}`));
-	}
-	const vercelDeployHref = deployUrl.toString();
-
+	// Run all async operations in parallel
+	const [isUserAdmin, hasGitHubConnection, hasVercelConnection, isCustomer, isSubscribed] = await Promise.all([
+		isAdmin({ email: session?.user?.email }),
+		checkGitHubConnection(userId),
+		checkVercelConnection(userId),
+		PaymentService.hasUserPurchasedProduct({ userId, productId: siteConfig.store.products.shipkit }),
+		PaymentService.hasUserActiveSubscription({ userId }),
+	]);
 
 	return (
-		<div className="container mx-auto py-10 space-y-4">
+		<div className="container mx-auto py-6 space-y-4">
+			{/* Onboarding Check */}
+			<OnboardingCheck
+				user={session?.user}
+				hasGitHubConnection={hasGitHubConnection}
+				hasVercelConnection={hasVercelConnection}
+				hasPurchased={isCustomer}
+			/>
+
 			<PageHeader>
 				<div className="w-full flex flex-wrap items-center justify-between gap-2">
 					<div>
-						<PageHeaderHeading>Welcome, {session?.user?.name}</PageHeaderHeading>
+						<div className="flex items-center gap-2">
+
+							<PageHeaderHeading>Hello, {session?.user?.name ?? session?.user?.email ?? "friend"}
+
+							</PageHeaderHeading>
+							{isCustomer && (
+								<Badge variant="outline" className="whitespace-nowrap">
+									Customer
+								</Badge>
+							)}
+
+							{isSubscribed && (
+								<Badge variant="outline" className="whitespace-nowrap">
+									Active Subscription
+								</Badge>
+							)}
+
+							{isUserAdmin && (
+								<Badge variant="outline" className="whitespace-nowrap">
+									Admin
+								</Badge>
+							)}
+						</div>
 						<PageHeaderDescription>
-							Here's what's happening with your projects
+							Check out what's happening with your projects
 						</PageHeaderDescription>
 					</div>
-					<div className="flex flex-wrap items-stretch justify-stretch max-w-md gap-3">
-						<div className="flex flex-wrap items-stretch justify-stretch w-full gap-3">
-							{/* Download button */}
-							<form action={downloadRepo}>
-								<Button
-									type="submit"
-									size="lg"
-									variant="outline"
-									className="w-full"
-								>
-									<DownloadIcon className="mr-2 h-4 w-4" />
-									Download {siteConfig.name}
-								</Button>
-							</form>
-
-							<VercelDeployButton className="grow" href={vercelDeployHref} />
+					{(isCustomer || isSubscribed) ? (
+						<div className="flex items-center gap-2">
+							<DownloadSection />
 						</div>
-						{/* GitHub connection section */}
-						<GitHubConnectButton className="w-full" />
-					</div>
+					) : (
+						<BuyButton />
+					)}
 				</div>
 			</PageHeader>
 
 			{/* Main Grid */}
-			< div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4" >
+			<div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
 				{/* Stats Cards */}
 				<Card>
 					<CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -236,7 +235,7 @@ export default async function DashboardPage() {
 						</div>
 					</CardContent>
 				</Card>
-			</div >
+			</div>
 
 			{/* Tabs Section */}
 			<Tabs defaultValue="overview" className="space-y-4">

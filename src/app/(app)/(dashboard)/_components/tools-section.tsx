@@ -15,13 +15,14 @@ import { LOCAL_STORAGE_KEYS } from "@/config/local-storage-keys";
 import { cn } from "@/lib/utils";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
 import { DialogTitle } from "@radix-ui/react-dialog";
-import { StarFilledIcon, StarIcon } from "@radix-ui/react-icons";
+import { CursorTextIcon, LinkBreak1Icon, StarFilledIcon, StarIcon } from "@radix-ui/react-icons";
+import { IconBrandSpeedtest } from "@tabler/icons-react";
 import {
 	ArrowUpRight, BoxSelectIcon, DollarSign, FileIcon, Hash,
 	ImageIcon,
 	KeyRound,
 	LayoutTemplate,
-	LineChart, Palette, Ruler,
+	LineChart, PaintBucket, Palette, Ruler,
 	Search, TerminalIcon,
 	Timer
 } from "lucide-react";
@@ -48,6 +49,56 @@ interface Tool {
 }
 
 const tools: Tool[] = [
+	// https://www.bgvault.tech/
+	{
+		title: "BG Vault - Backgrounds",
+		description: "Free, beautiful backgrounds for your project.Built with Tailwind CSS.Click to preview, toggle light / dark mode, and copy the code.Works with any project with tailwind css.",
+		icon: FileIcon,
+		href: "https://www.bgvault.tech/",
+		isExternal: true,
+		category: "Design",
+		keywords: ["background", "tailwind", "css", "design"],
+	},
+	// https://ui.jln.dev
+	{
+		title: "Shadcn UI Themes",
+		description: "10000+ Themes for Shadcn / UI",
+		icon: Palette,
+		href: "https://ui.jln.dev",
+		isExternal: true,
+		category: "Design",
+		keywords: ["shadcn", "ui", "theme", "design"],
+	},
+	// https://broken-link-checker.vercel.app/
+	{
+		title: "Broken Link Checker",
+		description: "Check your links for broken links",
+		icon: LinkBreak1Icon,
+		href: "https://broken-link-checker.vercel.app/",
+		isExternal: true,
+		category: "Testing",
+		keywords: ["broken", "link", "checker", "test", "link", "check"],
+	},
+	// https://www.radix-ui.com/colors/custom
+	{
+		title: "Radix UI Colors",
+		description: "Customize your Radix UI colors",
+		icon: Palette,
+		href: "https://www.radix-ui.com/colors/custom",
+		isExternal: true,
+		category: "Design",
+		keywords: ["radix", "ui", "colors", "custom"],
+	},
+	// https://tweakcn.com/
+	{
+		title: "TweakCN",
+		description: "Tweak Shadcn UI Themes",
+		icon: PaintBucket,
+		href: "https://tweakcn.com/",
+		isExternal: true,
+		category: "Design",
+		keywords: ["shadcn", "ui", "theme", "tweak"],
+	},
 	// https://www.openstatus.dev/play/curl
 	{
 		title: "cURL Builder",
@@ -62,7 +113,7 @@ const tools: Tool[] = [
 	{
 		title: "Global Speed Checker",
 		description: "Is your endpoint globally fast? Test your website and API performance across all continents.",
-		icon: TerminalIcon,
+		icon: IconBrandSpeedtest,
 		href: "https://www.openstatus.dev/play/checker",
 		isExternal: true,
 		category: "Testing",
@@ -102,7 +153,7 @@ const tools: Tool[] = [
 	{
 		title: "Cursor Directory",
 		description: "Find the best cursor rules for your framework and language",
-		icon: TerminalIcon,
+		icon: CursorTextIcon,
 		href: "https://cursor.directory/",
 		isExternal: true,
 		category: "AI",
@@ -113,7 +164,7 @@ const tools: Tool[] = [
 	{
 		title: "Cursor List",
 		description: "Find the best cursor rules for your framework and language",
-		icon: TerminalIcon,
+		icon: CursorTextIcon,
 		href: "https://cursorlist.com/",
 		isExternal: true,
 		category: "AI",
@@ -139,6 +190,15 @@ const tools: Tool[] = [
 		keywords: ["form", "shadcn", "ui", "library", "component"],
 	},
 	{
+		title: "Indie Form Builder",
+		description: "A visual form builder for creating forms with Shadcn UI components.",
+		icon: LayoutTemplate,
+		href: "https://ui.indie-starter.dev/form-builder",
+		isExternal: true,
+		category: "Generators",
+		keywords: ["form", "builder", "shadcn", "ui", "visual", "generator", "indie"],
+	},
+	{
 		title: "CSS Easing",
 		description: "Visual easing function generator for animations",
 		icon: LineChart,
@@ -161,6 +221,30 @@ const tools: Tool[] = [
 			"keyframes",
 			"smooth",
 			"interpolation",
+		],
+	},
+	{
+		title: "CSS Springs",
+		description: "Generate spring easing for CSS animations with real-world physics",
+		icon: LineChart,
+		href: "https://www.kvin.me/css-springs",
+		isExternal: true,
+		category: "Design",
+		keywords: [
+			"animation",
+			"transition",
+			"spring",
+			"physics",
+			"css",
+			"motion",
+			"easing",
+			"bounce",
+			"damping",
+			"stiffness",
+			"oscillation",
+			"animation-timing",
+			"smooth",
+			"natural",
 		],
 	},
 	{
@@ -326,6 +410,9 @@ export const ToolsSection = () => {
 
 	// Filter tools based on search query, category, and starred status
 	const filteredTools = tools.filter((tool) => {
+		// If the tool doesn't have a href, don't show it
+		if (!tool?.href) return false;
+
 		const searchTerms = searchQuery.toLowerCase().split(" ");
 		const matchesSearch = searchTerms.every(term =>
 			tool.title.toLowerCase().includes(term) ||

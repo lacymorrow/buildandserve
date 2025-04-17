@@ -5,10 +5,17 @@ import { useEffect } from 'react'
 import PostHogPageView from './posthog-page-view'
 import { env } from '@/env'
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
+	// Check if the PostHog feature is explicitly enabled
+	if (!env.NEXT_PUBLIC_FEATURE_POSTHOG_ENABLED) {
+		return children // Return children directly if the feature is disabled
+	}
+
 	const posthogKey = env?.NEXT_PUBLIC_POSTHOG_KEY
 	const posthogHost = env?.NEXT_PUBLIC_POSTHOG_HOST
 
+	// Also check if keys are actually present (belt and suspenders)
 	if (!posthogKey || !posthogHost) {
+		console.warn("PostHog feature is enabled but keys are missing.")
 		return children
 	}
 

@@ -6,8 +6,8 @@ import type React from "react";
 export default function MainLayout({
 	children,
 	className,
-	header,
-	footer,
+	header = <Header />,
+	footer = <Footer />,
 }: {
 	children: React.ReactNode;
 	header?: React.ReactNode;
@@ -17,9 +17,9 @@ export default function MainLayout({
 	return (
 		<>
 			<div className={cn("", className)}>
-				{header ?? <Header />}
+				{header}
 				{children}
-				{footer ?? <Footer />}
+				{footer}
 			</div>
 		</>
 	);

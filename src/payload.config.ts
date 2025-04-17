@@ -1,13 +1,20 @@
+// ! Don't use @/env here, it will break the build
 import path from "path";
 import { fileURLToPath } from "url";
 
-// storage-adapter-import-placeholder
 import { postgresAdapter } from "@payloadcms/db-postgres";
+import { resendAdapter } from "@payloadcms/email-resend";
 import { payloadCloudPlugin } from "@payloadcms/payload-cloud";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
+// storage-adapter-import-placeholder
+import { s3Storage } from "@payloadcms/storage-s3";
+import { vercelBlobStorage } from "@payloadcms/storage-vercel-blob";
 import { buildConfig } from "payload";
 import sharp from "sharp";
 
+import { RESEND_FROM } from "@/config/constants";
+// Import components using path strings for Payload 3.0
+// We'll use component paths instead of direct imports
 import { FAQs } from "./lib/payload/collections/FAQs";
 import { Features } from "./lib/payload/collections/Features";
 import { Media } from "./lib/payload/collections/Media";
@@ -15,15 +22,22 @@ import { Pages } from "./lib/payload/collections/Pages";
 import { RBAC } from "./lib/payload/collections/RBAC";
 import { Testimonials } from "./lib/payload/collections/Testimonials";
 import { Users } from "./lib/payload/collections/Users";
+// Import globals
+import { Settings } from "./lib/payload/globals/Settings";
+import { env } from "./env";
+import { siteConfig } from "./config/site-config";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
-export default buildConfig({
-	secret:
-		process.env.PAYLOAD_SECRET ?? process.env.AUTH_SECRET ?? "supersecret",
+// Retrieve payload-specific config
+const { adminTitleSuffix, adminIconPath, adminLogoPath, dbSchemaName, emailFromName } =
+	siteConfig.payload;
+
+const config = {
+	secret: process.env.PAYLOAD_SECRET ?? process.env.AUTH_SECRET ?? "supersecret",
 	routes: {
-		admin: "/cms-admin",
+		admin: "/cms",
 		api: "/cms-api",
 	},
 	admin: {
@@ -31,14 +45,42 @@ export default buildConfig({
 		importMap: {
 			baseDir: path.resolve(dirname),
 		},
+		// Use config values for branding
+		meta: {
+			titleSuffix: adminTitleSuffix,
+			icons: [
+				{
+					rel: "icon",
+					type: "image/x-icon",
+					url: siteConfig.manifest.icons.favicon, // Use manifest favicon
+				},
+			],
+			openGraph: {
+				images: [
+					{
+						url: siteConfig.ogImage,
+					},
+				],
+				siteName: siteConfig.name + adminTitleSuffix,
+			},
+		},
+		components: {
+			graphics: {
+				Logo: adminLogoPath,
+				Icon: adminIconPath,
+			},
+		},
 	},
 	collections: [Users, Media, Features, FAQs, Testimonials, RBAC, Pages],
+	globals: [Settings],
 	editor: lexicalEditor(),
 	typescript: {
 		outputFile: path.resolve(dirname, "payload-types.ts"),
 	},
+	// ! Database
+	// This allows us to use the same database for Payload and the application, payload will use a different schema.
 	db: postgresAdapter({
-		schemaName: "payload",
+		schemaName: dbSchemaName, // Use config value
 		pool: {
 			connectionString: process.env.DATABASE_URL ?? "",
 		},
@@ -52,6 +94,7 @@ export default buildConfig({
 				 * 1. Users - for authentication and user management
 				 * 2. RBAC - for permissions and access control
 				 * 3. Media - for asset management
+				 * 4. Content - for content management
 				 */
 				return {
 					...schema,
@@ -62,7 +105,7 @@ export default buildConfig({
 							...schema.tables.users,
 							relationships: [
 								{
-									relationTo: "shipkit_user",
+									relationTo: "public.shipkit_user",
 									type: "oneToOne",
 									onDelete: "CASCADE", // Delete app user when Payload user is deleted
 								},
@@ -73,7 +116,32 @@ export default buildConfig({
 							...schema.tables.rbac,
 							relationships: [
 								{
-									relationTo: "shipkit_role",
+									relationTo: "public.shipkit_role",
+									type: "oneToMany",
+								},
+								// Enhanced relationship to permissions
+								{
+									relationTo: "public.shipkit_permission",
+									type: "oneToMany",
+								},
+							],
+						},
+						// Media relationship - for asset management
+						media: {
+							...schema.tables.media,
+							relationships: [
+								{
+									relationTo: "public.shipkit_user_file",
+									type: "oneToMany",
+								},
+							],
+						},
+						// Pages relationship - for content management
+						pages: {
+							...schema.tables.pages,
+							relationships: [
+								{
+									relationTo: "public.shipkit_post",
 									type: "oneToMany",
 								},
 							],
@@ -85,9 +153,133 @@ export default buildConfig({
 		migrationDir: path.resolve(dirname, "migrations"),
 	}),
 	sharp,
+	// Add onInit hook to seed data when Payload initializes
+	async onInit(payload: any) {
+		console.info("⏭️  Payload CMS initialized");
+		try {
+			// Skip seeding if PAYLOAD_AUTO_SEED is explicitly set to "false"
+			if (process.env.PAYLOAD_AUTO_SEED === "false") {
+				console.info("⏭️ Automatic Payload CMS seeding is disabled");
+				return;
+			}
+
+			// Check if we should seed by looking for a marker in the database
+			// We'll use the RBAC collection as a marker since it's always seeded first
+			const shouldSeed = await checkIfSeedingNeeded(payload);
+
+			// If force seeding is enabled, override the check
+			if (process.env.PAYLOAD_SEED_FORCE === "true") {
+				console.info("🔄 Force seeding is enabled, proceeding with seed");
+			}
+
+			// Only seed if needed or forced
+			if (shouldSeed || process.env.PAYLOAD_SEED_FORCE === "true") {
+				console.info("🌱 Seeding Payload CMS with initial data...");
+
+				// Import the seedAllDirect function from seed-utils
+				// This avoids circular dependencies by not importing from files that import payload
+				const { seedAllDirect } = await import("./lib/payload/seed-utils");
+				await seedAllDirect(payload);
+
+				// Mark seeding as completed by setting a flag in the database
+				await markSeedingCompleted(payload);
+
+				console.info("✅ Seeding completed and flag set");
+			}
+		} catch (error) {
+			console.error("❌ Error in Payload CMS onInit hook:", error);
+		}
+	},
 	plugins: [
 		payloadCloudPlugin(),
-		// storage-adapter-placeholder
+
+		// S3 storage plugin - Conditionally added based on feature flag
+		...(env.NEXT_PUBLIC_FEATURE_S3_ENABLED
+			? [
+					s3Storage({
+						collections: {
+							media: true,
+						},
+						bucket: process.env.AWS_BUCKET_NAME ?? "", // Use AWS_BUCKET_NAME from env
+						config: {
+							credentials: {
+								accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? "", // Use AWS_ACCESS_KEY_ID
+								secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? "", // Use AWS_SECRET_ACCESS_KEY
+							},
+							region: process.env.AWS_REGION, // Use AWS_REGION
+							// ... Other S3 configuration
+						},
+					}),
+				]
+			: []),
+
+		// Vercel Blob storage
+		...(env.NEXT_PUBLIC_FEATURE_VERCEL_BLOB_ENABLED
+			? [
+					vercelBlobStorage({
+						collections: {
+							media: true,
+						},
+						token: process.env.BLOB_READ_WRITE_TOKEN,
+					}),
+				]
+			: []),
 	],
 	telemetry: false,
-});
+
+	// If AUTH_RESEND_KEY is set, use the resend adapter
+	...(env.NEXT_PUBLIC_FEATURE_AUTH_RESEND_ENABLED
+		? {
+				email: resendAdapter({
+					defaultFromAddress: RESEND_FROM,
+					defaultFromName: emailFromName, // Use config value
+					apiKey: process.env.AUTH_RESEND_KEY || "",
+				}),
+			}
+		: {}),
+};
+
+export default buildConfig(config);
+
+/**
+ * Check if seeding is needed by looking for a marker in the database
+ * We'll use the settings global as a marker for seed status
+ */
+async function checkIfSeedingNeeded(payload: any): Promise<boolean> {
+	try {
+		// Check if the settings global has the seedCompleted flag
+		const settings = await payload.findGlobal({
+			slug: "settings",
+		});
+
+		// If seedCompleted is true, no need to seed
+		if (settings?.seedCompleted) {
+			return false;
+		}
+
+		// No data exists or seedCompleted is false, seeding is needed
+		return true;
+	} catch (error) {
+		console.error("Error checking if seeding is needed:", error);
+		// If there's an error, assume seeding is needed
+		return true;
+	}
+}
+
+/**
+ * Mark seeding as completed by setting a flag in the database
+ */
+async function markSeedingCompleted(payload: any): Promise<void> {
+	try {
+		// Update the settings global to mark seeding as completed
+		await payload.updateGlobal({
+			slug: "settings",
+			data: {
+				seedCompleted: true,
+				seedCompletedAt: new Date().toISOString(),
+			},
+		});
+	} catch (error) {
+		console.error("Error marking seeding as completed:", error);
+	}
+}

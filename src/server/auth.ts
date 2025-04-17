@@ -1,8 +1,7 @@
 import { routes } from "@/config/routes";
-import { STATUS_CODES } from "@/config/status-codes";
 import { env } from "@/env";
 import { logger } from "@/lib/logger";
-import { redirectWithCode } from "@/lib/utils/redirect-with-code";
+import { redirectWithCode, routeRedirectWithCode } from "@/lib/utils/redirect-with-code";
 import { authOptions } from "@/server/auth.config";
 import { db } from "@/server/db";
 import { accounts, sessions, users, verificationTokens } from "@/server/db/schema";
@@ -18,6 +17,17 @@ import { cache } from "react";
  * @see https://next-auth.js.org/getting-started/typescript#module-augmentation
  */
 
+/**
+ * Using database session strategy with credentials provider requires special handling:
+ * 1. The credentials provider must create a user in the database
+ * 2. The user must be properly linked between Payload CMS and Shipkit
+ * 3. The session must be created in the database
+ *
+ * This is handled in:
+ * - auth.providers.ts: The credentials provider's authorize function
+ * - auth-service.ts: The validateCredentials and ensureUserSynchronized methods
+ * - auth.config.ts: The signIn callback
+ */
 const {
 	auth: nextAuthAuth,
 	handlers,
@@ -37,9 +47,15 @@ const {
 				})
 			: undefined,
 	logger: {
-		error: (code: Error, ...message: unknown[]) => logger.error(code, message),
-		warn: (code: string, ...message: unknown[]) => logger.warn(code, message),
-		debug: (code: string, ...message: unknown[]) => logger.debug(code, message),
+		error: (code: Error, ...message: unknown[]) => {
+			logger.error(code, message);
+		},
+		warn: (code: string, ...message: unknown[]) => {
+			logger.warn(code, message);
+		},
+		debug: (code: string, ...message: unknown[]) => {
+			logger.debug(code, message);
+		},
 	},
 });
 interface AuthProps {
@@ -63,7 +79,21 @@ const authWithOptions = async (props?: AuthProps) => {
 
 	const handleRedirect = (code: string) => {
 		logger.warn(`[authWithOptions] Redirecting to ${redirectTo} with code ${code}`);
-		return redirectWithCode(redirectTo, { code, nextUrl });
+
+		// Determine if we're in a route handler context
+		const isFromRouteHandler = typeof Response !== "undefined" && typeof window === "undefined";
+
+		if (isFromRouteHandler) {
+			return routeRedirectWithCode(redirectTo, {
+				code,
+				nextUrl,
+			});
+		}
+
+		return redirectWithCode(redirectTo, {
+			code,
+			nextUrl,
+		});
 	};
 
 	// TODO: Handle refresh token error
@@ -71,9 +101,9 @@ const authWithOptions = async (props?: AuthProps) => {
 	//   return handleRedirect(STATUS_CODES.AUTH_REFRESH.code);
 	// }
 
-	if (protect && !session?.user?.id) {
-		return handleRedirect(errorCode ?? STATUS_CODES.AUTH.code);
-	}
+	// if (protect && !session?.user?.id) {
+	// 	return handleRedirect(errorCode ?? STATUS_CODES.AUTH.code);
+	// }
 
 	// TODO: RBAC
 	// if (role && session?.user?.role !== role) {

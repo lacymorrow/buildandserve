@@ -1,4 +1,4 @@
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import type { MetadataRoute } from "next";
 
 /* Robots.txt Configuration
@@ -27,7 +27,7 @@ export default function robots(): MetadataRoute.Robots {
 				disallow: [
 					// "/api/*", // Blocks access to API routes
 					// "/static/*", // Blocks access to static assets directory
-					// routes.admin.root, // Blocks access to admin panel
+					// routes.admin.index, // Blocks access to admin panel
 					// "*/private/*", // Blocks access to private content
 					// "*/draft/*", // Blocks access to draft content
 					// "*/preview/*", // Blocks access to preview content

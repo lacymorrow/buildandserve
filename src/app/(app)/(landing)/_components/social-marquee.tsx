@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import Marquee from "@/components/ui/marquee";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
 import { getAvatarUrl } from "@/lib/utils/avatar";
 const reviews = [

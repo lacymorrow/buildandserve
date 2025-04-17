@@ -1,6 +1,7 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { ALLOWED_FILE_TYPES, FILE_UPLOAD_MAX_SIZE } from "@/config/file";
+import { env } from "@/env";
 import { logger } from "@/lib/logger";
 import { deleteFileAction, uploadFileAction } from "@/server/actions/file";
 
@@ -17,8 +18,10 @@ interface FileWithPreview {
 	progress: number;
 	status: "pending" | "uploading" | "completed" | "error";
 	uploadedName?: string;
-	documentId?: number;
+	fileId?: number;
 }
+
+const enabled = env.NEXT_PUBLIC_FEATURE_FILE_UPLOAD_ENABLED;
 
 export function FileDropzone() {
 	const [files, setFiles] = useState<FileWithPreview[]>([]);
@@ -39,6 +42,15 @@ export function FileDropzone() {
 	};
 
 	const uploadFile = async (fileWithPreview: FileWithPreview) => {
+		if (!env.NEXT_PUBLIC_FEATURE_FILE_UPLOAD_ENABLED) {
+			toast.error("File uploads are currently disabled.");
+			return {
+				success: false,
+				file: fileWithPreview,
+				error: "File uploads are disabled.",
+			};
+		}
+
 		const formData = new FormData();
 		formData.append("file", fileWithPreview.file);
 
@@ -51,7 +63,10 @@ export function FileDropzone() {
 			);
 
 			// Start progress simulation
-			const progressInterval = setInterval(() => {
+			if (progressIntervalRef.current[fileWithPreview.id]) {
+				clearInterval(progressIntervalRef.current[fileWithPreview.id]);
+			}
+			progressIntervalRef.current[fileWithPreview.id] = setInterval(() => {
 				setFiles((prev) => {
 					return prev.map((f) => {
 						if (f.id === fileWithPreview.id && f.status === "uploading") {
@@ -64,10 +79,11 @@ export function FileDropzone() {
 			}, 300);
 
 			// Perform the actual upload
-			const { fileName, documentId } = await uploadFileAction(formData);
+			const { fileName, fileId } = await uploadFileAction(formData);
 
 			// Clear the interval
-			clearInterval(progressInterval);
+			clearInterval(progressIntervalRef.current[fileWithPreview.id]);
+			delete progressIntervalRef.current[fileWithPreview.id];
 
 			if (fileName) {
 				// Update state to completed
@@ -79,7 +95,7 @@ export function FileDropzone() {
 								status: "completed",
 								progress: 100,
 								uploadedName: fileName,
-								documentId,
+								fileId,
 							};
 						}
 						return f;
@@ -106,6 +122,7 @@ export function FileDropzone() {
 	};
 
 	const handleFiles = (fileList: File[]) => {
+		if (!enabled) return;
 		const validFiles = fileList.filter(isValidFile);
 
 		const newFiles = validFiles.map((file) => ({
@@ -134,55 +151,62 @@ export function FileDropzone() {
 			const successful = results.filter((r) => r.success);
 			const failed = results.filter((r) => !r.success);
 
-			if (successful.length > 0) {
+			for (const result of successful) {
 				if (successful.length === 1) {
-					toast.success(`Successfully uploaded ${successful[0]!.file.file.name}`);
+					toast.success(`Successfully uploaded ${result.file.file.name}`);
 				} else {
 					toast.success(`Successfully uploaded ${successful.length} files`);
+					break;
 				}
 			}
 
-			failed.forEach((result) => {
+			for (const result of failed) {
 				if (result.error) {
 					toast.error(result.error);
 					logger.error(result.error);
 				}
-			});
+			}
 		})();
-	}, [files.length]);
+	}, [files, enabled]);
 
 	// Cleanup effect
 	useEffect(() => {
 		return () => {
 			// Clear all intervals
-			Object.values(progressIntervalRef.current).forEach(clearInterval);
+			for (const intervalId of Object.values(progressIntervalRef.current)) {
+				clearInterval(intervalId);
+			}
 			// Clear all previews
-			files.forEach((file) => {
+			for (const file of files) {
 				if (file.preview) {
 					URL.revokeObjectURL(file.preview);
 				}
-			});
+			}
 		};
 	}, [files]);
 
 	const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
+		if (!enabled) return;
 		e.preventDefault();
 		e.stopPropagation();
 		setIsDragActive(true);
 	};
 
 	const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+		if (!enabled) return;
 		e.preventDefault();
 		e.stopPropagation();
 		setIsDragActive(false);
 	};
 
 	const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+		if (!enabled) return;
 		e.preventDefault();
 		e.stopPropagation();
 	};
 
 	const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+		if (!enabled) return;
 		e.preventDefault();
 		e.stopPropagation();
 		setIsDragActive(false);
@@ -192,10 +216,12 @@ export function FileDropzone() {
 	};
 
 	const handleButtonClick = () => {
+		if (!enabled) return;
 		fileInputRef.current?.click();
 	};
 
 	const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		if (!enabled) return;
 		if (e.target.files) {
 			handleFiles(Array.from(e.target.files));
 		}
@@ -209,12 +235,16 @@ export function FileDropzone() {
 	};
 
 	const handleDeleteUploadedFile = async (file: FileWithPreview) => {
-		if (!file.uploadedName || !file.documentId) {
+		if (!enabled) {
+			toast.error("File deletion is currently disabled.");
+			return;
+		}
+		if (!file.uploadedName || !file.fileId) {
 			return;
 		}
 
 		try {
-			await deleteFileAction({ documentId: file.documentId, fileName: file.uploadedName });
+			await deleteFileAction({ fileId: file.fileId, fileName: file.uploadedName });
 			toast.success(`Successfully deleted ${file.file.name}`);
 			handleDeleteFile(file);
 		} catch (error) {
@@ -236,6 +266,14 @@ export function FileDropzone() {
 				return "bg-neutral-200 dark:bg-neutral-700";
 		}
 	};
+
+	if (!enabled) {
+		return (
+			<div className="h-auto w-full p-8 text-center text-neutral-500">
+				File uploads are currently disabled.
+			</div>
+		);
+	}
 
 	return (
 		<div className="h-auto w-full p-8">

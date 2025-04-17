@@ -6,6 +6,7 @@ const navLinks = [
 	{ href: routes.home, label: "Home" },
 	{ href: routes.privacy, label: "Privacy Policy" },
 	{ href: routes.terms, label: "Terms of Service" },
+	{ href: routes.eula, label: "EULA" },
 ]
 
 interface DocsLayoutProps {
@@ -16,12 +17,10 @@ export default async function DocsLayout({ children }: DocsLayoutProps) {
 	return (
 		<>
 			<Header navLinks={navLinks} />
-			<div className="container mx-auto w-full min-w-0 prose dark:prose-invert my-header">
 
-				{/* Content */}
-				{children}
+			{/* Content */}
+			{children}
 
-			</div>
 		</>
 	)
 }

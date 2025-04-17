@@ -1,9 +1,7 @@
-
 import { Link } from "@/components/primitives/link-with-transition";
 import { Section } from "@/components/primitives/section";
 import { buttonVariants } from "@/components/ui/button";
 import { CodeWindow } from "@/components/ui/code-window";
-import { ParticlesHero } from "@/components/ui/particles-hero";
 import { routes } from "@/config/routes";
 import { auth } from "@/server/auth";
 import { RocketIcon } from "lucide-react";
@@ -67,6 +65,25 @@ export async function LaunchPageContent() {
 						</div>
 					</Section>
 
+					{/* shadcn/UI Template Installer */}
+					<Section className="container">
+						<div className="mx-auto max-w-4xl text-center">
+							<h2 className="mb-6 text-3xl font-bold">
+								Easy Component Setup
+							</h2>
+							<p className="mb-8 text-lg text-muted-foreground max-w-2xl mx-auto">
+								Install the shadcn/UI component library with our browser-based template installer.
+								No terminal commands needed - just click, preview, and download.
+							</p>
+							<Link
+								href="/install"
+								className={buttonVariants({ size: "lg" })}
+							>
+								Install shadcn/UI Template
+							</Link>
+						</div>
+					</Section>
+
 					<div className="container relative z-10 mx-auto flex flex-col items-center justify-center gap-4 text-center mt-header">
 						<h1 className="bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl lg:text-6xl">
 							Launch Your App Today
@@ -94,7 +111,7 @@ export async function LaunchPageContent() {
 
 					{/* Code Preview */}
 					<Section className="container">
-						<div className="mx-auto max-w-4xl">
+						<div className="mx-auto max-w-4xl w-full">
 							<CodeWindow
 								title="Quick Start"
 								language="bash"

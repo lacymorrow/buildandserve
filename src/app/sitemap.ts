@@ -1,5 +1,5 @@
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import type { Buffer } from "buffer";
 import { readdir, stat } from "fs/promises";
 import type { MetadataRoute } from "next";
@@ -79,7 +79,9 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
 
 	// Example pages (medium priority)
 	const exampleRoutes = Object.values(routes.examples)
-		.filter((route): route is string => typeof route === "string" && route !== routes.examples.root)
+		.filter(
+			(route): route is string => typeof route === "string" && route !== routes.examples.index
+		)
 		.map((route) => ({
 			url: `${siteConfig.url}${route}`,
 			lastModified: new Date(),

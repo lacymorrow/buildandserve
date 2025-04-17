@@ -1,15 +1,21 @@
 import { FeedbackPopover } from "@/components/forms/feedback-popover";
 import { SubscribeForm } from "@/components/forms/subscribe-form";
 import { Link } from "@/components/primitives/link-with-transition";
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
+} from "@/components/ui/accordion";
 import { buttonVariants } from "@/components/ui/button";
 import RetroGrid from "@/components/ui/retro-grid";
 import SparklesText from "@/components/ui/sparkles-text";
 import { TextHoverEffect } from "@/components/ui/text-hover-effect";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
 import { type VariantProps, cva } from "class-variance-authority";
-import type React from "react";
+import React from "react";
 import { v4 as uuid } from "uuid";
 
 
@@ -64,9 +70,9 @@ const defaultGroups: FooterElement[] = [
 			items: [
 				{ href: routes.terms, label: "Terms of Service" },
 				{ href: routes.privacy, label: "Privacy Policy" },
-				<div className="flex justify-start" key="feedback">
+				<li className="flex justify-start" key="feedback">
 					<FeedbackPopover />
-				</div>,
+				</li>,
 			],
 		},
 	},
@@ -150,8 +156,62 @@ export const Footer: React.FC<FooterProps> = ({
 						</Link>
 						<SubscribeForm />
 					</div>
-					<div className="flex flex-col md:flex-row flex-wrap lg:gap-20">
+					{/* Desktop Layout */}
+					<div className="hidden md:flex flex-col md:flex-row flex-wrap lg:gap-20">
 						{groupElements}
+					</div>
+					{/* Mobile Layout */}
+					<div className="flex flex-col gap-md md:hidden w-full">
+						<Accordion type="multiple" className="w-full">
+							{groups
+								.filter((el) => el.type === "group")
+								.map((element) => {
+									// We already filtered, so this cast is safe
+									const group = (element as { type: "group"; content: FooterGroup })
+										.content;
+									return (
+										<AccordionItem value={group.header.label} key={uuid()}>
+											<AccordionTrigger className="font-semibold">
+												{group.header.href ? (
+													<Link href={group.header.href}>{group.header.label}</Link>
+												) : (
+													group.header.label
+												)}
+											</AccordionTrigger>
+											<AccordionContent>
+												<ul className="space-y-2 pt-2">
+													{group.items.map((item) => {
+														if (
+															item &&
+															typeof item === "object" &&
+															"href" in item &&
+															"label" in item
+														) {
+															return (
+																<li key={uuid()}>
+																	<Link
+																		className={cn(
+																			buttonVariants({ variant: "link" }),
+																			"p-0 h-auto", // Adjust padding/height for accordion content
+																		)}
+																		href={item.href}
+																	>
+																		{item.label}
+																	</Link>
+																</li>
+															);
+														}
+														// Render custom ReactNode items directly, ensure they have keys
+														return React.isValidElement(item) ?
+															React.cloneElement(item, { key: uuid() }) :
+															null;
+													})}
+												</ul>
+											</AccordionContent>
+										</AccordionItem>
+									);
+								})}
+						</Accordion>
 					</div>
 				</div>
 				<div className="hidden md:block overflow-hidden">

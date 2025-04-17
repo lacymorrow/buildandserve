@@ -1,9 +1,9 @@
 "use client";
 
 import { Link } from "@/components/primitives/link-with-transition";
+import type { PricingPlan } from "@/content/pricing/pricing-content";
 import { cn } from "@/lib/utils";
 import { CheckIcon } from "lucide-react";
-import type { PricingPlan } from "@/content/pricing/pricing-content";
 
 interface PricingSectionProps {
 	plans?: PricingPlan[];

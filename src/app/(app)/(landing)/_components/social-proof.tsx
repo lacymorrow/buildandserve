@@ -1,9 +1,8 @@
 "use client";
 
 import { Section, SectionBadge } from "@/components/primitives/section";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { motion } from "framer-motion";
 import { BrandLogos } from "./brand-logos";
 import { CustomerAvatars } from "./customer-avatars";

@@ -1,23 +1,21 @@
 "use client";
 
 import { Link } from "@/components/primitives/link-with-transition";
+import { UserMenu } from "@/components/shipkit/user-menu";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ThemeToggle } from "@/components/ui/theme";
-import { UserMenu } from "@/components/ui/user-menu";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
 import { HamburgerMenuIcon } from "@radix-ui/react-icons";
-import { useWindowScroll } from "@uidotdev/usehooks";
 import { cva } from "class-variance-authority";
 import { useSession } from "next-auth/react";
 import type React from "react";
-import { useMemo } from "react";
 
-import { Logo } from "@/components/images/logo";
-import { Search } from "@/components/search/search";
-import { useSignInRedirectUrl } from "@/hooks/use-sign-in-redirect-url";
+import { Icon } from "@/components/assets/icon";
+import { SearchMenu } from "@/components/search/search-menu";
+import { useSignInRedirectUrl } from "@/hooks/use-auth-redirect";
 import styles from "@/styles/header.module.css";
 import { BuyButton } from "../buttons/buy-button";
 
@@ -60,14 +58,13 @@ const headerVariants = cva(
 
 export const Header: React.FC<HeaderProps> = ({
 	logoHref = routes.home,
-	logoIcon = <Logo />,
+	logoIcon = <Icon />,
 	logoText = siteConfig.name,
 	navLinks = defaultNavLinks,
 	variant = "default",
+	searchPlaceholder = `Search ${siteConfig.name}...`,
 }) => {
 	const signInRedirectUrl = useSignInRedirectUrl();
-	const [{ y }] = useWindowScroll();
-	const isOpaque = useMemo(() => variant === "floating" && y && y > 100, [y, variant]);
 	const { data: session } = useSession();
 
 	return (
@@ -76,9 +73,6 @@ export const Header: React.FC<HeaderProps> = ({
 				className={cn(
 					headerVariants({ variant }),
 					variant === "floating" && styles.header,
-					variant === "floating" && isOpaque && styles.opaque,
-					variant === "floating" &&
-					isOpaque &&
 					"-top-[12px] [--background:#fafafc70] dark:[--background:#1c1c2270]"
 				)}
 			>
@@ -92,7 +86,16 @@ export const Header: React.FC<HeaderProps> = ({
 							{logoIcon}
 							<span className="block whitespace-nowrap">{logoText}</span>
 						</Link>
-						<Search />
+						<SearchMenu
+							buttonText={
+								<>
+									<span className="hidden md:block">{searchPlaceholder}</span>
+									<span className="block md:hidden">Search</span>
+								</>
+							}
+							minimal={true}
+							buttonClassName="w-full md:w-auto"
+						/>
 					</div>
 
 					<Sheet>
@@ -172,18 +175,20 @@ export const Header: React.FC<HeaderProps> = ({
 									Documentation
 								</Link>
 							)}
-							{navLinks.map((link) => (
-								<Link
-									key={`${link.href}-${link.label}`}
-									href={link.href}
-									className={cn(
-										"transition-colors hover:text-foreground",
-										link.isCurrent ? "text-foreground" : "text-muted-foreground"
-									)}
-								>
-									{link.label}
-								</Link>
-							))}
+							{navLinks.map((link) => {
+								return (
+									<Link
+										key={`${link.href}-${link.label}`}
+										href={link.href}
+										className={cn(
+											"transition-colors hover:text-foreground",
+											link.isCurrent ? "text-foreground" : "text-muted-foreground"
+										)}
+									>
+										{link.label}
+									</Link>
+								)
+							})}
 						</div>
 						<div className="flex items-center gap-2">
 							{!session && <ThemeToggle variant="ghost" size="icon" className="rounded-full" />}

@@ -1,9 +1,9 @@
 "use server";
 
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { resend } from "@/lib/resend";
-import { contactFormSchema } from "@/types/contact";
 import { addContactToAudience } from "@/server/actions/subscribe";
+import { contactFormSchema } from "@/types/contact";
 
 export async function submitContactForm(formData: FormData) {
 	try {

@@ -1,0 +1,71 @@
+# AI Work Log
+
+## Next.js App Router Best Practices Audit & Refactor
+
+Based on an audit of the `src/` directory against Next.js App Router best practices and project guidelines, the following deviations were found and will be refactored:
+
+- [ ] **Finding 1 (Ignored):** `src/pages/` Directory - Presence of Pages Router artifacts. (User requested to ignore).
+- [ ] **Finding 2:** `src/app/(app)/(admin)/admin/cms/page.tsx`
+    - **Issue:** Data fetching (`getCMSStatusAction`) in `useEffect`. Server Action used for data fetching.
+    - **Plan:** Convert page to async Server Component, move status fetching logic to a new `cms-service.ts`, fetch directly in Server Component, extract interactive parts (form, state) to a new Client Component (`cms-management-client.tsx`), pass initial status and `seedCMSAction` as props. Remove `getCMSStatusAction`.
+- [ ] **Finding 3:** `src/server/actions/projects.ts`
+    - **Issue:** Server Actions (`getTeamProjects`, `userHasProjectAccess`, `getProjectMembers`) used for data fetching.
+    - **Plan:** Remove these fetching functions from the actions file. Components needing this data should be updated (in a separate task) to call `projectService` directly.
+- [ ] **Finding 4:** `src/server/actions/visitor-location.ts`
+    - **Issue:** Server Action (`getRecentVisitors`) used for data fetching (in-memory).
+    - **Plan:** Remove the `getRecentVisitors` function. Components needing this data should be updated (in a separate task) to access it via appropriate means (e.g., service).
+- [ ] **Finding 5:** `src/server/actions/teams.ts`
+    - **Issue:** Server Actions (`getUserTeams`, `getTeamMembers`) used for data fetching.
+    - **Plan:** Remove these fetching functions from the actions file. Components needing this data should be updated (in a separate task) to call `teamService` directly (potentially incorporating caching logic).
+
+---
+
+# Integration Testing Plan
+
+## Goal
+
+Verify that key user flows involving multiple components (frontend, backend services, authentication, database) work correctly together.
+
+## Framework
+
+-   **Tool:** Vitest (Browser Mode) - leveraging the existing setup.
+-   **Assertions:** Vitest's `expect`.
+-   **Interactions:** `@testing-library/user-event` for simulating user actions.
+
+## Best Practices Applied
+
+-   **Automated:** Tests will be runnable via `pnpm test:browser`.
+-   **Prioritize Critical Flows:** Starting with login.
+-   **Clear Test Cases:** Descriptive tests covering success and failure scenarios.
+-   **Isolation (when needed):** Mock external dependencies if necessary, but prefer testing real integrations where feasible. We'll use test credentials for authentication.
+
+## Test Cases - Login Flow (`/login`)
+
+-   [x] **Successful Login:**
+    -   Navigate to the login page.
+    -   Enter valid test credentials (email/password).
+    -   Submit the form.
+    -   **Assert:** User is redirected to the dashboard (`/dashboard` or relevant authenticated route).
+    -   **Assert:** Logged-in state indicator is visible (e.g., user menu/avatar).
+    *Summary: Implemented test case using placeholder credentials and assertions.*
+-   [x] **Failed Login (Invalid Credentials):**
+    -   Navigate to the login page.
+    -   Enter invalid credentials.
+    -   Submit the form.
+    -   **Assert:** User remains on the login page (or is redirected back).
+    -   **Assert:** An appropriate error message is displayed.
+    *Summary: Implemented test case asserting error message visibility.*
+-   [ ] **Input Validation Errors (Optional):**
+    -   Test submitting the form with missing email or password.
+    -   **Assert:** Appropriate validation messages are shown.
+
+## Next Steps
+
+1.  ~~Create the test file: `tests/browser/integration/login.test.tsx`.~~ Done
+2.  ~~Implement the "Successful Login" test case.~~ Done
+3.  Define and configure test user credentials.
+4.  Refine assertions for successful login (check redirection/UI elements).
+5.  Refine error message assertion for failed login.
+6.  Implement optional input validation tests.
+
+---

@@ -1,21 +1,11 @@
 import { env } from "@/env";
 import { logger } from "@/lib/logger";
-import crypto from "crypto";
 // src/config/lemonsqueezy.ts
-import { db, isDatabaseInitialized } from "@/server/db";
-import type { User } from "@/server/db/schema";
-import { type NewPlan, payments, plans, users, webhookEvents } from "@/server/db/schema";
-import { type LemonSqueezyOrderAttributes, webhookHasMeta } from "@/types/lemonsqueezy";
-import {
-	type Variant,
-	getProduct,
-	lemonSqueezySetup,
-	listOrders,
-	listProducts,
-	listVariants,
-} from "@lemonsqueezy/lemonsqueezy.js";
+import { db } from "@/server/db";
+import { users } from "@/server/db/schema";
+import type { LemonSqueezyOrderAttributes } from "@/types/lemonsqueezy";
+import { lemonSqueezySetup, listOrders, listProducts } from "@lemonsqueezy/lemonsqueezy.js";
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 
 export interface PaymentData {
 	id: string;
@@ -30,6 +20,10 @@ export interface PaymentData {
 
 // Configuration
 const configureLemonSqueezy = (): void => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.info("Lemon Squeezy feature disabled. Skipping setup.");
+		return;
+	}
 	if (!env?.LEMONSQUEEZY_API_KEY) {
 		logger.error("LEMONSQUEEZY_API_KEY is not set in the environment.");
 		return;
@@ -44,6 +38,10 @@ configureLemonSqueezy();
  * Fetches orders for a specific email from Lemon Squeezy
  */
 export const getOrdersByEmail = async (email: string) => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to get LS orders by email, but feature is disabled.");
+		return [];
+	}
 	try {
 		const response = await listOrders({
 			filter: {
@@ -66,6 +64,10 @@ export const getOrdersByEmail = async (email: string) => {
  * Fetches all orders from Lemon Squeezy
  */
 export const getAllOrders = async () => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to get all LS orders, but feature is disabled.");
+		return [];
+	}
 	try {
 		const response = await listOrders({});
 
@@ -73,37 +75,50 @@ export const getAllOrders = async () => {
 			return [];
 		}
 
-		return response.data.data.map((order) => ({
-			id: order.id,
-			orderId: order.attributes.identifier,
-			userEmail: order.attributes.user_email ?? "Unknown",
-			userName: order.attributes.user_name,
-			amount: order.attributes.total / 100,
-			status: order.attributes.status as "paid" | "refunded" | "pending",
-			productName: order.attributes.first_order_item.variant_name ?? "Unknown Product",
-			purchaseDate: new Date(order.attributes.created_at),
-			attributes: order.attributes,
-		}));
-	} catch (error) {
-		console.error("Error fetching all orders:", error);
-		return [];
-	}
-};
+		return response.data.data.map((order) => {
+			const attributes = order.attributes;
 
-export const getPaymentStatusByEmail = async (email: string): Promise<boolean> => {
-	try {
-		const orders = await listOrders({
-			filter: {
-				userEmail: email,
-			},
+			// Use subtotal as the amount field since total is often returning 0
+			const amount = attributes.subtotal > 0 ? attributes.subtotal / 100 : 0;
+
+			// Extract all possible user information
+			// Use type assertion for additional fields that might be in the API but not in our types
+			const attr = attributes as any;
+
+			// Process any custom user data
+			const customUserData: Record<string, any> = {};
+			if (attr.custom_data && typeof attr.custom_data === "object") {
+				for (const [key, value] of Object.entries(attr.custom_data)) {
+					if (key.startsWith("user_")) {
+						customUserData[key] = value;
+					}
+				}
+			}
+
+			return {
+				id: order.id,
+				orderId: attributes.identifier,
+				userEmail: attributes.user_email ?? "Unknown",
+				userName: attributes.user_name,
+				// Include additional user fields if available
+				userAddress: attr.user_address || null,
+				userCity: attr.user_city || null,
+				userCountry: attr.user_country || null,
+				userPhone: attr.user_phone || null,
+				// Include any custom user properties
+				customUserData,
+				amount,
+				status: attributes.status as "paid" | "refunded" | "pending",
+				productName: attributes.first_order_item?.variant_name ?? "Unknown Product",
+				purchaseDate: new Date(attributes.created_at),
+				// Include discount code if available - use type assertion to avoid TypeScript error
+				discountCode: (attr.discount_code || null) as string | null,
+				attributes,
+			};
 		});
-
-		console.log("getPaymentStatusByEmail", orders.data);
-
-		return orders.data?.data?.some((order) => order.attributes.status === "paid") ?? false;
 	} catch (error) {
-		console.error("Error checking payment status:", error);
-		return false;
+		logger.error("Error fetching all orders:", error);
+		return [];
 	}
 };
 
@@ -111,22 +126,15 @@ export const getPaymentStatusByEmail = async (email: string): Promise<boolean> =
  * Gets the payment status for a user by checking both their ID and email
  * This ensures we catch payments even if they used a different email
  */
-export const getPaymentStatus = async (userId: string): Promise<boolean> => {
+export const getLemonSqueezyPaymentStatus = async (userId: string): Promise<boolean> => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to get LS payment status, but feature is disabled.");
+		return false;
+	}
 	try {
-		console.log("getPaymentStatus", userId);
-		// Check the payment status in your database first
-		const payment = await db?.query.payments.findFirst({
-			where: eq(payments.userId, userId),
-		});
-
-		if (payment) return true;
-
-		// If not found in the database, get the user
 		const user = await db?.query.users.findFirst({
 			where: eq(users.id, userId),
 		});
-
-		console.log("user", user);
 
 		if (!user?.email) return false;
 
@@ -150,26 +158,6 @@ export const getPaymentStatus = async (userId: string): Promise<boolean> => {
 			(order) => (order.attributes as LemonSqueezyOrderAttributes).status === "paid"
 		);
 
-		// If we found a paid order, store it in our database
-		if (hasPaid) {
-			const paidOrder = userOrders.find(
-				(order) => (order.attributes as LemonSqueezyOrderAttributes).status === "paid"
-			);
-			if (paidOrder) {
-				const attributes = paidOrder.attributes as LemonSqueezyOrderAttributes;
-				await db?.insert(payments).values({
-					userId,
-					orderId: paidOrder.id,
-					status: "completed",
-					amount: attributes.total,
-					metadata: JSON.stringify({
-						custom_data: attributes.custom_data || {},
-						order_data: attributes,
-					}),
-				});
-			}
-		}
-
 		return hasPaid;
 	} catch (error) {
 		console.error("Error checking payment status:", error);
@@ -177,253 +165,202 @@ export const getPaymentStatus = async (userId: string): Promise<boolean> => {
 	}
 };
 
-// Product-related functions
-export const fetchProductVariants = async (productId: string) => {
-	const response = await listVariants({
-		filter: { productId },
-	});
-
-	return response?.data?.data ?? [];
-};
-
 export const fetchLemonSqueezyProducts = async () => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to fetch LS products, but feature is disabled.");
+		return [];
+	}
 	const response = await listProducts({});
 	return response.data ?? [];
 };
 
 /**
- * This action will sync the product variants from Lemon Squeezy with the
- * Plans database model.
+ * Checks if a user has purchased a specific product by variant ID
  */
-export const syncPlans = async () => {
-	// Fetch all the variants from the database.
-	const productVariants: NewPlan[] = await db?.select().from(plans) ?? [];
-
-	// Helper function to add a variant to the productVariants array and sync it with the database.
-	async function _addVariant(variant: NewPlan) {
-		// Sync the variant with the plan in the database.
-		await db
-			?.insert(plans)
-			.values(variant)
-			.onConflictDoUpdate({ target: plans.variantId, set: variant });
-
-		productVariants.push(variant);
+export const hasUserPurchasedProduct = async (
+	userId: string,
+	variantId: string | number
+): Promise<boolean> => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to check LS product purchase, but feature is disabled.");
+		return false;
 	}
+	try {
+		logger.debug("Checking if user has purchased product", { userId, variantId });
 
-	// Fetch products from the Lemon Squeezy store.
-	const products = await listProducts({
-		filter: { storeId: process.env.LEMONSQUEEZY_STORE_ID },
-		include: ["variants"],
-	});
+		// First get the user email
+		const user = await db?.query.users.findFirst({
+			where: eq(users.id, userId),
+		});
 
-	// Loop through all the variants.
-	const allVariants = products.data?.included as Variant["data"][] | undefined;
+		if (!user?.email) return false;
 
-	if (allVariants) {
-		for (const v of allVariants) {
-			const variant = v.attributes;
+		// Get user orders
+		const orders = await listOrders({});
+		const userOrders =
+			orders.data?.data?.filter((order) => {
+				const attributes = order.attributes as LemonSqueezyOrderAttributes;
+				const customData = attributes.custom_data || {};
 
-			// Skip draft variants
-			if (variant.status === "draft") {
-				continue;
-			}
+				// Check if either the user ID matches or the email matches
+				return (
+					(typeof customData === "object" && customData?.user_id === userId) ||
+					attributes.user_email?.toLowerCase() === user.email.toLowerCase()
+				);
+			}) ?? [];
 
-			// Fetch the Product name.
-			const productName = (await getProduct(variant.product_id)).data?.data.attributes.name ?? "";
+		// Check if any paid order includes the specific variant ID
+		const hasPurchased = userOrders.some((order) => {
+			const attributes = order.attributes as LemonSqueezyOrderAttributes;
 
-			const priceString = variant.price?.toString() ?? "";
+			// Check if order is paid and contains the product variant
+			return (
+				attributes.status === "paid" &&
+				attributes.first_order_item?.variant_id === Number(variantId)
+			);
+		});
 
-			await _addVariant({
-				name: variant.name,
-				description: variant.description,
-				price: priceString,
-				productId: variant.product_id,
-				productName,
-				variantId: Number.parseInt(v.id),
-				sort: variant.sort,
-			});
-		}
+		logger.debug("User product purchase check result", {
+			userId,
+			variantId,
+			hasPurchased,
+			orderCount: userOrders.length,
+		});
+
+		return hasPurchased;
+	} catch (error) {
+		logger.error("Error checking if user purchased product:", error);
+		return false;
 	}
-
-	revalidatePath("/");
-
-	return productVariants;
 };
 
 /**
- * This action will store a webhook event in the database.
- * @param eventName - The name of the event.
- * @param body - The body of the event.
+ * Checks if a user has an active subscription
  */
-export async function storeWebhookEvent(eventName: string, body: any) {
-	const id = crypto.randomInt(100000000, 1000000000);
-
-	const returnedValue = await db
-		?.insert(webhookEvents)
-		.values({
-			id,
-			eventName,
-			processed: false,
-			body,
-		})
-		.onConflictDoNothing({ target: webhookEvents.id })
-		.returning();
-
-	return returnedValue?.[0];
-}
-
-/**
- * This action will process a webhook event in the database.
- */
-export async function processWebhookEvent(webhookEvent: any) {
-	const dbwebhookEvent = await db
-		?.select()
-		.from(webhookEvents)
-		.where(eq(webhookEvents.id, webhookEvent.id));
-
-	if (dbwebhookEvent?.length && dbwebhookEvent.length < 1) {
-		throw new Error(`Webhook event #${webhookEvent.id} not found in the database.`);
+export const hasUserActiveSubscription = async (userId: string): Promise<boolean> => {
+	if (!env.NEXT_PUBLIC_FEATURE_LEMONSQUEEZY_ENABLED) {
+		logger.warn("Attempted to check LS subscription, but feature is disabled.");
+		return false;
 	}
-
-	const eventBody = webhookEvent.body;
-
-	if (webhookHasMeta(eventBody)) {
-		// Handle events related to product variants
-		if (webhookEvent.eventName.startsWith("variant_")) {
-			// Implement logic for handling variant events
-		}
-
-		// Update the webhook event in the database.
-		await db
-			?.update(webhookEvents)
-			.set({
-				processed: true,
-			})
-			.where(eq(webhookEvents.id, webhookEvent.id));
-	}
-}
-
-interface LemonSqueezyOrder {
-	id: string;
-	orderId: string;
-	attributes: {
-		user_email: string | null;
-		status: string;
-	};
-	amount: number;
-	status: "paid" | "refunded" | "pending";
-	productName: string;
-	purchaseDate: Date;
-}
-
-/**
- * Fetches all users with their payment status from both the database and Lemon Squeezy
- * This is used in the admin dashboard to display user payment information
- */
-export const getUsersWithPayments = async () => {
 	try {
-		if (!isDatabaseInitialized()) {
-			throw new Error("Database is not initialized");
-		}
+		logger.debug("Checking if user has active subscription", { userId });
 
-		// Get all users from the database
-		const allUsers = await db?.query.users.findMany();
-		if (!allUsers?.length) return [];
+		// First get the user email
+		const user = await db?.query.users.findFirst({
+			where: eq(users.id, userId),
+		});
 
-		// Get all payments from the database
-		const dbPayments = await db?.query.payments.findMany();
+		if (!user?.email) return false;
 
-		// Get all orders from Lemon Squeezy (with error handling)
-		let lemonSqueezyOrders: LemonSqueezyOrder[] = [];
+		// Get user subscriptions
 		try {
-			lemonSqueezyOrders = await getAllOrders();
+			// We need to use the Lemon Squeezy SDK to get subscriptions
+			// Type assertion here since the SDK types may not be complete
+			const lemonClient = lemonSqueezySetup({
+				apiKey: env.LEMONSQUEEZY_API_KEY ?? "",
+			}) as any;
+
+			const response = await lemonClient.subscriptions?.list();
+
+			// Filter subscriptions for this user
+			const userSubscriptions =
+				response?.data?.data?.filter((subscription: any) => {
+					const attributes = subscription.attributes as any;
+					const customData = attributes.custom_data || {};
+
+					// Check if either the user ID matches or the email matches
+					return (
+						(typeof customData === "object" && customData?.user_id === userId) ||
+						attributes.user_email?.toLowerCase() === user.email.toLowerCase()
+					);
+				}) ?? [];
+
+			// Check if any subscription is active
+			const hasActiveSubscription = userSubscriptions.some((subscription: any) => {
+				const attributes = subscription.attributes as any;
+				return attributes.status === "active";
+			});
+
+			logger.debug("User subscription check result", {
+				userId,
+				hasActiveSubscription,
+				subscriptionCount: userSubscriptions.length,
+			});
+
+			return hasActiveSubscription;
 		} catch (error) {
-			console.error("Error fetching Lemon Squeezy orders:", error);
+			logger.error("Error checking user subscriptions:", error);
+			return false;
 		}
-
-		// Map users to include their payment status
-		const usersWithPayments = await Promise.all(
-			allUsers.map(async (user: User) => {
-				if (!user?.email) return null;
-
-				// Check if user has a payment record in our database
-				const dbPayment = dbPayments?.find((p) => p.userId === user.id);
-
-				// Check if user has any orders in Lemon Squeezy
-				const userOrders = lemonSqueezyOrders.filter(
-					(order) => order.attributes.user_email?.toLowerCase() === user.email.toLowerCase()
-				);
-
-				const hasPaid =
-					dbPayment !== undefined || userOrders.some((order) => order.attributes.status === "paid");
-
-				// Get the last purchase date
-				const sortedOrders = [...userOrders].sort(
-					(a, b) => b.purchaseDate.getTime() - a.purchaseDate.getTime()
-				);
-				const lastPurchaseDate = sortedOrders[0]?.purchaseDate ?? null;
-
-				// Map orders to Purchase type
-				const purchases = userOrders.map((order) => ({
-					id: order.id,
-					orderId: order.orderId,
-					amount: order.amount,
-					status: order.status,
-					productName: order.productName,
-					purchaseDate: order.purchaseDate,
-				}));
-
-				return {
-					id: user.id,
-					name: user.name ?? null,
-					email: user.email,
-					createdAt: user.createdAt ?? new Date(),
-					hasPaid,
-					lastPurchaseDate,
-					totalPurchases: userOrders.length,
-					purchases,
-				};
-			})
-		);
-
-		// Filter out null values and return
-		return usersWithPayments.filter(Boolean);
 	} catch (error) {
-		console.error("Error fetching users with payments:", error);
-		return [];
+		logger.error("Error checking if user has active subscription:", error);
+		return false;
 	}
 };
 
 /**
- * Fetches all payments with associated user data from both the database and Lemon Squeezy
- * This is used in the admin dashboard to display payment information
+ * Gets all products that a user has purchased
  */
-export const getPaymentsWithUsers = async () => {
+export const getUserPurchasedProducts = async (userId: string): Promise<any[]> => {
 	try {
-		// Get all users from the database for mapping
-		const allUsers = await db?.query.users.findMany();
-		console.log("allUsers", allUsers);
+		logger.debug("Getting user purchased products", { userId });
 
-		// Get all orders from Lemon Squeezy
-		const lemonSqueezyOrders = await getAllOrders();
-		console.log("lemonSqueezyOrders", lemonSqueezyOrders);
+		// First get the user email
+		const user = await db?.query.users.findFirst({
+			where: eq(users.id, userId),
+		});
 
-		// Map orders to PaymentData type
-		const payments: PaymentData[] = lemonSqueezyOrders.map((order) => ({
-			id: order.id,
-			orderId: order.orderId,
-			userEmail: order.userEmail,
-			userName: order.userName,
-			amount: order.amount,
-			status: order.status,
-			productName: order.productName,
-			purchaseDate: order.purchaseDate,
-		}));
+		if (!user?.email) return [];
 
-		// Sort by purchase date, most recent first
-		return payments.sort((a, b) => b.purchaseDate.getTime() - a.purchaseDate.getTime());
+		// Get user orders
+		const orders = await listOrders({});
+		const userOrders =
+			orders.data?.data?.filter((order) => {
+				const attributes = order.attributes as LemonSqueezyOrderAttributes;
+				const customData = attributes.custom_data || {};
+
+				// Check if either the user ID matches or the email matches
+				return (
+					(typeof customData === "object" && customData?.user_id === userId) ||
+					attributes.user_email?.toLowerCase() === user.email.toLowerCase()
+				);
+			}) ?? [];
+
+		// Extract unique products from paid orders
+		const purchasedVariantIds = new Set<number>();
+		const purchasedProducts: any[] = [];
+
+		// Use for...of loop instead of forEach
+		for (const order of userOrders) {
+			const attributes = order.attributes as LemonSqueezyOrderAttributes;
+
+			// Only consider paid orders
+			if (attributes.status === "paid" && attributes.first_order_item) {
+				const variantId = attributes.first_order_item.variant_id;
+
+				// Only add each variant once
+				if (!purchasedVariantIds.has(variantId)) {
+					purchasedVariantIds.add(variantId);
+					purchasedProducts.push({
+						id: attributes.first_order_item.product_id,
+						variant_id: variantId,
+						name: attributes.first_order_item.product_name,
+						variant_name: attributes.first_order_item.variant_name,
+						price: attributes.first_order_item.price,
+						purchaseDate: new Date(attributes.created_at),
+					});
+				}
+			}
+		}
+
+		logger.debug("User purchased products", {
+			userId,
+			productCount: purchasedProducts.length,
+		});
+
+		return purchasedProducts;
 	} catch (error) {
-		logger.error("Error fetching payments with users:", error);
+		logger.error("Error getting user purchased products:", error);
 		return [];
 	}
 };

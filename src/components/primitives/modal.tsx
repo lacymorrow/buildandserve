@@ -4,127 +4,141 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
+	Drawer,
+	DrawerClose,
+	DrawerContent,
+	DrawerDescription,
+	DrawerFooter,
+	DrawerHeader,
+	DrawerTitle,
+	DrawerTrigger,
 } from "@/components/ui/drawer";
-import { debounce } from "@/lib/utils/debounce";
-import { useMediaQuery } from "@uidotdev/usehooks";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { debounce } from "@/lib/utils/debounce";
 
 interface DrawerDialogProps {
-  asChild?: boolean;
-  trigger?: React.ReactNode;
-  dialogTitle?: string;
-  dialogDescription?: string;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  children: React.ReactNode;
-  className?: string;
+	asChild?: boolean;
+	routeBack?: boolean;
+	trigger?: React.ReactNode;
+	dialogTitle?: string;
+	dialogDescription?: string;
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	children: React.ReactNode;
+	className?: string;
 }
 
 export function Modal({
-  asChild = false,
-  trigger,
-  dialogTitle,
-  dialogDescription,
-  open,
-  children,
-  onOpenChange,
-  className,
-  ...props
+	asChild = false,
+	routeBack = false,
+	trigger,
+	dialogTitle,
+	dialogDescription,
+	open,
+	children,
+	onOpenChange,
+	className,
+	...props
 }: DrawerDialogProps) {
-  const router = useRouter();
-  const [isOpen, setIsOpen] = React.useState(
-    typeof open === "undefined" ? true : open,
-  );
-  const isDesktop = useMediaQuery("(min-width: 768px)");
+	const router = useRouter();
+	const [isMobile, setIsMobile] = React.useState(true);
+	const [isOpen, setIsOpen] = React.useState(
+		typeof open === "undefined" ? true : open,
+	);
 
-  // Don't immediately close the modal, we need to wait for the modal to animate closed before we should navigate
-  // @see https://nextjs.org/docs/app/building-your-application/routing/parallel-routes#modals
-  const debouncedRouteBack = React.useMemo(
-    () => debounce(() => router.back(), 300),
-    [router],
-  );
+	// Responsive breakpoint for mobile
+	useEffect(() => {
+		setIsMobile(window.innerWidth < 768);
+	}, []);
 
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open);
 
-    if (onOpenChange) {
-      return onOpenChange(open);
-    }
+	// Don't immediately close the modal, we need to wait for the modal to animate closed before we should navigate
+	// @see https://nextjs.org/docs/app/building-your-application/routing/parallel-routes#modals
+	const debouncedRouteBack = useMemo(
+		() => debounce(() => router.back(), 300),
+		[router],
+	);
 
-    if (!open) {
-      debouncedRouteBack();
-    }
-  };
+	const handleOpenChange = (open: boolean) => {
+		setIsOpen(open);
 
-  // Todo: The children are rendered twice, so state is not maintained when changing screen sizes
-  if (isDesktop) {
-    return (
-      <Dialog
-        onOpenChange={(open) => handleOpenChange(open)}
-        open={typeof open === "undefined" ? isOpen : open}
-        {...props}
-      >
-        {trigger && <DialogTrigger asChild={asChild}>{trigger}</DialogTrigger>}
+		if (onOpenChange) {
+			return onOpenChange(open);
+		}
 
-        <DialogContent className={className}>
-          <DialogHeader>
-            {dialogTitle ? (
-              <DialogTitle>{dialogTitle}</DialogTitle>
-            ) : (
-              <DialogTitle className="sr-only">
-                {dialogTitle ?? "Modal"}
-              </DialogTitle>
-            )}
-            {dialogDescription && (
-              <DialogDescription>{dialogDescription}</DialogDescription>
-            )}
-          </DialogHeader>
-          {children}
-        </DialogContent>
-      </Dialog>
-    );
-  }
+		if (!open && routeBack) {
+			debouncedRouteBack();
+		}
 
-  return (
-    <Drawer
-      onOpenChange={(open) => handleOpenChange(open)}
-      open={typeof open === "undefined" ? isOpen : open}
-    >
-      {trigger && <DrawerTrigger asChild={asChild}>{trigger}</DrawerTrigger>}
-      <DrawerContent>
-        <DrawerHeader className="text-left">
-          <DrawerTitle className={dialogTitle ? "" : "sr-only"}>
-            {dialogTitle ?? "Modal"}
-          </DrawerTitle>
-          <DrawerDescription className={dialogDescription ? "" : "sr-only"}>
-            {dialogDescription ?? ""}
-          </DrawerDescription>
-        </DrawerHeader>
-        {children}
-        <DrawerFooter className="pt-2">
-          <DrawerClose asChild>
-            <Button type="button" variant="outline">
-              Cancel
-            </Button>
-          </DrawerClose>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
-  );
+	};
+
+	// Using Tailwind responsive classes to conditionally render Dialog or Drawer
+	// md: breakpoint is typically 768px which is a common tablet/desktop breakpoint
+	return (
+		<>
+			{/* Dialog for desktop - hidden on small screens, visible on medium and up */}
+			{!isMobile ? (
+				<Dialog
+					onOpenChange={(open) => handleOpenChange(open)}
+					open={typeof open === "undefined" ? isOpen : open}
+					{...props}
+				>
+					{trigger && <DialogTrigger asChild={asChild}>{trigger}</DialogTrigger>}
+
+					<DialogContent className={className}>
+						<DialogHeader>
+							{dialogTitle ? (
+								<DialogTitle>{dialogTitle}</DialogTitle>
+							) : (
+								<DialogTitle className="sr-only">
+									{dialogTitle ?? "Modal dialog window"}
+								</DialogTitle>
+							)}
+							{dialogDescription && (
+								<DialogDescription>{dialogDescription}</DialogDescription>
+							)}
+						</DialogHeader>
+						{children}
+					</DialogContent>
+				</Dialog>
+			) : (
+				<>
+					{/* Drawer for mobile - visible on small screens, hidden on medium and up */}
+					<Drawer
+						onOpenChange={(open) => handleOpenChange(open)}
+						open={typeof open === "undefined" ? isOpen : open}
+					>
+						{trigger && <DrawerTrigger asChild={asChild}>{trigger}</DrawerTrigger>}
+						<DrawerContent>
+							<DrawerHeader className="text-left">
+								<DrawerTitle className={dialogTitle ? "" : "sr-only"}>
+									{dialogTitle ?? "Modal"}
+								</DrawerTitle>
+								<DrawerDescription className={dialogDescription ? "" : "sr-only"}>
+									{dialogDescription ?? ""}
+								</DrawerDescription>
+							</DrawerHeader>
+							{children}
+							<DrawerFooter className="pt-2">
+								<DrawerClose asChild>
+									<Button type="button" variant="outline">
+										Cancel
+									</Button>
+								</DrawerClose>
+							</DrawerFooter>
+						</DrawerContent>
+					</Drawer>
+				</>
+			)}
+		</>
+	);
 }

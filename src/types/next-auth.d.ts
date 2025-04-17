@@ -11,7 +11,6 @@ declare module "next-auth" {
 			image: string | null;
 			role?: UserRole;
 			theme?: "light" | "dark" | "system";
-			emailNotifications?: boolean;
 			bio?: string | null;
 			githubUsername?: string | null;
 		};
@@ -25,7 +24,6 @@ declare module "next-auth" {
 	// 	image: string | null;
 	// 	role?: UserRole;
 	// 	theme?: "light" | "dark" | "system";
-	// 	emailNotifications?: boolean;
 	// 	bio?: string | null;
 	// 	githubUsername?: string | null;
 	// }

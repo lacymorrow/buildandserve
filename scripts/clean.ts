@@ -72,8 +72,9 @@ const filesToRemove = [
 	"scripts/generator.ts",
 	"scripts/push-to-downstream-remotes.sh",
 	"scripts/scrape-aceternity.ts",
-	"scripts/seed.ts",
-	"scripts/sync-env.sh",
+	"scripts/db-seed.ts",
+	"scripts/db-sync.ts",
+	"scripts/env-sync.sh",
 	"scripts/sync-upstream.ts",
 	"scripts/tsconfig.json",
 

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { type PropsWithChildren, useRef } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { motion, useMotionValue, useSpring, useTransform, type HTMLMotionProps, type MotionValue } from "framer-motion";
+import React, { useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -21,12 +21,13 @@ const dockVariants = cva(
 	"supports-backdrop-blur:bg-white/10 supports-backdrop-blur:dark:bg-black/10 mx-auto mt-8 flex h-[58px] w-max gap-2 rounded-2xl border p-2 backdrop-blur-md",
 );
 
+// Create context with null as default - we'll provide actual values in the Dock component
 const DockContext = React.createContext<{
-	mouseX: MotionValue<number>;
+	mouseX: MotionValue<number> | null;
 	magnification: number;
 	distance: number;
 }>({
-	mouseX: useMotionValue(Infinity),
+	mouseX: null,
 	magnification: DEFAULT_MAGNIFICATION,
 	distance: DEFAULT_DISTANCE,
 });
@@ -43,6 +44,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
 		},
 		ref,
 	) => {
+		// Use hooks inside the component
 		const mouseX = useMotionValue(Infinity);
 
 		return (
@@ -81,7 +83,10 @@ const DockIcon = ({
 	const ref = useRef<HTMLDivElement>(null);
 	const { mouseX, magnification, distance } = React.useContext(DockContext);
 
-	const distanceCalc = useTransform(mouseX, (val: number) => {
+	// Handle case where mouseX is null (should only happen if DockIcon is used outside of Dock)
+	const mouseXValue = mouseX || useMotionValue(Infinity);
+
+	const distanceCalc = useTransform(mouseXValue, (val: number) => {
 		const bounds = ref.current?.getBoundingClientRect() ?? { x: 0, width: 0 };
 		return val - bounds.x - bounds.width / 2;
 	});

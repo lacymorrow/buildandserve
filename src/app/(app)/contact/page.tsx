@@ -4,7 +4,7 @@ import { Boxes } from "@/components/ui/background-boxes";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { routes } from "@/config/routes";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { MailIcon } from "lucide-react";
 
 export default function ContactPage() {

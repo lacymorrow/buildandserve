@@ -4,10 +4,11 @@ import { Link } from "@/components/primitives/link-with-transition";
 import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/primitives/page-header";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { buttonVariants } from "@/components/ui/button";
-import { siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site-config";
 import { ArrowRight, Box, Code, Zap } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { HeroGraphic } from "./hero-graphic";
+import { ShipkitLogoParticles } from "@/app/(app)/(shipkit)/_components/shipkit-logo-particles";
 
 const items = [...Array(100)].map(() => (
 	<div
@@ -70,11 +71,9 @@ export function HeroSection() {
 							</Link>
 						</div>
 					</div>
-					<div className="flex items-center justify-center">
-						<div className="relative flex h-[400px] max-w-3xl flex-col items-center justify-center overflow-hidden rounded-lg border bg-background md:shadow-xl">
-							<HeroGraphic />
-							<BorderBeam size={250} duration={12} delay={9} />
-						</div>
+					<div className="relative flex h-[400px] max-w-3xl flex-col items-center justify-center overflow-hidden rounded-lg border bg-background md:shadow-xl">
+						<ShipkitLogoParticles />
+						<BorderBeam size={250} duration={12} delay={9} />
 					</div>
 				</div>
 				<div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

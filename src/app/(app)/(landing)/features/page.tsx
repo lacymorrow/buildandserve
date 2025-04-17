@@ -1,16 +1,19 @@
 import { constructMetadata } from "@/config/metadata";
+import { siteConfig } from "@/config/site-config";
 import type { Metadata } from "next";
 import { FAQ } from "../_components/faq";
 import { FeaturesTable } from "../_components/features-table";
 
+
+
 export const metadata: Metadata = constructMetadata({
-	title: "Features & Capabilities - Build Apps Faster | Shipkit",
+	title: `${siteConfig.name} Features & Capabilities`,
 	description: "Explore Shipkit's powerful features: Next.js 14, TypeScript, Payload CMS, Auth.js, Builder.io, and more. Everything you need to build modern, scalable applications.",
 	openGraph: {
-		title: "Features & Capabilities - Build Apps Faster | Shipkit",
+		title: `${siteConfig.name} Features & Capabilities`,
 		description: "Explore Shipkit's powerful features: Next.js 14, TypeScript, Payload CMS, Auth.js, Builder.io, and more. Everything you need to build modern, scalable applications.",
 		type: "website",
-		siteName: "Shipkit",
+		siteName: siteConfig.name,
 		locale: "en_US",
 	},
 	keywords: [

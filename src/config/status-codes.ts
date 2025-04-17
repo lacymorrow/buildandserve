@@ -32,6 +32,11 @@ export const STATUS_CODES = {
 		message: "You have been signed out.",
 	},
 
+	CONNECT_GITHUB: {
+		code: "CONNECT_GITHUB",
+		message: "GitHub connected successfully.",
+	},
+
 	UNKNOWN: {
 		code: "UNKNOWN",
 		message: "Something went wrong, please try again.",

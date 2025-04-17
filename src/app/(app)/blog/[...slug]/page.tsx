@@ -10,14 +10,21 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 interface Props {
-	params: Promise<{
-		slug: string | string[];
-	}>;
+	params: {
+		slug: string[];
+	};
+}
+
+export async function generateStaticParams() {
+	const posts = await getBlogPosts();
+
+	return posts.map((post) => ({
+		slug: post.slug.split('/'),
+	}));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-	const resolvedParams = await params;
-	const slug = Array.isArray(resolvedParams.slug) ? resolvedParams.slug.join('/') : resolvedParams.slug;
+	const slug = params.slug.join('/');
 	const posts = await getBlogPosts();
 	const post = posts.find((post) => post.slug === slug);
 
@@ -42,8 +49,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 const BlogPostPage = async ({ params }: Props) => {
-	const resolvedParams = await params;
-	const slug = Array.isArray(resolvedParams.slug) ? resolvedParams.slug.join('/') : resolvedParams.slug;
+	const slug = params.slug.join('/');
 	const posts = await getBlogPosts();
 	const post = posts.find((post) => post.slug === slug);
 

@@ -1,28 +1,21 @@
-import { TRPCReactProvider } from '@/lib/trpc/react'
-import { TooltipProvider } from '@radix-ui/react-tooltip'
-import { SessionProvider } from 'next-auth/react'
-import { ThemeProvider } from 'next-themes'
-import { Toaster } from '@/components/ui/sonner'
-import { ReactNode } from 'react'
+import type { ReactNode } from "react";
 
-interface PagesLayoutProps {
-  children: ReactNode
-}
+/**
+ * Simple layout wrapper for Pages Router pages
+ */
+export const PagesLayout = ({
+	children,
+}: {
+	children: ReactNode;
+	hideHeader?: boolean;
+	hideFooter?: boolean;
+}) => {
+	return (
+		<>
 
-export const PagesLayout = ({ children }: PagesLayoutProps) => {
-  return (
-					<SessionProvider>
-						<TRPCReactProvider>
-							<ThemeProvider attribute="class" defaultTheme="dark">
-								<TooltipProvider delayDuration={100}>
-									{/* Content */}
-									{children}
-
-									{/* Toast - Display messages to the user */}
-									<Toaster />
-								</TooltipProvider>
-							</ThemeProvider>
-						</TRPCReactProvider>
-					</SessionProvider>
-  )
-}
+			<div className="flex min-h-screen flex-col py-10">
+				<main className="flex-1">{children}</main>
+			</div>
+		</>
+	);
+};

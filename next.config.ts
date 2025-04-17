@@ -1,17 +1,23 @@
+import {
+	buildTimeFeatureFlags,
+	isBuilderEnabled,
+	isMDXEnabled,
+	isPayloadEnabled,
+	isPwaEnabled,
+} from "@/config/features-config";
 import { FILE_UPLOAD_MAX_SIZE } from "@/config/file";
 import { redirects } from "@/config/routes";
+import BuilderDevTools from "@builder.io/dev-tools/next";
 import createMDX from "@next/mdx";
+import { withPayload } from "@payloadcms/next/withPayload";
 import type { NextConfig } from "next";
-
-/**
- * Validate environment variables
- *
- * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially useful
- * for Docker builds.
- */
-import { env } from "@/env";
+import withPWA from "next-pwa";
 
 let nextConfig: NextConfig = {
+	env: {
+		...buildTimeFeatureFlags,
+		// You can add other build-time env variables here if needed
+	},
 	/*
 	 * Redirects are located in the `src/config/routes.ts` file
 	 */
@@ -88,14 +94,17 @@ let nextConfig: NextConfig = {
 		serverActions: {
 			bodySizeLimit: FILE_UPLOAD_MAX_SIZE,
 		},
+		// @see: https://nextjs.org/docs/app/api-reference/next-config-js/viewTransition
+		viewTransition: true,
 		webVitalsAttribution: ["CLS", "LCP", "TTFB", "FCP", "FID"],
 	},
+
 	/*
 	 * Miscellaneous configuration
 	 */
-	// devIndicators: {
-	// buildActivityPosition: "bottom-right" as const,
-	// },
+	devIndicators: {
+		position: "bottom-left" as const,
+	},
 
 	/*
 	 * Logging configuration
@@ -108,18 +117,78 @@ let nextConfig: NextConfig = {
 		},
 	},
 
-	// compiler: {
-	// Remove all console logs
-	// removeConsole: true
-	// Remove console logs only in production, excluding error logs
-	// removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false
-	// },
+	compiler: {
+		// Remove all console logs
+		// removeConsole: true
+		// Remove console logs only in production, excluding error logs
+		// removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false,
+
+		// Use DISABLE_LOGGING to disable all logging except error logs
+		// Use DISABLE_ERROR_LOGGING to disable error logging too
+		removeConsole:
+			process.env.DISABLE_LOGGING === "true"
+				? process.env.DISABLE_ERROR_LOGGING === "true"
+					? true
+					: { exclude: ["error"] }
+				: false,
+	},
+
+	outputFileTracingExcludes: {
+		"*": [
+			"**/*.test.*",
+			"**/*.spec.*",
+			"**/*.stories.*",
+			"**/tests/**",
+			"**/.git/**",
+			"**/.github/**",
+			"**/.vscode/**",
+			"**/.next/cache/**",
+			"**/node_modules/typescript/**",
+			"**/node_modules/@types/**",
+			"**/node_modules/eslint/**",
+			"**/node_modules/prettier/**",
+			"**/node_modules/typescript/**",
+			"**/node_modules/react-syntax-highlighter/**",
+			"**/node_modules/canvas-confetti/**",
+			"**/node_modules/@huggingface/transformers/**",
+			"**/node_modules/three/**",
+			"**/node_modules/@react-three/**",
+			"**/node_modules/jspdf/**",
+		],
+	},
+	outputFileTracingIncludes: {
+		"*": ["./docs/**/*", "./src/content/**/*"],
+	},
+
+	async headers() {
+		return [
+			// /install
+			{
+				source: "/install",
+				headers: [
+					{
+						key: "Cross-Origin-Opener-Policy",
+						value: "same-origin",
+					},
+					{
+						key: "Cross-Origin-Embedder-Policy",
+						value: "require-corp",
+					},
+				],
+			},
+		];
+	},
 };
 
 /*
  * Configurations
  * Order matters!
  */
+// Builder config
+nextConfig = isBuilderEnabled ? BuilderDevTools()(nextConfig) : nextConfig;
+
+// Payload config
+nextConfig = isPayloadEnabled ? withPayload(nextConfig) : nextConfig;
 
 /*
  * MDX config - should be last or second to last
@@ -142,7 +211,19 @@ const withMDX = createMDX({
 		rehypePlugins: [],
 	},
 });
-nextConfig = withMDX(nextConfig);
+nextConfig = isMDXEnabled ? withMDX(nextConfig) : nextConfig;
+
+/*
+ * PWA config
+ */
+const pwaConfig = {
+	dest: "public",
+	register: true,
+	skipWaiting: true,
+	disable: !isPwaEnabled || process.env.NODE_ENV === "development",
+};
+
+nextConfig = isPwaEnabled ? ((withPWA as any)(pwaConfig)(nextConfig) as NextConfig) : nextConfig;
 
 /*
  * Logflare config - should be last
