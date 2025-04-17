@@ -159,6 +159,25 @@ let nextConfig: NextConfig = {
 	outputFileTracingIncludes: {
 		"*": ["./docs/**/*", "./src/content/**/*"],
 	},
+
+	async headers() {
+		return [
+			// /install
+			{
+				source: "/install",
+				headers: [
+					{
+						key: "Cross-Origin-Opener-Policy",
+						value: "same-origin",
+					},
+					{
+						key: "Cross-Origin-Embedder-Policy",
+						value: "require-corp",
+					},
+				],
+			},
+		];
+	},
 };
 
 /*
@@ -204,7 +223,7 @@ const pwaConfig = {
 	disable: !isPwaEnabled || process.env.NODE_ENV === "development",
 };
 
-nextConfig = isPwaEnabled ? (withPWA as any)(pwaConfig)(nextConfig) as NextConfig : nextConfig;
+nextConfig = isPwaEnabled ? ((withPWA as any)(pwaConfig)(nextConfig) as NextConfig) : nextConfig;
 
 /*
  * Logflare config - should be last
