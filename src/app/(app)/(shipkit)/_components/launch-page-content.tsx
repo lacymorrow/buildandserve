@@ -111,7 +111,7 @@ export async function LaunchPageContent() {
 
 					{/* Code Preview */}
 					<Section className="container">
-						<div className="mx-auto max-w-4xl">
+						<div className="mx-auto max-w-4xl w-full">
 							<CodeWindow
 								title="Quick Start"
 								language="bash"

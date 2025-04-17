@@ -21,14 +21,12 @@ import { HamburgerMenuIcon } from "@radix-ui/react-icons";
 import { useWindowScroll } from "@uidotdev/usehooks";
 import { cva } from "class-variance-authority";
 import { useSession } from "next-auth/react";
-import { usePathname } from "next/navigation";
 import type React from "react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BuyButton } from "../buttons/buy-button";
 
 import styles from "@/styles/header.module.css";
-import { motion } from "framer-motion";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import type { User } from "next-auth";
 
 interface NavLink {
@@ -207,62 +205,65 @@ export const Header: React.FC<HeaderProps> = ({
 						</SheetContent>
 					</Sheet>
 					<div className="flex items-center gap-2 md:ml-auto lg:gap-4">
-						<SearchAi />
+						<SearchAi className="hidden md:block" />
 
 						<div className="flex items-center gap-2">
 							{/* If they are not signed in, we need to show the theme toggle. */}
 							{!isLoggedIn && (
-								<ThemeToggle variant="ghost" size="icon" className="rounded-full" />
+								<ThemeToggle variant="ghost" size="icon" className="hidden md:block rounded-full" />
 							)}
 
 							<UserMenu user={user} size="sm" />
 
-							{!session && (
-								<AnimatePresence mode="wait">
-									{y && y > 700 ? (
-										<motion.div
-											key="compact"
-											initial={{ opacity: 0, scale: 0.9 }}
-											animate={{ opacity: 1, scale: 1 }}
-											exit={{ opacity: 0, scale: 0.9 }}
-											transition={{ duration: 0.1 }}
-										>
-											<TooltipProvider delayDuration={0}>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<div className="relative -m-4 p-4">
-															<BuyButton />
-														</div>
-													</TooltipTrigger>
-													<TooltipContent
-														side="bottom"
-														sideOffset={3}
-														className="-mt-3 select-none border-none bg-transparent p-0 text-xs text-muted-foreground shadow-none data-[state=delayed-open]:animate-fadeDown"
-													>
-														<LoginButton className="hover:text-foreground">
-															or Login
-														</LoginButton>
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-										</motion.div>
-									) : (
-										<motion.div
-											key="full"
-											initial={{ opacity: 0, scale: 0.9 }}
-											animate={{ opacity: 1, scale: 1 }}
-											exit={{ opacity: 0, scale: 0.9 }}
-											transition={{ duration: 0.1 }}
-										>
-											<LoginButton
-												className={cn(buttonVariants({ variant: "outline" }), "")}
+							<div className="hidden md:flex items-center gap-2">
+								{!session && (
+									<AnimatePresence mode="wait">
+										{y && y > 700 ? (
+											<motion.div
+												key="compact"
+												initial={{ opacity: 0, scale: 0.9 }}
+												animate={{ opacity: 1, scale: 1 }}
+												exit={{ opacity: 0, scale: 0.9 }}
+												transition={{ duration: 0.1 }}
 											>
-												Dashboard
-											</LoginButton>
-										</motion.div>
-									)}
-								</AnimatePresence>
-							)}
+												<TooltipProvider delayDuration={0}>
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<div className="relative -m-4 p-4">
+																<BuyButton />
+															</div>
+														</TooltipTrigger>
+														<TooltipContent
+															side="bottom"
+															sideOffset={3}
+															className="-mt-3 select-none border-none bg-transparent p-0 text-xs text-muted-foreground shadow-none data-[state=delayed-open]:animate-fadeDown"
+														>
+															<LoginButton className="hover:text-foreground">
+																or Login
+															</LoginButton>
+														</TooltipContent>
+													</Tooltip>
+												</TooltipProvider>
+											</motion.div>
+										) : (
+											<motion.div
+												key="full"
+												initial={{ opacity: 0, scale: 0.9 }}
+												animate={{ opacity: 1, scale: 1 }}
+												exit={{ opacity: 0, scale: 0.9 }}
+												transition={{ duration: 0.1 }}
+											>
+												<LoginButton
+													className={cn(buttonVariants({ variant: "outline" }), "")}
+												>
+													Dashboard
+												</LoginButton>
+											</motion.div>
+										)}
+									</AnimatePresence>
+								)}
+							</div>
+
 						</div>
 					</div>
 				</nav>

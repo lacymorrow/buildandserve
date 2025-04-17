@@ -166,7 +166,7 @@ export const CodePreview = Builder.registerComponent(
 	}) {
 		return (
 			<Section className="container">
-				<div className="mx-auto max-w-4xl">
+				<div className="mx-auto max-w-4xl w-full">
 					<CodeWindow title={title} language={language} code={code} />
 				</div>
 			</Section>
