@@ -1,9 +1,9 @@
 import { Gemini, Replit, MagicUI, VSCodium, MediaWiki, GooglePaLM } from '@/components/logos'
-import { LogoIcon } from '@/components/blocks/logo'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { InfiniteSlider } from '@/components/blocks/infinite-slider'
+import { Icon } from '@/components/assets/icon'
 
 export default function IntegrationsSection() {
     return (
@@ -95,7 +95,7 @@ export default function IntegrationsSection() {
                             <IntegrationCard
                                 className="shadow-black-950/10 size-16 bg-white/25 shadow-xl backdrop-blur-md backdrop-grayscale dark:border-white/10 dark:shadow-white/15"
                                 isCenter={true}>
-                                <LogoIcon />
+                                <Icon className="size-16" />
                             </IntegrationCard>
                         </div>
                     </div>

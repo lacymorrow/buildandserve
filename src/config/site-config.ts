@@ -55,10 +55,6 @@ interface SiteConfig {
     projectName: string;
     projectSlug: string;
     productNames: {
-      // TODO: Remove these once we have a proper product name
-      bones: string;
-      muscles: string;
-      brains: string;
       main: string;
     };
     domain: string;
@@ -170,43 +166,41 @@ export const siteConfig: SiteConfig = {
     pageTransitions: true,
   },
 
-  name: "Shipkit",
-  title: "Shipkit",
-  tagline: "Launch your app at light speed.",
-  url: "https://shipkit.io",
-  ogImage: "https://shipkit.io/app/og-image.png",
+  name: "Build And Serve",
+  title: "Build And Serve",
+  tagline: "Modern sites and applications with an emphasis on AI features.",
+  url: "https://buildandserve.com",
+  ogImage: "https://buildandserve.com/og-image.png",
   description:
-    "Launch your app at light speed. Fast, flexible, and feature-packed for the modern web.",
+    "A web development agency and studio that builds modern sites and applications with an emphasis on AI features.",
 
   branding: {
-    projectName: "Shipkit",
-    projectSlug: "shipkit",
+    projectName: "Build And Serve",
+    projectSlug: "buildandserve",
     productNames: {
-      bones: "Bones",
-      muscles: "Muscles",
-      brains: "Brains",
-      main: "Shipkit",
+      main: "Build And Serve",
     },
-    domain: "shipkit.io",
-    protocol: "web+shipkit",
-    githubOrg: "shipkit-io",
-    githubRepo: "shipkit",
-    vercelProjectName: "shipkit-app",
-    databaseName: "shipkit",
+    domain: "buildandserve.com",
+    protocol: "web+buildandserve",
+    githubOrg: "buildandserve",
+    githubRepo: "buildandserve",
+    vercelProjectName: "buildandserve-app",
+    databaseName: "buildandserve",
   },
 
   links: {
-    twitter: "https://twitter.com/lacybuilds",
-    twitter_follow: "https://twitter.com/intent/follow?screen_name=lacybuilds",
-    x: "https://x.com/lacybuilds",
-    x_follow: "https://x.com/intent/follow?screen_name=lacybuilds",
-    github: "https://github.com/lacymorrow/shipkit",
+    twitter: "https://twitter.com/buildandserve",
+    twitter_follow:
+      "https://twitter.com/intent/follow?screen_name=buildandserve",
+    x: "https://x.com/buildandserve",
+    x_follow: "https://x.com/intent/follow?screen_name=buildandserve",
+    github: "https://github.com/buildandserve/buildandserve",
   },
 
   repo: {
-    owner: "lacymorrow",
-    name: "shipkit",
-    url: "https://github.com/lacymorrow/shipkit",
+    owner: "buildandserve",
+    name: "buildandserve",
+    url: "https://github.com/buildandserve/buildandserve",
     format: {
       // Placeholder format functions - assigned below
       clone: () => "",
@@ -215,52 +209,49 @@ export const siteConfig: SiteConfig = {
   },
 
   email: {
-    support: "feedback@shipkit.io",
-    team: "team@shipkit.io",
-    noreply: "noreply@shipkit.io",
-    domain: "shipkit.io",
-    legal: "legal@shipkit.io",
-    privacy: "privacy@shipkit.io",
+    support: "support@buildandserve.com",
+    team: "team@buildandserve.com",
+    noreply: "noreply@buildandserve.com",
+    domain: "buildandserve.com",
+    legal: "legal@buildandserve.com",
+    privacy: "privacy@buildandserve.com",
     // Placeholder format function - assigned below
     format: (type) => "",
   },
 
   creator: {
-    name: "lacymorrow",
-    email: "lacy@shipkit.io",
-    url: "https://lacymorrow.com",
-    twitter: "@lacybuilds",
-    twitter_handle: "lacybuilds",
-    domain: "lacymorrow.com",
-    fullName: "Lacy Morrow",
-    role: "Engineer",
-    avatar: "https://avatars.githubusercontent.com/u/1311301?v=4",
+    name: "Build And Serve",
+    email: "hello@buildandserve.com",
+    url: "https://buildandserve.com",
+    twitter: "@buildandserve",
+    twitter_handle: "buildandserve",
+    domain: "buildandserve.com",
+    fullName: "Build And Serve",
+    role: "Web Development Agency",
+    avatar: "/logo.png",
     location: "San Francisco, CA",
-    bio: "Founder, developer, and product designer.",
+    bio: "We build modern sites and applications with an emphasis on AI features.",
   },
 
   store: {
-    id: "shipkit",
+    id: "buildandserve",
     products: {
       // LemonSqueezy Checkout URLs use Variant IDs (not Product IDs)
       // Format: variant UUID from LemonSqueezy dashboard
-      shipkit: "411883",
-      // Examples:
-      bones: "411883",
-      muscles: "411883",
-      brains: "411883",
+      default: "your-product-variant-id",
     },
   },
 
   metadata: {
     keywords: [
+      "Web Development",
+      "Web Agency",
+      "Web Studio",
+      "AI Features",
       "Next.js",
       "React",
       "Tailwind CSS",
       "Server Components",
-      "Shipkit",
-      "Shadcn",
-      "UI Components",
     ],
     themeColor: {
       light: "white",

@@ -1,41 +1,36 @@
 'use client'
 import Link from 'next/link'
+import { Logo } from '@/components/assets/logo'
 import { Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import React from 'react'
-import { useScroll, motion } from 'motion/react'
 import { cn } from '@/lib/utils'
-import { Logo } from '@/components/assets/logo'
 
 const menuItems = [
     { name: 'Features', href: '#link' },
-    { name: 'Solution', href: '#link' },
     { name: 'Pricing', href: '#link' },
     { name: 'About', href: '#link' },
 ]
 
 export const HeroHeader = () => {
     const [menuState, setMenuState] = React.useState(false)
-    const [scrolled, setScrolled] = React.useState(false)
-    const { scrollYProgress } = useScroll()
+    const [isScrolled, setIsScrolled] = React.useState(false)
 
     React.useEffect(() => {
-        const unsubscribe = scrollYProgress.on('change', (latest) => {
-            setScrolled(latest > 0.05)
-        })
-        return () => unsubscribe()
-    }, [scrollYProgress])
-
+        const handleScroll = () => {
+            setIsScrolled(window.scrollY > 50)
+        }
+        window.addEventListener('scroll', handleScroll)
+        return () => window.removeEventListener('scroll', handleScroll)
+    }, [])
     return (
         <header>
             <nav
                 data-state={menuState && 'active'}
-                className="fixed z-20 w-full pt-2">
-                <div className={cn('mx-auto max-w-7xl rounded-3xl px-6 transition-all duration-300 lg:px-12', scrolled && 'bg-background/50 backdrop-blur-2xl')}>
-                    <motion.div
-                        key={1}
-                        className={cn('relative flex flex-wrap items-center justify-between gap-6 py-3 duration-200 lg:gap-0 lg:py-6', scrolled && 'lg:py-4')}>
-                        <div className="flex w-full items-center justify-between gap-12 lg:w-auto">
+                className={cn('fixed z-20 w-full transition-all duration-300', isScrolled && 'bg-background/75 border-b border-black/5 backdrop-blur-lg')}>
+                <div className="mx-auto max-w-5xl px-6">
+                    <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0">
+                        <div className="flex w-full justify-between gap-6 lg:w-auto">
                             <Link
                                 href="/"
                                 aria-label="home"
@@ -51,15 +46,20 @@ export const HeroHeader = () => {
                                 <X className="in-data-[state=active]:rotate-0 in-data-[state=active]:scale-100 in-data-[state=active]:opacity-100 absolute inset-0 m-auto size-6 -rotate-180 scale-0 opacity-0 duration-200" />
                             </button>
 
-                            <div className="hidden lg:block">
-                                <ul className="flex gap-8 text-sm">
+                            <div className="m-auto hidden size-fit lg:block">
+                                <ul className="flex gap-1">
                                     {menuItems.map((item, index) => (
                                         <li key={index}>
-                                            <Link
-                                                href={item.href}
-                                                className="text-muted-foreground hover:text-accent-foreground block duration-150">
-                                                <span>{item.name}</span>
-                                            </Link>
+                                            <Button
+                                                asChild
+                                                variant="ghost"
+                                                size="sm">
+                                                <Link
+                                                    href={item.href}
+                                                    className="text-base">
+                                                    <span>{item.name}</span>
+                                                </Link>
+                                            </Button>
                                         </li>
                                     ))}
                                 </ul>
@@ -83,22 +83,32 @@ export const HeroHeader = () => {
                             <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
                                 <Button
                                     asChild
-                                    variant="outline"
-                                    size="sm">
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(isScrolled && 'lg:hidden')}>
                                     <Link href="#">
                                         <span>Login</span>
                                     </Link>
                                 </Button>
                                 <Button
                                     asChild
-                                    size="sm">
+                                    size="sm"
+                                    className={cn(isScrolled && 'lg:hidden')}>
                                     <Link href="#">
                                         <span>Sign Up</span>
                                     </Link>
                                 </Button>
+                                <Button
+                                    asChild
+                                    size="sm"
+                                    className={cn(isScrolled ? 'lg:inline-flex' : 'hidden')}>
+                                    <Link href="#">
+                                        <span>Get Started</span>
+                                    </Link>
+                                </Button>
                             </div>
                         </div>
-                    </motion.div>
+                    </div>
                 </div>
             </nav>
         </header>

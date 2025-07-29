@@ -1,6 +1,6 @@
-// Main site icon
-import { ShipkitIcon } from "@/components/assets/shipkit-icon";
+import { ShadowIcon } from "@radix-ui/react-icons";
 
-export const Icon = (props: React.ComponentProps<typeof ShipkitIcon>) => {
-  return <ShipkitIcon {...props} />;
+// Main site icon
+export const Icon = (props: React.ComponentProps<typeof ShadowIcon>) => {
+  return <ShadowIcon {...props} />;
 };
