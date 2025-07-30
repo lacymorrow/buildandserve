@@ -13,15 +13,15 @@ export default function FeaturesSection() {
             <div className="py-24">
                 <div className="mx-auto w-full max-w-5xl px-6">
                     <div>
-                        <h2 className="text-foreground max-w-2xl text-balance text-4xl font-semibold">Empowering developers with AI-driven solutions</h2>
+                        <h2 className="text-foreground max-w-2xl text-balance text-4xl font-semibold">From idea to launch, we've got you covered</h2>
                     </div>
                     <div className="mt-16 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                         <Card
                             variant="soft"
                             className="overflow-hidden p-6">
                             <Target className="text-primary size-5" />
-                            <h3 className="text-foreground mt-5 text-lg font-semibold">AI Code Generation</h3>
-                            <p className="text-muted-foreground mt-3 text-balance">Our advanced AI models transform natural language into production-ready code.</p>
+                            <h3 className="text-foreground mt-5 text-lg font-semibold">Strategy & Design</h3>
+                            <p className="text-muted-foreground mt-3 text-balance">We work with you to define your product, identify your target audience, and create a beautiful, user-friendly design.</p>
 
                             <MeetingIllustration />
                         </Card>
@@ -30,8 +30,8 @@ export default function FeaturesSection() {
                             variant="soft"
                             className="group overflow-hidden px-6 pt-6">
                             <CalendarCheck className="text-primary size-5" />
-                            <h3 className="text-foreground mt-5 text-lg font-semibold">Intelligent Code Review</h3>
-                            <p className="text-muted-foreground mt-3 text-balance">Our AI analyzes your code for bugs, security issues, and optimization opportunities.</p>
+                            <h3 className="text-foreground mt-5 text-lg font-semibold">Development & Testing</h3>
+                            <p className="text-muted-foreground mt-3 text-balance">Our expert developers build your product with the latest technologies, ensuring it's fast, secure, and scalable. We test every aspect to ensure a flawless user experience.</p>
 
                             <CodeReviewIllustration />
                         </Card>
@@ -39,8 +39,8 @@ export default function FeaturesSection() {
                             variant="soft"
                             className="group overflow-hidden px-6 pt-6">
                             <Sparkles className="text-primary size-5" />
-                            <h3 className="text-foreground mt-5 text-lg font-semibold">Contextual AI Assistant</h3>
-                            <p className="text-muted-foreground mt-3 text-balance">A personalized AI companion that understands your codebase and helps solve complex...</p>
+                            <h3 className="text-foreground mt-5 text-lg font-semibold">Deployment & Support</h3>
+                            <p className="text-muted-foreground mt-3 text-balance">We handle the entire deployment process, and provide ongoing support to ensure your product is always running smoothly.</p>
 
                             <div className="mask-b-from-50 -mx-2 -mt-2 px-2 pt-2">
                                 <AIAssistantIllustration />
@@ -62,33 +62,13 @@ const MeetingIllustration = () => {
                 <div className="absolute -left-1.5 bottom-1.5 rounded-md border-t border-red-700 bg-red-500 px-1 py-px text-[10px] font-medium text-white shadow-md shadow-red-500/35">PDF</div>
                 <div className="h-10 w-8 rounded-md border bg-gradient-to-b from-zinc-100 to-zinc-200"></div>
             </div>
-            <div className="mb-0.5 text-sm font-semibold">AI Strategy Meeting</div>
+            <div className="mb-0.5 text-sm font-semibold">Strategy Meeting</div>
             <div className="mb-4 flex gap-2 text-sm">
                 <span className="text-muted-foreground">2:30 - 3:45 PM</span>
             </div>
             <div className="mb-2 flex -space-x-1.5">
-                <div className="flex -space-x-1.5">
-                    {[
-                        { src: MESCHAC_AVATAR, alt: 'Méschac Irung' },
-                        { src: BERNARD_AVATAR, alt: 'Bernard Ngandu' },
-                        { src: THEO_AVATAR, alt: 'Théo Balick' },
-                        { src: GLODIE_AVATAR, alt: 'Glodie Lukose' },
-                    ].map((avatar, index) => (
-                        <div
-                            key={index}
-                            className="bg-background size-7 rounded-full border p-0.5 shadow shadow-zinc-950/5">
-                            <img
-                                className="aspect-square rounded-full object-cover"
-                                src={avatar.src}
-                                alt={avatar.alt}
-                                height="460"
-                                width="460"
-                            />
-                        </div>
-                    ))}
-                </div>
             </div>
-            <div className="text-muted-foreground text-sm font-medium">ML Pipeline Discussion</div>
+            <div className="text-muted-foreground text-sm font-medium">Product Roadmap Discussion</div>
         </Card>
     )
 }
@@ -101,15 +81,8 @@ const CodeReviewIllustration = () => {
             <Card className="aspect-video w-4/5 translate-y-4 p-3 transition-transform duration-200 ease-in-out group-hover:-rotate-3">
                 <div className="mb-3 flex items-center gap-2">
                     <div className="bg-background size-6 rounded-full border p-0.5 shadow shadow-zinc-950/5">
-                        <img
-                            className="aspect-square rounded-full object-cover"
-                            src={MESCHAC_AVATAR}
-                            alt="M Irung"
-                            height="460"
-                            width="460"
-                        />
                     </div>
-                    <span className="text-muted-foreground text-sm font-medium">Méschac Irung</span>
+                    <span className="text-muted-foreground text-sm font-medium">Code Review</span>
 
                     <span className="text-muted-foreground/75 text-xs">2m</span>
                 </div>
@@ -138,10 +111,10 @@ const AIAssistantIllustration = () => {
             className="mt-6 aspect-video translate-y-4 p-4 pb-6 transition-transform duration-200 group-hover:translate-y-0">
             <div className="w-fit">
                 <Sparkles className="size-3.5 fill-purple-300 stroke-purple-300" />
-                <p className="mt-2 line-clamp-2 text-sm">How can I optimize my neural network to reduce inference time while maintaining accuracy?</p>
+                <p className="mt-2 line-clamp-2 text-sm">How do we deploy the new version of the app to production?</p>
             </div>
             <div className="bg-foreground/5 -mx-3 -mb-3 mt-3 space-y-3 rounded-lg p-3">
-                <div className="text-muted-foreground text-sm">Ask AI Assistant</div>
+                <div className="text-muted-foreground text-sm">Ask our Assistant</div>
 
                 <div className="flex justify-between">
                     <div className="flex gap-2">

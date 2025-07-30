@@ -16,7 +16,7 @@ export default function HeroSection() {
                             <div className="md:w-1/2">
                                 <div>
                                     <h1 className="max-w-md text-balance text-5xl font-medium md:text-6xl">Simple payments for startups</h1>
-                                    <p className="text-muted-foreground my-8 max-w-2xl text-balance text-xl">One tool that does it all. Search, generate, analyze, and chat—right inside Tailark.</p>
+                                    <p className="text-muted-foreground my-8 max-w-2xl text-balance text-xl">One tool that does it all. Search, generate, analyze, and chat—right inside Shipkit.</p>
 
                                     <div className="flex items-center gap-3">
                                         <Button
@@ -81,7 +81,7 @@ export default function HeroSection() {
                             <div className="before:border-foreground/5 before:bg-foreground/5 relative h-full before:absolute before:-inset-x-4 before:bottom-7 before:top-0 before:skew-x-6 before:rounded-[calc(var(--radius)+1rem)] before:border">
                                 <div className="bg-background rounded-(--radius) shadow-foreground/10 ring-foreground/5 relative h-full -translate-y-12 skew-x-6 overflow-hidden border border-transparent shadow-md ring-1">
                                     <Image
-                                        src="/mist/tailark.png"
+                                        src="/images/logo.png"
                                         alt="app screen"
                                         width="2880"
                                         height="1842"

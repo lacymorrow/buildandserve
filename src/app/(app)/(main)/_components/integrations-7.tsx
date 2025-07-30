@@ -100,14 +100,11 @@ export default function IntegrationsSection() {
                         </div>
                     </div>
                     <div className="mx-auto mt-12 max-w-lg space-y-6 text-center">
-                        <h2 className="text-balance text-3xl font-semibold md:text-4xl">Integrate with your favorite tools</h2>
-                        <p className="text-muted-foreground">Connect seamlessly with popular platforms and services to enhance your workflow.</p>
+                        <h2 className="text-balance text-3xl font-semibold md:text-4xl">Built on a Foundation of Excellence</h2>
+                        <p className="text-muted-foreground">We leverage industry-leading technologies to build fast, scalable, and secure solutions that give you a competitive edge.</p>
 
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            asChild>
-                            <Link href="#">Get Started</Link>
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/contact">Get in Touch</Link>
                         </Button>
                     </div>
                 </div>

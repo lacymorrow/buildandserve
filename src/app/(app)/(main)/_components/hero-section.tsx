@@ -14,15 +14,27 @@ export default function HeroSection() {
             <main className="overflow-x-hidden">
                 <section>
                     <div className="py-24 md:pb-32 lg:pb-36">
-                        <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 lg:grid-cols-2 lg:px-12">
-                            <div className="mx-auto max-w-lg text-center lg:mx-0 lg:text-left">
-                                <TextEffect
-                                    preset="fade-in-blur"
-                                    speedSegment={0.3}
-                                    as="h1"
-                                    className="mt-8 max-w-2xl text-balance text-5xl md:text-6xl lg:mt-16 xl:text-7xl">
-                                    Modern sites and applications with an emphasis on AI features
-                                </TextEffect>
+                        <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 lg:grid-cols-5 lg:px-12">
+                            <div className="mx-auto text-center lg:col-span-3 lg:mx-0 lg:text-left">
+                                <div
+                                    className="mt-8 max-w-2xl text-balance text-5xl md:text-6xl lg:mt-16 xl:text-7xl"
+                                >
+
+                                    <TextEffect
+                                        preset="fade-in-blur"
+                                        speedSegment={0.3}
+                                        as="h1"
+                                        className="mt-8 max-w-2xl text-balance text-5xl md:text-6xl lg:mt-16 xl:text-7xl">
+                                        Your vision,
+                                    </TextEffect>
+                                    <TextEffect
+                                        preset="fade-in-blur"
+                                        speedSegment={0.3}
+                                        delay={0.2}
+                                        as="h1">
+                                        engineered.
+                                    </TextEffect>
+                                </div>
                                 <TextEffect
                                     per="line"
                                     preset="fade-in-blur"
@@ -30,7 +42,7 @@ export default function HeroSection() {
                                     delay={0.5}
                                     as="p"
                                     className="mt-8 max-w-2xl text-balance text-lg">
-                                    Build and Serve is a web development agency that builds modern sites and applications with an emphasis on AI features.
+                                    We build stunning, high-performance websites and applications that drive results. From concept to launch, we're the partner you need to bring your digital vision to life.
                                 </TextEffect>
 
                                 <div className="mt-12 flex flex-col items-center justify-center gap-2 sm:flex-row lg:justify-start">
@@ -40,22 +52,22 @@ export default function HeroSection() {
                                         size="lg"
                                         variant="ghost"
                                         className="h-12 rounded-full px-5 text-base hover:bg-zinc-950/5 dark:hover:bg-white/5">
-                                        <Link href="#link">
-                                            <span className="text-nowrap">Request a demo</span>
+                                        <Link href="/#our-work">
+                                            <span className="text-nowrap">See our work</span>
                                         </Link>
                                     </Button>
                                     <Button
                                         asChild
                                         size="lg"
                                         className="h-12 rounded-full pl-5 pr-3 text-base">
-                                        <Link href="#link">
-                                            <span className="text-nowrap">Start Building</span>
+                                        <Link href="/contact">
+                                            <span className="text-nowrap">Get in touch</span>
                                             <ChevronRight className="ml-1" />
                                         </Link>
                                     </Button>
                                 </div>
                             </div>
-                            <div className="perspective-near relative">
+                            <div className="perspective-near relative lg:col-span-2">
                                 <div className="before:border-foreground/5 before:bg-foreground/5 relative h-full before:absolute before:-inset-x-4 before:bottom-7 before:top-0 before:skew-x-6 before:rounded-[calc(var(--radius)+1rem)] before:border">
                                     <div className="bg-background rounded-(--radius) shadow-foreground/10 ring-foreground/5 relative h-full -translate-y-12 skew-x-6 overflow-hidden border border-transparent shadow-md ring-1">
                                         <Image
@@ -75,7 +87,7 @@ export default function HeroSection() {
                     <div className="group relative m-auto max-w-7xl px-6">
                         <div className="flex flex-col items-center md:flex-row">
                             <div className="md:max-w-44 md:border-r md:pr-6">
-                                <p className="text-end text-sm">Powering the best teams</p>
+                                <p className="text-end text-sm">Trusted by amazing companies</p>
                             </div>
                             <div className="relative py-6 md:w-[calc(100%-11rem)]">
                                 <InfiniteSlider

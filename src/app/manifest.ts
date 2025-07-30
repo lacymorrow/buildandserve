@@ -83,22 +83,22 @@ export default function manifest(): MetadataRoute.Manifest {
 		 * @see https://developer.mozilla.org/en-US/docs/Web/Manifest/screenshots
 		 * @note You need to create these screenshot files in `public/screenshots/`
 		 */
-		screenshots: [
-			{
-				src: "/app/screenshots/screenshot-desktop.png", // Updated path
-				sizes: "1280x720",
-				type: "image/png",
-				form_factor: "wide", // Indicates this is for wide screens (desktop)
-				label: `Desktop view of ${siteConfig.title}`,
-			},
-			{
-				src: "/app/screenshots/screenshot-mobile.png", // Updated path
-				sizes: "720x1280",
-				type: "image/png",
-				form_factor: "narrow", // Indicates this is for narrow screens (mobile)
-				label: `Mobile view of ${siteConfig.title}`,
-			},
-		],
+		// screenshots: [
+		// 	{
+		// 		src: "/app/screenshots/screenshot-desktop.png", // Updated path
+		// 		sizes: "1280x720",
+		// 		type: "image/png",
+		// 		form_factor: "wide", // Indicates this is for wide screens (desktop)
+		// 		label: `Desktop view of ${siteConfig.title}`,
+		// 	},
+		// 	{
+		// 		src: "/app/screenshots/screenshot-mobile.png", // Updated path
+		// 		sizes: "720x1280",
+		// 		type: "image/png",
+		// 		form_factor: "narrow", // Indicates this is for narrow screens (mobile)
+		// 		label: `Mobile view of ${siteConfig.title}`,
+		// 	},
+		// ],
 
 		/* App Shortcuts (currently commented out)
 		 * Provides quick access to key features from the app icon
@@ -125,27 +125,27 @@ export default function manifest(): MetadataRoute.Manifest {
 		 * Allows the app to receive shared content from other apps
 		 * @see https://developer.mozilla.org/en-US/docs/Web/Manifest/share_target
 		 */
-		share_target: {
-			action: "/share",
-			method: "POST", // Changed from GET to POST
-			enctype: "application/x-www-form-urlencoded", // Added enctype for POST
-			params: {
-				title: "title",
-				text: "text",
-				url: "url",
-			},
-		},
+		// share_target: {
+		// 	action: "/share",
+		// 	method: "POST", // Changed from GET to POST
+		// 	enctype: "application/x-www-form-urlencoded", // Added enctype for POST
+		// 	params: {
+		// 		title: "title",
+		// 		text: "text",
+		// 		url: "url",
+		// 	},
+		// },
 
 		/* Custom Protocol Handlers
 		 * Allows the app to handle custom URL schemes
 		 * @see https://developer.mozilla.org/en-US/docs/Web/Manifest/protocol_handlers
 		 */
-		protocol_handlers: [
-			{
-				protocol: siteConfig.branding.protocol, // Custom protocol scheme
-				url: "/protocol?type=%s", // URL that handles the protocol
-			},
-		],
+		// protocol_handlers: [
+		// 	{
+		// 		protocol: siteConfig.branding.protocol, // Custom protocol scheme
+		// 		url: "/protocol?type=%s", // URL that handles the protocol
+		// 	},
+		// ],
 
 		/* Related Applications
 		 * Links to related native applications

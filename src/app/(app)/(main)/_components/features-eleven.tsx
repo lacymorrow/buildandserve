@@ -8,7 +8,7 @@ export default function FeaturesSection() {
             <div className="py-24">
                 <div className="mx-auto w-full max-w-3xl px-6">
                     <h2 className="text-foreground text-balance text-3xl font-semibold md:text-4xl">
-                        <span className="text-muted-foreground">Empowering Marketing teams with</span> AI-driven solutions
+                        <span className="text-muted-foreground">A flexible development team for your business, whenever you need it.</span>
                     </h2>
                     <div className="@container mt-12 space-y-12">
                         <Card
@@ -25,16 +25,16 @@ export default function FeaturesSection() {
                         </Card>
                         <div className="@sm:grid-cols-2 @2xl:grid-cols-3 grid gap-6">
                             <div className="space-y-2">
-                                <h3 className="text-xl font-medium">Generate Ideas</h3>
-                                <p className="text-muted-foreground">Spark creativity with AI-powered content suggestions and inspiration.</p>
+                                <h3 className="text-xl font-medium">Custom Solutions</h3>
+                                <p className="text-muted-foreground">We build bespoke solutions tailored to your specific needs.</p>
                             </div>
                             <div className="space-y-2">
-                                <h3 className="text-xl font-medium">Improve Writing</h3>
-                                <p className="text-muted-foreground">Enhance your text with smart editing suggestions and style refinements.</p>
+                                <h3 className="text-xl font-medium">Ongoing Support</h3>
+                                <p className="text-muted-foreground">We're here to help you with any questions or issues that arise.</p>
                             </div>
                             <div className="space-y-2">
-                                <h3 className="text-xl font-medium">Design Layouts</h3>
-                                <p className="text-muted-foreground">Create visually appealing layouts that capture your audience's attention.</p>
+                                <h3 className="text-xl font-medium">Scalable Architecture</h3>
+                                <p className="text-muted-foreground">Our solutions are designed to grow with your business.</p>
                             </div>
                         </div>
                     </div>
@@ -51,14 +51,14 @@ const AIAssistantIllustration = () => {
             className="relative space-y-4 p-6">
             <div className="w-fit">
                 <Sparkles className="size-3.5 fill-purple-300 stroke-purple-300" />
-                <p className="mt-2 line-clamp-2 text-sm">How can I optimize my neural network to reduce inference time while maintaining accuracy?</p>
+                <p className="mt-2 line-clamp-2 text-sm">How can we help you grow your business?</p>
                 <ul
                     role="list"
                     className="text-muted-foreground mt-3 space-y-2 text-sm">
                     {[
-                        { value: '90+', emoji: '⭐️', label: 'Integrations' },
-                        { value: '56%', emoji: '👨🏽‍💻', label: 'Productivity Boost' },
-                        { value: '24/7', emoji: '🦜', label: 'Customer Support' },
+                        { value: '100%', emoji: '⭐️', label: 'Satisfaction' },
+                        { value: '24/7', emoji: '👨🏽‍💻', label: 'Support' },
+                        { value: 'Always', emoji: '🦜', label: 'On Time' },
                     ].map((stat, index) => (
                         <li
                             key={index}
@@ -70,7 +70,7 @@ const AIAssistantIllustration = () => {
                 </ul>
             </div>
             <div className="bg-foreground/5 -mx-3 -mb-3 space-y-3 rounded-lg p-3">
-                <div className="text-muted-foreground text-sm">Ask AI Assistant</div>
+                <div className="text-muted-foreground text-sm">Ask our Assistant</div>
 
                 <div className="flex justify-between">
                     <div className="flex gap-2">
