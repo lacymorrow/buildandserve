@@ -12,6 +12,7 @@
         "@builder.io/react": "8.2.5",
         "@builder.io/sdk": "6.1.1",
         "@c15t/nextjs": "^1.4.2",
+        "@calcom/embed-react": "^1.5.3",
         "@clerk/nextjs": "^6.23.3",
         "@formkit/auto-animate": "^0.8.2",
         "@fortawesome/fontawesome-svg-core": "6.7.2",
@@ -40,7 +41,10 @@
         "@payloadcms/storage-vercel-blob": "^3.45.0",
         "@polar-sh/nextjs": "^0.4.2",
         "@polar-sh/sdk": "^0.34.3",
+        "@radix-ui/react-accordion": "^1.2.11",
+        "@radix-ui/react-hover-card": "^1.1.14",
         "@radix-ui/react-icons": "1.3.2",
+        "@radix-ui/react-slot": "^1.2.3",
         "@react-email/render": "^1.1.3",
         "@react-three/drei": "^10.4.4",
         "@react-three/fiber": "^9.2.0",
@@ -97,7 +101,7 @@
         "lodash-es": "^4.17.21",
         "lucide-react": "0.525.0",
         "marked": "^16.0.0",
-        "motion": "^12.23.0",
+        "motion": "^12.23.11",
         "next": "15.3.5",
         "next-auth": "5.0.0-beta.25",
         "next-mdx-remote": "^5.0.0",
@@ -121,6 +125,7 @@
         "react-resizable-panels": "^3.0.3",
         "react-scan": "^0.4.3",
         "react-syntax-highlighter": "^15.6.1",
+        "react-use-measure": "^2.1.7",
         "react-wrap-balancer": "^1.1.1",
         "recharts": "^3.0.2",
         "rehype-highlight": "^7.0.2",
@@ -553,6 +558,12 @@
     "@c15t/react": ["@c15t/react@1.4.4", "", { "dependencies": { "@c15t/node-sdk": "1.4.2", "@radix-ui/react-accordion": "1.2.4", "@radix-ui/react-slot": "1.2.0", "@radix-ui/react-switch": "1.1.4", "c15t": "1.4.4", "clsx": "2.1.1", "zustand": "^5.0.3" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc", "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc" } }, "sha512-IwANOzzKsZHTYfJRQGt1JbdZO/GvwaV+y/uQkvqQTzXCcfXClNQc/XneAySuVuXNRSsU5S1vgEJ1JR1g3Os5qQ=="],
 
     "@c15t/translations": ["@c15t/translations@1.4.2", "", {}, "sha512-snPX8HdY0IKLGoW484y5Dy4vwGoReUcpeWKBiYChlzUb3j9vv4F8KO9yrOr9y8sH29Y18l1q+it7Him+31jLqA=="],
+
+    "@calcom/embed-core": ["@calcom/embed-core@1.5.3", "", {}, "sha512-GeId9gaByJ5EWiPmuvelZOvFWPOTWkcWZr5vGTCbIUTX125oE5yn0n8lDF1MJk5Xj1WO+/dk9jKIE08Ad9ytiQ=="],
+
+    "@calcom/embed-react": ["@calcom/embed-react@1.5.3", "", { "dependencies": { "@calcom/embed-core": "1.5.3", "@calcom/embed-snippet": "1.3.3" }, "peerDependencies": { "react": "^18.2.0 || ^19.0.0", "react-dom": "^18.2.0 || ^19.0.0" } }, "sha512-JCgge04pc8fhdvUmPNVLhW8/lCWK+AAziKecKWWPfv1nn2s+qKP2BwsEAnxhxK9yPOBgE1EIEgmYkrrNB1iajA=="],
+
+    "@calcom/embed-snippet": ["@calcom/embed-snippet@1.3.3", "", { "dependencies": { "@calcom/embed-core": "1.5.3" } }, "sha512-pqqKaeLB8R6BvyegcpI9gAyY6Xyx1bKYfWvIGOvIbTpguWyM1BBBVcT9DCeGe8Zw7Ujp5K56ci7isRUrT2Uadg=="],
 
     "@clack/core": ["@clack/core@0.3.5", "", { "dependencies": { "picocolors": "^1.0.0", "sisteransi": "^1.0.5" } }, "sha512-5cfhQNH+1VQ2xLQlmzXMqUoiaH0lRBq9/CLW9lTyMbuKLC3+xEK01tHVvyut++mLOn5urSHmkm6I0Lg9MaJSTQ=="],
 

@@ -65,6 +65,7 @@
     "@builder.io/react": "8.2.5",
     "@builder.io/sdk": "6.1.1",
     "@c15t/nextjs": "^1.4.2",
+    "@calcom/embed-react": "^1.5.3",
     "@clerk/nextjs": "^6.23.3",
     "@formkit/auto-animate": "^0.8.2",
     "@fortawesome/fontawesome-svg-core": "6.7.2",

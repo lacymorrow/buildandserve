@@ -36,6 +36,9 @@ importers:
       '@c15t/nextjs':
         specifier: ^1.4.2
         version: 1.4.4(@babel/core@7.28.0)(@playwright/test@1.54.1)(@types/pg@8.10.2)(@types/react@19.1.8)(immer@10.1.1)(next@15.3.5(@babel/core@7.28.0)(@opentelemetry/api@1.8.0)(@playwright/test@1.54.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(sass@1.77.4))(pg@8.16.3)(postgres@3.4.7)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(sass@1.77.4)(use-sync-external-store@1.5.0(react@19.1.0))(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@6.0.5))
+      '@calcom/embed-react':
+        specifier: ^1.5.3
+        version: 1.5.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@clerk/nextjs':
         specifier: ^6.23.3
         version: 6.28.0(next@15.3.5(@babel/core@7.28.0)(@opentelemetry/api@1.8.0)(@playwright/test@1.54.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(sass@1.77.4))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -1483,6 +1486,18 @@ packages:
 
   '@c15t/translations@1.4.2':
     resolution: {integrity: sha512-snPX8HdY0IKLGoW484y5Dy4vwGoReUcpeWKBiYChlzUb3j9vv4F8KO9yrOr9y8sH29Y18l1q+it7Him+31jLqA==}
+
+  '@calcom/embed-core@1.5.3':
+    resolution: {integrity: sha512-GeId9gaByJ5EWiPmuvelZOvFWPOTWkcWZr5vGTCbIUTX125oE5yn0n8lDF1MJk5Xj1WO+/dk9jKIE08Ad9ytiQ==}
+
+  '@calcom/embed-react@1.5.3':
+    resolution: {integrity: sha512-JCgge04pc8fhdvUmPNVLhW8/lCWK+AAziKecKWWPfv1nn2s+qKP2BwsEAnxhxK9yPOBgE1EIEgmYkrrNB1iajA==}
+    peerDependencies:
+      react: 19.1.0
+      react-dom: 19.1.0
+
+  '@calcom/embed-snippet@1.3.3':
+    resolution: {integrity: sha512-pqqKaeLB8R6BvyegcpI9gAyY6Xyx1bKYfWvIGOvIbTpguWyM1BBBVcT9DCeGe8Zw7Ujp5K56ci7isRUrT2Uadg==}
 
   '@clack/core@0.3.5':
     resolution: {integrity: sha512-5cfhQNH+1VQ2xLQlmzXMqUoiaH0lRBq9/CLW9lTyMbuKLC3+xEK01tHVvyut++mLOn5urSHmkm6I0Lg9MaJSTQ==}
@@ -14561,6 +14576,19 @@ snapshots:
       - ws
 
   '@c15t/translations@1.4.2': {}
+
+  '@calcom/embed-core@1.5.3': {}
+
+  '@calcom/embed-react@1.5.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      '@calcom/embed-core': 1.5.3
+      '@calcom/embed-snippet': 1.3.3
+      react: 19.1.0
+      react-dom: 19.1.0(react@19.1.0)
+
+  '@calcom/embed-snippet@1.3.3':
+    dependencies:
+      '@calcom/embed-core': 1.5.3
 
   '@clack/core@0.3.5':
     dependencies:

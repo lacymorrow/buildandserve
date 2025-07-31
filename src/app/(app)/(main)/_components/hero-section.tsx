@@ -5,6 +5,7 @@ import { InfiniteSlider } from '@/components/ui/infinite-slider'
 import { ProgressiveBlur } from '@/components/ui/progressive-blur'
 import { ChevronRight } from 'lucide-react'
 import { HeroHeader } from '@/app/(app)/(main)/_components/header'
+import { ScheduleCallModal } from '@/components/modals/schedule-call-modal'
 import { TextEffect } from '@/components/ui/text-effect'
 import Image from 'next/image'
 
@@ -56,15 +57,17 @@ export default function HeroSection() {
                                             <span className="text-nowrap">See our work</span>
                                         </Link>
                                     </Button>
-                                    <Button
-                                        asChild
-                                        size="lg"
-                                        className="h-12 rounded-full pl-5 pr-3 text-base">
-                                        <Link href="/contact">
-                                            <span className="text-nowrap">Get in touch</span>
-                                            <ChevronRight className="ml-1" />
-                                        </Link>
-                                    </Button>
+                                    <ScheduleCallModal
+                                        trigger={
+                                            <Button
+                                                size="lg"
+                                                className="h-12 rounded-full pl-5 pr-3 text-base"
+                                            >
+                                                <span className="text-nowrap">Schedule a call</span>
+                                                <ChevronRight className="ml-1" />
+                                            </Button>
+                                        }
+                                    />
                                 </div>
                             </div>
                             <div className="perspective-near relative lg:col-span-2">
