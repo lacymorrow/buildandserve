@@ -1,13 +1,53 @@
 import React from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { InfiniteSlider } from '@/components/ui/infinite-slider'
 import { ProgressiveBlur } from '@/components/ui/progressive-blur'
 import { ChevronRight } from 'lucide-react'
-import { HeroHeader } from '@/app/(app)/(main)/_components/header'
 import { ScheduleCallModal } from '@/components/modals/schedule-call-modal'
 import { TextEffect } from '@/components/ui/text-effect'
-import Image from 'next/image'
+
+const companyLogos = [
+    {
+        src: '/logos/monochrome/credit-karma.svg',
+        alt: 'Credit Karma Logo',
+        href: 'https://lacymorrow.com/work/companies/credit-karma',
+    },
+    {
+        src: '/logos/monochrome/swell-energy.svg',
+        alt: 'Swell Energy Logo',
+        href: 'https://lacymorrow.com/work/companies/swell-energy',
+    },
+    {
+        src: '/logos/monochrome/invitae.svg',
+        alt: 'Invitae Logo',
+        href: 'https://lacymorrow.com/work/companies/invitae',
+    },
+    {
+        src: '/logos/monochrome/optum.svg',
+        alt: 'Optum Logo',
+    },
+    {
+        src: '/logos/monochrome/novant-health.svg',
+        alt: 'Novant Health Logo',
+    },
+    {
+        src: '/logos/monochrome/red-ventures.svg',
+        alt: 'Red Ventures Logo',
+        href: 'https://lacymorrow.com/work/companies/red-ventures',
+    },
+    {
+        src: '/logos/monochrome/twilio.svg',
+        alt: 'Twilio Logo',
+        href: 'https://lacymorrow.com/work/companies/twilio',
+    },
+    {
+        src: '/logos/monochrome/yahoo.svg',
+        alt: 'Yahoo Logo',
+        href: 'https://lacymorrow.com/work/companies/yahoo',
+    },
+];
 
 export default function HeroSection() {
     return (
@@ -97,72 +137,36 @@ export default function HeroSection() {
                                     speedOnHover={20}
                                     speed={40}
                                     gap={112}>
-                                    <div className="flex">
-                                        <img
-                                            className="mx-auto h-6 w-fit dark:invert"
-                                            src="/logos/monochrome/credit-karma.svg"
-                                            alt="Credit Karma Logo"
-                                            height="24"
-                                        />
-                                    </div>
+                                    {companyLogos.map((logo, index) => {
+                                        const logoImage = (
+                                            <img
+                                                className="mx-auto h-6 w-fit dark:invert"
+                                                src={logo.src}
+                                                alt={logo.alt}
+                                                height="24"
+                                            />
+                                        );
 
-                                    <div className="flex">
-                                        <img
-                                            className="mx-auto h-6 w-fit dark:invert"
-                                            src="/logos/monochrome/swell-energy.svg"
-                                            alt="Swell Energy Logo"
-                                            height="24"
-                                        />
-                                    </div>
-                                    <div className="flex">
-                                        <img
-                                            className="mx-auto h-6 w-fit dark:invert"
-                                            src="/logos/monochrome/invitae.svg"
-                                            alt="Invitae Logo"
-                                            height="24"
-                                        />
-                                    </div>
-                                    <div className="flex">
-                                        <img
-                                            className="mx-auto h-6 w-fit dark:invert"
-                                            src="/logos/monochrome/optum.svg"
-                                            alt="Optum Logo"
-                                            height="24"
-                                        />
-                                    </div>
-                                    <div className="flex">
-                                        <img
-                                            className="mx-auto h-6 w-fit dark:invert"
-                                            src="/logos/monochrome/novant-health.svg"
-                                            alt="Novant Health Logo"
-                                            height="24"
-                                        />
-                                    </div>
-                                    <div className="flex">
-                                        <img
-                                            className="mx-auto h-6 w-fit dark:invert"
-                                            src="/logos/monochrome/red-ventures.svg"
-                                            alt="Red Ventures Logo"
-                                            height="24"
-                                        />
-                                    </div>
-                                    <div className="flex">
-                                        <img
-                                            className="mx-auto h-6 w-fit dark:invert"
-                                            src="/logos/monochrome/twilio.svg"
-                                            alt="Twilio Logo"
-                                            height="24"
-                                        />
-                                    </div>
+                                        if (logo.href) {
+                                            return (
+                                                <Link
+                                                    key={index}
+                                                    href={logo.href}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="flex"
+                                                >
+                                                    {logoImage}
+                                                </Link>
+                                            );
+                                        }
 
-                                    <div className="flex">
-                                        <img
-                                            className="mx-auto h-6 w-fit dark:invert"
-                                            src="/logos/monochrome/yahoo.svg"
-                                            alt="Yahoo Logo"
-                                            height="24"
-                                        />
-                                    </div>
+                                        return (
+                                            <div key={index} className="flex">
+                                                {logoImage}
+                                            </div>
+                                        );
+                                    })}
                                 </InfiniteSlider>
 
                                 <div className="bg-linear-to-r from-background absolute inset-y-0 left-0 w-20"></div>
