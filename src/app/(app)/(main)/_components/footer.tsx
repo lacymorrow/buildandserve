@@ -10,10 +10,10 @@ const links = [
                 title: 'Blog',
                 href: '/blog',
             },
-            {
-                title: 'Pricing',
-                href: '/pricing',
-            },
+            // {
+            //     title: 'Pricing',
+            //     href: '/pricing',
+            // },
             {
                 title: 'Contact',
                 href: '/contact',
