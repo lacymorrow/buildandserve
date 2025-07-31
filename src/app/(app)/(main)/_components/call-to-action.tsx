@@ -1,5 +1,7 @@
 import { Button } from '@/components/ui/button'
+import { ScheduleCallModal } from '@/components/modals/schedule-call-modal'
 import Link from 'next/link'
+import { ChevronRight } from 'lucide-react'
 
 export default function CallToAction() {
     return (
@@ -12,20 +14,22 @@ export default function CallToAction() {
                     <div className="mt-12 flex flex-wrap justify-center gap-4">
                         <Button
                             asChild
+                            variant="outline"
                             size="lg">
                             <Link href="/contact">
                                 <span>Get in touch</span>
                             </Link>
                         </Button>
 
-                        <Button
-                            asChild
-                            size="lg"
-                            variant="outline">
-                            <Link href="/about">
-                                <span>Learn more</span>
-                            </Link>
-                        </Button>
+                        <ScheduleCallModal
+                            trigger={
+                                <Button
+                                    size="lg">
+                                    <span className="text-nowrap">Schedule a call</span>
+                                    <ChevronRight className="ml-1" />
+                                </Button>
+                            }
+                        />
                     </div>
                 </div>
             </div>

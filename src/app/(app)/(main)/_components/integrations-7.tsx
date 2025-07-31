@@ -104,7 +104,7 @@ export default function IntegrationsSection() {
                         <p className="text-muted-foreground">We leverage industry-leading technologies to build fast, scalable, and secure solutions that give you a competitive edge.</p>
 
                         <Button variant="outline" size="sm" asChild>
-                            <Link href="/contact">Get in Touch</Link>
+                            <Link href="#cta">Get in Touch</Link>
                         </Button>
                     </div>
                 </div>

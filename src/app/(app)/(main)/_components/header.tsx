@@ -1,29 +1,37 @@
 'use client'
 import Link from 'next/link'
-import { Menu, X } from 'lucide-react'
+import { ChevronRight, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import React from 'react'
 import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/assets/logo'
+import { usePathname } from 'next/navigation'
+import { ScheduleCallModal } from '@/components/modals/schedule-call-modal'
 
 const menuItems = [
-    { name: 'Features', href: '#link' },
-    { name: 'Solution', href: '#link' },
-    { name: 'Pricing', href: '#link' },
-    { name: 'About', href: '#link' },
+    { name: 'Home', href: '/' },
+    { name: 'FAQ', href: '#faq' },
 ]
 
 export const HeroHeader = () => {
+    const pathname = usePathname()
+    const isNotHome = pathname !== '/'
     const [menuState, setMenuState] = React.useState(false)
-    const [hasScrolled, setHasScrolled] = React.useState(false)
-    const [elementsVisible, setElementsVisible] = React.useState(true)
+    const [hasScrolled, setHasScrolled] = React.useState(isNotHome)
+    const [elementsVisible, setElementsVisible] = React.useState(isNotHome)
 
     React.useEffect(() => {
         const handleScroll = () => {
+            if (isNotHome) {
+                setHasScrolled(true)
+                setElementsVisible(true)
+                return
+            }
+
             const scrollY = window.scrollY
             setHasScrolled(scrollY > 50)
-            setElementsVisible(scrollY > 300)
+            setElementsVisible(scrollY > 100)
         }
 
         window.addEventListener('scroll', handleScroll)
@@ -100,21 +108,16 @@ export const HeroHeader = () => {
                                 </ul>
                             </div>
                             <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-                                <Button
-                                    asChild
-                                    variant="outline"
-                                    size="sm">
-                                    <Link href="#">
-                                        <span>Login</span>
-                                    </Link>
-                                </Button>
-                                <Button
-                                    asChild
-                                    size="sm">
-                                    <Link href="#">
-                                        <span>Sign Up</span>
-                                    </Link>
-                                </Button>
+                                <ScheduleCallModal
+                                    trigger={
+                                        <Button
+                                            className="rounded-full pl-5 pr-3 text-base"
+                                        >
+                                            <span className="text-nowrap">Book now</span>
+                                            <ChevronRight className="ml-1" />
+                                        </Button>
+                                    }
+                                />
                             </div>
                         </motion.div>
                     </motion.div>
