@@ -17,7 +17,7 @@ export default function FeaturesSection() {
                     </div>
                     <div className="mt-16 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                         <Card
-                            className="overflow-hidden p-6">
+                            className="group overflow-hidden p-6">
                             <Target className="text-primary size-5" />
                             <h3 className="text-foreground mt-5 text-lg font-semibold">Strategy & Design</h3>
                             <p className="text-muted-foreground mt-3 text-balance">We work with you to define your product, identify your target audience, and create a beautiful, user-friendly design.</p>
@@ -54,7 +54,7 @@ const MeetingIllustration = () => {
     return (
         <Card
             aria-hidden
-            className="mt-9 aspect-video p-4">
+            className="mt-9 aspect-video p-4 transition-transform duration-200 ease-in-out group-hover:-translate-y-1 group-hover:rotate-1">
             <div className="relative hidden h-fit">
                 <div className="absolute -left-1.5 bottom-1.5 rounded-md border-t border-red-700 bg-red-500 px-1 py-px text-[10px] font-medium text-white shadow-md shadow-red-500/35">PDF</div>
                 <div className="h-10 w-8 rounded-md border bg-gradient-to-b from-zinc-100 to-zinc-200"></div>
