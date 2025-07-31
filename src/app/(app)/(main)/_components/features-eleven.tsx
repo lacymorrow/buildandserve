@@ -12,7 +12,6 @@ export default function FeaturesSection() {
                     </h2>
                     <div className="@container mt-12 space-y-12">
                         <Card
-                            variant="soft"
                             className="relative overflow-hidden p-0 sm:col-span-2">
                             <img
                                 src="https://images.unsplash.com/photo-1635776062043-223faf322554?q=80&w=3132&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"

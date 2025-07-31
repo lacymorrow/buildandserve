@@ -1,14 +1,12 @@
 import React from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { HeroHeader } from './header'
 import { ChevronRight, CirclePlay } from 'lucide-react'
 import Image from 'next/image'
 
 export default function HeroSection() {
     return (
         <>
-            <HeroHeader />
             <main className="overflow-hidden">
                 <section className="bg-linear-to-b to-muted from-background">
                     <div className="relative py-36">

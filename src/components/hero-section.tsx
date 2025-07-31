@@ -3,7 +3,6 @@ import { Mail, SendHorizonal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TextEffect } from '@/components/ui/text-effect'
 import { AnimatedGroup } from '@/components/ui/animated-group'
-import { HeroHeader } from './header'
 import { LogoCloud } from '@/components/blocks/hero-section/three/logo-cloud'
 
 const transitionVariants = {
@@ -24,7 +23,7 @@ const transitionVariants = {
             },
         },
     },
-}
+} as const
 
 export default function HeroSection() {
     return (
