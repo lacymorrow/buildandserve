@@ -8,7 +8,7 @@ export default async function Page() {
       <CaseStudyModal
         title="Long Game"
         description="Making personal finance fun through gamification. Built mobile-first experiences that turn saving money into an engaging game with real financial rewards."
-        image="/static/longgame/longgame.png"
+        image="/static/long-game/longgame.png"
         technologies={[
           "React Native",
           "TypeScript",

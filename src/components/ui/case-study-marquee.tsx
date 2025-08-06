@@ -39,51 +39,46 @@ interface CaseStudy {
 const DEFAULT_CASE_STUDIES: CaseStudy[] = [
   {
     id: 1,
-    title: "Swell",
-    image: "/static/swell/swell-program.jpeg",
+    title: "Swell Energy",
+    image: "/static/swell-energy/swell-program.jpeg",
     href: "/work/swell-energy",
   },
   {
     id: 2,
-    title: "Credit Karma",
-    image: "/static/credit-karma/credit-karma-1.png",
-    href: "/work/credit-karma",
-  },
-  {
-    id: 3,
     title: "Twilio",
     image: "/static/twilio/hackpack/hackpack.png",
     href: "/work/twilio",
   },
   {
-    id: 4,
-    title: "Swell",
-    image: "/static/swell/swell-datatable.jpeg",
-    href: "/work/swell-energy",
-  },
-  {
-    id: 5,
+    id: 3,
     title: "Credit Karma",
-    image: "/static/credit-karma/credit-karma-5.png",
+    image: "/static/credit-karma/credit-karma-1.png",
     href: "/work/credit-karma",
   },
+
   {
-    id: 6,
+    id: 4,
     title: "Long Game",
-    image: "/static/longgame/longgame.png",
+    image: "/static/long-game/longgame.png",
     href: "/work/longgame",
   },
   {
-    id: 7,
-    title: "Swell",
-    image: "/static/swell/swell-user.jpeg",
-    href: "/work/swell-energy",
+    id: 5,
+    title: "Viasat",
+    image: "/static/viasat/ife.jpg",
+    href: "/work/viasat",
   },
   {
-    id: 8,
-    title: "Credit Karma",
-    image: "/static/credit-karma/credit-karma-8.png",
-    href: "/work/credit-karma",
+    id: 6,
+    title: "Novant Health",
+    image: "/static/novant-health/novant-health-pf-portal.png",
+    href: "/work/novant-health",
+  },
+  {
+    id: 7,
+    title: "Twilio Magic",
+    image: "/static/twilio/twilio-magic/screenshot.png",
+    href: "/work/twilio",
   },
 ];
 
@@ -146,7 +141,7 @@ export const CaseStudyMarquee = ({
   return (
     <div
       className={cn(
-        "relative h-[600px] w-full overflow-hidden -mx-8",
+        "relative h-[600px] w-full overflow-hidden -mx-8 -mt-16",
         className,
       )}
     >

@@ -11,6 +11,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { BackNavigation } from "@/components/ui/back-navigation";
 
 export const metadata: Metadata = {
   title: "Twilio - Case Study",
@@ -21,6 +22,8 @@ export const metadata: Metadata = {
 export default function TwilioPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <BackNavigation />
+
       <div className="space-y-8">
         {/* Header */}
         <div className="space-y-4">

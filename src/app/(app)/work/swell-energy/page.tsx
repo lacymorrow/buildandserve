@@ -5,6 +5,7 @@ import { ArrowLeft, ExternalLink, Calendar, Users, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { BackNavigation } from "@/components/ui/back-navigation";
 
 export const metadata: Metadata = {
   title: "Swell Energy - Case Study",
@@ -15,6 +16,8 @@ export const metadata: Metadata = {
 export default function SwellEnergyPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <BackNavigation />
+
       <div className="space-y-8">
         {/* Header */}
         <div className="space-y-4">
@@ -60,7 +63,7 @@ export default function SwellEnergyPage() {
         {/* Main Image */}
         <div className="space-y-4">
           <Image
-            src="/static/swell/swell-program.jpeg"
+            src="/static/swell-energy/swell-program.jpeg"
             alt="Swell Energy Program Interface"
             width={800}
             height={500}
@@ -112,7 +115,7 @@ export default function SwellEnergyPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Image
-                src="/static/swell/swell-datatable.jpeg"
+                src="/static/swell-energy/swell-datatable.jpeg"
                 alt="Swell Energy Data Platform"
                 width={400}
                 height={300}
@@ -124,7 +127,7 @@ export default function SwellEnergyPage() {
             </div>
             <div className="space-y-2">
               <Image
-                src="/static/swell/swell-user.jpeg"
+                src="/static/swell-energy/swell-user.jpeg"
                 alt="Swell Energy User Portal"
                 width={400}
                 height={300}

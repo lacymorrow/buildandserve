@@ -11,6 +11,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { BackNavigation } from "@/components/ui/back-navigation";
 
 export const metadata: Metadata = {
   title: "Long Game - Case Study",
@@ -21,6 +22,8 @@ export const metadata: Metadata = {
 export default function LongGamePage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <BackNavigation />
+
       <div className="space-y-8">
         {/* Header */}
         <div className="space-y-4">
@@ -66,7 +69,7 @@ export default function LongGamePage() {
         {/* Main Image */}
         <div className="space-y-4">
           <Image
-            src="/static/longgame/longgame.png"
+            src="/static/long-game/longgame.png"
             alt="Long Game Mobile App Interface"
             width={800}
             height={500}

@@ -8,7 +8,7 @@ export default async function Page() {
       <CaseStudyModal
         title="Swell Energy"
         description="Building the future of distributed energy with advanced battery storage and solar solutions. Led development of customer-facing platforms and internal management tools."
-        image="/static/swell/swell-program.jpeg"
+        image="/static/swell-energy/swell-program.jpeg"
         technologies={[
           "React",
           "Node.js",
