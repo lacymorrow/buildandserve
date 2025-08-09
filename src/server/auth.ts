@@ -63,11 +63,11 @@ const {
   // Use database adapter only when not in guest-only mode and database is available
   adapter: shouldUseDatabaseAdapter
     ? DrizzleAdapter(db as any, {
-        usersTable: users,
-        accountsTable: accounts,
-        sessionsTable: sessions,
-        verificationTokensTable: verificationTokens,
-      })
+      usersTable: users,
+      accountsTable: accounts,
+      sessionsTable: sessions,
+      verificationTokensTable: verificationTokens,
+    })
     : undefined,
   logger: {
     error: (code: Error, ...message: unknown[]) => {
@@ -103,7 +103,7 @@ async function authWithOptions(props?: AuthProps) {
   // Route protected
   const protect =
     props?.protect ?? props?.redirectTo !== undefined ?? redirect ?? false;
-  const redirectTo = props?.redirectTo ?? routes.auth.signOutIn;
+  const redirectTo = props?.redirectTo ?? routes.auth.signOut;
 
   const handleRedirect = (code: string) => {
     logger.warn(

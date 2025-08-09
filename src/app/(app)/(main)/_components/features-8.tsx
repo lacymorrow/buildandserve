@@ -255,18 +255,20 @@ export default function FeaturesSection() {
                                             <span className="block h-fit rounded border px-2 py-1 text-xs shadow-sm">Likeur</span>
                                             <div className="ring-background size-7 ring-4">
                                                 <img
-                                                    className="size-full rounded-full"
+                                                    className="size-full rounded-full select-none"
                                                     src="https://avatars.githubusercontent.com/u/102558960?v=4"
                                                     alt=""
+                                                    draggable={false}
                                                 />
                                             </div>
                                         </div>
                                         <div className="relative ml-[calc(50%-1rem)] flex items-center gap-2">
                                             <div className="ring-background size-8 ring-4">
                                                 <img
-                                                    className="size-full rounded-full"
+                                                    className="size-full rounded-full select-none"
                                                     src="https://avatars.githubusercontent.com/u/47919550?v=4"
                                                     alt=""
+                                                    draggable={false}
                                                 />
                                             </div>
                                             <span className="block h-fit rounded border px-2 py-1 text-xs shadow-sm">M. Irung</span>
@@ -275,9 +277,10 @@ export default function FeaturesSection() {
                                             <span className="block h-fit rounded border px-2 py-1 text-xs shadow-sm">B. Ng</span>
                                             <div className="ring-background size-7 ring-4">
                                                 <img
-                                                    className="size-full rounded-full"
+                                                    className="size-full rounded-full select-none"
                                                     src="https://avatars.githubusercontent.com/u/31113941?v=4"
                                                     alt=""
+                                                    draggable={false}
                                                 />
                                             </div>
                                         </div>

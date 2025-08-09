@@ -12,17 +12,16 @@ const companyLogos = [
     {
         src: '/logos/monochrome/credit-karma.svg',
         alt: 'Credit Karma Logo',
-        href: 'https://lacymorrow.com/work/companies/credit-karma',
+        href: '/work/credit-karma',
     },
     {
         src: '/logos/monochrome/swell-energy.svg',
         alt: 'Swell Energy Logo',
-        href: 'https://lacymorrow.com/work/companies/swell-energy',
+        href: '/work/swell-energy',
     },
     {
         src: '/logos/monochrome/invitae.svg',
         alt: 'Invitae Logo',
-        href: 'https://lacymorrow.com/work/companies/invitae',
     },
     {
         src: '/logos/monochrome/optum.svg',
@@ -35,17 +34,20 @@ const companyLogos = [
     {
         src: '/logos/monochrome/red-ventures.svg',
         alt: 'Red Ventures Logo',
-        href: 'https://lacymorrow.com/work/companies/red-ventures',
     },
     {
         src: '/logos/monochrome/twilio.svg',
         alt: 'Twilio Logo',
-        href: 'https://lacymorrow.com/work/companies/twilio',
+        href: '/work/twilio',
     },
     {
         src: '/logos/monochrome/yahoo.svg',
         alt: 'Yahoo Logo',
-        href: 'https://lacymorrow.com/work/companies/yahoo',
+    },
+    {
+        src: '/logos/monochrome/viasat.svg',
+        alt: 'Viasat Logo',
+        href: '/work/viasat',
     },
 ];
 
@@ -118,7 +120,8 @@ export default function HeroSection() {
                                             alt="app screen"
                                             width="2880"
                                             height="1842"
-                                            className="object-top-left size-full object-cover"
+                                            className="object-top-left size-full object-cover pointer-events-none select-none"
+                                            draggable={false}
                                         />
                                     </div>
                                 </div>
@@ -132,7 +135,7 @@ export default function HeroSection() {
                             <div className="md:max-w-44 md:border-r md:pr-6">
                                 <p className="text-end text-sm">Trusted by amazing companies</p>
                             </div>
-                            <div className="relative py-6 md:w-[calc(100%-11rem)]">
+                            <div className="relative py-6 md:w-[calc(100%-11rem)] select-none">
                                 <InfiniteSlider
                                     speedOnHover={20}
                                     speed={40}
@@ -140,10 +143,11 @@ export default function HeroSection() {
                                     {companyLogos.map((logo, index) => {
                                         const logoImage = (
                                             <img
-                                                className="mx-auto h-6 w-fit dark:invert"
+                                                className="mx-auto h-6 w-fit dark:invert select-none"
                                                 src={logo.src}
                                                 alt={logo.alt}
                                                 height="24"
+                                                draggable={false}
                                             />
                                         );
 
