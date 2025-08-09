@@ -75,7 +75,7 @@ const CodeReviewIllustration = () => {
         <div
             aria-hidden
             className="relative mt-6">
-            <Card className="aspect-video w-4/5 translate-y-4 p-3 transition-transform duration-200 ease-in-out group-hover:-rotate-3">
+            <Card className="aspect-video w-4/5 translate-y-4 p-3 transition-transform duration-200 ease-in-out group-hover:-rotate-3 select-none" draggable={false}>
                 <div className="mb-3 flex items-center gap-2">
                     <div className="bg-background size-6 rounded-full border p-0.5 shadow shadow-zinc-950/5">
                     </div>
@@ -92,7 +92,7 @@ const CodeReviewIllustration = () => {
 
                 <Signature className="ml-8 mt-3 size-5" />
             </Card>
-            <Card className="aspect-3/5 absolute -top-4 right-0 flex w-2/5 translate-y-4 p-2 transition-transform duration-200 ease-in-out group-hover:rotate-3">
+            <Card className="aspect-3/5 absolute -top-4 right-0 flex w-2/5 translate-y-4 p-2 transition-transform duration-200 ease-in-out group-hover:rotate-3 select-none" draggable={false}>
                 <div className="bg-foreground/5 m-auto flex size-10 rounded-full">
                     <Play className="fill-foreground/50 stroke-foreground/50 m-auto size-4" />
                 </div>
@@ -105,7 +105,7 @@ const AIAssistantIllustration = () => {
     return (
         <Card
             aria-hidden
-            className="mt-6 aspect-video translate-y-4 p-4 pb-6 transition-transform duration-200 group-hover:translate-y-0">
+            className="mt-6 aspect-video translate-y-4 p-4 pb-6 transition-transform duration-200 group-hover:translate-y-0 select-none" draggable={false}>
             <div className="w-fit">
                 <Sparkles className="size-3.5 fill-purple-300 stroke-purple-300" />
                 <p className="mt-2 line-clamp-2 text-sm">How do we deploy the new version of the app to production?</p>

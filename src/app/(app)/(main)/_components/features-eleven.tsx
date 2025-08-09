@@ -16,7 +16,8 @@ export default function FeaturesSection() {
                             <img
                                 src="https://images.unsplash.com/photo-1635776062043-223faf322554?q=80&w=3132&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
                                 alt=""
-                                className="absolute inset-0 size-full object-cover"
+                                className="absolute inset-0 size-full object-cover select-none"
+                                draggable={false}
                             />
                             <div className="m-auto max-w-md p-4 sm:p-12">
                                 <AIAssistantIllustration />

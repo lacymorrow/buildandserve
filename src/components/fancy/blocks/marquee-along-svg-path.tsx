@@ -325,7 +325,8 @@ const MarqueeAlongSvgPath = ({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      className={cn("relative", className)}
+      draggable={false}
+      className={cn("relative select-none", className)}
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -395,6 +396,7 @@ const MarqueeAlongSvgPath = ({
               zIndex: enableRollingZIndex ? zIndex : undefined,
               ...cssVariables,
             }}
+            draggable={false}
             aria-hidden={repeatIndex > 0}
             onMouseEnter={() => (isHovered.current = true)}
             onMouseLeave={() => (isHovered.current = false)}

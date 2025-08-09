@@ -91,7 +91,7 @@ export default function IntegrationsSection() {
                                 </IntegrationCard>
                             </InfiniteSlider>
                         </div>
-                        <div className="absolute inset-0 m-auto flex size-fit justify-center gap-2">
+                        <div className="absolute inset-0 m-auto flex size-fit justify-center gap-2 select-none" draggable={false}>
                             <IntegrationCard
                                 className="shadow-black-950/10 size-16 bg-white/25 shadow-xl backdrop-blur-md backdrop-grayscale dark:border-white/10 dark:shadow-white/15"
                                 isCenter={true}>
@@ -115,8 +115,8 @@ export default function IntegrationsSection() {
 
 const IntegrationCard = ({ children, className, isCenter = false }: { children: React.ReactNode; className?: string; position?: 'left-top' | 'left-middle' | 'left-bottom' | 'right-top' | 'right-middle' | 'right-bottom'; isCenter?: boolean }) => {
     return (
-        <div className={cn('bg-background relative z-20 flex size-12 rounded-full border', className)}>
-            <div className={cn('m-auto size-fit *:size-5', isCenter && '*:size-8')}>{children}</div>
+        <div className={cn('bg-background relative z-20 flex size-12 rounded-full border select-none', className)} draggable={false}>
+            <div className={cn('m-auto size-fit *:size-5 select-none', isCenter && '*:size-8')} draggable={false}>{children}</div>
         </div>
     )
 }

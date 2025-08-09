@@ -105,8 +105,15 @@ const MARQUEE_PATH = "M-200,50 C0,400 400,450 1600,250";
  */
 const CaseStudyItem = ({ study }: { study: CaseStudy }) => {
   return (
-    <div className="w-[300px] h-[200px] flex items-center justify-center">
-      <Link href={study.href} className="block relative group cursor-pointer">
+    <div
+      className="w-[300px] h-[200px] flex items-center justify-center select-none"
+      draggable={false}
+    >
+      <Link
+        href={study.href}
+        className="block relative group cursor-pointer select-none"
+        draggable={false}
+      >
         <Image
           src={study.image}
           alt={study.title}
@@ -115,8 +122,8 @@ const CaseStudyItem = ({ study }: { study: CaseStudy }) => {
           className="object-contain max-w-[300px] max-h-[200px] transition-all duration-300 group-hover:scale-105 group-hover:brightness-110"
           draggable={false}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-end justify-center">
-          <span className="text-white text-sm font-semibold pb-4 px-2 text-center drop-shadow-lg">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-end justify-center select-none">
+          <span className="text-white text-sm font-semibold pb-4 px-2 text-center drop-shadow-lg select-none">
             {study.title}
           </span>
         </div>

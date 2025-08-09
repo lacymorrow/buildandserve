@@ -44,7 +44,7 @@ export default function FAQsTwo() {
                     <Accordion
                         type="single"
                         collapsible
-                        className="bg-card ring-muted w-full rounded-2xl border px-8 py-3 shadow-sm ring-4 dark:ring-0">
+                        className="bg-card ring-muted w-full rounded-2xl border px-8 py-3 shadow-sm ring-4 dark:ring-0 select-none" draggable={false}>
                         {faqItems.map((item) => (
                             <AccordionItem
                                 key={item.id}
