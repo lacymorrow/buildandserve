@@ -139,39 +139,48 @@ export const CaseStudyMarquee = ({
   }
 
   return (
-    <div
-      className={cn(
-        "relative h-[600px] w-full overflow-hidden -mx-8 -mt-16",
-        className,
-      )}
-    >
-      <MarqueeAlongSvgPath
-        path={MARQUEE_PATH}
-        viewBox="-250 0 1900 450"
-        width="100%"
-        height="100%"
-        baseVelocity={baseVelocity}
-        showPath={showPath}
-        repeat={repeat}
-        slowdownOnHover={slowdownOnHover}
-        draggable={draggable}
-        dragSensitivity={0.1}
-        grabCursor
-        enableRollingZIndex
-        preserveAspectRatio="xMidYMid meet"
-        className="w-full h-full"
-      >
-        {studies.map((study) => (
-          <CaseStudyItem key={study.id} study={study} />
-        ))}
-      </MarqueeAlongSvgPath>
+    <section>
+      <div className="">
+        <div className="mx-auto w-full max-w-5xl px-6">
+          <div>
+            <h2 className="text-foreground max-w-2xl text-balance text-4xl font-semibold">Websites, Apps, Dashboards<br />Projects we are proud of</h2>
+          </div>
+          <div
+            className={cn(
+              "relative h-[500px] w-full overflow-hidden -mx-8 z-0",
+              className,
+            )}
+          >
+            <MarqueeAlongSvgPath
+              path={MARQUEE_PATH}
+              viewBox="-250 0 1900 450"
+              width="100%"
+              height="100%"
+              baseVelocity={baseVelocity}
+              showPath={showPath}
+              repeat={repeat}
+              slowdownOnHover={slowdownOnHover}
+              draggable={draggable}
+              dragSensitivity={0.1}
+              grabCursor
+              enableRollingZIndex
+              preserveAspectRatio="xMidYMid meet"
+              className="w-full h-full -my-16"
+            >
+              {studies.map((study) => (
+                <CaseStudyItem key={study.id} study={study} />
+              ))}
+            </MarqueeAlongSvgPath>
 
-      {/* Fade out gradients */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute left-0 top-0 w-48 h-full bg-gradient-to-r from-white to-transparent z-10" />
-        <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-white to-transparent z-10" />
+            {/* Fade out gradients */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute left-0 top-0 w-48 h-full bg-gradient-to-r from-background to-transparent z-10" />
+              <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-background to-transparent z-10" />
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
   );
 };
 
