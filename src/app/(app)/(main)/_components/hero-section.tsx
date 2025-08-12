@@ -156,8 +156,6 @@ export default function HeroSection() {
                                                 <Link
                                                     key={index}
                                                     href={logo.href}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
                                                     className="flex"
                                                 >
                                                     {logoImage}

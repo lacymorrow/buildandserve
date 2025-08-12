@@ -6,7 +6,7 @@ import FeaturesSection from "@/app/(app)/(main)/_components/features-eleven";
 import FeaturesSection2 from "@/app/(app)/(main)/_components/features-six";
 import HeroSection from "@/app/(app)/(main)/_components/hero-section";
 import PricingSection from "@/app/(app)/(main)/_components/pricing";
-import { CaseStudyMarquee } from "@/components/ui";
+import { CaseStudyMarquee } from "@/app/(app)/(main)/_components/case-study-marquee";
 
 export default function BuildAndServePage() {
   return (
