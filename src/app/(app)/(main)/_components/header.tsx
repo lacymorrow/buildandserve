@@ -86,13 +86,13 @@ export const HeroHeader = () => {
                             </motion.button>
 
                             <motion.div
-                                className="hidden lg:block"
+                                className="hidden lg:flex lg:items-center lg:gap-6"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: elementsVisible ? 1 : 0 }}
                                 transition={{ duration: 0.2 }}>
                                 <ul className="flex gap-8 text-sm">
-                                    {menuItems.map((item, index) => (
-                                        <li key={index}>
+                                    {menuItems.map((item) => (
+                                        <li key={item.href}>
                                             <Link
                                                 href={item.href}
                                                 className="text-muted-foreground hover:text-accent-foreground block duration-150">
@@ -114,8 +114,8 @@ export const HeroHeader = () => {
                             >
                                 <div className="lg:hidden">
                                     <ul className="space-y-6 text-base">
-                                        {menuItems.map((item, index) => (
-                                            <li key={index}>
+                                        {menuItems.map((item) => (
+                                            <li key={item.href}>
                                                 <Link
                                                     href={item.href}
                                                     className="text-muted-foreground hover:text-accent-foreground block duration-150"
@@ -141,7 +141,20 @@ export const HeroHeader = () => {
                                 </div>
                             </motion.div>
                         )}
+                        <div className="hidden lg:flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
+                            <ScheduleCallModal
+                                trigger={
+                                    <Button
+                                        className="rounded-full pl-5 pr-3 text-base"
+                                    >
+                                        <span className="text-nowrap">Book now</span>
+                                        <ChevronRight className="ml-1" />
+                                    </Button>
+                                }
+                            />
+                        </div>
                     </motion.div>
+
                 </div>
             </nav>
         </header>
