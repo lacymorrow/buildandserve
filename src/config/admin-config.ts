@@ -23,12 +23,12 @@ export const adminConfig: AdminConfig = {
 	// Admin emails - comma-separated list from environment variable or defaults
 	emails: process.env.ADMIN_EMAIL
 		? process.env.ADMIN_EMAIL.split(",").map((email) => email.trim())
-		: ["me@lacymorrow.com"],
+		: ["admin@buildandserve.com"],
 
 	// Admin domains - using default values
 	domains: process.env.ADMIN_DOMAINS
 		? process.env.ADMIN_DOMAINS.split(",").map((domain) => domain.trim())
-		: ["lacymorrow.com"],
+		: ["buildandserve.com"],
 
 	// Check if an email is an admin based on config
 	isAdminByEmailConfig: (email?: string | null): boolean => {

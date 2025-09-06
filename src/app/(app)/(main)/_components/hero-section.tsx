@@ -95,7 +95,7 @@ export default function HeroSection() {
                                         size="lg"
                                         variant="ghost"
                                         className="h-12 rounded-full px-5 text-base hover:bg-zinc-950/5 dark:hover:bg-white/5">
-                                        <Link href="https://lacymorrow.com/work">
+                                        <Link href="/work">
                                             <span className="text-nowrap">See our work</span>
                                         </Link>
                                     </Button>
