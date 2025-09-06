@@ -1,4 +1,4 @@
-import React from 'react'
+
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
@@ -54,7 +54,7 @@ const companyLogos = [
 export default function HeroSection() {
     return (
         <>
-            <main className="overflow-x-hidden">
+            <div className="overflow-x-hidden">
                 <section>
                     <div className="py-24 md:pb-32 lg:pb-36">
                         <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 lg:grid-cols-5 lg:px-12">
@@ -117,9 +117,10 @@ export default function HeroSection() {
                                     <div className="bg-background rounded-(--radius) shadow-foreground/10 ring-foreground/5 relative h-full -translate-y-12 skew-x-6 overflow-hidden border border-transparent shadow-md ring-1">
                                         <Image
                                             src="/images/hero.webp"
-                                            alt="app screen"
+                                            alt="Modern web application interface showcasing Build & Serve's development work"
                                             width="2880"
                                             height="1842"
+                                            priority
                                             className="object-top-left size-full object-cover pointer-events-none select-none"
                                             draggable={false}
                                         />
@@ -140,13 +141,14 @@ export default function HeroSection() {
                                     speedOnHover={20}
                                     speed={40}
                                     gap={112}>
-                                    {companyLogos.map((logo, index) => {
+                                    {companyLogos.map((logo) => {
                                         const logoImage = (
-                                            <img
+                                            <Image
                                                 className="mx-auto h-6 w-fit dark:invert select-none"
                                                 src={logo.src}
                                                 alt={logo.alt}
-                                                height="24"
+                                                width={120}
+                                                height={24}
                                                 draggable={false}
                                             />
                                         );
@@ -154,7 +156,7 @@ export default function HeroSection() {
                                         if (logo.href) {
                                             return (
                                                 <Link
-                                                    key={index}
+                                                    key={logo.src}
                                                     href={logo.href}
                                                     className="flex"
                                                 >
@@ -164,15 +166,15 @@ export default function HeroSection() {
                                         }
 
                                         return (
-                                            <div key={index} className="flex">
+                                            <div key={logo.src} className="flex">
                                                 {logoImage}
                                             </div>
                                         );
                                     })}
                                 </InfiniteSlider>
 
-                                <div className="bg-linear-to-r from-background absolute inset-y-0 left-0 w-20"></div>
-                                <div className="bg-linear-to-l from-background absolute inset-y-0 right-0 w-20"></div>
+                                <div className="bg-linear-to-r from-background absolute inset-y-0 left-0 w-20" />
+                                <div className="bg-linear-to-l from-background absolute inset-y-0 right-0 w-20" />
                                 <ProgressiveBlur
                                     className="pointer-events-none absolute left-0 top-0 h-full w-20"
                                     direction="left"
@@ -187,7 +189,7 @@ export default function HeroSection() {
                         </div>
                     </div>
                 </section>
-            </main>
+            </div>
         </>
     )
 }

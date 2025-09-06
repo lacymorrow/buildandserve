@@ -38,7 +38,7 @@ export default async function Layout({
 		<html lang="en" suppressHydrationWarning>
 			<Body>
 				<AppRouterLayout>
-					<main>{children}</main>
+					<main id="main-content">{children}</main>
 
 					{/* Dynamically render all available slots */}
 					{resolvedSlots.map(([key, slot]) => (

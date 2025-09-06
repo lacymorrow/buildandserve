@@ -2,6 +2,7 @@
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import Link from 'next/link'
+import { JsonLd } from '@/components/primitives/json-ld'
 
 export default function FAQsTwo() {
     const faqItems = [
@@ -34,6 +35,8 @@ export default function FAQsTwo() {
 
     return (
         <section className="py-16 md:py-24">
+            {/* FAQ structured data for SEO */}
+            <JsonLd faq={{ questions: faqItems.map(({ question, answer }) => ({ question, answer })) }} />
             <div className="mx-auto max-w-5xl px-4 md:px-6">
                 <div className="mx-auto max-w-xl text-center">
                     <h2 className="text-balance text-3xl font-bold md:text-4xl lg:text-5xl">Frequently Asked Questions</h2>

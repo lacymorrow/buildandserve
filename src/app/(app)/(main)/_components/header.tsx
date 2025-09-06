@@ -61,6 +61,7 @@ export const HeroHeader = () => {
     return (
         <header>
             <nav
+                aria-label="Primary"
                 className="group fixed z-20 w-full pt-2 px-1">
                 <div className={cn('mx-auto max-w-7xl rounded-3xl border border-border/0 px-6 transition-all duration-200 group-hover:border-border lg:px-12', hasScrolled && 'bg-background/50 backdrop-blur-2xl border-border/30')}>
                     <motion.div
@@ -77,6 +78,8 @@ export const HeroHeader = () => {
                             <motion.button
                                 onClick={() => setMenuState(!menuState)}
                                 aria-label={menuState ? 'Close Menu' : 'Open Menu'}
+                                aria-expanded={menuState}
+                                aria-controls="primary-menu"
                                 className="relative z-20 -m-2.5 -mr-4 block cursor-pointer p-2.5 lg:hidden"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
@@ -113,7 +116,7 @@ export const HeroHeader = () => {
                                 transition={{ duration: 0.2 }}
                             >
                                 <div className="lg:hidden">
-                                    <ul className="space-y-6 text-base">
+                                    <ul id="primary-menu" className="space-y-6 text-base">
                                         {menuItems.map((item) => (
                                             <li key={item.href}>
                                                 <Link

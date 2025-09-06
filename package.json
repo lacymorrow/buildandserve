@@ -24,6 +24,7 @@
     "deps:update": "ncu -u",
     "check:metadata": "npx check-site-meta 3000",
     "check:performance": "next dev & npx react-scan@latest localhost:3000",
+    "check:lighthouse": "npx -y @lhci/cli@latest autorun --collect.url=http://localhost:3000 --collect.numberOfRuns=3 --upload.target=filesystem --upload.outputDir=.lighthouse/desktop --collect.settings.preset=desktop && npx -y @lhci/cli@latest autorun --collect.url=http://localhost:3000 --collect.numberOfRuns=3 --upload.target=filesystem --upload.outputDir=.lighthouse/mobile --collect.settings.preset=mobile",
     "git:checkpoint": "tsx scripts/git-checkpoint.ts",
     "lint": "npm run lint:biome && npm run lint:eslint && npm run lint:prettier",
     "lint:biome": "biome lint .",

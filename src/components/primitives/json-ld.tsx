@@ -158,6 +158,17 @@ export function JsonLd({
 					},
 				})),
 			},
+			{
+				"@type": "Service",
+				"@id": `${siteConfig.url}/#service`,
+				name: "Web development and AI-enabled applications",
+				serviceType: "ProfessionalService",
+				provider: {
+					"@id": `${siteConfig.url}/#organization`,
+				},
+				areaServed: "Global",
+				availableChannel: "Online",
+			},
 			localBusiness && {
 				"@type": localBusiness.type || "SoftwareApplication",
 				"@id": `${siteConfig.url}/#local-business`,
