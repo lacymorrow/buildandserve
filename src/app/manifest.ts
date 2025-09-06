@@ -82,16 +82,16 @@ export default function manifest(): MetadataRoute.Manifest {
 		 * Used in app stores and install prompts to showcase the app
 		 * @see https://developer.mozilla.org/en-US/docs/Web/Manifest/screenshots
 		 */
-		screenshots: [
+screenshots: [
 			{
-				src: "/app/screenshots/screenshot-desktop.png",
+				src: "/screenshots/screenshot-desktop.png",
 				sizes: "1280x720",
 				type: "image/png",
 				form_factor: "wide",
 				label: `Desktop view of ${siteConfig.title}`,
 			},
 			{
-				src: "/app/screenshots/screenshot-mobile.png",
+				src: "/screenshots/screenshot-mobile.png",
 				sizes: "720x1280",
 				type: "image/png",
 				form_factor: "narrow",
