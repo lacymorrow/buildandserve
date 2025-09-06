@@ -20,3 +20,32 @@ body {
 	color: rgba(255, 255, 255, 0.8);
 	background-color: rgba(255, 20, 188, 0.75);
 }
+
+/*
+ * Motion reduction for accessibility on mobile and low-end devices
+ * Disables long-running animations and transitions when user prefers reduced motion
+ */
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/*
+ * Utility: full-height that respects dynamic viewport height on mobile
+ * Use on sections that should fill the visible viewport on iOS Safari
+ */
+.full-height {
+	height: 100vh;
+	height: 100dvh; /* Modern browsers */
+}
+
+/* iOS Safari specific fallback for dynamic viewport height */
+@supports (-webkit-touch-callout: none) {
+	.full-height {
+		height: -webkit-fill-available;
+	}
+}
