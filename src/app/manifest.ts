@@ -81,24 +81,23 @@ export default function manifest(): MetadataRoute.Manifest {
 		/* App Screenshots
 		 * Used in app stores and install prompts to showcase the app
 		 * @see https://developer.mozilla.org/en-US/docs/Web/Manifest/screenshots
-		 * @note You need to create these screenshot files in `public/screenshots/`
 		 */
-		// screenshots: [
-		// 	{
-		// 		src: "/app/screenshots/screenshot-desktop.png", // Updated path
-		// 		sizes: "1280x720",
-		// 		type: "image/png",
-		// 		form_factor: "wide", // Indicates this is for wide screens (desktop)
-		// 		label: `Desktop view of ${siteConfig.title}`,
-		// 	},
-		// 	{
-		// 		src: "/app/screenshots/screenshot-mobile.png", // Updated path
-		// 		sizes: "720x1280",
-		// 		type: "image/png",
-		// 		form_factor: "narrow", // Indicates this is for narrow screens (mobile)
-		// 		label: `Mobile view of ${siteConfig.title}`,
-		// 	},
-		// ],
+		screenshots: [
+			{
+				src: "/app/screenshots/screenshot-desktop.png",
+				sizes: "1280x720",
+				type: "image/png",
+				form_factor: "wide",
+				label: `Desktop view of ${siteConfig.title}`,
+			},
+			{
+				src: "/app/screenshots/screenshot-mobile.png",
+				sizes: "720x1280",
+				type: "image/png",
+				form_factor: "narrow",
+				label: `Mobile view of ${siteConfig.title}`,
+			},
+		],
 
 		/* App Shortcuts (currently commented out)
 		 * Provides quick access to key features from the app icon
