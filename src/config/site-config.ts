@@ -74,6 +74,21 @@ interface SiteConfig {
     github: string;
   };
 
+  // Social profiles (optional fields for common networks)
+  social?: {
+    github?: string;
+    twitter?: string;
+    x?: string;
+    linkedin?: string;
+    instagram?: string;
+    facebook?: string;
+    youtube?: string;
+    tiktok?: string;
+    discord?: string;
+    dribbble?: string;
+    threads?: string;
+  };
+
   // Repository information
   repo: {
     owner: string;
