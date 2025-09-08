@@ -114,9 +114,7 @@ interface SiteConfig {
   // E-commerce store configuration
   store: {
     id: string;
-    products: {
-      [key: string]: string;
-    };
+    products: Record<string, string>;
   };
 
   // SEO and metadata
@@ -167,12 +165,12 @@ export const siteConfig: SiteConfig = {
   },
 
   name: "Build And Serve",
-  title: "Build And Serve",
+  title: "Build And Serve | Websites with a personal touch",
   tagline: "Modern sites and applications with an emphasis on AI features.",
   url: "https://buildandserve.com",
   ogImage: "https://buildandserve.com/og-image.png",
   description:
-    "A web development agency and studio that builds modern sites and applications with an emphasis on AI features.",
+    "Charlotte's preferred web studio building high-performance websites and AI-powered apps—fast, secure, SEO-ready, and designed to convert visitors into customers.",
 
   branding: {
     projectName: "Build And Serve",
@@ -216,7 +214,7 @@ export const siteConfig: SiteConfig = {
     legal: "legal@buildandserve.com",
     privacy: "privacy@buildandserve.com",
     // Placeholder format function - assigned below
-    format: (type) => "",
+    format: (_type) => "",
   },
 
   creator: {
@@ -351,9 +349,7 @@ siteConfig.payload.adminTitleSuffix = ` - ${siteConfig.title} CMS`;
 // siteConfig.manifest.startUrl = routes.home; // Uncomment and import routes if needed
 
 // Make sure alternates exists before assigning canonical
-if (!siteConfig.metadata.alternates) {
-  siteConfig.metadata.alternates = {};
-}
+siteConfig.metadata.alternates ??= {};
 siteConfig.metadata.alternates.canonical = siteConfig.url;
 
 // Check appleWebApp is an object before assigning title
@@ -365,12 +361,8 @@ if (
 }
 
 // Ensure appLinks and appLinks.web are objects before assigning url
-if (!siteConfig.metadata.appLinks) {
-  siteConfig.metadata.appLinks = {};
-}
-if (!siteConfig.metadata.appLinks.web) {
-  siteConfig.metadata.appLinks.web = { url: "", should_fallback: false }; // Initialize web if needed
-}
+siteConfig.metadata.appLinks ??= {};
+siteConfig.metadata.appLinks.web ??= { url: "", should_fallback: false }; // Initialize web if needed
 // Check type again after potential initialization
 if (
   siteConfig.metadata.appLinks?.web &&

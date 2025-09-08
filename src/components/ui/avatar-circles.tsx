@@ -18,7 +18,7 @@ const AvatarCircles = ({ numPeople, className, avatarUrls }: AvatarCirclesProps)
 					src={url}
 					width={40}
 					height={40}
-					alt={`Avatar ${index + 1}`}
+					alt={`Team member ${index + 1} avatar`}
 				/>
 			))}
 			<a

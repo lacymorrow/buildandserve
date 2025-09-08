@@ -93,17 +93,29 @@ const BlogPostPage = async ({ params }: Props) => {
 
   return (
     <div className="relative w-full">
-      {/* Back button */}
-      <Link
-        href="/blog"
-        className={cn(
-          buttonVariants({ variant: "ghost", size: "sm" }),
-          "mb-8 h-auto p-0 text-muted-foreground hover:text-foreground",
-        )}
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Blog
-      </Link>
+      {/* Back buttons */}
+      <div className="flex items-center gap-4 mb-8">
+        <Link
+          href="/"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "h-auto p-0 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Homepage
+        </Link>
+        <Link
+          href="/blog"
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "sm" }),
+            "h-auto p-0 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Blog
+        </Link>
+      </div>
 
       <div className="flex gap-8">
         {/* Main content */}

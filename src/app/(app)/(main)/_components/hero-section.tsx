@@ -59,14 +59,14 @@ export default function HeroSection() {
                     <div className="py-24 md:pb-32 lg:pb-36">
                         <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 lg:grid-cols-5 lg:px-12">
                             <div className="mx-auto text-center lg:col-span-3 lg:mx-0 lg:text-left">
-                                <div
+                                <h1
                                     className="mt-8 max-w-2xl text-balance text-5xl md:text-6xl lg:mt-16 xl:text-7xl"
                                 >
 
                                     <TextEffect
                                         preset="fade-in-blur"
                                         speedSegment={0.3}
-                                        as="h1"
+                                        as="span"
                                         className="mt-8 max-w-2xl text-balance text-5xl md:text-6xl lg:mt-16 xl:text-7xl">
                                         Charlotte’s Trusted Partner for
                                     </TextEffect>
@@ -74,10 +74,10 @@ export default function HeroSection() {
                                         preset="fade-in-blur"
                                         speedSegment={0.3}
                                         delay={0.2}
-                                        as="h1">
+                                        as="span">
                                         Websites, SEO & Digital Growth
                                     </TextEffect>
-                                </div>
+                                </h1>
                                 <TextEffect
                                     per="line"
                                     preset="fade-in-blur"

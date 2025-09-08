@@ -80,7 +80,7 @@ export default function HeroSection() {
                                 <div className="bg-background rounded-(--radius) shadow-foreground/10 ring-foreground/5 relative h-full -translate-y-12 skew-x-6 overflow-hidden border border-transparent shadow-md ring-1">
                                     <Image
                                         src="/images/logo.png"
-                                        alt="app screen"
+                                        alt="Modern web application interface showcasing Build & Serve's development services"
                                         width="2880"
                                         height="1842"
                                         className="object-top-left size-full object-cover"
