@@ -213,8 +213,8 @@ export default function WorkPage() {
           Interested in working together?
         </h2>
         <p className="text-muted-foreground max-w-2xl mx-auto">
-          I'm always excited to take on new challenges and build amazing
-          products. Let's discuss how we can bring your ideas to life.
+          We&apos;re always excited to take on new challenges and build amazing
+          products. Let&apos;s discuss how we can bring your ideas to life.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
           <Button asChild>

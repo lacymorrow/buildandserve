@@ -68,14 +68,14 @@ export default function HeroSection() {
                                         speedSegment={0.3}
                                         as="h1"
                                         className="mt-8 max-w-2xl text-balance text-5xl md:text-6xl lg:mt-16 xl:text-7xl">
-                                        Your vision,
+                                        Charlotte’s Trusted Partner for
                                     </TextEffect>
                                     <TextEffect
                                         preset="fade-in-blur"
                                         speedSegment={0.3}
                                         delay={0.2}
                                         as="h1">
-                                        engineered.
+                                        Websites, SEO & Digital Growth
                                     </TextEffect>
                                 </div>
                                 <TextEffect
