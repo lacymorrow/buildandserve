@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
-import path from "path";
+import type { Configuration as WebpackConfiguration } from "webpack";
+import path from "node:path";
 import {
   buildTimeFeatureFlags,
   buildTimeFeatures,
@@ -273,6 +274,16 @@ const nextConfig: NextConfig = {
       "**/node_modules/marked/**",
       "**/node_modules/remark/**",
       "**/node_modules/rehype/**",
+      // Additional heavy/vendor bundles from upstream
+      "**/node_modules/@tabler/**",
+      "**/node_modules/@stackframe/**",
+      "**/node_modules/@doubletie/**",
+      "**/node_modules/mathjax-full/**",
+      "**/node_modules/@sentry/**",
+      "**/node_modules/@aws-sdk/**",
+      "**/node_modules/@webcontainer/**",
+      "**/node_modules/.cache/**",
+      "**/node_modules/.store/**",
     ],
   },
   outputFileTracingIncludes: {
@@ -298,14 +309,20 @@ const nextConfig: NextConfig = {
    * Webpack configuration
    */
   webpack: (
-    config: any,
+    config: WebpackConfiguration,
     { dev, isServer }: { dev: boolean; isServer: boolean },
   ) => {
     // Enable top-level await
     config.experiments = { ...config.experiments, topLevelAwait: true };
 
     // Add support for async/await in web workers
-    config.module.rules.push({
+    if (!config.module) {
+      (config as any).module = { rules: [] };
+    }
+    if (!Array.isArray((config.module as any).rules)) {
+      (config.module as any).rules = [];
+    }
+    (config.module as any).rules.push({
       test: /\.worker\.(js|ts)$/,
       use: {
         loader: "worker-loader",
@@ -318,11 +335,29 @@ const nextConfig: NextConfig = {
 
     if (isServer) {
       // Skip sharp module completely to avoid build errors
-      config.externals = config.externals || [];
-      config.externals.push('sharp');
-      
+      // and externalize a few heavy deps in production like upstream
+      // while preserving our explicit 'sharp' workaround.
+      const existingExternals = Array.isArray(config.externals) ? config.externals : [];
+      config.externals = existingExternals;
+      config.externals.push("sharp");
+
+      // In non-dev server builds, externalize some heavy libraries to reduce bundle size
+      if (!dev) {
+        (config.externals as unknown[]).push({
+          "@huggingface/transformers": "commonjs @huggingface/transformers",
+          googleapis: "commonjs googleapis",
+          "monaco-editor": "commonjs monaco-editor",
+        });
+      }
+
       // Ensure docs directory is included in the bundle for dynamic imports
-      config.module.rules.push({
+      if (!config.module) {
+        (config as any).module = { rules: [] };
+      }
+      if (!Array.isArray((config.module as any).rules)) {
+        (config.module as any).rules = [];
+      }
+      (config.module as any).rules.push({
         test: /\.(md|mdx)$/,
         include: [
           path.join(process.cwd(), "docs"),
