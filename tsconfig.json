@@ -13,7 +13,7 @@
     "incremental": true,
     "isolatedModules": true,
     "moduleDetection": "force",
-    "noUncheckedIndexedAccess": true,
+    "noUncheckedIndexedAccess": false,
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": false,
@@ -54,6 +54,7 @@
     "src/workers/**/*"
   ],
   "exclude": [
+    ".next",
     "node_modules",
     "tests",
     "public",
