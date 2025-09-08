@@ -11,7 +11,7 @@ import { ScheduleCallModal } from '@/components/modals/schedule-call-modal'
 
 const menuItems = [
     { name: 'Home', href: '/' },
-    { name: 'FAQ', href: '#faq' },
+    { name: 'FAQ', href: '/#faq' },
 ]
 
 export const HeroHeader = () => {

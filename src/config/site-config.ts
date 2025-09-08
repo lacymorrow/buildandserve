@@ -165,7 +165,7 @@ export const siteConfig: SiteConfig = {
   },
 
   name: "Build And Serve",
-  title: "Build And Serve | Websites with a personal touch",
+  title: "Build And Serve",
   tagline: "Modern sites and applications with an emphasis on AI features.",
   url: "https://buildandserve.com",
   ogImage: "https://buildandserve.com/og-image.png",
