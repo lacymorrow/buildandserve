@@ -1,7 +1,7 @@
 import typography from "@tailwindcss/typography";
 import type { Config } from "tailwindcss";
 import { fontFamily } from "tailwindcss/defaultTheme";
-// @ts-ignore
+// @ts-expect-error
 import flattenColorPalette from "tailwindcss/lib/util/flattenColorPalette";
 import tailwindcssAnimate from "tailwindcss-animate";
 
@@ -306,7 +306,9 @@ const config = {
 
 export default config;
 // This plugin adds each Tailwind color as a global CSS variable, e.g. var(--gray-200).
-function addVariablesForColors({ addBase, theme }: any) {
+type AddBaseFn = (styles: Record<string, unknown>) => void;
+type ThemeFn = (path: string) => unknown;
+function addVariablesForColors({ addBase, theme }: { addBase: AddBaseFn; theme: ThemeFn }) {
 	const allColors = flattenColorPalette(theme("colors"));
 	const newVars = Object.fromEntries(
 		Object.entries(allColors).map(([key, val]) => [`--${key}`, val])
