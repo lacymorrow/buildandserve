@@ -1,16 +1,24 @@
-import type React from "react";
 import { Link } from "@/components/primitives/link-with-transition";
-import { Icon } from "@/components/assets/icon";
 import { siteConfig } from "@/config/site-config";
 import Image from "next/image";
+import { ArrowLeft } from "lucide-react";
 import logoImage from "@/public/logo.png";
 export const BlogHero = () => {
   return (
     <header className="py-12 px-4 sm:px-6 lg:px-8">
       <div className="relative mx-auto max-w-[37.5rem] pt-20 text-center pb-20">
+        <div className="flex justify-center mb-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Homepage
+          </Link>
+        </div>
         <div className="flex items-center justify-center space-x-3">
           {/* <Icon name="logo" className="w-10 h-10" /> */}
-          <Image src={logoImage} alt="Shipkit" width={100} height={100} />
+          <Image src={logoImage} alt="Build and Serve - Web Development Agency Logo" width={100} height={100} />
           <h1 className="text-4xl font-extrabold tracking-tight text-primary/90 sm:text-5xl">
             {siteConfig.name} Blog
           </h1>
