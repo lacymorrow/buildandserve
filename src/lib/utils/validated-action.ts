@@ -12,14 +12,14 @@ export interface ActionState {
 }
 
 const parseFormErrors = (errors: z.ZodError) => {
-	const formErrors = Object.entries(errors.formErrors.fieldErrors).reduce(
-		(acc, [key, value]) => {
-			acc[key] = { message: value?.[0] ?? "" };
-			return acc;
-		},
-		{} as Record<string, { message: string }>
-	);
-	return formErrors;
+	const fieldErrors: Record<string, { message: string }> = {};
+	for (const issue of errors.issues ?? []) {
+		const key = issue.path?.[0];
+		if (typeof key === "string" && !fieldErrors[key]) {
+			fieldErrors[key] = { message: issue.message };
+		}
+	}
+	return fieldErrors;
 };
 
 type ValidatedActionFunction<S extends z.ZodType<any, any>, T> = (
@@ -32,7 +32,7 @@ export function validatedAction<S extends z.ZodType<any, any>, T>(
 	action: ValidatedActionFunction<S, T>
 ) {
 	return async (_prevState: ActionState, formData: FormData): Promise<T> => {
-		const result = schema.safeParse(Object.fromEntries(formData));
+		const result = schema.safeParse(Object.fromEntries(formData as any));
 		if (!result?.success) {
 			return { error: parseFormErrors(result.error) } as T;
 		}
@@ -57,9 +57,9 @@ export function validatedActionWithUser<S extends z.ZodType<any, any>, T>(
 			throw new Error("User is not authenticated");
 		}
 
-		const result = schema.safeParse(Object.fromEntries(formData));
+		const result = schema.safeParse(Object.fromEntries(formData as any));
 		if (!result.success) {
-			return { error: result?.error?.errors[0]?.message } as T;
+			return { error: result.error.issues?.[0]?.message } as T;
 		}
 
 		return action(result.data, formData, session.user);

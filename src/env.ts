@@ -28,7 +28,7 @@ export const env = createEnv({
 	 * - fly.io
 	 * - netlify
 	 */
-	extends: [vercel()], // !TODO
+	extends: [vercel()],
 
 	/**
 	 * Server-side environment variables schema
@@ -41,11 +41,10 @@ export const env = createEnv({
 		// ======== Original Feature Flags (Disable flags etc.) ========
 		DISABLE_LOGGING: z.string().optional(),
 		DISABLE_ERROR_LOGGING: z.string().optional(),
-		DISABLE_BUILDER: z.string().optional(), // Disable Builder CMS
+		DISABLE_BUILDER: z.string().optional(),
+		ENABLE_PAYLOAD: z.string().optional(),
 
 		// ======== Content Management ========
-		// Payload CMS
-		ENABLE_PAYLOAD: z.string().optional(), // Enable Payload CMS
 		PAYLOAD_SECRET: z.string().optional(),
 
 		// ======== Database ========
@@ -58,7 +57,6 @@ export const env = createEnv({
 			(str) => BASE_URL ?? str,
 			BASE_URL ? z.string().optional() : z.string().url().optional()
 		),
-		// ======== Credentials (requires DB) ========
 		AUTH_CREDENTIALS_ENABLED: z.string().optional(),
 
 		// ======== Better Auth Configuration ========
@@ -66,7 +64,7 @@ export const env = createEnv({
 		BETTER_AUTH_SECRET: z.string().optional(),
 
 		// Email and Magic login
-		RESEND_API_KEY: z.string().optional(), // Added for waitlist welcome email
+		RESEND_API_KEY: z.string().optional(),
 		RESEND_AUDIENCE_ID: z.string().optional(),
 		RESEND_FROM_EMAIL: z.string().optional(),
 
@@ -103,6 +101,27 @@ export const env = createEnv({
 		// AI Services
 		OPENAI_API_KEY: z.string().optional(),
 		ANTHROPIC_API_KEY: z.string().optional(),
+		DEEPSEEK_API_KEY: z.string().optional(),
+		ELEVENLABS_API_KEY: z.string().optional(),
+		FAL_API_KEY: z.string().optional(),
+		FIRECRAWL_API_KEY: z.string().optional(),
+		GOOGLE_GEMINI_API_KEY: z.string().optional(),
+		HUGGINGFACE_API_KEY: z.string().optional(),
+		PERPLEXITY_API_KEY: z.string().optional(),
+		REPLICATE_API_KEY: z.string().optional(),
+
+		// Trading APIs
+		ALPACA_API_KEY: z.string().optional(),
+		ALPACA_SECRET_KEY: z.string().optional(),
+		ALPACA_BASE_URL: z.string().url().optional(),
+		ALPHA_VANTAGE_API_KEY: z.string().optional(),
+		STOCKTWITS_ACCESS_TOKEN: z.string().optional(),
+
+		// Social Media
+		TWITTER_API_KEY: z.string().optional(),
+		TWITTER_API_SECRET: z.string().optional(),
+		TWITTER_ACCESS_TOKEN: z.string().optional(),
+		TWITTER_ACCESS_TOKEN_SECRET: z.string().optional(),
 
 		// Payments
 		LEMONSQUEEZY_API_KEY: z.string().optional(),
@@ -144,6 +163,9 @@ export const env = createEnv({
 		// Consent Manager
 		NEXT_PUBLIC_C15T_URL: z.string().optional(),
 
+		// Shipkit Repo (upstream default; we keep ours downstream-controlled via site-config)
+		NEXT_PUBLIC_SHIPKIT_REPO: z.string().optional(),
+
 		// Content Management
 		NEXT_PUBLIC_BUILDER_API_KEY: z.string().optional(),
 
@@ -151,6 +173,9 @@ export const env = createEnv({
 		NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
 		NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
 		NEXT_PUBLIC_UMAMI_WEBSITE_ID: z.string().optional(),
+		NEXT_PUBLIC_STATSIG_CLIENT_KEY: z.string().optional(),
+		NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: z.string().optional(),
+		NEXT_PUBLIC_GOOGLE_GTM_ID: z.string().optional(),
 
 		// Polar Products
 		NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID: z.string().optional(),
@@ -174,6 +199,8 @@ export const env = createEnv({
 		NEXT_PUBLIC_FEATURE_BUILDER_ENABLED: zBooleanFeatureFlag,
 		NEXT_PUBLIC_FEATURE_MDX_ENABLED: zBooleanFeatureFlag,
 		NEXT_PUBLIC_FEATURE_PWA_ENABLED: zBooleanFeatureFlag,
+		NEXT_PUBLIC_FEATURE_LIGHT_MODE_ENABLED: zBooleanFeatureFlag,
+		NEXT_PUBLIC_FEATURE_DARK_MODE_ENABLED: zBooleanFeatureFlag,
 
 		// Better Auth Feature Flags
 		NEXT_PUBLIC_FEATURE_BETTER_AUTH_ENABLED: zBooleanFeatureFlag,
@@ -181,6 +208,7 @@ export const env = createEnv({
 		// Auth.js Feature Flags
 		NEXT_PUBLIC_FEATURE_AUTH_RESEND_ENABLED: zBooleanFeatureFlag,
 		NEXT_PUBLIC_FEATURE_AUTH_CREDENTIALS_ENABLED: zBooleanFeatureFlag,
+		NEXT_PUBLIC_FEATURE_AUTH_GUEST_ENABLED: zBooleanFeatureFlag,
 		NEXT_PUBLIC_FEATURE_AUTH_CLERK_ENABLED: zBooleanFeatureFlag,
 		NEXT_PUBLIC_FEATURE_AUTH_STACK_ENABLED: zBooleanFeatureFlag,
 		NEXT_PUBLIC_FEATURE_AUTH_BITBUCKET_ENABLED: zBooleanFeatureFlag,
@@ -191,6 +219,8 @@ export const env = createEnv({
 		NEXT_PUBLIC_FEATURE_AUTH_TWITTER_ENABLED: zBooleanFeatureFlag,
 		NEXT_PUBLIC_FEATURE_AUTH_VERCEL_ENABLED: zBooleanFeatureFlag,
 		NEXT_PUBLIC_FEATURE_SUPABASE_AUTH_ENABLED: zBooleanFeatureFlag,
+		NEXT_PUBLIC_FEATURE_AUTH_METHODS_ENABLED: zBooleanFeatureFlag,
+		NEXT_PUBLIC_FEATURE_AUTH_ENABLED: zBooleanFeatureFlag,
 
 		// External Services
 		NEXT_PUBLIC_FEATURE_GITHUB_API_ENABLED: zBooleanFeatureFlag,
@@ -208,6 +238,9 @@ export const env = createEnv({
 		// Analytics
 		NEXT_PUBLIC_FEATURE_POSTHOG_ENABLED: zBooleanFeatureFlag,
 		NEXT_PUBLIC_FEATURE_UMAMI_ENABLED: zBooleanFeatureFlag,
+		NEXT_PUBLIC_FEATURE_STATSIG_ENABLED: zBooleanFeatureFlag,
+		NEXT_PUBLIC_FEATURE_GOOGLE_ANALYTICS_ENABLED: zBooleanFeatureFlag,
+		NEXT_PUBLIC_FEATURE_GOOGLE_TAG_MANAGER_ENABLED: zBooleanFeatureFlag,
 
 		// Consent Manager
 		NEXT_PUBLIC_FEATURE_C15T_ENABLED: zBooleanFeatureFlag,
@@ -245,7 +278,7 @@ export const env = createEnv({
 		BETTER_AUTH_BASE_URL: process.env.BETTER_AUTH_BASE_URL,
 
 		// Resend
-		RESEND_API_KEY: process.env.RESEND_API_KEY, // Added for waitlist welcome email
+		RESEND_API_KEY: process.env.RESEND_API_KEY,
 		RESEND_AUDIENCE_ID: process.env.RESEND_AUDIENCE_ID,
 		RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
 
@@ -280,6 +313,28 @@ export const env = createEnv({
 		GOOGLE_PRIVATE_KEY: process.env.GOOGLE_PRIVATE_KEY,
 		OPENAI_API_KEY: process.env.OPENAI_API_KEY,
 		ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+		DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
+		ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY,
+		FAL_API_KEY: process.env.FAL_API_KEY,
+		FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY,
+		GOOGLE_GEMINI_API_KEY: process.env.GOOGLE_GEMINI_API_KEY,
+		HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY,
+		PERPLEXITY_API_KEY: process.env.PERPLEXITY_API_KEY,
+		REPLICATE_API_KEY: process.env.REPLICATE_API_KEY,
+
+		// Trading APIs
+		ALPACA_API_KEY: process.env.ALPACA_API_KEY,
+		ALPACA_SECRET_KEY: process.env.ALPACA_SECRET_KEY,
+		ALPACA_BASE_URL: process.env.ALPACA_BASE_URL,
+		ALPHA_VANTAGE_API_KEY: process.env.ALPHA_VANTAGE_API_KEY,
+		STOCKTWITS_ACCESS_TOKEN: process.env.STOCKTWITS_ACCESS_TOKEN,
+
+		// Social Media
+		TWITTER_API_KEY: process.env.TWITTER_API_KEY,
+		TWITTER_API_SECRET: process.env.TWITTER_API_SECRET,
+		TWITTER_ACCESS_TOKEN: process.env.TWITTER_ACCESS_TOKEN,
+		TWITTER_ACCESS_TOKEN_SECRET: process.env.TWITTER_ACCESS_TOKEN_SECRET,
+
 		LEMONSQUEEZY_API_KEY: process.env.LEMONSQUEEZY_API_KEY,
 		LEMONSQUEEZY_STORE_ID: process.env.LEMONSQUEEZY_STORE_ID,
 		LEMONSQUEEZY_WEBHOOK_SECRET: process.env.LEMONSQUEEZY_WEBHOOK_SECRET,
@@ -303,6 +358,9 @@ export const env = createEnv({
 		// Consent Manager
 		NEXT_PUBLIC_C15T_URL: process.env.NEXT_PUBLIC_C15T_URL,
 
+		// Shipkit Repo
+		NEXT_PUBLIC_SHIPKIT_REPO: process.env.NEXT_PUBLIC_SHIPKIT_REPO,
+
 		NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
 
 		// Client-side variables (Original)
@@ -310,6 +368,9 @@ export const env = createEnv({
 		NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
 		NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
 		NEXT_PUBLIC_UMAMI_WEBSITE_ID: process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID,
+		NEXT_PUBLIC_STATSIG_CLIENT_KEY: process.env.NEXT_PUBLIC_STATSIG_CLIENT_KEY,
+		NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID,
+		NEXT_PUBLIC_GOOGLE_GTM_ID: process.env.NEXT_PUBLIC_GOOGLE_GTM_ID,
 		NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID: process.env.NEXT_PUBLIC_POLAR_SUBSCRIPTION_PRICE_ID,
 		NEXT_PUBLIC_POLAR_ONE_TIME_PRICE_ID: process.env.NEXT_PUBLIC_POLAR_ONE_TIME_PRICE_ID,
 		NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
@@ -324,6 +385,8 @@ export const env = createEnv({
 		NEXT_PUBLIC_FEATURE_BUILDER_ENABLED: process.env.NEXT_PUBLIC_FEATURE_BUILDER_ENABLED,
 		NEXT_PUBLIC_FEATURE_MDX_ENABLED: process.env.NEXT_PUBLIC_FEATURE_MDX_ENABLED,
 		NEXT_PUBLIC_FEATURE_PWA_ENABLED: process.env.NEXT_PUBLIC_FEATURE_PWA_ENABLED,
+		NEXT_PUBLIC_FEATURE_LIGHT_MODE_ENABLED: process.env.NEXT_PUBLIC_FEATURE_LIGHT_MODE_ENABLED,
+		NEXT_PUBLIC_FEATURE_DARK_MODE_ENABLED: process.env.NEXT_PUBLIC_FEATURE_DARK_MODE_ENABLED,
 
 		// Better Auth Feature Flags
 		NEXT_PUBLIC_FEATURE_BETTER_AUTH_ENABLED: process.env.NEXT_PUBLIC_FEATURE_BETTER_AUTH_ENABLED,
@@ -335,6 +398,7 @@ export const env = createEnv({
 		NEXT_PUBLIC_FEATURE_AUTH_RESEND_ENABLED: process.env.NEXT_PUBLIC_FEATURE_AUTH_RESEND_ENABLED,
 		NEXT_PUBLIC_FEATURE_AUTH_CREDENTIALS_ENABLED:
 			process.env.NEXT_PUBLIC_FEATURE_AUTH_CREDENTIALS_ENABLED,
+		NEXT_PUBLIC_FEATURE_AUTH_GUEST_ENABLED: process.env.NEXT_PUBLIC_FEATURE_AUTH_GUEST_ENABLED,
 		NEXT_PUBLIC_FEATURE_AUTH_CLERK_ENABLED: process.env.NEXT_PUBLIC_FEATURE_AUTH_CLERK_ENABLED,
 		NEXT_PUBLIC_FEATURE_AUTH_STACK_ENABLED: process.env.NEXT_PUBLIC_FEATURE_AUTH_STACK_ENABLED,
 		NEXT_PUBLIC_FEATURE_AUTH_BITBUCKET_ENABLED:
@@ -347,6 +411,8 @@ export const env = createEnv({
 		NEXT_PUBLIC_FEATURE_AUTH_VERCEL_ENABLED: process.env.NEXT_PUBLIC_FEATURE_AUTH_VERCEL_ENABLED,
 		NEXT_PUBLIC_FEATURE_SUPABASE_AUTH_ENABLED:
 			process.env.NEXT_PUBLIC_FEATURE_SUPABASE_AUTH_ENABLED,
+		NEXT_PUBLIC_FEATURE_AUTH_METHODS_ENABLED: process.env.NEXT_PUBLIC_FEATURE_AUTH_METHODS_ENABLED,
+		NEXT_PUBLIC_FEATURE_AUTH_ENABLED: process.env.NEXT_PUBLIC_FEATURE_AUTH_ENABLED,
 		NEXT_PUBLIC_FEATURE_GITHUB_API_ENABLED: process.env.NEXT_PUBLIC_FEATURE_GITHUB_API_ENABLED,
 		NEXT_PUBLIC_FEATURE_GOOGLE_SERVICE_ACCOUNT_ENABLED:
 			process.env.NEXT_PUBLIC_FEATURE_GOOGLE_SERVICE_ACCOUNT_ENABLED,
@@ -363,10 +429,17 @@ export const env = createEnv({
 		// Analytics
 		NEXT_PUBLIC_FEATURE_POSTHOG_ENABLED: process.env.NEXT_PUBLIC_FEATURE_POSTHOG_ENABLED,
 		NEXT_PUBLIC_FEATURE_UMAMI_ENABLED: process.env.NEXT_PUBLIC_FEATURE_UMAMI_ENABLED,
+		NEXT_PUBLIC_FEATURE_STATSIG_ENABLED: process.env.NEXT_PUBLIC_FEATURE_STATSIG_ENABLED,
+		NEXT_PUBLIC_FEATURE_GOOGLE_ANALYTICS_ENABLED:
+			process.env.NEXT_PUBLIC_FEATURE_GOOGLE_ANALYTICS_ENABLED,
+		NEXT_PUBLIC_FEATURE_GOOGLE_TAG_MANAGER_ENABLED:
+			process.env.NEXT_PUBLIC_FEATURE_GOOGLE_TAG_MANAGER_ENABLED,
 
 		// Consent Manager
 		NEXT_PUBLIC_FEATURE_C15T_ENABLED: process.env.NEXT_PUBLIC_FEATURE_C15T_ENABLED,
 		NEXT_PUBLIC_FEATURE_CONSENT_MANAGER_ENABLED: process.env.NEXT_PUBLIC_FEATURE_CONSENT_MANAGER_ENABLED,
+
+		// File Upload
 		NEXT_PUBLIC_FEATURE_FILE_UPLOAD_ENABLED: process.env.NEXT_PUBLIC_FEATURE_FILE_UPLOAD_ENABLED,
 	},
 

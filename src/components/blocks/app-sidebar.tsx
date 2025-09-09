@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
-import { ProjectsList } from "@/app/(app)/(dashboard)/projects/_components/projects-list";
+// import { ProjectsList } from "@/app/(app)/(dashboard)/projects/_components/projects-list";
 import { NavUser } from "@/components/blocks/nav-user";
 import { TeamSwitcher } from "@/components/blocks/team-switcher";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -36,7 +36,7 @@ const appSidebarVariants = cva("", {
 
 interface AppSidebarProps
 	extends Omit<React.ComponentProps<typeof Sidebar>, "variant">,
-		VariantProps<typeof appSidebarVariants> {
+	VariantProps<typeof appSidebarVariants> {
 	variant?: "inset" | "floating" | "sidebar";
 	size?: "default" | "sm" | "lg";
 }
@@ -59,7 +59,7 @@ export const AppSidebar = React.forwardRef<HTMLDivElement, AppSidebarProps>(
 					<SidebarContent>
 						<ScrollArea className="[&>div>div]:!block">
 							<NavMain />
-							<ProjectsList />
+							{/* <ProjectsList /> */}
 						</ScrollArea>
 					</SidebarContent>
 					<SidebarFooter className="p-2">

@@ -11,7 +11,7 @@
     }
   ],
 
-	"buildCommand": "pnpm run build",
+	"buildCommand": "pnpm run build:vercel",
   "devCommand": "pnpm run dev",
   "installCommand": "pnpm install",
 

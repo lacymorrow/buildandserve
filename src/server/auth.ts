@@ -101,8 +101,11 @@ async function authWithOptions(props?: AuthProps) {
   const { errorCode, redirect, nextUrl } = props ?? {};
 
   // Route protected
-  const protect =
-    props?.protect ?? props?.redirectTo !== undefined ?? redirect ?? false;
+  const protect = Boolean(
+    (props && typeof props.protect !== "undefined" ? props.protect : false) ||
+    (props && typeof props.redirectTo !== "undefined") ||
+    (typeof redirect !== "undefined" && redirect)
+  );
   const redirectTo = props?.redirectTo ?? routes.auth.signOut;
 
   const handleRedirect = (code: string) => {
@@ -132,7 +135,7 @@ async function authWithOptions(props?: AuthProps) {
   //   return handleRedirect(STATUS_CODES.AUTH_REFRESH.code);
   // }
 
-  if (protect && !session?.user?.id) {
+  if (protect && !(session && session.user && session.user.id)) {
     return handleRedirect(errorCode ?? STATUS_CODES.AUTH.code);
   }
 
