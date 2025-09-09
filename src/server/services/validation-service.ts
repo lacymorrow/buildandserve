@@ -26,15 +26,14 @@ export class ValidationService {
 			};
 		} catch (error) {
 			if (error instanceof z.ZodError) {
-				const fieldErrors = Object.entries(error.formErrors.fieldErrors).reduce(
-					(acc, [key, value]) => {
-						if (value) {
-							acc[key] = Array.isArray(value) ? value.filter(Boolean) : [value];
-						}
-						return acc;
-					},
-					{} as Record<string, string[]>
-				);
+				const fieldErrors = (error.issues ?? []).reduce((acc, issue) => {
+					const key = issue.path?.[0];
+					if (typeof key === "string") {
+						if (!acc[key]) acc[key] = [];
+						acc[key].push(issue.message);
+					}
+					return acc;
+				}, {} as Record<string, string[]>);
 
 				logger.error("Validation error", { error: fieldErrors });
 
