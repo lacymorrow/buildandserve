@@ -51,7 +51,8 @@ Features are automatically enabled when their required environment variables are
 
 Some features can be explicitly controlled:
 
-- `ENABLE_PAYLOAD=true` - Enable Payload CMS
+- `PAYLOAD_SECRET` - Enables Payload CMS when set.
+- `DISABLE_PAYLOAD=true` - Explicitly disables Payload CMS.
 - `BETTER_AUTH_ENABLED=true` - Enable Better Auth
 - `DISABLE_MDX=true` - Disable MDX support
 - `DISABLE_PWA=true` - Disable PWA
