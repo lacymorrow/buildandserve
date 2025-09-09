@@ -34,7 +34,7 @@ export function ScheduleCallModal({ trigger }: { trigger: React.ReactNode }) {
                 <div
                     className={`w-full ${isMobile
                         ? 'h-[calc(85vh-120px)] overflow-y-auto [&::-webkit-scrollbar]:hidden [-webkit-overflow-scrolling:touch]'
-                        : 'min-h-[600px]'
+                        : 'min-h-[400px]'
                         }`}
                     style={isMobile ? {
                         WebkitOverflowScrolling: 'touch',
@@ -48,7 +48,7 @@ export function ScheduleCallModal({ trigger }: { trigger: React.ReactNode }) {
                         style={{
                             width: '100%',
                             height: '100%',
-                            minHeight: isMobile ? '400px' : '600px'
+                            minHeight: '400px'
                         }}
                         config={{
                             layout: isMobile ? 'week_view' : 'month_view',
