@@ -24,7 +24,7 @@ export function ScheduleCallModal({ trigger }: { trigger: React.ReactNode }) {
                 className={`${isMobile
                     ? 'w-[95vw] h-[85vh] max-w-none'
                     : 'max-w-4xl'
-                    } p-0`}
+                    } p-0 max-h-[85vh] flex flex-col`}
             >
                 <DialogHeader className={`${isMobile ? 'px-4 py-2' : ''}`}>
                     <DialogTitle className={`${isMobile ? 'text-sm' : ''}`}>
@@ -32,9 +32,9 @@ export function ScheduleCallModal({ trigger }: { trigger: React.ReactNode }) {
                     </DialogTitle>
                 </DialogHeader>
                 <div
-                    className={`w-full ${isMobile
-                        ? 'h-[calc(85vh-120px)] overflow-y-auto [&::-webkit-scrollbar]:hidden [-webkit-overflow-scrolling:touch]'
-                        : 'min-h-[400px]'
+                    className={`w-full flex-1 overflow-y-auto ${isMobile
+                        ? '[&::-webkit-scrollbar]:hidden [-webkit-overflow-scrolling:touch]'
+                        : ''
                         }`}
                     style={isMobile ? {
                         WebkitOverflowScrolling: 'touch',
