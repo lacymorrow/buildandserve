@@ -183,7 +183,7 @@ export const siteConfig: SiteConfig = {
 	title: "Build And Serve",
 	tagline: "Modern sites and applications with an emphasis on AI features.",
 	url: "https://buildandserve.com",
-	ogImage: "https://buildandserve.com/og-image.png",
+	ogImage: "https://buildandserve.com/og",
 	description:
 		"Charlotte's preferred web studio building high-performance websites and AI-powered apps—fast, secure, SEO-ready, and designed to convert visitors into customers.",
 

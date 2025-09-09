@@ -68,7 +68,7 @@ const config = {
 				siteName: siteConfig.title + adminTitleSuffix,
 			},
 			favicon: "/assets/favicon.ico",
-			ogImage: "/assets/og-image.png",
+			ogImage: "/og",
 		},
 		components: {
 			graphics: {
