@@ -33,6 +33,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { Logo } from "@/components/assets/logo";
 
 export default function Dashboard() {
 	return (
@@ -292,7 +293,7 @@ export default function Dashboard() {
 						<CardContent className="grid gap-8">
 							<div className="flex items-center gap-4">
 								<Avatar className="hidden h-9 w-9 sm:flex">
-									<AvatarImage src="/logo.png" alt="Avatar" />
+									<Logo />
 									<AvatarFallback>OM</AvatarFallback>
 								</Avatar>
 								<div className="grid gap-1">

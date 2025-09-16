@@ -1,8 +1,8 @@
 import { Link } from "@/components/primitives/link-with-transition";
 import { siteConfig } from "@/config/site-config";
-import Image from "next/image";
 import { ArrowLeft } from "lucide-react";
-import logoImage from "@/public/logo.png";
+import { Logo } from "@/components/assets/logo";
+import { Icon } from "@/components/assets/icon";
 export const BlogHero = () => {
   return (
     <header className="py-12 px-4 sm:px-6 lg:px-8">
@@ -17,8 +17,7 @@ export const BlogHero = () => {
           </Link>
         </div>
         <div className="flex items-center justify-center space-x-3">
-          {/* <Icon name="logo" className="w-10 h-10" /> */}
-          <Image src={logoImage} alt="Build and Serve - Web Development Agency Logo" width={100} height={100} />
+          <Icon name="logo" className="w-10 h-10" />
           <h1 className="text-4xl font-extrabold tracking-tight text-primary/90 sm:text-5xl">
             {siteConfig.name} Blog
           </h1>

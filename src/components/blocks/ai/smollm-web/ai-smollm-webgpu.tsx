@@ -232,7 +232,7 @@ export const AISmollmWebGPU = () => {
 				<div className="h-full overflow-auto scrollbar-thin flex justify-center items-center flex-col relative">
 					<div className="flex flex-col items-center mb-1 max-w-[320px] text-center">
 						<img
-							src="logo.png"
+							src="/logo.png"
 							width="80%"
 							height="auto"
 							alt="SmolLM2 Logo"

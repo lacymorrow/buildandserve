@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ChevronRight, CirclePlay } from 'lucide-react'
 import Image from 'next/image'
+import { Logo } from '@/components/assets/logo'
 
 export default function HeroSection() {
     return (
@@ -78,13 +79,7 @@ export default function HeroSection() {
                         <div className="perspective-near mt-24 translate-x-12 md:absolute md:-right-6 md:bottom-16 md:left-1/2 md:top-40 md:mt-0 md:translate-x-0">
                             <div className="before:border-foreground/5 before:bg-foreground/5 relative h-full before:absolute before:-inset-x-4 before:bottom-7 before:top-0 before:skew-x-6 before:rounded-[calc(var(--radius)+1rem)] before:border">
                                 <div className="bg-background rounded-(--radius) shadow-foreground/10 ring-foreground/5 relative h-full -translate-y-12 skew-x-6 overflow-hidden border border-transparent shadow-md ring-1">
-                                    <Image
-                                        src="/images/logo.png"
-                                        alt="Modern web application interface showcasing Build & Serve's development services"
-                                        width="2880"
-                                        height="1842"
-                                        className="object-top-left size-full object-cover"
-                                    />
+                                    <Logo />
                                 </div>
                             </div>
                         </div>
