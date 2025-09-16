@@ -1,4 +1,4 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
 import Image from "next/image";
 import { Link } from "@/components/primitives/link-with-transition";
 import {
@@ -139,7 +139,7 @@ export default function WorkPage() {
         {projects.map((project) => (
           <Card
             key={project.id}
-            className="group hover:shadow-lg transition-all duration-300 overflow-hidden"
+            className="group hover:shadow-lg transition-all duration-300 overflow-hidden h-full flex flex-col"
           >
             <div className="relative">
               <Image
@@ -195,7 +195,7 @@ export default function WorkPage() {
               </div>
             </CardContent>
 
-            <CardFooter>
+            <CardFooter className="mt-auto">
               <Button asChild className="w-full group">
                 <Link href={project.href}>
                   View Case Study
