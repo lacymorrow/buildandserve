@@ -69,10 +69,6 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: "/x",
-        destination: "/",
-      },
-      {
         source: "/relay-64tM/static/:path*",
         destination: "https://us-assets.i.posthog.com/static/:path*",
       },
