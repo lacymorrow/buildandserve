@@ -1,24 +1,19 @@
 import type { Metadata } from "next";
-import { Link } from "@/components/primitives/link-with-transition";
+import { AuthorProfile } from "@/components/modules/blog/author-profile";
+import { Link } from "@/components/primitives/link";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { constructMetadata } from "@/config/metadata";
-import { getBlogPosts } from "@/lib/blog";
-import { formatDate } from "@/lib/utils/format-date";
-import {
+  authorUtils,
+  type BlogAuthor,
   getActiveAuthors,
   getAuthorById,
   getAuthorByName,
-  authorUtils,
-  type BlogAuthor,
 } from "@/config/blog-authors";
-import { AuthorProfile } from "@/components/blog/author-profile";
+import { constructMetadata } from "@/config/metadata";
+import { routes } from "@/config/routes";
+import { getBlogPosts } from "@/lib/blog";
+import { formatDate } from "@/lib/utils/format-date";
 
 interface Props {
   params: Promise<{
@@ -78,10 +73,7 @@ export default async function AuthorPage({ params }: Props) {
     if (post.authorObject && post.authorObject.id === authorId) {
       return true;
     }
-    if (
-      post.authorObjects &&
-      post.authorObjects.some((a) => a.id === authorId)
-    ) {
+    if (post.authorObjects?.some((a) => a.id === authorId)) {
       return true;
     }
     // Check legacy author system
@@ -96,13 +88,8 @@ export default async function AuthorPage({ params }: Props) {
     return (
       <div className="container py-8">
         <h1 className="text-3xl font-bold mb-4">Author Not Found</h1>
-        <p className="text-muted-foreground mb-4">
-          No posts found for author "{displayName}".
-        </p>
-        <Link
-          href="/blog"
-          className="text-blue-600 hover:text-blue-800 underline"
-        >
+        <p className="text-muted-foreground mb-4">No posts found for author "{displayName}".</p>
+        <Link href={routes.blog} className="text-blue-600 hover:text-blue-800 underline">
           ← Back to Blog
         </Link>
       </div>
@@ -119,8 +106,7 @@ export default async function AuthorPage({ params }: Props) {
           <div className="lg:w-2/3">
             <h1 className="text-3xl font-bold mb-2">Posts by {displayName}</h1>
             <p className="text-muted-foreground">
-              {authorPosts.length} post{authorPosts.length !== 1 ? "s" : ""}{" "}
-              found
+              {authorPosts.length} post{authorPosts.length !== 1 ? "s" : ""} found
             </p>
           </div>
         </div>
@@ -133,32 +119,23 @@ export default async function AuthorPage({ params }: Props) {
               {post.categories && post.categories.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
                   {post.categories.map((category) => (
-                    <Link
-                      key={category}
-                      href={`/blog/categories/${encodeURIComponent(category)}`}
-                    >
+                    <Link key={category} href={`/blog/categories/${encodeURIComponent(category)}`}>
                       <Badge variant="secondary">{category}</Badge>
                     </Link>
                   ))}
                 </div>
               )}
               <Link href={`/blog/${post.slug}`} className="group">
-                <CardTitle className="group-hover:underline">
-                  {post.title}
-                </CardTitle>
+                <CardTitle className="group-hover:underline">{post.title}</CardTitle>
                 {post.description && (
-                  <CardDescription className="mt-2">
-                    {post.description}
-                  </CardDescription>
+                  <CardDescription className="mt-2">{post.description}</CardDescription>
                 )}
               </Link>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 {post.publishedAt && (
-                  <time dateTime={post.publishedAt}>
-                    {formatDate(post.publishedAt)}
-                  </time>
+                  <time dateTime={post.publishedAt}>{formatDate(post.publishedAt)}</time>
                 )}
               </div>
             </CardContent>

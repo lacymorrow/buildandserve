@@ -92,8 +92,8 @@ export function extractHeadings(content: string): Heading[] {
   let match;
 
   while ((match = headingRegex.exec(content)) !== null) {
-    const level = match[1].length;
-    const text = match[2].trim();
+    const level = match[1]?.length ?? 0;
+    const text = match[2]?.trim() ?? "";
     const id = slugify(text);
 
     headings.push({
@@ -141,12 +141,6 @@ export function getHeadingCacheStats(): {
 /**
  * Filter headings by level range (useful for TOC depth control)
  */
-export function filterHeadingsByLevel(
-  headings: Heading[],
-  minLevel = 1,
-  maxLevel = 4,
-): Heading[] {
-  return headings.filter(
-    (heading) => heading.level >= minLevel && heading.level <= maxLevel,
-  );
+export function filterHeadingsByLevel(headings: Heading[], minLevel = 1, maxLevel = 4): Heading[] {
+  return headings.filter((heading) => heading.level >= minLevel && heading.level <= maxLevel);
 }

@@ -3,10 +3,10 @@ import matter from "gray-matter";
 import path from "path";
 import {
   type BlogAuthor,
-  getAuthorByName,
-  getAuthorById,
   convertLegacyAuthor,
   defaultAuthor,
+  getAuthorById,
+  getAuthorByName,
 } from "@/config/blog-authors";
 
 export interface BlogPost {
@@ -83,7 +83,7 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
         authorObjects,
         image: data.image,
       };
-    }),
+    })
   );
 
   return posts;
@@ -118,9 +118,7 @@ export function getBlogCategories(posts: BlogPost[]): BlogCategory[] {
       name,
       posts: posts.sort((a, b) => {
         if (!a.publishedAt || !b.publishedAt) return 0;
-        return (
-          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-        );
+        return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
       }),
     }))
     .sort((a, b) => {

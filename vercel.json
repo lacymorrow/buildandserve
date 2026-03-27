@@ -11,16 +11,15 @@
     }
   ],
 
-	"buildCommand": "pnpm run build:vercel",
-  "devCommand": "pnpm run dev",
-  "installCommand": "pnpm install",
-
+  "buildCommand": "bun run build:vercel",
+  "devCommand": "bun run dev",
+  "installCommand": "bun install --frozen-lockfile",
   "cleanUrls": true,
   "trailingSlash": false,
 
   "functions": {
-    "src/app/api/**/*": {
-      "maxDuration": 10,
+    "src/app/(app)/api/**/*": {
+      "memory": 512,
       "excludeFiles": "{.next,*.cache,node_modules/eslint/**,node_modules/@types/**,node_modules/typescript/**,node_modules/three/**,node_modules/@react-three/**,node_modules/@huggingface/**,public,app}/**"
     }
   },

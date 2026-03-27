@@ -80,8 +80,15 @@ function validateSlug(slug: string): string {
  * Extract title from H1 tag in markdown content
  */
 function extractTitleFromH1(content: string): string | null {
-  // Look for the first H1 tag in the content
-  const h1Match = content.match(/^#\s+(.+)$/m);
+  // Remove code blocks to avoid matching # inside them
+  const contentWithoutCodeBlocks = content
+    // Remove fenced code blocks (```...```)
+    .replace(/```[\s\S]*?```/g, "")
+    // Remove inline code blocks (`...`)
+    .replace(/`[^`]+`/g, "");
+
+  // Look for the first H1 tag in the cleaned content
+  const h1Match = /^#\s+(.+)$/m.exec(contentWithoutCodeBlocks);
   if (h1Match && h1Match[1]) {
     // Clean up the title (remove extra whitespace, emoji, etc.)
     return h1Match[1]
@@ -120,9 +127,7 @@ async function readMdxFile(filePath: string, slug: string) {
     if (!title || typeof title !== "string") {
       title = extractTitleFromH1(mdContent);
       if (!title) {
-        console.warn(
-          `No valid title found in frontmatter or H1 for doc: ${slug}`,
-        );
+        console.warn(`No valid title found in frontmatter or H1 for doc: ${slug}`);
         return null;
       }
     }
@@ -210,8 +215,12 @@ export async function getAllDocs(): Promise<Doc[]> {
   try {
     // Dynamically discover all docs from the filesystem
     const slugs = await getAllDocSlugsFromFileSystem();
+    // Use environment variable for limit, default to 100
+    const docsLimit = process.env.DOCS_PROCESSING_LIMIT
+      ? Number.parseInt(process.env.DOCS_PROCESSING_LIMIT, 10)
+      : 100;
     const docs = await Promise.all(
-      slugs.slice(0, 100).map(async (slug) => {
+      slugs.slice(0, docsLimit).map(async (slug) => {
         // Limit to prevent DoS
         try {
           return await getDocBySlug(slug);
@@ -219,7 +228,7 @@ export async function getAllDocs(): Promise<Doc[]> {
           console.error(`Error loading doc ${slug}:`, error);
           return null;
         }
-      }),
+      })
     );
 
     return docs.filter((doc): doc is NonNullable<typeof doc> => doc !== null);
@@ -256,9 +265,7 @@ function processDirectory(dir: string): NavSection[] {
     const currentDepth = sanitizedDir.split("/").filter(Boolean).length;
 
     if (currentDepth < maxDepth) {
-      for (const entry of entries
-        .filter((entry) => entry.isDirectory())
-        .slice(0, 20)) {
+      for (const entry of entries.filter((entry) => entry.isDirectory()).slice(0, 20)) {
         // Limit directories
         const sectionPath = path.join(sanitizedDir, entry.name);
         const items: NavItem[] = [];
@@ -317,9 +324,7 @@ function processDirectory(dir: string): NavSection[] {
     const rootItems: NavItem[] = [];
     for (const entry of entries
       .filter(
-        (entry) =>
-          entry.isFile() &&
-          (entry.name.endsWith(".mdx") || entry.name.endsWith(".md")),
+        (entry) => entry.isFile() && (entry.name.endsWith(".mdx") || entry.name.endsWith(".md"))
       )
       .slice(0, 50)) {
       try {
@@ -394,10 +399,7 @@ export async function getAllDocSlugsFromFileSystem(): Promise<string[]> {
         }
 
         if (entry.isDirectory()) {
-          collectSlugs(
-            fullPath,
-            prefix ? `${prefix}/${entry.name}` : entry.name,
-          );
+          collectSlugs(fullPath, prefix ? `${prefix}/${entry.name}` : entry.name);
         } else if (entry.name.endsWith(".mdx") || entry.name.endsWith(".md")) {
           const fileName = entry.name.replace(/\.(mdx|md)$/, "");
           const slug = prefix ? `${prefix}/${fileName}` : fileName;
@@ -430,9 +432,7 @@ export const getDocsNavigation = getDocNavigation;
 /*
  * Get doc from Next.js params object
  */
-export async function getDocFromParams(
-  paramsPromise: Promise<{ slug?: string[] }>,
-) {
+export async function getDocFromParams(paramsPromise: Promise<{ slug?: string[] }>) {
   const params = await paramsPromise;
   const slug = params.slug?.join("/") || "index";
   return await getDocBySlug(slug);
@@ -454,8 +454,7 @@ export async function searchDocs(query: string): Promise<Doc[]> {
       .filter((doc) => {
         const titleMatch = doc.title.toLowerCase().includes(searchTerm);
         const contentMatch = doc.content.toLowerCase().includes(searchTerm);
-        const descriptionMatch =
-          doc.description?.toLowerCase().includes(searchTerm) ?? false;
+        const descriptionMatch = doc.description?.toLowerCase().includes(searchTerm) ?? false;
 
         return titleMatch || contentMatch || descriptionMatch;
       })

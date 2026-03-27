@@ -1,23 +1,24 @@
-import { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
-import { TableOfContents } from "@/components/blog/table-of-contents";
-import { MobileToc } from "@/components/blog/mobile-toc";
-import { BlogImage } from "@/components/blog/image";
-import { TOCSkeleton, MobileTOCSkeleton } from "@/components/blog/skeleton";
-import { H1, H2, H3, H4, H5, H6 } from "@/components/mdx/heading";
+import { Suspense } from "react";
+import remarkGfm from "remark-gfm";
+import { BlogImage } from "@/components/modules/blog/image";
+import { MobileToc } from "@/components/modules/blog/mobile-toc";
+import { MobileTOCSkeleton, TOCSkeleton } from "@/components/modules/blog/skeleton";
+import { TableOfContents } from "@/components/modules/blog/table-of-contents";
+import { H1, H2, H3, H4, H5, H6 } from "@/components/modules/mdx/heading";
+import { AskAiButtons } from "@/components/primitives/ask-ai-buttons";
 import { buttonVariants } from "@/components/ui/button";
 import { constructMetadata } from "@/config/metadata";
+import { routes } from "@/config/routes";
+import { siteConfig } from "@/config/site-config";
 import { getBlogPosts } from "@/lib/blog";
 import { cn } from "@/lib/utils";
+import { extractHeadings, filterHeadingsByLevel } from "@/lib/utils/extract-headings";
 import { formatDate, formatDateTimeAttribute } from "@/lib/utils/format-date";
-import {
-  extractHeadings,
-  filterHeadingsByLevel,
-} from "@/lib/utils/extract-headings";
 import "@/styles/blog.css";
 
 interface Props {
@@ -48,11 +49,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     });
   }
 
+  // Build dynamic OG image URL using the existing /og route
+  const ogUrl = new URL("/og", siteConfig.url);
+  ogUrl.searchParams.set("title", post.title);
+  if (post.description) ogUrl.searchParams.set("description", post.description);
+  ogUrl.searchParams.set("url", siteConfig.url.replace(/https?:\/\//, ""));
+
   return constructMetadata({
     title: `${post.title} | Shipkit Blog`,
     description:
       post.description ||
       "Read this comprehensive guide on app development best practices, tips, and insights from the Shipkit team.",
+    images: [
+      {
+        url: ogUrl.toString(),
+        width: siteConfig.metadata.openGraph.imageWidth,
+        height: siteConfig.metadata.openGraph.imageHeight,
+        alt: post.title,
+      },
+    ],
     openGraph: {
       title: post.title,
       description: post.description,
@@ -93,29 +108,17 @@ const BlogPostPage = async ({ params }: Props) => {
 
   return (
     <div className="relative w-full">
-      {/* Back buttons */}
-      <div className="flex items-center gap-4 mb-8">
-        <Link
-          href="/"
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "h-auto p-0 text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Homepage
-        </Link>
-        <Link
-          href="/blog"
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "h-auto p-0 text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Blog
-        </Link>
-      </div>
+      {/* Back button */}
+      <Link
+        href={routes.blog}
+        className={cn(
+          buttonVariants({ variant: "ghost", size: "sm" }),
+          "mb-8 h-auto p-0 text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back to Blog
+      </Link>
 
       <div className="flex gap-8">
         {/* Main content */}
@@ -131,18 +134,12 @@ const BlogPostPage = async ({ params }: Props) => {
               {post.title}
             </h1>
             {post.description && (
-              <p className="text-xl text-muted-foreground leading-7">
-                {post.description}
-              </p>
+              <p className="text-xl text-muted-foreground leading-7">{post.description}</p>
             )}
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {post.author && (
-                  <span className="font-medium text-foreground">
-                    {post.author}
-                  </span>
-                )}
+                {post.author && <span className="font-medium text-foreground">{post.author}</span>}
                 {displayDate && (
                   <>
                     <span>•</span>
@@ -174,14 +171,22 @@ const BlogPostPage = async ({ params }: Props) => {
           <div className="prose prose-neutral dark:prose-invert max-w-none">
             {/* Featured image */}
             {post.image && (
-              <BlogImage
-                src={post.image}
-                alt={post.title}
-                className="mb-8"
-                priority={true}
-              />
+              <BlogImage src={post.image} alt={post.title} className="mb-8" priority={true} />
             )}
-            <MDXRemote source={post.content} components={components} />
+            <MDXRemote
+              source={post.content}
+              components={components}
+              options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
+            />
+          </div>
+
+          {/* AI summary buttons */}
+          <div className="mt-12 pt-8 border-t">
+            <p className="text-sm text-muted-foreground mb-3">Read with AI</p>
+            <AskAiButtons
+              goal={`Summarize this article: ${post.title}`}
+              content={[post.title, post.description, post.content].filter(Boolean).join("\n\n")}
+            />
           </div>
         </article>
 

@@ -1,6 +1,6 @@
-import { ShadowIcon } from "@radix-ui/react-icons";
-
 // Main site icon
-export const Icon = (props: React.ComponentProps<typeof ShadowIcon>) => {
-  return <ShadowIcon {...props} />;
+import { KitIcon } from "@/components/assets/kit-icon";
+
+export const Icon = (props: React.ComponentProps<typeof KitIcon>) => {
+  return <KitIcon {...props} />;
 };

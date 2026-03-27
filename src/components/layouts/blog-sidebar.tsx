@@ -1,31 +1,26 @@
 "use client";
 
 import {
-  SearchIcon,
   BookOpenIcon,
-  TagIcon,
   ClockIcon,
-  TrendingUpIcon,
   MenuIcon,
+  SearchIcon,
+  TagIcon,
+  TrendingUpIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useState, useMemo } from "react";
-import { Link } from "@/components/primitives/link-with-transition";
+import { useMemo, useState } from "react";
+import { Link } from "@/components/primitives/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import type { BlogPost } from "@/lib/blog";
-import { cn } from "@/lib/utils";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
 import { siteConfig } from "@/config/site-config";
+import type { BlogPost } from "@/lib/blog";
+import { cn } from "@/lib/utils";
 
 interface BlogSidebarProps {
   posts: BlogPost[];
@@ -44,7 +39,7 @@ const BlogNavigation = ({ posts }: BlogSidebarProps) => {
       (post) =>
         post.title?.toLowerCase().includes(query) ||
         post.description?.toLowerCase().includes(query) ||
-        post.categories?.some((cat) => cat.toLowerCase().includes(query)),
+        post.categories?.some((cat) => cat.toLowerCase().includes(query))
     );
   }, [posts, searchQuery]);
 
@@ -53,9 +48,7 @@ const BlogNavigation = ({ posts }: BlogSidebarProps) => {
     return [...posts]
       .sort((a, b) => {
         if (!a.publishedAt || !b.publishedAt) return 0;
-        return (
-          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-        );
+        return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
       })
       .slice(0, 5);
   }, [posts]);
@@ -74,9 +67,7 @@ const BlogNavigation = ({ posts }: BlogSidebarProps) => {
       {/* Header */}
       <div className="flex items-center gap-3 px-2 py-4">
         <div>
-          <h2 className="font-semibold text-foreground">
-            {siteConfig.name} Blog
-          </h2>
+          <h2 className="font-semibold text-foreground">{siteConfig.name} Posts</h2>
         </div>
       </div>
 
@@ -98,9 +89,7 @@ const BlogNavigation = ({ posts }: BlogSidebarProps) => {
           {searchQuery && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium text-sm text-foreground">
-                  Search Results
-                </h3>
+                <h3 className="font-medium text-sm text-foreground">Search Results</h3>
                 <Badge variant="secondary" className="text-xs">
                   {filteredPosts.length} found
                 </Badge>
@@ -117,7 +106,7 @@ const BlogNavigation = ({ posts }: BlogSidebarProps) => {
                         "hover:bg-accent/50",
                         isActive
                           ? "bg-primary text-primary-foreground font-medium"
-                          : "text-foreground hover:text-primary",
+                          : "text-foreground hover:text-primary"
                       )}
                     >
                       <span className="font-medium text-sm truncate flex-1 min-w-0">
@@ -137,9 +126,7 @@ const BlogNavigation = ({ posts }: BlogSidebarProps) => {
               </div>
               {filteredPosts.length === 0 && (
                 <div className="text-center py-4">
-                  <p className="text-sm text-muted-foreground">
-                    No articles found
-                  </p>
+                  <p className="text-sm text-muted-foreground">No articles found</p>
                   <Button
                     variant="link"
                     size="sm"
@@ -172,13 +159,11 @@ const BlogNavigation = ({ posts }: BlogSidebarProps) => {
                         "hover:bg-accent/50",
                         isActive
                           ? "bg-primary text-primary-foreground font-medium"
-                          : "text-muted-foreground hover:text-foreground",
+                          : "text-muted-foreground hover:text-foreground"
                       )}
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate min-w-0">
-                          {post.title}
-                        </div>
+                        <div className="font-medium text-sm truncate min-w-0">{post.title}</div>
                         {post.publishedAt && (
                           <div className="flex items-center gap-1 text-xs opacity-70 mt-0.5">
                             <ClockIcon className="h-3 w-3" />
@@ -187,10 +172,7 @@ const BlogNavigation = ({ posts }: BlogSidebarProps) => {
                         )}
                       </div>
                       {post.badge && (
-                        <Badge
-                          variant="secondary"
-                          className="ml-2 text-xs shrink-0"
-                        >
+                        <Badge variant="secondary" className="ml-2 text-xs shrink-0">
                           {post.badge}
                         </Badge>
                       )}
@@ -208,14 +190,12 @@ const BlogNavigation = ({ posts }: BlogSidebarProps) => {
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <TagIcon className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="font-medium text-sm text-foreground">
-                    Categories
-                  </h3>
+                  <h3 className="font-medium text-sm text-foreground">Categories</h3>
                 </div>
                 <div className="space-y-1">
                   {allCategories.map((category) => {
                     const categoryPosts = posts.filter((post) =>
-                      post.categories?.includes(category),
+                      post.categories?.includes(category)
                     );
                     return (
                       <Link

@@ -13,7 +13,7 @@
     "incremental": true,
     "isolatedModules": true,
     "moduleDetection": "force",
-    "noUncheckedIndexedAccess": false,
+    "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": false,
@@ -69,9 +69,11 @@
   "exclude": [
     ".next",
     "node_modules",
+    ".vercel",
     "tests",
     "public",
     "packages",
+    "cli/dist",
     "debug/**/*.ts",
     "src/app/(app)/(demo)/examples/**/*",
     "src/workers/**/*.ts"

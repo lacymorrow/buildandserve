@@ -1,5 +1,3 @@
-@import "tw-animate-css";
-
 /* ! Shadcn UI Default Styles - Uncomment to use */
 @import "./theme.css";
 
@@ -21,31 +19,41 @@ body {
 	background-color: rgba(255, 20, 188, 0.75);
 }
 
-/*
- * Motion reduction for accessibility on mobile and low-end devices
- * Disables long-running animations and transitions when user prefers reduced motion
- */
-@media (prefers-reduced-motion: reduce) {
-	*, *::before, *::after {
-		animation-duration: 0.01ms !important;
-		animation-iteration-count: 1 !important;
-		transition-duration: 0.01ms !important;
-		scroll-behavior: auto !important;
+/* Connection highlight animation */
+@keyframes connectionHighlight {
+	0% {
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+	}
+	20% {
+		box-shadow: 0 0 30px rgba(59, 130, 246, 0.4), 0 0 60px rgba(59, 130, 246, 0.2) !important;
+	}
+	80% {
+		box-shadow: 0 0 30px rgba(59, 130, 246, 0.4), 0 0 60px rgba(59, 130, 246, 0.2) !important;
+	}
+	100% {
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
 	}
 }
 
-/*
- * Utility: full-height that respects dynamic viewport height on mobile
- * Use on sections that should fill the visible viewport on iOS Safari
- */
-.full-height {
-	height: 100vh;
-	height: 100dvh; /* Modern browsers */
+@keyframes connectionHighlightDark {
+	0% {
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
+	}
+	20% {
+		box-shadow: 0 0 30px rgba(147, 197, 253, 0.3), 0 0 60px rgba(147, 197, 253, 0.15) !important;
+	}
+	80% {
+		box-shadow: 0 0 30px rgba(147, 197, 253, 0.3), 0 0 60px rgba(147, 197, 253, 0.15) !important;
+	}
+	100% {
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
+	}
 }
 
-/* iOS Safari specific fallback for dynamic viewport height */
-@supports (-webkit-touch-callout: none) {
-	.full-height {
-		height: -webkit-fill-available;
-	}
+.animate-connection-highlight {
+	animation: connectionHighlight 3s ease-in-out !important;
+}
+
+.dark .animate-connection-highlight {
+	animation: connectionHighlightDark 3s ease-in-out !important;
 }

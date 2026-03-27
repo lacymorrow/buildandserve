@@ -1,11 +1,11 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
-import { BlogPostComponent } from "@/components/blog/post";
-import { BlogPostListSkeleton } from "@/components/blog/skeleton";
+import { Suspense } from "react";
+import { BlogPostComponent } from "@/components/modules/blog/post";
+import { BlogPostListSkeleton } from "@/components/modules/blog/skeleton";
 import { constructMetadata } from "@/config/metadata";
+import { siteConfig } from "@/config/site-config";
 import { type BlogPost, getBlogPosts } from "@/lib/blog";
 import { formatDate } from "@/lib/utils/format-date";
-import { siteConfig } from "@/config/site-config";
 
 export const metadata: Metadata = constructMetadata({
   title: "Blog - Latest Updates & Guides | Shipkit",
@@ -16,7 +16,7 @@ export const metadata: Metadata = constructMetadata({
 // Enhanced BlogPost type with LogSpot-style fields
 interface EnhancedBlogPost extends BlogPost {
   badge?: string;
-  authors?: Array<{ name: string; avatar: string }>;
+  authors?: { name: string; avatar: string }[];
 }
 
 const BlogPage = async () => {
@@ -46,9 +46,7 @@ const BlogPage = async () => {
               <BlogPostComponent key={post.slug} post={post}>
                 {post.description && <p>{post.description}</p>}
                 {formattedDate && (
-                  <p className="text-sm text-muted-foreground">
-                    Published on {formattedDate}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Published on {formattedDate}</p>
                 )}
               </BlogPostComponent>
             );

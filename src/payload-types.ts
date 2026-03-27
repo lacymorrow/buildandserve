@@ -75,6 +75,7 @@ export interface Config {
     testimonials: Testimonial;
     rbac: Rbac;
     'vercel-deployments': VercelDeployment;
+    'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -89,6 +90,7 @@ export interface Config {
     testimonials: TestimonialsSelect<false> | TestimonialsSelect<true>;
     rbac: RbacSelect<false> | RbacSelect<true>;
     'vercel-deployments': VercelDeploymentsSelect<false> | VercelDeploymentsSelect<true>;
+    'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -96,6 +98,7 @@ export interface Config {
   db: {
     defaultIDType: number;
   };
+  fallbackLocale: null;
   globals: {
     settings: Setting;
   };
@@ -103,9 +106,10 @@ export interface Config {
     settings: SettingsSelect<false> | SettingsSelect<true>;
   };
   locale: null;
-  user: User & {
-    collection: 'users';
+  widgets: {
+    collections: CollectionsWidget;
   };
+  user: User;
   jobs: {
     tasks: unknown;
     workflows: unknown;
@@ -152,6 +156,7 @@ export interface User {
       }[]
     | null;
   password?: string | null;
+  collection: 'users';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -219,7 +224,7 @@ export interface Page {
           root: {
             type: string;
             children: {
-              type: string;
+              type: any;
               version: number;
               [k: string]: unknown;
             }[];
@@ -320,7 +325,7 @@ export interface Feature {
   name: string;
   description: string;
   category: 'core' | 'dx' | 'backend' | 'advanced' | 'security' | 'devops' | 'support';
-  plans: ('bones' | 'muscles' | 'brains')[];
+  plans: ('bones' | 'brains' | 'muscles')[];
   badge?: ('new' | 'popular' | 'pro') | null;
   /**
    * Lucide icon name
@@ -361,7 +366,7 @@ export interface Faq {
     root: {
       type: string;
       children: {
-        type: string;
+        type: any;
         version: number;
         [k: string]: unknown;
       }[];
@@ -411,6 +416,23 @@ export interface VercelDeployment {
   repositoryUrl?: string | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-kv".
+ */
+export interface PayloadKv {
+  id: number;
+  key: string;
+  data:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -672,6 +694,14 @@ export interface VercelDeploymentsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-kv_select".
+ */
+export interface PayloadKvSelect<T extends boolean = true> {
+  key?: T;
+  data?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
@@ -739,6 +769,16 @@ export interface SettingsSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "collections_widget".
+ */
+export interface CollectionsWidget {
+  data?: {
+    [k: string]: unknown;
+  };
+  width: 'full';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

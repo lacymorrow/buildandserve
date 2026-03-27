@@ -1,13 +1,13 @@
 import {
+  authorUtils,
+  type BlogAuthor,
   blogAuthors,
+  convertLegacyAuthor,
   defaultAuthor,
+  getActiveAuthors,
   getAuthorById,
   getAuthorByName,
   getAuthorsByIds,
-  getActiveAuthors,
-  convertLegacyAuthor,
-  authorUtils,
-  type BlogAuthor,
 } from "@/config/blog-authors";
 
 describe("Blog Authors Configuration", () => {
@@ -94,7 +94,7 @@ describe("Blog Authors Configuration", () => {
     it("should include authors with undefined isActive (defaults to true)", () => {
       const activeAuthors = getActiveAuthors();
       const authorsWithUndefinedActive = activeAuthors.filter(
-        (author) => author.isActive === undefined,
+        (author) => author.isActive === undefined
       );
       // Should not filter out authors with undefined isActive
       expect(authorsWithUndefinedActive.length).toBeGreaterThanOrEqual(0);

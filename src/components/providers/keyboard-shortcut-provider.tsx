@@ -12,10 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  type ShortcutActionType,
-  shortcutConfig,
-} from "@/config/keyboard-shortcuts";
+import { type ShortcutActionType, shortcutConfig } from "@/config/keyboard-shortcuts";
 
 interface ShortcutHandler {
   action: ShortcutActionType;
@@ -28,8 +25,7 @@ interface KeyboardShortcutContextProps {
   triggerAction: (action: ShortcutActionType, event?: KeyboardEvent) => void;
 }
 
-const KeyboardShortcutContext =
-  createContext<KeyboardShortcutContextProps | null>(null);
+const KeyboardShortcutContext = createContext<KeyboardShortcutContextProps | null>(null);
 
 interface KeyboardShortcutProviderProps {
   children: React.ReactNode;
@@ -38,9 +34,9 @@ interface KeyboardShortcutProviderProps {
 export function KeyboardShortcutProvider({
   children,
 }: KeyboardShortcutProviderProps): React.JSX.Element {
-  const [handlers, setHandlers] = useState<
-    Map<ShortcutActionType, Set<ShortcutHandler>>
-  >(new Map());
+  const [handlers, setHandlers] = useState<Map<ShortcutActionType, Set<ShortcutHandler>>>(
+    new Map()
+  );
 
   const registerShortcut = useCallback((handler: ShortcutHandler) => {
     setHandlers((prevHandlers) => {
@@ -82,7 +78,7 @@ export function KeyboardShortcutProvider({
         }
       }
     },
-    [handlers],
+    [handlers]
   );
 
   const hotkeys = useMemo<readonly HotkeyItem[]>(() => {
@@ -101,7 +97,7 @@ export function KeyboardShortcutProvider({
 
   const contextValue = useMemo(
     () => ({ registerShortcut, triggerAction }),
-    [registerShortcut, triggerAction],
+    [registerShortcut, triggerAction]
   );
 
   return (
@@ -114,9 +110,7 @@ export function KeyboardShortcutProvider({
 export function useKeyboardShortcutContext(): KeyboardShortcutContextProps {
   const context = useContext(KeyboardShortcutContext);
   if (!context) {
-    throw new Error(
-      "useKeyboardShortcutContext must be used within a KeyboardShortcutProvider",
-    );
+    throw new Error("useKeyboardShortcutContext must be used within a KeyboardShortcutProvider");
   }
   return context;
 }
@@ -134,7 +128,7 @@ export function useKeyboardShortcut(
   action: ShortcutActionType,
   callback: (event: KeyboardEvent) => void,
   isActive?: () => boolean,
-  _deps: React.DependencyList = [],
+  _deps: React.DependencyList = []
 ): void {
   const { registerShortcut } = useKeyboardShortcutContext();
 
@@ -155,7 +149,7 @@ export function useKeyboardShortcut(
       callback: (event: KeyboardEvent) => callbackRef.current(event),
       isActive: () => (isActiveRef.current ? isActiveRef.current() : true),
     }),
-    [action], // Only depend on action, which is stable
+    [action] // Only depend on action, which is stable
   );
 
   useEffect(() => {

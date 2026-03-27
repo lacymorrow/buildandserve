@@ -6,46 +6,53 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Development Server
 ```bash
-pnpm dev            # Start development server with Turbo
-pnpm dev:legacy     # Start development server without Turbo
-pnpm dev:https      # Start development server with HTTPS
-pnpm dev:all        # Start both dev server and workers
+bun dev             # Start development server with Turbo
+bun run dev:legacy  # Start development server without Turbo
+bun run dev:https   # Start development server with HTTPS
+bun run dev:all     # Start both dev server and workers
 ```
 
 ### Testing
 ```bash
-pnpm test           # Run all tests
-pnpm test:watch     # Run tests in watch mode
-pnpm test:coverage  # Run tests with coverage
-pnpm test:browser   # Run browser tests with Vitest
-pnpm test:node      # Run Node.js tests
-pnpm test:e2e       # Run Playwright E2E tests
+bun run test           # Run all tests
+bun run test:watch     # Run tests in watch mode
+bun run test:coverage  # Run tests with coverage
+bun run test:browser   # Run browser tests with Vitest
+bun run test:node      # Run Node.js tests
+bun run test:e2e       # Run Playwright E2E tests
 ```
 
 ### Linting & Type Checking
 ```bash
-pnpm lint           # Run all linting (Biome, ESLint, Prettier)
-pnpm lint:fix       # Fix all linting issues
-pnpm typecheck      # Run TypeScript type checking
+bun run lint           # Run all linting (Biome, ESLint, Prettier)
+bun run lint:fix       # Fix all linting issues
+bun run typecheck      # Run TypeScript type checking
 ```
 
 ### Database Operations
 ```bash
-pnpm db:generate    # Generate Drizzle schema
-pnpm db:migrate     # Run database migrations
-pnpm db:push        # Push schema to database
-pnpm db:studio      # Open Drizzle Studio
-pnpm db:reset       # Reset database (drop, generate, migrate, push)
-pnpm db:seed        # Seed database with test data
+bun run db:generate    # Generate Drizzle schema
+bun run db:migrate     # Run database migrations
+bun run db:push        # Push schema to database
+bun run db:studio      # Open Drizzle Studio
+bun run db:reset       # Reset database (drop, generate, migrate, push)
+bun run db:seed        # Seed database with test data
 ```
 
 ### Build & Deployment
 ```bash
-pnpm build          # Build for production
-pnpm build:memory-optimized  # Build with increased memory
-pnpm start          # Start production server
-pnpm analyze        # Analyze bundle size
+bun run build          # Build for production
+bun run build:vercel   # Build with increased memory (8GB heap)
+bun start              # Start production server
+bun run analyze        # Analyze bundle size
 ```
+
+### Registry
+```bash
+bun run build:registry # Build shadcn registry (npx shadcn build)
+```
+
+Source: `registry.json` (project root). Output: `public/r/*.json`. See `docs/features/registry.mdx` for full documentation.
 
 ## Architecture Overview
 
@@ -55,7 +62,7 @@ pnpm analyze        # Analyze bundle size
 - **Tailwind CSS** - Utility-first styling
 - **Shadcn/UI** - Component library built on Radix UI
 - **Drizzle ORM** - Type-safe database operations
-- **PNPM** - Package manager
+- **Bun** - Package manager
 
 ### Authentication & Authorization
 - **NextAuth.js v5** - Core authentication system
@@ -145,7 +152,7 @@ Shipkit uses environment variables for feature toggles:
 - **Minimize client components** - Use 'use client' sparingly
 - **Suspense boundaries** - Wrap client components with fallbacks
 - **Image optimization** - Use Next.js Image with proper sizing
-- **Bundle analysis** - Run `pnpm analyze` before major changes
+- **Bundle analysis** - Run `bun run analyze` before major changes
 
 ### Navigation Patterns
 - **Prefer Link over router.push** - Use `src/components/primitives/link-with-transition`
@@ -170,8 +177,8 @@ Shipkit uses environment variables for feature toggles:
 
 ### Database Schema Changes
 1. Modify schema in `src/server/db/schema.ts`
-2. Run `pnpm db:generate` to create migration
-3. Run `pnpm db:migrate` to apply changes
+2. Run `bun run db:generate` to create migration
+3. Run `bun run db:migrate` to apply changes
 4. Update TypeScript types if needed
 
 ### Adding New Routes
@@ -184,7 +191,7 @@ Shipkit uses environment variables for feature toggles:
 - **Unit tests** - Vitest for utilities and components
 - **Integration tests** - Test server actions and services
 - **E2E tests** - Playwright for critical user flows
-- **Run tests** - `pnpm test` before committing
+- **Run tests** - `bun run test` before committing
 
 ## Multi-Zone Architecture
 
@@ -208,32 +215,94 @@ Each zone is a full Shipkit installation with:
 ### Required for Basic Functionality
 ```env
 DATABASE_URL=                 # PostgreSQL connection string
-NEXTAUTH_SECRET=             # Auth encryption key
-NEXTAUTH_URL=               # App URL
+AUTH_SECRET=                  # Auth encryption key (or APP_SECRET to derive all secrets)
 ```
 
 ### Optional Feature Enablement
+
+Features auto-enable when their env vars are set. No manual flags needed.
+
 ```env
-NEXT_PUBLIC_FEATURE_AUTH_GITHUB_ENABLED=true
-NEXT_PUBLIC_FEATURE_PAYMENTS_LEMONSQUEEZY_ENABLED=true
-NEXT_PUBLIC_FEATURE_CMS_ENABLED=true
-BUILDER_IO_API_KEY=          # For visual editing
-RESEND_API_KEY=             # For email
+AUTH_GITHUB_ID=              # + AUTH_GITHUB_SECRET → GitHub OAuth
+LEMONSQUEEZY_API_KEY=        # + LEMONSQUEEZY_STORE_ID → Lemon Squeezy payments
+STRIPE_SECRET_KEY=           # + STRIPE_PUBLISHABLE_KEY → Stripe payments
+BUILDER_API_KEY=             # → Builder.io visual editing
+RESEND_API_KEY=              # → Email (Resend)
+OPENAI_API_KEY=              # → OpenAI
+ANTHROPIC_API_KEY=           # → Anthropic
 ```
+
+See `src/config/features-config.ts` for the complete flag detection logic.
 
 ## Troubleshooting
 
 ### Common Issues
-- **Type errors** - Run `pnpm typecheck` and fix before proceeding
-- **Linting failures** - Run `pnpm lint:fix` to auto-fix issues
-- **Database connection** - Check `DATABASE_URL` and run `pnpm db:push`
-- **Build failures** - Try `pnpm clean` then `pnpm build`
+- **Type errors** - Run `bun run typecheck` and fix before proceeding
+- **Linting failures** - Run `bun run lint:fix` to auto-fix issues
+- **Database connection** - Check `DATABASE_URL` and run `bun run db:push`
+- **Build failures** - Try `bun run clean` then `bun run build`
+- **Out of Memory (OOM) errors** - Use `bun run build:vercel` for larger builds
 
 ### Debug Commands
 ```bash
-pnpm deps:check             # Check for outdated dependencies
-pnpm check:metadata         # Validate site metadata
-pnpm check:performance      # Performance profiling
+bun run deps:check             # Check for outdated dependencies
+bun run check:metadata         # Validate site metadata
+bun run check:performance      # Performance profiling
 ```
 
-Always run `pnpm lint` and `pnpm typecheck` before committing changes.
+Always run `bun run lint` and `bun run typecheck` before committing changes.
+
+## Scaffolding New ShipKit Sites
+
+Use the ShipKit CLI to create new sites from this template:
+
+### Using the CLI
+```bash
+# From anywhere — interactive
+cd cli && bun run build && node dist/index.js create my-new-site
+
+# Non-interactive (CI/agent)
+node cli/dist/index.js create my-new-site --yes
+```
+
+### Manual Steps (if CLI unavailable)
+```bash
+# 1. Create repo from template
+gh repo create my-new-site --template shipkit-io/bones --clone --public
+cd my-new-site
+
+# 2. Add upstream remote (premium first, bones fallback)
+git remote add upstream https://github.com/shipkit-io/shipkit.git || \
+git remote add upstream https://github.com/shipkit-io/bones.git
+
+# 3. Graft upstream history
+git fetch upstream
+git merge upstream/main --allow-unrelated-histories --no-edit \
+  -m "chore: graft upstream template history"
+
+# 4. Install and run
+bun install
+cp .env.example .env
+bun dev
+```
+
+### Syncing Upstream Changes
+```bash
+# Via CLI (creates PR branch)
+node cli/dist/index.js sync --yes
+
+# Via npm script (from within a ShipKit project)
+bun run upstream:pull
+
+# Direct merge (no PR)
+node cli/dist/index.js sync --yes --direct
+```
+
+### CLI Development
+The CLI lives in `cli/` and uses Commander + @clack/prompts:
+```bash
+cd cli
+bun install
+bun run build   # Builds to cli/dist/index.js
+bun run dev     # Watch mode
+```

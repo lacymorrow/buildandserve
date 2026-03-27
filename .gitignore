@@ -1,5 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+.claude/settings.local.json
+
 # dependencies
 node_modules
 /.pnp
@@ -43,8 +45,8 @@ next-env.d.ts
 # Build output
 dist/
 build/
-
 # Cache
+cache/
 .cache/
 .eslintcache
 
@@ -69,3 +71,18 @@ env/*
 public/sw.js
 public/sw.js.map
 public/workbox*
+
+# AI development configs
+.hive-mind/
+.vercel
+
+.gemini/
+gha-creds-*.json
+
+# Tooling output
+.lighthouse/
+.tmp/
+
+# AI
+ai.mdx
+.env*.local

@@ -4,7 +4,7 @@ import { routes } from "@/config/routes";
 import { STATUS_CODES } from "@/config/status-codes";
 import { AuthenticationError } from "@/lib/errors/authentication-error";
 import { logger } from "@/lib/logger";
-import { redirectWithCode } from "@/lib/utils/redirect-with-code";
+import { redirect } from "@/lib/utils/redirect";
 
 /**
  * A hook that handles redirection after sign-in attempts, particularly for authentication errors
@@ -19,20 +19,20 @@ import { redirectWithCode } from "@/lib/utils/redirect-with-code";
  */
 
 export const useRedirectAfterSignIn = (error?: Error) => {
-	const router = useRouter();
-	const pathname = usePathname();
+  const router = useRouter();
+  const pathname = usePathname();
 
-	useEffect(() => {
-		const redirectToSignIn = () => {
-			redirectWithCode(routes.auth.signIn, {
-				code: STATUS_CODES.AUTH.code,
-				nextUrl: pathname ?? undefined,
-			});
-		};
+  useEffect(() => {
+    const redirectToSignIn = () => {
+      redirect(routes.auth.signIn, {
+        code: STATUS_CODES.AUTH.code,
+        nextUrl: pathname ?? undefined,
+      });
+    };
 
-		if (error instanceof AuthenticationError) {
-			logger.info("ErrorBoundary: Authentication error, redirecting to sign in");
-			redirectToSignIn();
-		}
-	}, [error, router, pathname]);
+    if (error instanceof AuthenticationError) {
+      logger.info("ErrorBoundary: Authentication error, redirecting to sign in");
+      redirectToSignIn();
+    }
+  }, [error, router, pathname]);
 };
