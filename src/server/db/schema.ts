@@ -634,3 +634,25 @@ export const waitlistEntries = createTable(
 
 export type WaitlistEntry = typeof waitlistEntries.$inferSelect;
 export type NewWaitlistEntry = typeof waitlistEntries.$inferInsert;
+
+// Deployments table for GitHub deployment tracking
+export const deployments = createTable("deployment", {
+	id: varchar("id", { length: 255 })
+		.notNull()
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID()),
+	userId: varchar("user_id", { length: 255 }).notNull(),
+	repoName: varchar("repo_name", { length: 255 }).notNull(),
+	repoOwner: varchar("repo_owner", { length: 255 }).notNull(),
+	status: varchar("status", { length: 50 }).default("pending").notNull(),
+	vercelProjectId: varchar("vercel_project_id", { length: 255 }),
+	vercelDeploymentId: varchar("vercel_deployment_id", { length: 255 }),
+	url: varchar("url", { length: 1024 }),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.default(sql`CURRENT_TIMESTAMP`)
+		.notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(() => new Date()),
+});
+
+export type Deployment = typeof deployments.$inferSelect;
+export type NewDeployment = typeof deployments.$inferInsert;

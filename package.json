@@ -84,6 +84,7 @@
     "@mdx-js/react": "3.1.1",
     "@monaco-editor/react": "^4.7.0",
     "@next/env": "^16.1.0",
+    "@next/third-parties": "^16.2.1",
     "@number-flow/react": "^0.5.10",
     "@octokit/rest": "^22.0.1",
     "@opentelemetry/api-logs": "^0.208.0",

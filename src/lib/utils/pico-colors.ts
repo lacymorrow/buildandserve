@@ -65,3 +65,10 @@ export const bgBlue = formatter("\x1b[44m", "\x1b[49m");
 export const bgMagenta = formatter("\x1b[45m", "\x1b[49m");
 export const bgCyan = formatter("\x1b[46m", "\x1b[49m");
 export const bgWhite = formatter("\x1b[47m", "\x1b[49m");
+
+const pc = {
+	reset, bold, dim, italic, underline, inverse, hidden, strikethrough,
+	black, red, green, yellow, blue, magenta, purple, cyan, white, gray,
+	bgBlack, bgRed, bgGreen, bgYellow, bgBlue, bgMagenta, bgCyan, bgWhite,
+};
+export default pc;

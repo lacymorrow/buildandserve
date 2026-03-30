@@ -91,43 +91,6 @@ export function SearchMenu({
   const { setTheme } = useTheme();
   const [isClient, setIsClient] = React.useState(false);
 
-<<<<<<< HEAD:src/components/search/search-menu.tsx
-	useKeyboardShortcut(
-		ShortcutAction.OPEN_SEARCH_MENU,
-		(event) => {
-			const target = event.target as HTMLElement;
-			if (
-				target instanceof HTMLInputElement ||
-				target instanceof HTMLTextAreaElement ||
-				target.isContentEditable
-			) {
-				return;
-			}
-			event.preventDefault();
-			setOpen((prevOpen) => !prevOpen);
-		},
-		undefined,
-		[]
-	);
-||||||| bac2439d:src/components/modules/search/search-menu.tsx
-	useKeyboardShortcut(
-		ShortcutAction.OPEN_SEARCH,
-		(event) => {
-			const target = event.target as HTMLElement;
-			if (
-				target instanceof HTMLInputElement ||
-				target instanceof HTMLTextAreaElement ||
-				target.isContentEditable
-			) {
-				return;
-			}
-			event.preventDefault();
-			setOpen((prevOpen) => !prevOpen);
-		},
-		undefined,
-		[]
-	);
-=======
   useKeyboardShortcut(
     ShortcutAction.OPEN_SEARCH,
     (event) => {
@@ -145,7 +108,6 @@ export function SearchMenu({
     undefined,
     []
   );
->>>>>>> upstream/main:src/components/modules/search/search-menu.tsx
 
   const runCommand = React.useCallback((command: () => unknown) => {
     setOpen(false);
@@ -156,147 +118,6 @@ export function SearchMenu({
     setIsClient(true);
   }, []);
 
-<<<<<<< HEAD:src/components/search/search-menu.tsx
-	return (
-		<>
-			<Button
-				variant={buttonVariant}
-				className={cn(
-					"relative w-full justify-start rounded-[0.5rem] bg-muted/50 text-sm font-normal text-muted-foreground shadow-none sm:pr-12 md:w-36",
-					buttonClassName
-				)}
-				size="sm"
-				onClick={() => setOpen(true)}
-				{...props}
-			>
-				<span className="inline-flex text-xs">{buttonText}</span>
-				{showShortcut && (
-					<ShortcutDisplay
-						action={ShortcutAction.OPEN_SEARCH_MENU}
-						className={cn(
-							"pointer-events-none absolute right-[0.3rem] top-[0.3rem] hidden lg:flex text-xs",
-							"transition-opacity duration-300",
-							isClient ? "opacity-100" : "opacity-0"
-						)}
-					/>
-				)}
-			</Button>
-			<CommandDialog open={open} onOpenChange={setOpen}>
-				<DialogTitle className="sr-only">{title}</DialogTitle>
-				<CommandInput placeholder="Type a command or search..." />
-				<CommandList>
-					<CommandEmpty>No results found.</CommandEmpty>
-					<CommandGroup heading="Links">
-						{docsConfig.mainNav
-							.filter((navitem) => !navitem.external)
-							.map((navItem) => (
-								<>
-									<CommandItem
-										key={navItem.href}
-										value={navItem.title}
-										onSelect={() => {
-											runCommand(() => router.push(navItem.href as string));
-										}}
-									>
-										<FileIcon className="mr-2 h-4 w-4" />
-										{navItem.title}
-									</CommandItem>
-								</>
-							))}
-					</CommandGroup>
-					{!minimal && (
-						<>
-							<CommandSeparator />
-							<CommandGroup heading="Theme">
-								<CommandItem onSelect={() => runCommand(() => setTheme("light"))}>
-									<SunIcon className="mr-2 h-4 w-4" />
-									Light
-								</CommandItem>
-								<CommandItem onSelect={() => runCommand(() => setTheme("dark"))}>
-									<MoonIcon className="mr-2 h-4 w-4" />
-									Dark
-								</CommandItem>
-								<CommandItem onSelect={() => runCommand(() => setTheme("system"))}>
-									<LaptopIcon className="mr-2 h-4 w-4" />
-									System
-								</CommandItem>
-							</CommandGroup>
-						</>
-					)}
-				</CommandList>
-			</CommandDialog>
-		</>
-	);
-||||||| bac2439d:src/components/modules/search/search-menu.tsx
-	return (
-		<>
-			<Button
-				variant={buttonVariant}
-				className={cn(
-					"relative w-full justify-start rounded-[0.5rem] bg-muted/50 text-sm font-normal text-muted-foreground shadow-none sm:pr-12 md:w-36",
-					buttonClassName
-				)}
-				size="sm"
-				onClick={() => setOpen(true)}
-				{...props}
-			>
-				<span className="inline-flex text-xs">{buttonText}</span>
-				{showShortcut && (
-					<ShortcutDisplay
-						action={ShortcutAction.OPEN_SEARCH}
-						className={cn(
-							"pointer-events-none absolute right-[0.3rem] top-[0.3rem] hidden lg:flex text-xs",
-							"transition-opacity duration-300",
-							isClient ? "opacity-100" : "opacity-0"
-						)}
-					/>
-				)}
-			</Button>
-			<CommandDialog open={open} onOpenChange={setOpen}>
-				<DialogTitle className="sr-only">{title}</DialogTitle>
-				<CommandInput placeholder="Type a command or search..." />
-				<CommandList>
-					<CommandEmpty>No results found.</CommandEmpty>
-					<CommandGroup heading="Links">
-						{docsConfig.mainNav
-							.filter((navitem) => !navitem.external)
-							.map((navItem) => (
-								<CommandItem
-									key={navItem.href}
-									value={navItem.title}
-									onSelect={() => {
-										runCommand(() => router.push(navItem.href as string));
-									}}
-								>
-									<FileIcon className="mr-2 h-4 w-4" />
-									{navItem.title}
-								</CommandItem>
-							))}
-					</CommandGroup>
-					{!minimal && (
-						<>
-							<CommandSeparator />
-							<CommandGroup heading="Theme">
-								<CommandItem onSelect={() => runCommand(() => setTheme("light"))}>
-									<SunIcon className="mr-2 h-4 w-4" />
-									Light
-								</CommandItem>
-								<CommandItem onSelect={() => runCommand(() => setTheme("dark"))}>
-									<MoonIcon className="mr-2 h-4 w-4" />
-									Dark
-								</CommandItem>
-								<CommandItem onSelect={() => runCommand(() => setTheme("system"))}>
-									<LaptopIcon className="mr-2 h-4 w-4" />
-									System
-								</CommandItem>
-							</CommandGroup>
-						</>
-					)}
-				</CommandList>
-			</CommandDialog>
-		</>
-	);
-=======
   return (
     <>
       <Button
@@ -372,5 +193,4 @@ export function SearchMenu({
       </CommandDialog>
     </>
   );
->>>>>>> upstream/main:src/components/modules/search/search-menu.tsx
 }

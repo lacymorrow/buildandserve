@@ -37,38 +37,18 @@ const flagToProviderId: Partial<Record<FeatureFlagKey, string>> = {
 
 // Filter the details based on enabled features, preserving the order from allProviderDetails
 const enabledProviders = allProviderDetails.filter((provider) => {
-<<<<<<< HEAD:src/server/auth-providers-utils.ts
-	// Guest provider is special - it's enabled when no other auth methods are available
-	if (provider.id === "guest") {
-		return false; // We'll handle this separately
-	}
-||||||| bac2439d:src/server/auth-js/auth-providers-utils.ts
-	// Guest provider is controlled by its own explicit flag
-	if (provider.id === "guest") {
-		return env.NEXT_PUBLIC_FEATURE_AUTH_GUEST_ENABLED;
-	}
-=======
   // Guest provider is controlled by its own explicit flag
   if (provider.id === "guest") {
     return env.NEXT_PUBLIC_FEATURE_AUTH_GUEST_ENABLED;
   }
->>>>>>> upstream/main:src/server/auth-js/auth-providers-utils.ts
 
   // Find the flag corresponding to this provider ID
   const flagName = Object.keys(flagToProviderId).find(
     (key) => flagToProviderId[key as FeatureFlagKey] === provider.id
   ) as FeatureFlagKey | undefined;
 
-<<<<<<< HEAD:src/server/auth-providers-utils.ts
-	// If a flag exists for this provider, check if it's true in the env
-	return flagName ? env[flagName] === true : false;
-||||||| bac2439d:src/server/auth-js/auth-providers-utils.ts
-	// If a flag exists for this provider, check if it's enabled in the env
-	return flagName ? !!env[flagName] : false;
-=======
   // If a flag exists for this provider, check if it's enabled in the env
   return flagName ? !!env[flagName] : false;
->>>>>>> upstream/main:src/server/auth-js/auth-providers-utils.ts
 });
 
 // Check if any authentication methods are enabled (excluding vercel which is for account linking only)

@@ -34,18 +34,10 @@
 "use client";
 
 import { MoonIcon, SunIcon } from "@radix-ui/react-icons";
-<<<<<<< HEAD:src/components/ui/theme.tsx
-import { ThemeProvider, useTheme } from "next-themes";
-import React from "react";
-||||||| bac2439d:src/components/ui/shipkit/theme.tsx
-import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
-import React from "react";
-=======
 import { motion } from "framer-motion";
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
 import React, { useCallback, useEffect, useState } from "react";
 
->>>>>>> upstream/main:src/components/ui/shipkit/theme.tsx
 import { Button, type ButtonProps } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -53,10 +45,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-<<<<<<< HEAD:src/components/ui/theme.tsx
-||||||| bac2439d:src/components/ui/shipkit/theme.tsx
-import { env } from "@/env";
-=======
 import { env } from "@/env";
 import { cn } from "@/lib/utils";
 
@@ -798,7 +786,6 @@ export const useThemeToggle = ({
 // ///////////////////////////////////////////////////////////////////////////
 // Theme Button Components
 // ///////////////////////////////////////////////////////////////////////////
->>>>>>> upstream/main:src/components/ui/shipkit/theme.tsx
 
 const ThemeButton = React.forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => (
   <Button variant="ghost" size="icon" {...props} ref={ref}>
@@ -812,28 +799,7 @@ ThemeButton.displayName = "ThemeButton";
 const ThemeToggle = React.forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
   const { toggleTheme, canToggle } = useThemeToggle();
 
-<<<<<<< HEAD:src/components/ui/theme.tsx
-	return (
-		<ThemeButton
-			onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-			{...props}
-			ref={ref}
-		/>
-	);
-||||||| bac2439d:src/components/ui/shipkit/theme.tsx
-	const lightEnabled = !!env.NEXT_PUBLIC_FEATURE_LIGHT_MODE_ENABLED;
-	const darkEnabled = !!env.NEXT_PUBLIC_FEATURE_DARK_MODE_ENABLED;
-	const canToggle = lightEnabled && darkEnabled;
-
-	function handleClick() {
-		if (!canToggle) return;
-		setTheme(theme === "light" ? "dark" : "light");
-	}
-
-	return <ThemeButton onClick={handleClick} disabled={!canToggle} {...props} ref={ref} />;
-=======
   return <ThemeButton onClick={toggleTheme} disabled={!canToggle} {...props} ref={ref} />;
->>>>>>> upstream/main:src/components/ui/shipkit/theme.tsx
 });
 ThemeToggle.displayName = "ThemeToggle";
 
@@ -841,41 +807,6 @@ const ThemeChooser = React.forwardRef<HTMLButtonElement, ButtonProps>((props, re
   const { setLightTheme, setDarkTheme, setSystemTheme, lightEnabled, darkEnabled, canToggle } =
     useThemeToggle();
 
-<<<<<<< HEAD:src/components/ui/theme.tsx
-	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<ThemeButton {...props} ref={ref} />
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
-				<DropdownMenuItem onClick={() => setTheme("light")}>Light</DropdownMenuItem>
-				<DropdownMenuItem onClick={() => setTheme("dark")}>Dark</DropdownMenuItem>
-				<DropdownMenuItem onClick={() => setTheme("system")}>System</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
-	);
-||||||| bac2439d:src/components/ui/shipkit/theme.tsx
-	const lightEnabled = !!env.NEXT_PUBLIC_FEATURE_LIGHT_MODE_ENABLED;
-	const darkEnabled = !!env.NEXT_PUBLIC_FEATURE_DARK_MODE_ENABLED;
-	const bothEnabled = lightEnabled && darkEnabled;
-
-	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<ThemeButton {...props} ref={ref} />
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
-				{lightEnabled && (
-					<DropdownMenuItem onClick={() => setTheme("light")}>Light</DropdownMenuItem>
-				)}
-				{darkEnabled && <DropdownMenuItem onClick={() => setTheme("dark")}>Dark</DropdownMenuItem>}
-				{bothEnabled && (
-					<DropdownMenuItem onClick={() => setTheme("system")}>System</DropdownMenuItem>
-				)}
-			</DropdownMenuContent>
-		</DropdownMenu>
-	);
-=======
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -888,43 +819,9 @@ const ThemeChooser = React.forwardRef<HTMLButtonElement, ButtonProps>((props, re
       </DropdownMenuContent>
     </DropdownMenu>
   );
->>>>>>> upstream/main:src/components/ui/shipkit/theme.tsx
 });
 ThemeChooser.displayName = "ThemeChooser";
 
-<<<<<<< HEAD:src/components/ui/theme.tsx
-export { ThemeChooser, ThemeProvider, ThemeToggle };
-||||||| bac2439d:src/components/ui/shipkit/theme.tsx
-// Wrapper ThemeProvider that enforces allowed themes based on build-time flags
-// while preserving a compatible interface with next-themes' ThemeProvider
-const ThemeProvider = ({ children, ...props }: React.ComponentProps<typeof NextThemesProvider>) => {
-	const lightEnabled = !!env.NEXT_PUBLIC_FEATURE_LIGHT_MODE_ENABLED;
-	const darkEnabled = !!env.NEXT_PUBLIC_FEATURE_DARK_MODE_ENABLED;
-	const bothEnabled = lightEnabled && darkEnabled;
-	const computedThemes = [lightEnabled && "light", darkEnabled && "dark"].filter(
-		Boolean
-	) as string[];
-	const themes = computedThemes.length ? computedThemes : ["light"];
-	const defaultTheme = bothEnabled ? "system" : lightEnabled ? "light" : "dark";
-	const forcedTheme = bothEnabled ? undefined : lightEnabled ? "light" : "dark";
-
-	return (
-		<NextThemesProvider
-			attribute="class"
-			enableSystem={bothEnabled}
-			forcedTheme={forcedTheme}
-			defaultTheme={defaultTheme}
-			themes={themes}
-			disableTransitionOnChange
-			{...props}
-		>
-			{children}
-		</NextThemesProvider>
-	);
-};
-
-export { ThemeChooser, ThemeProvider, ThemeToggle };
-=======
 // ///////////////////////////////////////////////////////////////////////////
 // Animated Theme Toggle Buttons (from Skiper UI)
 // ///////////////////////////////////////////////////////////////////////////
@@ -1308,4 +1205,3 @@ export {
 };
 
 export type { Theme };
->>>>>>> upstream/main:src/components/ui/shipkit/theme.tsx

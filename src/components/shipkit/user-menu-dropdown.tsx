@@ -123,72 +123,6 @@ export function UserMenuDropdown({
           </>
         )}
 
-<<<<<<< HEAD:src/components/shipkit/user-menu-dropdown.tsx
-				<DropdownMenuGroup>
-					{isAdmin && (
-						<DropdownMenuItem asChild>
-							<Link href={routes.admin.index}>
-								<PersonIcon className="mr-2 size-4" />
-								Admin
-								<DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
-							</Link>
-						</DropdownMenuItem>
-					)}
-					<DropdownMenuItem asChild>
-						<Link href={routes.app.dashboard}>
-							<RocketIcon className="mr-2 size-4" />
-							Dashboard
-							<DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link href={routes.settings.index}>
-							<GearIcon className="mr-2 size-4" />
-							Settings
-							<DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-						</Link>
-					</DropdownMenuItem>
-
-					{/* {showOnboarding && (
-						<DropdownMenuItem asChild>
-							<RestartOnboardingButton user={user} className="w-full justify-start" />
-						</DropdownMenuItem>
-					)} */}
-||||||| bac2439d:src/components/modules/user/user-menu-dropdown.tsx
-				<DropdownMenuGroup>
-					{isAdmin && (
-						<DropdownMenuItem asChild>
-							<Link href={routes.admin.index}>
-								<PersonIcon className="mr-2 size-4" />
-								Admin
-								<DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
-							</Link>
-						</DropdownMenuItem>
-					)}
-					<DropdownMenuItem asChild>
-						<Link href={routes.app.dashboard}>
-							<RocketIcon className="mr-2 size-4" />
-							Dashboard
-							<DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
-						</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link href={routes.settings.index}>
-							<GearIcon className="mr-2 size-4" />
-							Settings
-							<DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-						</Link>
-					</DropdownMenuItem>
-					{showOnboarding && (
-						<DropdownMenuItem asChild>
-							<RestartOnboardingButton
-								user={user}
-								className="w-full justify-start"
-								forceVisible={isAdmin}
-							/>
-						</DropdownMenuItem>
-					)}
-=======
         <DropdownMenuGroup>
           {isAdmin && (
             <DropdownMenuItem asChild>
@@ -222,7 +156,6 @@ export function UserMenuDropdown({
               />
             </DropdownMenuItem>
           )}
->>>>>>> upstream/main:src/components/modules/user/user-menu-dropdown.tsx
 
           {additionalMenuItems.map((item) => (
             <DropdownMenuItem

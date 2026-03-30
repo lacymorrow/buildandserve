@@ -80,21 +80,6 @@ export const authOptions: NextAuthConfig = {
               },
             });
 
-<<<<<<< HEAD:src/server/auth.config.ts
-			if (nextUrl) {
-				// Ensure it's a relative URL for security
-				if (nextUrl.startsWith('/')) {
-					return `${baseUrl}${nextUrl}`;
-				}
-			}
-||||||| bac2439d:src/server/auth-js/auth.config.ts
-			if (nextUrl) {
-				// Ensure it's a relative URL for security
-				if (nextUrl.startsWith("/")) {
-					return `${baseUrl}${nextUrl}`;
-				}
-			}
-=======
             if (response.ok) {
               const apiProfile = (await response.json()) as { login?: string };
               githubUsername = apiProfile.login;
@@ -110,46 +95,7 @@ export const authOptions: NextAuthConfig = {
             });
           }
         }
->>>>>>> upstream/main:src/server/auth-js/auth.config.ts
 
-<<<<<<< HEAD:src/server/auth.config.ts
-			// Default redirect
-			if (url.startsWith("/")) return `${baseUrl}${url}`;
-			if (new URL(url).origin === baseUrl) return url;
-			return baseUrl;
-		},
-		jwt({ token, user, account, trigger, session }) {
-			// Save user data to the token
-			if (user) {
-				token.id = user.id;
-				token.name = user.name;
-				token.email = user.email;
-||||||| bac2439d:src/server/auth-js/auth.config.ts
-			// Default redirect
-			if (url.startsWith("/")) return `${baseUrl}${url}`;
-			if (new URL(url).origin === baseUrl) return url;
-			return baseUrl;
-		},
-		jwt({ token, user, account, trigger, session }) {
-			// Save user data to the token
-			if (user) {
-				token.id = user.id;
-				token.name = user.name;
-				token.email = user.email;
-				// Ensure avatar and other optional properties are persisted on JWT sessions
-				const typedUser = user as User;
-				if ("image" in typedUser) token.image = typedUser.image;
-				if ("role" in typedUser) token.role = typedUser.role;
-				// Store dates in JWT as ISO strings to avoid Date type mismatch after serialization
-				if ("createdAt" in typedUser)
-					token.createdAt = typedUser.createdAt
-						? new Date(typedUser.createdAt).toISOString()
-						: undefined;
-				if ("updatedAt" in typedUser)
-					token.updatedAt = typedUser.updatedAt
-						? new Date(typedUser.updatedAt).toISOString()
-						: undefined;
-=======
         if (githubUsername && user.email) {
           try {
             // When linking accounts, user.id is the GitHub profile ID, not the database user ID
@@ -158,57 +104,16 @@ export const authOptions: NextAuthConfig = {
               where: eq(users.email, user.email),
               columns: { id: true },
             });
->>>>>>> upstream/main:src/server/auth-js/auth.config.ts
 
             const targetUserId = existingUser?.id || user.id;
 
-<<<<<<< HEAD:src/server/auth.config.ts
-				// Safely access optional properties
-				if ("bio" in user) token.bio = user.bio as string | null;
-				if ("githubUsername" in user) token.githubUsername = user.githubUsername as string | null;
-				if ("theme" in user) token.theme = user.theme as "light" | "dark" | "system" | undefined;
-				if ("emailVerified" in user) token.emailVerified = user.emailVerified as Date | null;
-				if ("vercelConnectionAttemptedAt" in user)
-					token.vercelConnectionAttemptedAt = user.vercelConnectionAttemptedAt as Date | null;
-||||||| bac2439d:src/server/auth-js/auth.config.ts
-				// Safely access optional properties
-				if ("bio" in typedUser) token.bio = typedUser.bio;
-				if ("githubUsername" in typedUser) token.githubUsername = typedUser.githubUsername;
-				if ("theme" in typedUser) token.theme = typedUser.theme;
-				if ("emailVerified" in typedUser)
-					token.emailVerified = typedUser.emailVerified
-						? new Date(typedUser.emailVerified).toISOString()
-						: null;
-				if ("vercelConnectionAttemptedAt" in typedUser)
-					token.vercelConnectionAttemptedAt = typedUser.vercelConnectionAttemptedAt
-						? new Date(typedUser.vercelConnectionAttemptedAt).toISOString()
-						: null;
-=======
             logger.info("Updating GitHub username for user", {
               targetUserId,
               existingUserId: existingUser?.id,
               profileUserId: user.id,
               githubUsername,
             });
->>>>>>> upstream/main:src/server/auth-js/auth.config.ts
 
-<<<<<<< HEAD:src/server/auth.config.ts
-				// Store Payload CMS token if available (not for guest users)
-				if ("payloadToken" in user && typeof user.payloadToken === "string" && !token.isGuest) {
-					token.payloadToken = user.payloadToken;
-				}
-			}
-||||||| bac2439d:src/server/auth-js/auth.config.ts
-				// Store Payload CMS token if available (not for guest users)
-				if (
-					"payloadToken" in typedUser &&
-					typeof typedUser.payloadToken === "string" &&
-					!token.isGuest
-				) {
-					token.payloadToken = typedUser.payloadToken;
-				}
-			}
-=======
             // Update the user record with the GitHub username
             await db
               ?.update(users)
@@ -217,27 +122,12 @@ export const authOptions: NextAuthConfig = {
                 updatedAt: new Date(),
               })
               .where(eq(users.id, targetUserId));
->>>>>>> upstream/main:src/server/auth-js/auth.config.ts
 
             logger.info("Stored GitHub username from OAuth profile", {
               userId: targetUserId,
               githubUsername,
             });
 
-<<<<<<< HEAD:src/server/auth.config.ts
-				// If we have a GitHub username from the profile, store it directly
-				// This is important for handling first-time GitHub OAuth logins
-				if (user && (user as any).githubUsername) {
-					token.githubUsername = (user as any).githubUsername;
-				}
-||||||| bac2439d:src/server/auth-js/auth.config.ts
-				// If we have a GitHub username from the profile, store it directly
-				// This is important for handling first-time GitHub OAuth logins
-				const githubUser = user as User;
-				if (user && githubUser.githubUsername) {
-					token.githubUsername = githubUser.githubUsername;
-				}
-=======
             // Delete any pending stub record created when the collaborator was manually invited
             try {
               await db
@@ -249,7 +139,6 @@ export const authOptions: NextAuthConfig = {
                 error: stubError instanceof Error ? stubError.message : "Unknown error",
               });
             }
->>>>>>> upstream/main:src/server/auth-js/auth.config.ts
 
             // Grant repository access
             try {
@@ -327,28 +216,6 @@ export const authOptions: NextAuthConfig = {
         }
       }
 
-<<<<<<< HEAD:src/server/auth.config.ts
-							// Update user record with GitHub connection
-							await db
-								?.update(users)
-								.set({
-									githubUsername: (user as any).githubUsername || null,
-									metadata: JSON.stringify(newMetadata),
-									updatedAt: new Date(),
-								})
-								.where(eq(users.id, user.id));
-||||||| bac2439d:src/server/auth-js/auth.config.ts
-							// Update user record with GitHub connection
-							const githubUser = user as User;
-							await db
-								?.update(users)
-								.set({
-									githubUsername: githubUser.githubUsername || null,
-									metadata: JSON.stringify(newMetadata),
-									updatedAt: new Date(),
-								})
-								.where(eq(users.id, user.id));
-=======
       // Log the sign in activity
       return true;
     },
@@ -356,60 +223,13 @@ export const authOptions: NextAuthConfig = {
       // Handle the nextUrl parameter for redirects
       const redirectUrl = new URL(url, baseUrl);
       const nextUrl = redirectUrl.searchParams.get(SEARCH_PARAM_KEYS.nextUrl);
->>>>>>> upstream/main:src/server/auth-js/auth.config.ts
 
-<<<<<<< HEAD:src/server/auth.config.ts
-							// If we have a username, try to grant access to the repository
-							const githubUsername = (user as any).githubUsername;
-							if (githubUsername) {
-								try {
-									await grantGitHubAccess({ githubUsername });
-									logger.info("Successfully granted GitHub repository access", {
-										userId: user.id,
-										githubUsername,
-									});
-								} catch (grantError) {
-									console.error("Error granting repository access:", grantError);
-									// Don't fail the connection if repo access fails
-								}
-							}
-						}
-					} catch (error) {
-						console.error("Error updating GitHub connection in database:", error);
-						// Don't fail the JWT creation if this fails
-					}
-				})();
-			}
-||||||| bac2439d:src/server/auth-js/auth.config.ts
-							// If we have a username, try to grant access to the repository
-							const githubUsername = githubUser.githubUsername;
-							if (githubUsername) {
-								try {
-									await grantGitHubAccess({ githubUsername });
-									logger.info("Successfully granted GitHub repository access", {
-										userId: user.id,
-										githubUsername,
-									});
-								} catch (grantError) {
-									console.error("Error granting repository access:", grantError);
-									// Don't fail the connection if repo access fails
-								}
-							}
-						}
-					} catch (error) {
-						console.error("Error updating GitHub connection in database:", error);
-						// Don't fail the JWT creation if this fails
-					}
-				})();
-			}
-=======
       if (nextUrl) {
         // Ensure it's a relative URL for security
         if (nextUrl.startsWith("/")) {
           return `${baseUrl}${nextUrl}`;
         }
       }
->>>>>>> upstream/main:src/server/auth-js/auth.config.ts
 
       // Default redirect
       if (url.startsWith("/")) return `${baseUrl}${url}`;
@@ -440,143 +260,11 @@ export const authOptions: NextAuthConfig = {
             ? new Date(typedUser.updatedAt).toISOString()
             : undefined;
 
-<<<<<<< HEAD:src/server/auth.config.ts
-			// Handle updates
-			if (trigger === "update" && session) {
-				if (session.theme) token.theme = session.theme;
-				if (session.name) token.name = session.name;
-				if (session.bio) token.bio = session.bio;
-				if (session.payloadToken && typeof session.payloadToken === "string")
-					token.payloadToken = session.payloadToken;
-				if (session.vercelConnectionAttemptedAt)
-					token.vercelConnectionAttemptedAt = session.vercelConnectionAttemptedAt;
-			}
-			return token;
-		},
-		async session({ session, token, user }) {
-			if (token) {
-				session.user.id = token.id as string;
-				session.user.name = token.name as string | null;
-				session.user.email = token.email ?? "";
-				session.user.emailVerified = token.emailVerified as Date | null;
-				session.user.image = token.image as string | null;
-				session.user.role = token.role as import("@/types/user").UserRole;
-				session.user.theme = token.theme as "light" | "dark" | "system" | undefined;
-				session.user.bio = token.bio as string | null;
-				session.user.githubUsername = token.githubUsername as string | null;
-				session.user.vercelConnectionAttemptedAt = token.vercelConnectionAttemptedAt as Date | null;
-				session.user.createdAt = token.createdAt as Date | undefined;
-				session.user.updatedAt = token.updatedAt as Date | undefined;
-				session.user.metadata = token.metadata as string | null;
-				session.user.isGuest = token.isGuest as boolean | undefined;
-				session.user.accounts = token.accounts as {
-					provider: string;
-					providerAccountId: string;
-				}[];
-				if (token.payloadToken && typeof token.payloadToken === "string" && !token.isGuest) {
-					session.user.payloadToken = token.payloadToken;
-				}
-			}
-||||||| bac2439d:src/server/auth-js/auth.config.ts
-			// Handle updates
-			if (trigger === "update" && session) {
-				if (session.theme) token.theme = session.theme;
-				if (session.name) token.name = session.name;
-				if (session.bio) token.bio = session.bio;
-				if (session.payloadToken && typeof session.payloadToken === "string")
-					token.payloadToken = session.payloadToken;
-				if (session.vercelConnectionAttemptedAt)
-					token.vercelConnectionAttemptedAt = new Date(
-						session.vercelConnectionAttemptedAt
-					).toISOString();
-			}
-			return token;
-		},
-		async session({ session, token, user }) {
-			// Map from JWT token when present (JWT strategy)
-			if (token && token.id) {
-				session.user.id = token.id as string;
-				session.user.name = token.name as string | null;
-				session.user.email = token.email ?? "";
-				// Normalize dates coming from JWT (which serializes Dates to ISO strings)
-				session.user.emailVerified = token.emailVerified
-					? new Date(token.emailVerified as unknown as string | number | Date)
-					: null;
-				session.user.image = (token.image as string | null) ?? session.user.image ?? null;
-				session.user.role = token.role as import("@/types/user").UserRole;
-				session.user.theme = token.theme as "light" | "dark" | "system" | undefined;
-				session.user.bio = token.bio as string | null;
-				session.user.githubUsername = token.githubUsername as string | null;
-				session.user.vercelConnectionAttemptedAt = token.vercelConnectionAttemptedAt
-					? new Date(token.vercelConnectionAttemptedAt as unknown as string | number | Date)
-					: null;
-				session.user.createdAt = token.createdAt
-					? new Date(token.createdAt as unknown as string | number | Date)
-					: undefined;
-				session.user.updatedAt = token.updatedAt
-					? new Date(token.updatedAt as unknown as string | number | Date)
-					: undefined;
-				session.user.metadata = token.metadata as string | null;
-				session.user.isGuest = token.isGuest as boolean | undefined;
-				session.user.accounts = token.accounts as {
-					provider: string;
-					providerAccountId: string;
-				}[];
-				if (token.payloadToken && typeof token.payloadToken === "string" && !token.isGuest) {
-					session.user.payloadToken = token.payloadToken;
-				}
-			}
-=======
         // Mark as guest user if the account provider is guest
         if (account?.provider === "guest") {
           token.isGuest = true;
         }
->>>>>>> upstream/main:src/server/auth-js/auth.config.ts
 
-<<<<<<< HEAD:src/server/auth.config.ts
-			// If token didn't have accounts and we have a user from database, fetch accounts
-			// Skip this for guest users as they don't have database entries
-			if (!session.user.accounts && user && !session.user.isGuest) {
-				// Fetch user accounts from database
-				try {
-					const accounts = await db?.query.accounts.findMany({
-						where: (accounts, { eq }) => eq(accounts.userId, user.id),
-						columns: {
-							provider: true,
-							providerAccountId: true,
-						},
-					});
-||||||| bac2439d:src/server/auth-js/auth.config.ts
-			// When using database session strategy, populate from the database user
-			if ((!token || !token.id) && user) {
-				const typedUser = user as User;
-				session.user.id = typedUser.id;
-				session.user.name = typedUser.name;
-				session.user.email = typedUser.email ?? "";
-				session.user.emailVerified = typedUser.emailVerified ?? null;
-				session.user.image = typedUser.image ?? null;
-				session.user.role = typedUser.role ?? session.user.role;
-				session.user.theme = typedUser.theme ?? session.user.theme;
-				session.user.bio = typedUser.bio ?? session.user.bio;
-				session.user.githubUsername = typedUser.githubUsername ?? session.user.githubUsername;
-				session.user.createdAt = typedUser.createdAt ?? session.user.createdAt;
-				session.user.updatedAt = typedUser.updatedAt ?? session.user.updatedAt;
-				// Accounts will be fetched below
-			}
-
-			// If token didn't have accounts and we have a user from database, fetch accounts
-			// Skip this for guest users as they don't have database entries
-			if (!session.user.accounts && user && !session.user.isGuest) {
-				// Fetch user accounts from database
-				try {
-					const accounts = await db?.query.accounts.findMany({
-						where: (accounts, { eq }) => eq(accounts.userId, user.id),
-						columns: {
-							provider: true,
-							providerAccountId: true,
-						},
-					});
-=======
         // Safely access optional properties
         if ("bio" in typedUser) token.bio = typedUser.bio;
         if ("githubUsername" in typedUser) token.githubUsername = typedUser.githubUsername;
@@ -599,7 +287,6 @@ export const authOptions: NextAuthConfig = {
           token.payloadToken = typedUser.payloadToken;
         }
       }
->>>>>>> upstream/main:src/server/auth-js/auth.config.ts
 
       // Save GitHub access token when signing in with GitHub
       if (account?.provider === "github" && account.access_token && user?.email) {

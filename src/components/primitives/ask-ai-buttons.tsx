@@ -1,32 +1,17 @@
 "use client";
 
-import { AskAiGroup } from "@emblemvault/ask-ai";
-
 interface AskAiButtonsProps {
   content: string;
   goal?: string;
   className?: string;
 }
 
+/**
+ * Ask AI buttons stub — @emblemvault/ask-ai package not installed.
+ * TODO: Install package and restore functionality when needed.
+ */
 export const AskAiButtons = ({
-  content,
-  goal = "Summarize this page",
   className,
 }: AskAiButtonsProps) => {
-  return (
-    <div className={className}>
-      <AskAiGroup
-        goal={goal}
-        content={content}
-        services={{
-          claude: true,
-          chatgpt: true,
-          gemini: true,
-          perplexity: true,
-        }}
-        size="sm"
-        variant="outline"
-      />
-    </div>
-  );
+  return <div className={className} />;
 };
