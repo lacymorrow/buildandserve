@@ -32,6 +32,7 @@ export const routes = {
 	faq: "/faq",
 	features: "/features",
 	pricing: "/pricing",
+	services: "/services",
 	launch: "/launch",
 
 	// App routes

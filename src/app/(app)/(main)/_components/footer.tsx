@@ -7,13 +7,13 @@ const links = [
         group: 'Company',
         items: [
             {
+                title: 'Services',
+                href: '/services',
+            },
+            {
                 title: 'Blog',
                 href: '/blog',
             },
-            // {
-            //     title: 'Pricing',
-            //     href: '/pricing',
-            // },
             {
                 title: 'Contact',
                 href: '/contact',
