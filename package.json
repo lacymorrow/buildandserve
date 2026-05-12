@@ -319,5 +319,6 @@
     "onnxruntime-node",
     "protobufjs",
     "unrs-resolver"
-  ]
+  ],
+  "license": "FSL-1.1-MIT"
 }
