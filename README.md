@@ -6,19 +6,19 @@ Made with ❤️ by [Lacy](https://lacy.sh)
 
 ## Screenshots
 
-![Build And Serve — Homepage](public/images/screenshots/hero.webp)
+![Build And Serve — Homepage hero section](public/images/screenshots/hero.webp)
 
 <p align="center">
-  <img src="public/images/screenshots/services.webp" alt="Services" width="48%" />
+  <img src="public/images/screenshots/services.webp" alt="Build And Serve — Services page showing web design, SEO, and digital marketing offerings" width="48%" />
   &nbsp;
-  <img src="public/images/screenshots/mobile.webp" alt="Mobile" width="24%" />
+  <img src="public/images/screenshots/mobile.webp" alt="Build And Serve — Mobile responsive view of the homepage" width="24%" />
 </p>
 
 ## Deploy in 30 Seconds
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fshipkit-io%2Fshipkit&project-name=shipkit-app&repository-name=shipkit-app&redirect-url=https%3A%2F%2Fshipkit.io%2Fx%2Fvercel%2Fdeploy&developer-id=oac_KkY2TcPxIWTDtL46WGqwZ4BF&production-deploy-hook=Shipkit%20Deploy&demo-title=Shipkit%20Preview&demo-description=The%20official%20Shipkit%20Preview.%20A%20full%20featured%20demo%20with%20dashboards%2C%20AI%20tools%2C%20and%20integrations%20with%20Docs%2C%20Payload%2C%20and%20Builder.io&demo-url=https%3A%2F%2Fshipkit.io%2Fdemo&demo-image=%2F%2Fshipkit.io%2Fimages%2Fdemo.png)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Flacymorrow%2Fbuildandserve&project-name=buildandserve&repository-name=buildandserve&redirect-url=https%3A%2F%2Fbuildandserve.com&production-deploy-hook=Build%20And%20Serve%20Deploy&demo-title=Build%20And%20Serve%20Preview&demo-description=Charlotte%27s%20trusted%20partner%20for%20websites%20%26%20digital%20growth.%20High-performance%20websites%20and%20applications.&demo-url=https%3A%2F%2Fbuildandserve.com&demo-image=%2F%2Fbuildandserve.com%2Fimages%2Fpreview.png)
 
-[![Open in Codeflow](https://developer.stackblitz.com/img/open_in_codeflow.svg)](https://pr.new/lacymorrow/shipkit)
+[![Open in Codeflow](https://developer.stackblitz.com/img/open_in_codeflow.svg)](https://pr.new/lacymorrow/buildandserve)
 
 No environment variables needed to start! The setup wizard guides you through configuration after deployment.
 
@@ -47,8 +47,8 @@ No environment variables needed to start! The setup wizard guides you through co
 ## Quick Start
 
 ```bash
-git clone https://github.com/shipkit-io/shipkit
-cd shipkit
+git clone https://github.com/lacymorrow/buildandserve
+cd buildandserve
 bun install --frozen-lockfile
 bun dev
 ```
@@ -62,14 +62,14 @@ bun dev
 
 ## Support
 
-- 💬 [GitHub Discussions](https://github.com/shipkit-io/shipkit/discussions)
+- 💬 [GitHub Discussions](https://github.com/lacymorrow/buildandserve/discussions)
 - 🐦 [Follow Updates](https://twitter.com/lacybuilds)
-- 📧 [Contact](https://shipkit.io/contact)
-- 🌐 [Website](https://shipkit.io)
+- 📧 [Contact](https://buildandserve.com/contact)
+- 🌐 [Website](https://buildandserve.com)
 
 ## Found a bug?
 
-[GitHub Issues](https://github.com/shipkit-io/shipkit/issues)
+[GitHub Issues](https://github.com/lacymorrow/buildandserve/issues)
 
 ## License
 
