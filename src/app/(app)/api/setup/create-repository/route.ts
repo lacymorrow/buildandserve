@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { Octokit } from "@octokit/rest";
 import { NextResponse } from "next/server";
 import { auth } from "@/server/auth";
