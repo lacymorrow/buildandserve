@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { createReadStream } from "fs";
 import { stat } from "fs/promises";
 import { type NextRequest, NextResponse } from "next/server";

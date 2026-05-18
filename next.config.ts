@@ -11,6 +11,12 @@ import { withPlugins } from "@/config/with-plugins";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+
+  // Payload CMS and its transitive deps (json-schema-to-typescript, cli-color) must
+  // not be bundled by webpack — they are server-only and require native/optional deps
+  // that are not available at build time. Load them at runtime instead.
+  serverExternalPackages: ["payload", "json-schema-to-typescript", "cli-color"],
+
   env: {
     // Add client-side feature flags
     ...buildTimeFeatureFlags,

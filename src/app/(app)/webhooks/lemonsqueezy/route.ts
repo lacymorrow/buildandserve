@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import crypto from "crypto";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";

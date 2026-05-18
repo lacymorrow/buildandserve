@@ -318,6 +318,7 @@
     "core-js",
     "onnxruntime-node",
     "protobufjs",
+    "sharp",
     "unrs-resolver"
   ],
   "license": "FSL-1.1-MIT"
