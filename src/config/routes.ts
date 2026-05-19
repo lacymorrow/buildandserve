@@ -33,6 +33,8 @@ export const routes = {
 	features: "/features",
 	pricing: "/pricing",
 	services: "/services",
+	servicesOpenclaw: "/services/openclaw",
+	servicesPaperclip: "/services/paperclip",
 	launch: "/launch",
 
 	// App routes
