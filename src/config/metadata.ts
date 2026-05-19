@@ -147,6 +147,9 @@ export const constructMetadata = ({
   return {
     ...defaultMetadata,
     ...metadata,
+    // Don't inherit the root canonical — each page should declare its own or omit it.
+    // Inheriting root canonical causes all pages to claim the homepage as their canonical.
+    alternates: metadata.alternates ?? undefined,
     openGraph: {
       ...defaultOpenGraph,
       // Assign the extracted title string or fallback
