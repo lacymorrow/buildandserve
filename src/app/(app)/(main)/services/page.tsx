@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { ScheduleCallModal } from '@/components/modals/schedule-call-modal'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ArrowRight } from 'lucide-react'
 import { routes } from '@/config/routes'
 import { constructMetadata } from '@/config/metadata'
 import { ServicesFaq } from './_components/services-faq'
@@ -44,6 +45,45 @@ const services = [
         title: 'API development and integrations',
         body: "Whether you're building the API or connecting to someone else's, we do both well. Clean design, proper versioning, reliable performance under load. We've integrated enough third-party APIs to know which documentation misleads you and where the edge cases live.",
         goodFor: 'Third-party integrations, webhook systems, internal API layers, data pipelines',
+    },
+]
+
+const productizedServices = [
+    {
+        id: 'agent-team',
+        title: 'AI Agent Team — Managed Service',
+        badge: 'Managed',
+        body: 'We deploy, manage, and optimize AI agent teams that do real work for your business. Content creation, customer support triage, data analysis, research, reporting. We run it, you get the results. Includes ongoing management, weekly reporting on output volume and quality, and monthly strategy reviews.',
+        goodFor: 'Operations leaders at SMBs drowning in manual processes. Marketing teams that need steady content production without hiring.',
+        pricing: '$2K–$10K/month depending on scope',
+        href: routes.services,
+    },
+    {
+        id: 'shipkit',
+        title: 'ShipKit Launch Package',
+        badge: 'Fixed Price',
+        body: "ShipKit is our production-grade Next.js framework. The Launch Package means you don't buy a boilerplate and figure it out yourself. We build your app on ShipKit, customize it for your brand and use case, and hand you a deployed product in 1–2 weeks. Full source code handoff. No lock-in.",
+        goodFor: 'Solo founders who need to ship now. Early-stage startups validating with a real product instead of a mockup.',
+        pricing: '$2K–$5K standard · $7K–$10K Pro',
+        href: routes.services,
+    },
+    {
+        id: 'ai-audit',
+        title: 'AI Strategy & Audit',
+        badge: 'Fixed Price',
+        body: "We look at your operations, your team, your tools, and your bottlenecks. Then we tell you where AI saves real time and money. Not theoretical possibilities. Practical implementations you can act on in the next 90 days. You get a written report and 60-day action plan — not a 50-page deck that sits in a drawer.",
+        goodFor: 'Business owners who know AI matters but aren\'t sure where to start. Ops managers tasked with "figure out AI for us."',
+        pricing: '$1K–$3K · most land around $1,500–$2,000',
+        href: routes.services,
+    },
+    {
+        id: 'maintenance',
+        title: 'Website Maintenance & Support Retainer',
+        badge: 'Monthly',
+        body: 'You built something. Now someone needs to keep it running. Dependencies need updates. Security patches need applying. Performance needs monitoring. Features need tweaking. We handle all of it on a monthly retainer. Essentials starts at $500/mo. Growth adds performance optimization and feature hours. Scale includes dedicated support and AI-powered monitoring.',
+        goodFor: 'Any business running a Next.js or React app without a dedicated dev team.',
+        pricing: '$500–$3K/month · three tiers',
+        href: routes.services,
     },
 ]
 
@@ -115,6 +155,69 @@ export default function ServicesPage() {
                                     <span className="font-medium">Good fit for:</span>{' '}
                                     <span className="text-muted-foreground">{service.goodFor}</span>
                                 </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Dedicated Offerings */}
+            <section className="py-16 md:py-24 bg-muted/30">
+                <div className="mx-auto max-w-5xl px-6">
+                    <div className="max-w-2xl">
+                        <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">New offerings</p>
+                        <h2 className="mt-3 text-balance text-3xl font-semibold md:text-4xl">Productized services</h2>
+                        <p className="mt-4 text-muted-foreground leading-relaxed">
+                            Fixed scopes, clear pricing, defined timelines. Pick the one that matches where you are.
+                        </p>
+                    </div>
+
+                    {/* Dedicated landing pages */}
+                    <div className="mt-12 grid gap-6 md:grid-cols-2">
+                        <Link href="/services/openclaw" className="group rounded-2xl border bg-card p-8 hover:border-foreground/20 transition-colors">
+                            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Dedicated offering</p>
+                            <h3 className="mt-2 text-xl font-semibold">OpenClaw Setup & Deployment</h3>
+                            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                                AI agent orchestration, deployed and running. We set up OpenClaw for businesses that want multi-agent systems without spending six months on the architecture.
+                            </p>
+                            <p className="mt-4 text-sm font-medium">$5K–$15K project-based</p>
+                            <div className="mt-6 flex items-center gap-1 text-sm font-medium text-primary">
+                                View full details <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                            </div>
+                        </Link>
+                        <Link href="/services/paperclip" className="group rounded-2xl border bg-card p-8 hover:border-foreground/20 transition-colors">
+                            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Dedicated offering</p>
+                            <h3 className="mt-2 text-xl font-semibold">Paperclip AI Company Setup</h3>
+                            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                                Build your AI-powered company. Agent teams, workflows, governance. We built Paperclip — when we set you up, it's the people who made the platform doing the configuration.
+                            </p>
+                            <p className="mt-4 text-sm font-medium">$3K–$10K setup + optional management</p>
+                            <div className="mt-6 flex items-center gap-1 text-sm font-medium text-primary">
+                                View full details <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                            </div>
+                        </Link>
+                    </div>
+
+                    {/* Other productized services */}
+                    <div className="mt-8 divide-y rounded-2xl border bg-card">
+                        {productizedServices.map((service) => (
+                            <div key={service.id} className="p-8 first:pt-8 last:pb-8">
+                                <div className="flex flex-wrap items-start justify-between gap-4">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3">
+                                            <h3 className="text-lg font-semibold">{service.title}</h3>
+                                            <Badge variant="secondary" className="text-xs">{service.badge}</Badge>
+                                        </div>
+                                        <p className="mt-3 leading-relaxed text-muted-foreground text-sm">{service.body}</p>
+                                        <p className="mt-3 text-sm">
+                                            <span className="font-medium">Good fit for:</span>{' '}
+                                            <span className="text-muted-foreground">{service.goodFor}</span>
+                                        </p>
+                                    </div>
+                                    <div className="shrink-0 text-right">
+                                        <p className="text-sm font-medium text-muted-foreground">{service.pricing}</p>
+                                    </div>
+                                </div>
                             </div>
                         ))}
                     </div>
