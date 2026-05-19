@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/server/auth";
 import { PaymentService } from "@/server/services/payment-service";
