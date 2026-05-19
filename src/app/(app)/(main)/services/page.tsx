@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { ScheduleCallModal } from '@/components/modals/schedule-call-modal'
@@ -56,7 +56,6 @@ const productizedServices = [
         body: 'We deploy, manage, and optimize AI agent teams that do real work for your business. Content creation, customer support triage, data analysis, research, reporting. We run it, you get the results. Includes ongoing management, weekly reporting on output volume and quality, and monthly strategy reviews.',
         goodFor: 'Operations leaders at SMBs drowning in manual processes. Marketing teams that need steady content production without hiring.',
         pricing: '$2K–$10K/month depending on scope',
-        href: routes.services,
     },
     {
         id: 'shipkit',
@@ -65,7 +64,6 @@ const productizedServices = [
         body: "ShipKit is our production-grade Next.js framework. The Launch Package means you don't buy a boilerplate and figure it out yourself. We build your app on ShipKit, customize it for your brand and use case, and hand you a deployed product in 1–2 weeks. Full source code handoff. No lock-in.",
         goodFor: 'Solo founders who need to ship now. Early-stage startups validating with a real product instead of a mockup.',
         pricing: '$2K–$5K standard · $7K–$10K Pro',
-        href: routes.services,
     },
     {
         id: 'ai-audit',
@@ -74,7 +72,6 @@ const productizedServices = [
         body: "We look at your operations, your team, your tools, and your bottlenecks. Then we tell you where AI saves real time and money. Not theoretical possibilities. Practical implementations you can act on in the next 90 days. You get a written report and 60-day action plan — not a 50-page deck that sits in a drawer.",
         goodFor: 'Business owners who know AI matters but aren\'t sure where to start. Ops managers tasked with "figure out AI for us."',
         pricing: '$1K–$3K · most land around $1,500–$2,000',
-        href: routes.services,
     },
     {
         id: 'maintenance',
@@ -83,7 +80,6 @@ const productizedServices = [
         body: 'You built something. Now someone needs to keep it running. Dependencies need updates. Security patches need applying. Performance needs monitoring. Features need tweaking. We handle all of it on a monthly retainer. Essentials starts at $500/mo. Growth adds performance optimization and feature hours. Scale includes dedicated support and AI-powered monitoring.',
         goodFor: 'Any business running a Next.js or React app without a dedicated dev team.',
         pricing: '$500–$3K/month · three tiers',
-        href: routes.services,
     },
 ]
 
@@ -174,7 +170,7 @@ export default function ServicesPage() {
 
                     {/* Dedicated landing pages */}
                     <div className="mt-12 grid gap-6 md:grid-cols-2">
-                        <Link href="/services/openclaw" className="group rounded-2xl border bg-card p-8 hover:border-foreground/20 transition-colors">
+                        <Link href={routes.servicesOpenclaw} className="group rounded-2xl border bg-card p-8 hover:border-foreground/20 transition-colors">
                             <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Dedicated offering</p>
                             <h3 className="mt-2 text-xl font-semibold">OpenClaw Setup & Deployment</h3>
                             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
@@ -185,7 +181,7 @@ export default function ServicesPage() {
                                 View full details <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                             </div>
                         </Link>
-                        <Link href="/services/paperclip" className="group rounded-2xl border bg-card p-8 hover:border-foreground/20 transition-colors">
+                        <Link href={routes.servicesPaperclip} className="group rounded-2xl border bg-card p-8 hover:border-foreground/20 transition-colors">
                             <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Dedicated offering</p>
                             <h3 className="mt-2 text-xl font-semibold">Paperclip AI Company Setup</h3>
                             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">

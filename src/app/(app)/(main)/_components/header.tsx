@@ -117,7 +117,7 @@ export const HeroHeader = () => {
                                                 {item.children && <ChevronDown className="h-3 w-3 transition-transform duration-150 group-hover/nav:rotate-180" />}
                                             </Link>
                                             {item.children && (
-                                                <div className="absolute left-0 top-full pt-2 opacity-0 pointer-events-none group-hover/nav:opacity-100 group-hover/nav:pointer-events-auto transition-opacity duration-150">
+                                                <div className="absolute left-0 top-full pt-2 opacity-0 pointer-events-none group-hover/nav:opacity-100 group-hover/nav:pointer-events-auto group-focus-within/nav:opacity-100 group-focus-within/nav:pointer-events-auto transition-opacity duration-150">
                                                     <div className="bg-background rounded-xl border shadow-md py-1 min-w-[180px]">
                                                         {item.children.map((child) => (
                                                             <Link
