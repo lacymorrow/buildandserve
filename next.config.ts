@@ -15,7 +15,14 @@ const nextConfig: NextConfig = {
   // Payload CMS and its transitive deps (json-schema-to-typescript, cli-color) must
   // not be bundled by webpack — they are server-only and require native/optional deps
   // that are not available at build time. Load them at runtime instead.
-  serverExternalPackages: ["payload", "json-schema-to-typescript", "cli-color"],
+  serverExternalPackages: [
+    "payload",
+    "json-schema-to-typescript",
+    "cli-color",
+    "drizzle-kit",
+    "esbuild-register",
+    "esbuild",
+  ],
 
   env: {
     // Add client-side feature flags
