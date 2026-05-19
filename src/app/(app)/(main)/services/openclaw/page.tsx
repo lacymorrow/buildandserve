@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, ChevronRight } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Headphones, Network, Shield, Zap } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ScheduleCallModal } from "@/components/modals/schedule-call-modal";
@@ -8,10 +8,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import AnimatedGradientText from "@/components/ui/animated-gradient-text";
+import { BorderBeam } from "@/components/ui/border-beam";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import RetroGrid from "@/components/ui/retro-grid";
+import { TextEffect } from "@/components/ui/text-effect";
 import { constructMetadata } from "@/config/metadata";
 import { routes } from "@/config/routes";
+import { OpenClawDashboard } from "../_components/openclaw-dashboard";
 
 export const metadata: Metadata = constructMetadata({
   title: "OpenClaw Setup & Deployment | Build And Serve",
@@ -19,11 +23,38 @@ export const metadata: Metadata = constructMetadata({
     "Deploy AI agent orchestration with OpenClaw. We handle architecture, configuration, agent design, deployment, and training. $5K–$15K project-based.",
 });
 
+const benefits = [
+  {
+    icon: Network,
+    title: "Architecture That Holds Up",
+    body: "Most agent deployments fail because the architecture was wrong from the start. We design your agent topology based on what actually works in production, not what looks good in a demo.",
+    gradient: "from-emerald-500 to-cyan-500",
+  },
+  {
+    icon: Zap,
+    title: "Deployed in Weeks, Not Months",
+    body: "A typical OpenClaw deployment takes 2–4 weeks from kickoff to production. We know the critical path and where teams waste time.",
+    gradient: "from-cyan-500 to-blue-500",
+  },
+  {
+    icon: Shield,
+    title: "You Own Everything",
+    body: "No vendor lock-in, no proprietary wrapper. Your OpenClaw instance runs on your infrastructure, your accounts, your control.",
+    gradient: "from-blue-500 to-emerald-500",
+  },
+  {
+    icon: Headphones,
+    title: "30 Days of Post-Launch Support",
+    body: "The first month after deployment is when the real questions come up. Bug fixes, configuration adjustments, agent tuning. We’re there for it.",
+    gradient: "from-emerald-500 to-teal-500",
+  },
+];
+
 const steps = [
   {
     number: "01",
     title: "Discovery",
-    body: "60-minute call to understand your use case, your team, and what you want your agents doing. We'll tell you honestly whether OpenClaw is the right fit or if something simpler would work.",
+    body: "60-minute call to understand your use case, your team, and what you want your agents doing. We’ll tell you honestly whether OpenClaw is the right fit or if something simpler would work.",
   },
   {
     number: "02",
@@ -39,25 +70,6 @@ const steps = [
     number: "04",
     title: "Training & Handoff",
     body: "Your team gets hands-on training. We cover day-to-day management, adding new agents, troubleshooting, and extending the system. Plus 30 days of support after handoff.",
-  },
-];
-
-const benefits = [
-  {
-    title: "Architecture That Holds Up",
-    body: "Most agent deployments fail because the architecture was wrong from the start. We design your agent topology based on what actually works in production, not what looks good in a demo.",
-  },
-  {
-    title: "Deployed in Weeks, Not Months",
-    body: "A typical OpenClaw deployment takes 2–4 weeks from kickoff to production. We know the critical path and where teams waste time.",
-  },
-  {
-    title: "You Own Everything",
-    body: "No vendor lock-in, no proprietary wrapper. Your OpenClaw instance runs on your infrastructure, your accounts, your control.",
-  },
-  {
-    title: "30 Days of Post-Launch Support",
-    body: "The first month after deployment is when the real questions come up. Bug fixes, configuration adjustments, agent tuning. We're there for it.",
   },
 ];
 
@@ -124,71 +136,91 @@ const faqs = [
     id: "faq-4",
     question: "Can I add more agents later?",
     answer:
-      "Yes. We design the architecture so adding agents later doesn't require rebuilding what's already there. You can add them yourself after training, or bring us back for more complex additions.",
+      "Yes. We design the architecture so adding agents later doesn’t require rebuilding what’s already there. You can add them yourself after training, or bring us back for more complex additions.",
   },
   {
     id: "faq-5",
     question: "How is this different from just using ChatGPT or Claude directly?",
     answer:
-      "Direct AI usage is one person talking to one model. OpenClaw orchestration is multiple specialized agents coordinating on complex tasks — with monitoring, failure handling, and quality controls. It's the difference between asking someone a question and having a team work on a project.",
+      "Direct AI usage is one person talking to one model. OpenClaw orchestration is multiple specialized agents coordinating on complex tasks — with monitoring, failure handling, and quality controls. It’s the difference between asking someone a question and having a team work on a project.",
   },
 ];
 
 export default function OpenClawPage() {
   return (
     <div className="min-h-screen">
-      {/* Back nav */}
-      <div className="mx-auto max-w-5xl px-6 pt-8">
-        <Link
-          href={routes.services}
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          All services
-        </Link>
-      </div>
-
       {/* Hero */}
-      <section className="py-16 md:py-24">
-        <div className="mx-auto max-w-5xl px-6">
-          <div className="max-w-2xl">
-            <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
-              OpenClaw Setup & Deployment
-            </p>
-            <h1 className="mt-4 text-balance text-5xl font-semibold md:text-6xl">
-              Deploy AI Agent Teams That Actually Work
-            </h1>
-            <p className="mt-8 max-w-xl text-balance text-lg text-muted-foreground">
-              We set up OpenClaw agent orchestration for your business — architecture, deployment,
-              training. Your agents coordinating on real tasks in weeks, not months.
-            </p>
-            <p className="mt-4 text-sm text-muted-foreground">Starting at $5,000</p>
-            <div className="mt-10">
-              <ScheduleCallModal
-                trigger={
-                  <Button size="lg" className="h-12 rounded-full pl-5 pr-3 text-base">
-                    <span className="text-nowrap">Book a discovery call</span>
-                    <ChevronRight className="ml-1" />
-                  </Button>
-                }
-              />
+      <section className="relative overflow-hidden bg-neutral-950 pb-20 pt-8 md:pb-28">
+        <RetroGrid className="opacity-20" />
+        <div className="relative mx-auto max-w-7xl px-6">
+          <Link
+            href={routes.services}
+            className="mb-12 inline-flex items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            All services
+          </Link>
+
+          <div className="lg:grid lg:grid-cols-2 lg:items-center lg:gap-16">
+            <div>
+              <AnimatedGradientText className="mb-6">
+                <span className="text-neutral-200">OpenClaw Setup &amp; Deployment</span>
+              </AnimatedGradientText>
+
+              <TextEffect
+                preset="fade-in-blur"
+                speedSegment={0.3}
+                as="h1"
+                className="text-balance text-4xl font-semibold text-white sm:text-5xl md:text-6xl"
+              >
+                Deploy AI Agent Teams That Actually Work
+              </TextEffect>
+
+              <p className="mt-6 max-w-lg text-balance text-lg text-neutral-400">
+                We set up OpenClaw agent orchestration for your business &mdash; architecture,
+                deployment, training. Your agents coordinating on real tasks in weeks, not months.
+              </p>
+
+              <p className="mt-4 text-sm text-neutral-500">Starting at $5,000</p>
+
+              <div className="mt-8">
+                <ScheduleCallModal
+                  trigger={
+                    <Button
+                      size="lg"
+                      className="h-12 rounded-full bg-emerald-600 pl-5 pr-3 text-base text-white hover:bg-emerald-500"
+                    >
+                      <span className="text-nowrap">Book a discovery call</span>
+                      <ChevronRight className="ml-1" />
+                    </Button>
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="mt-12 lg:mt-0">
+              <div className="relative">
+                <div className="absolute -inset-4 rounded-2xl bg-gradient-to-br from-emerald-500/20 via-transparent to-cyan-500/20 blur-2xl" />
+                <OpenClawDashboard className="relative" />
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Context */}
-      <section className="py-16 md:py-24 bg-muted/30">
+      <section className="bg-muted/30 py-16 md:py-24">
         <div className="mx-auto max-w-5xl px-6">
-          <div className="max-w-3xl">
+          <div className="max-w-3xl border-l-2 border-emerald-500/50 pl-8">
             <h2 className="text-balance text-3xl font-semibold md:text-4xl">
               We Build Agent Systems. This Is What We Do.
             </h2>
-            <div className="mt-6 space-y-4 text-muted-foreground leading-relaxed">
+            <div className="mt-6 space-y-4 leading-relaxed text-muted-foreground">
               <p>
-                We didn't learn OpenClaw from a tutorial. We've built agent orchestration tools,
-                shipped them to production, and run our own multi-agent teams daily. When we deploy
-                OpenClaw for you, we're drawing on problems we've already solved on our own systems.
+                We didn&apos;t learn OpenClaw from a tutorial. We&apos;ve built agent orchestration
+                tools, shipped them to production, and run our own multi-agent teams daily. When we
+                deploy OpenClaw for you, we&apos;re drawing on problems we&apos;ve already solved on
+                our own systems.
               </p>
               <p>
                 Juno, Lacy Shell, our own internal agent teams all run on these same patterns. We
@@ -204,26 +236,36 @@ export default function OpenClawPage() {
       <section className="py-16 md:py-24">
         <div className="mx-auto max-w-5xl px-6">
           <h2 className="text-balance text-3xl font-semibold md:text-4xl">What you get</h2>
-          <div className="mt-12 grid gap-8 md:grid-cols-2">
-            {benefits.map((benefit) => (
-              <div key={benefit.title} className="space-y-3">
-                <h3 className="text-lg font-semibold">{benefit.title}</h3>
-                <p className="text-muted-foreground leading-relaxed">{benefit.body}</p>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2">
+            {benefits.map((b) => (
+              <div
+                key={b.title}
+                className="group relative overflow-hidden rounded-2xl border bg-card p-8 transition-shadow hover:shadow-lg"
+              >
+                <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${b.gradient}`} />
+                <b.icon className="mb-4 h-10 w-10 text-emerald-500/80" />
+                <h3 className="text-lg font-semibold">{b.title}</h3>
+                <p className="mt-3 leading-relaxed text-muted-foreground">{b.body}</p>
               </div>
             ))}
           </div>
-          <div className="mt-12 rounded-2xl border bg-card p-8">
-            <h3 className="font-semibold">Every engagement includes:</h3>
-            <ul className="mt-4 space-y-2">
+
+          <div className="relative mt-12 overflow-hidden rounded-2xl border bg-card p-8">
+            <BorderBeam colorFrom="#10b981" colorTo="#06b6d4" duration={20} />
+            <h3 className="text-lg font-semibold">Every engagement includes:</h3>
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2">
               {[
                 "Architecture review and agent design",
-                "Full OpenClaw deployment (infrastructure, configuration, security, monitoring)",
-                "Custom agent development for your specific workflows",
-                "Training for your team on managing and extending the system",
+                "Full OpenClaw deployment and configuration",
+                "Security model and access controls",
+                "Monitoring and alerting setup",
+                "Custom agent development for your workflows",
+                "Team training on managing the system",
                 "30 days of post-deployment support",
+                "Documentation for your team",
               ].map((item) => (
                 <li key={item} className="flex items-start gap-3 text-sm">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                   <span className="text-muted-foreground">{item}</span>
                 </li>
               ))}
@@ -232,20 +274,18 @@ export default function OpenClawPage() {
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="py-16 md:py-24 bg-muted/30">
+      {/* Process */}
+      <section className="bg-muted/30 py-16 md:py-24">
         <div className="mx-auto max-w-5xl px-6">
           <h2 className="text-balance text-3xl font-semibold md:text-4xl">How it works</h2>
-          <div className="mt-12 space-y-0 divide-y rounded-2xl border bg-card overflow-hidden">
+          <div className="mt-12 grid gap-6 sm:grid-cols-2">
             {steps.map((step) => (
-              <div key={step.number} className="flex gap-8 p-8">
-                <p className="text-3xl font-bold text-muted-foreground/30 tabular-nums shrink-0">
+              <div key={step.number} className="rounded-2xl border bg-card p-8">
+                <span className="bg-gradient-to-br from-emerald-400 to-cyan-400 bg-clip-text text-4xl font-bold text-transparent">
                   {step.number}
-                </p>
-                <div>
-                  <h3 className="font-semibold text-lg">{step.title}</h3>
-                  <p className="mt-2 text-muted-foreground leading-relaxed">{step.body}</p>
-                </div>
+                </span>
+                <h3 className="mt-4 text-lg font-semibold">{step.title}</h3>
+                <p className="mt-3 leading-relaxed text-muted-foreground">{step.body}</p>
               </div>
             ))}
           </div>
@@ -262,14 +302,21 @@ export default function OpenClawPage() {
           </p>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {packages.map((pkg) => (
-              <Card
+              <div
                 key={pkg.name}
-                className={`flex flex-col rounded-2xl p-8 ${pkg.featured ? "border-2 border-primary" : "border"}`}
+                className={`relative flex flex-col overflow-hidden rounded-2xl border p-8 ${
+                  pkg.featured
+                    ? "border-emerald-500/50 shadow-[0_0_30px_-5px_rgba(16,185,129,0.15)]"
+                    : ""
+                }`}
               >
                 {pkg.featured && (
-                  <p className="mb-4 text-xs font-medium uppercase tracking-widest text-primary">
-                    Most popular
-                  </p>
+                  <>
+                    <BorderBeam colorFrom="#10b981" colorTo="#06b6d4" size={150} duration={10} />
+                    <p className="mb-4 text-xs font-medium uppercase tracking-widest text-emerald-500">
+                      Most popular
+                    </p>
+                  </>
                 )}
                 <h3 className="text-xl font-semibold">{pkg.name}</h3>
                 <p className="mt-2 text-2xl font-bold">{pkg.price}</p>
@@ -277,7 +324,7 @@ export default function OpenClawPage() {
                 <ul className="mt-6 flex-1 space-y-2">
                   {pkg.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                       <span className="text-muted-foreground">{f}</span>
                     </li>
                   ))}
@@ -291,26 +338,26 @@ export default function OpenClawPage() {
                     }
                   />
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
-          <p className="mt-6 text-sm text-muted-foreground text-center">
+          <p className="mt-6 text-center text-sm text-muted-foreground">
             Optional ongoing support retainer available after any package.
           </p>
         </div>
       </section>
 
       {/* FAQ */}
-      <section className="py-16 md:py-24 bg-muted/30">
+      <section className="bg-muted/30 py-16 md:py-24">
         <div className="mx-auto max-w-5xl px-6">
-          <h2 className="text-balance text-3xl font-semibold md:text-4xl text-center">
+          <h2 className="text-balance text-center text-3xl font-semibold md:text-4xl">
             Common questions
           </h2>
           <div className="mx-auto mt-12 max-w-2xl">
             <Accordion
               type="single"
               collapsible
-              className="bg-card ring-muted w-full rounded-2xl border px-8 py-3 shadow-sm ring-4 dark:ring-0"
+              className="ring-muted w-full rounded-2xl border bg-card px-8 py-3 shadow-sm ring-4 dark:ring-0"
             >
               {faqs.map((faq) => (
                 <AccordionItem key={faq.id} value={faq.id} className="border-dashed">
@@ -330,25 +377,35 @@ export default function OpenClawPage() {
       {/* CTA */}
       <section className="py-16 md:py-24">
         <div className="mx-auto max-w-5xl px-6">
-          <div className="rounded-3xl border px-6 py-12 text-center md:py-20 lg:py-32">
-            <h2 className="text-balance text-4xl font-semibold lg:text-5xl">Ready to deploy?</h2>
-            <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-              Most projects start with a 30-minute call — no commitment, just a conversation about
-              what you're trying to automate and whether OpenClaw is the right approach. If it's
-              not, we'll tell you.
-            </p>
-            <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-              <ScheduleCallModal
-                trigger={
-                  <Button size="lg">
-                    <span className="text-nowrap">Book a discovery call</span>
-                    <ChevronRight className="ml-1" />
-                  </Button>
-                }
-              />
-              <Button asChild variant="outline" size="lg">
-                <Link href={routes.contact}>Send us a message</Link>
-              </Button>
+          <div className="relative overflow-hidden rounded-3xl border bg-neutral-950 px-6 py-16 text-center md:py-24">
+            <RetroGrid className="opacity-15" />
+            <div className="relative">
+              <h2 className="text-balance text-4xl font-semibold text-white lg:text-5xl">
+                Ready to deploy?
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-neutral-400">
+                Most projects start with a 30-minute call &mdash; no commitment, just a conversation
+                about what you&apos;re trying to automate and whether OpenClaw is the right
+                approach. If it&apos;s not, we&apos;ll tell you.
+              </p>
+              <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
+                <ScheduleCallModal
+                  trigger={
+                    <Button size="lg" className="bg-emerald-600 text-white hover:bg-emerald-500">
+                      <span className="text-nowrap">Book a discovery call</span>
+                      <ChevronRight className="ml-1" />
+                    </Button>
+                  }
+                />
+                <Button
+                  asChild
+                  variant="outline"
+                  size="lg"
+                  className="border-neutral-700 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                >
+                  <Link href={routes.contact}>Send us a message</Link>
+                </Button>
+              </div>
             </div>
           </div>
         </div>
