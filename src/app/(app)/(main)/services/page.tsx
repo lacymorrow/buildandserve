@@ -198,7 +198,7 @@ export default function ServicesPage() {
 
           <div className="mt-12 grid gap-6 md:grid-cols-2">
             <Link
-              href="/services/openclaw"
+              href={routes.servicesOpenclaw}
               className="group relative overflow-hidden rounded-2xl border bg-card p-8 transition-shadow hover:shadow-xl"
             >
               <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500" />
@@ -221,7 +221,7 @@ export default function ServicesPage() {
             </Link>
 
             <Link
-              href="/services/paperclip"
+              href={routes.servicesPaperclip}
               className="group relative overflow-hidden rounded-2xl border bg-card p-8 transition-shadow hover:shadow-xl"
             >
               <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-amber-500 to-orange-500" />

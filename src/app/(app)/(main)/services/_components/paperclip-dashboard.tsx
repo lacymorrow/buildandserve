@@ -1,29 +1,14 @@
-import { BorderBeam } from "@/components/ui/border-beam";
 import { cn } from "@/lib/utils";
+import { BrowserFrame } from "./browser-frame";
 
 export function PaperclipDashboard({ className }: { className?: string }) {
   return (
-    <div
-      className={cn(
-        "relative overflow-hidden rounded-xl border border-white/[0.08] bg-neutral-950 shadow-2xl",
-        className
-      )}
+    <BrowserFrame
+      url="app.paperclip.company/dashboard"
+      beamColorFrom="#f59e0b"
+      beamColorTo="#ef4444"
+      className={className}
     >
-      <BorderBeam size={250} colorFrom="#f59e0b" colorTo="#ef4444" duration={12} />
-
-      <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-2.5">
-        <div className="flex gap-1.5">
-          <div className="size-2.5 rounded-full bg-[#ff5f57]" />
-          <div className="size-2.5 rounded-full bg-[#febc2e]" />
-          <div className="size-2.5 rounded-full bg-[#28c840]" />
-        </div>
-        <div className="flex flex-1 justify-center">
-          <div className="rounded-md bg-white/[0.06] px-8 py-1">
-            <span className="text-[11px] text-neutral-500">app.paperclip.company/dashboard</span>
-          </div>
-        </div>
-      </div>
-
       <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2">
         <div>
           <p className="text-xs font-medium text-neutral-200">Acme AI Corp</p>
@@ -107,6 +92,6 @@ export function PaperclipDashboard({ className }: { className?: string }) {
           <span className="text-[10px] text-neutral-600">Governance: Active</span>
         </div>
       </div>
-    </div>
+    </BrowserFrame>
   );
 }
