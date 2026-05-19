@@ -60,41 +60,45 @@ export async function generateSitemaps() {
 }
 
 export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
+  // Fixed build date for static routes — only update when content actually changes.
+  // Using new Date() would signal a change on every build, wasting crawl budget.
+  const staticLastModified = new Date("2026-05-19");
+
   // Marketing pages (highest priority)
   const marketingRoutes = [
     {
       url: siteConfig.url,
-      lastModified: new Date(),
+      lastModified: staticLastModified,
       changeFrequency: "daily" as const,
       priority: 1,
     },
     {
       url: `${siteConfig.url}${routes.services}`,
-      lastModified: new Date(),
+      lastModified: staticLastModified,
       changeFrequency: "weekly" as const,
       priority: 0.9,
     },
     {
       url: `${siteConfig.url}${routes.servicesOpenclaw}`,
-      lastModified: new Date(),
+      lastModified: staticLastModified,
       changeFrequency: "weekly" as const,
       priority: 0.85,
     },
     {
       url: `${siteConfig.url}${routes.servicesPaperclip}`,
-      lastModified: new Date(),
+      lastModified: staticLastModified,
       changeFrequency: "weekly" as const,
       priority: 0.85,
     },
     {
       url: `${siteConfig.url}${routes.features}`,
-      lastModified: new Date(),
+      lastModified: staticLastModified,
       changeFrequency: "weekly" as const,
       priority: 0.9,
     },
     {
       url: `${siteConfig.url}${routes.pricing}`,
-      lastModified: new Date(),
+      lastModified: staticLastModified,
       changeFrequency: "weekly" as const,
       priority: 0.9,
     },
@@ -104,31 +108,29 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
   const docRoutes = [
     {
       url: `${siteConfig.url}${routes.docs}`,
-      lastModified: new Date(),
+      lastModified: staticLastModified,
       changeFrequency: "daily" as const,
       priority: 0.8,
     },
   ];
 
-  // Example pages removed — these routes don't exist on buildandserve.com
-
   // Support pages (lower priority)
   const supportRoutes = [
     {
       url: `${siteConfig.url}${routes.faq}`,
-      lastModified: new Date(),
+      lastModified: staticLastModified,
       changeFrequency: "weekly" as const,
       priority: 0.6,
     },
     {
       url: `${siteConfig.url}${routes.terms}`,
-      lastModified: new Date(),
+      lastModified: staticLastModified,
       changeFrequency: "monthly" as const,
       priority: 0.4,
     },
     {
       url: `${siteConfig.url}${routes.privacy}`,
-      lastModified: new Date(),
+      lastModified: staticLastModified,
       changeFrequency: "monthly" as const,
       priority: 0.4,
     },

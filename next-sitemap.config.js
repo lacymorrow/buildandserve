@@ -1,7 +1,7 @@
 /** @type {import('next-sitemap').IConfig} */
 export default {
   siteUrl: process.env.SITE_URL || "https://buildandserve.com",
-  generateRobotsTxt: true,
+  generateRobotsTxt: false,
   sitemapSize: 7000,
   robotsTxtOptions: {
     policies: [
