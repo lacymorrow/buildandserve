@@ -117,6 +117,8 @@ const AnimationComponent: React.FC<{
   per: 'line' | 'word' | 'char';
   segmentWrapperClassName?: string;
 }> = React.memo(({ segment, variants, per, segmentWrapperClassName }) => {
+  const isWhitespace = per === 'word' && !segment.trim();
+
   const content =
     per === 'line' ? (
       <motion.span variants={variants} className='block'>
@@ -126,7 +128,7 @@ const AnimationComponent: React.FC<{
       <motion.span
         aria-hidden='true'
         variants={variants}
-        className='inline-block whitespace-pre'
+        className={isWhitespace ? 'whitespace-pre' : 'inline-block whitespace-pre'}
       >
         {segment}
       </motion.span>
@@ -149,7 +151,7 @@ const AnimationComponent: React.FC<{
     return content;
   }
 
-  const defaultWrapperClassName = per === 'line' ? 'block' : 'inline-block';
+  const defaultWrapperClassName = per === 'line' ? 'block' : (isWhitespace ? '' : 'inline-block');
 
   return (
     <span className={cn(defaultWrapperClassName, segmentWrapperClassName)}>
