@@ -151,7 +151,7 @@ const AnimationComponent: React.FC<{
     return content;
   }
 
-  const defaultWrapperClassName = per === 'line' ? 'block' : 'inline-block';
+  const defaultWrapperClassName = per === 'line' ? 'block' : (isWhitespace ? '' : 'inline-block');
 
   return (
     <span className={cn(defaultWrapperClassName, segmentWrapperClassName)}>
