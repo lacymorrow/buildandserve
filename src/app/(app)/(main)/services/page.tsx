@@ -125,7 +125,7 @@ export default function ServicesPage() {
       {/* Hero */}
       <section className="pb-16 pt-24 md:pb-20 md:pt-36">
         <div className="mx-auto max-w-5xl px-6">
-          <h1 className="max-w-3xl text-4xl font-medium tracking-tight md:text-5xl lg:text-[3.5rem] lg:leading-[1.1]">
+          <h1 className="max-w-3xl text-balance text-4xl font-medium tracking-tight md:text-5xl lg:text-[3.5rem] lg:leading-[1.1]">
             We handle the technical side.{" "}
             <span className="text-muted-foreground">
               You focus on everything else.
