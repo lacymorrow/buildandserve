@@ -122,7 +122,7 @@ export default function OpenClawPage() {
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-emerald-400/80">
                 AI Agent Orchestration
               </p>
-              <h1 className="mt-4 text-4xl font-medium tracking-tight text-white sm:text-5xl">
+              <h1 className="mt-4 text-balance text-4xl font-medium tracking-tight text-white sm:text-5xl">
                 Deploy AI Agent Teams That Actually Work
               </h1>
               <p className="mt-6 max-w-lg text-lg leading-relaxed text-neutral-400">

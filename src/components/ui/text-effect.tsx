@@ -116,8 +116,10 @@ const AnimationComponent: React.FC<{
   variants: Variants;
   per: 'line' | 'word' | 'char';
   segmentWrapperClassName?: string;
-}> = React.memo(({ segment, variants, per, segmentWrapperClassName }) => {
+  animationComplete?: boolean;
+}> = React.memo(({ segment, variants, per, segmentWrapperClassName, animationComplete }) => {
   const isWhitespace = per === 'word' && !segment.trim();
+  const wordDisplay = isWhitespace || animationComplete ? 'whitespace-pre' : 'inline-block whitespace-pre';
 
   const content =
     per === 'line' ? (
@@ -128,18 +130,18 @@ const AnimationComponent: React.FC<{
       <motion.span
         aria-hidden='true'
         variants={variants}
-        className={isWhitespace ? 'whitespace-pre' : 'inline-block whitespace-pre'}
+        className={wordDisplay}
       >
         {segment}
       </motion.span>
     ) : (
-      <motion.span className='inline-block whitespace-pre'>
+      <motion.span className={animationComplete ? 'whitespace-pre' : 'inline-block whitespace-pre'}>
         {segment.split('').map((char, charIndex) => (
           <motion.span
             key={`char-${charIndex}`}
             aria-hidden='true'
             variants={variants}
-            className='inline-block whitespace-pre'
+            className={animationComplete ? 'whitespace-pre' : 'inline-block whitespace-pre'}
           >
             {char}
           </motion.span>
@@ -151,7 +153,7 @@ const AnimationComponent: React.FC<{
     return content;
   }
 
-  const defaultWrapperClassName = per === 'line' ? 'block' : (isWhitespace ? '' : 'inline-block');
+  const defaultWrapperClassName = per === 'line' ? 'block' : (isWhitespace || animationComplete ? '' : 'inline-block');
 
   return (
     <span className={cn(defaultWrapperClassName, segmentWrapperClassName)}>
@@ -226,6 +228,7 @@ export function TextEffect({
   segmentTransition,
   style,
 }: TextEffectProps) {
+  const [animationComplete, setAnimationComplete] = React.useState(!trigger);
   const segments = splitText(children, per);
   const MotionTag = motion[as as keyof typeof motion] as typeof motion.div;
 
@@ -275,7 +278,10 @@ export function TextEffect({
           exit='exit'
           variants={computedVariants.container}
           className={className}
-          onAnimationComplete={onAnimationComplete}
+          onAnimationComplete={() => {
+            setAnimationComplete(true);
+            onAnimationComplete?.();
+          }}
           onAnimationStart={onAnimationStart}
           style={style}
         >
@@ -287,6 +293,7 @@ export function TextEffect({
               variants={computedVariants.item}
               per={per}
               segmentWrapperClassName={segmentWrapperClassName}
+              animationComplete={animationComplete}
             />
           ))}
         </MotionTag>

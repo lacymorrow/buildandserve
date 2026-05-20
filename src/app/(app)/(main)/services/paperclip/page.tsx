@@ -124,7 +124,7 @@ export default function PaperclipPage() {
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-amber-400/80">
               AI Company Platform
             </p>
-            <h1 className="mt-4 text-4xl font-medium tracking-tight text-white sm:text-5xl md:text-[3.5rem] md:leading-[1.1]">
+            <h1 className="mt-4 text-balance text-4xl font-medium tracking-tight text-white sm:text-5xl md:text-[3.5rem] md:leading-[1.1]">
               Build Your AI-Powered Company
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-neutral-400">
