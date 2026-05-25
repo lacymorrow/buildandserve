@@ -300,7 +300,7 @@ const nextConfig: NextConfig = {
     ],
   },
   outputFileTracingIncludes: {
-    "*": ["./docs/**/*", "./src/content/**/*"],
+    "*": ["./src/content/**/*"],
   },
 
   /*
