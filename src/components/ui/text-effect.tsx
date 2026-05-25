@@ -119,7 +119,7 @@ const AnimationComponent: React.FC<{
   animationComplete?: boolean;
 }> = React.memo(({ segment, variants, per, segmentWrapperClassName, animationComplete }) => {
   const isWhitespace = per === 'word' && !segment.trim();
-  const wordDisplay = isWhitespace || animationComplete ? 'whitespace-pre' : 'inline-block whitespace-pre';
+  const wordDisplay = animationComplete ? '' : (isWhitespace ? 'whitespace-pre' : 'inline-block whitespace-pre');
 
   const content =
     per === 'line' ? (
@@ -135,13 +135,13 @@ const AnimationComponent: React.FC<{
         {segment}
       </motion.span>
     ) : (
-      <motion.span className={animationComplete ? 'whitespace-pre' : 'inline-block whitespace-pre'}>
+      <motion.span className={animationComplete ? '' : 'inline-block whitespace-pre'}>
         {segment.split('').map((char, charIndex) => (
           <motion.span
             key={`char-${charIndex}`}
             aria-hidden='true'
             variants={variants}
-            className={animationComplete ? 'whitespace-pre' : 'inline-block whitespace-pre'}
+            className={animationComplete ? '' : 'inline-block whitespace-pre'}
           >
             {char}
           </motion.span>
