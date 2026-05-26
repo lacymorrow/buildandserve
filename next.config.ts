@@ -1,6 +1,5 @@
 import type { NextConfig } from "next";
 import type { Configuration as WebpackConfiguration } from "webpack";
-import path from "node:path";
 import {
   buildTimeFeatureFlags,
   buildTimeFeatures,
@@ -300,7 +299,7 @@ const nextConfig: NextConfig = {
     ],
   },
   outputFileTracingIncludes: {
-    "*": ["./docs/**/*", "./src/content/**/*"],
+    "*": ["./src/content/**/*"],
   },
 
   /*
@@ -362,22 +361,6 @@ const nextConfig: NextConfig = {
           "monaco-editor": "commonjs monaco-editor",
         });
       }
-
-      // Ensure docs directory is included in the bundle for dynamic imports
-      if (!config.module) {
-        (config as any).module = { rules: [] };
-      }
-      if (!Array.isArray((config.module as any).rules)) {
-        (config.module as any).rules = [];
-      }
-      (config.module as any).rules.push({
-        test: /\.(md|mdx)$/,
-        include: [
-          path.join(process.cwd(), "docs"),
-          // require("path").join(process.cwd(), "src/content/docs"),
-        ],
-        use: "raw-loader",
-      });
     }
 
     return config;
