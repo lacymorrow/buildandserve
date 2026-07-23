@@ -65,21 +65,21 @@ const productizedServices = [
     title: "ShipKit Launch Package",
     detail: "Fixed Price",
     body: "ShipKit is our production-grade Next.js framework. The Launch Package means you don't buy a boilerplate and figure it out yourself. We build your app on ShipKit, customize it for your brand and use case, and hand you a deployed product in 1–2 weeks.",
-    pricing: "$2K–$5K standard · $7K–$10K Pro",
+    pricing: "$7.5K–$12K",
   },
   {
     id: "ai-audit",
     title: "AI Strategy & Audit",
     detail: "Fixed Price",
     body: "We look at your operations, your team, your tools, and your bottlenecks. Then we tell you where AI saves real time and money. Not theoretical possibilities. Practical implementations you can act on in the next 90 days.",
-    pricing: "$1K–$3K",
+    pricing: "$3,500",
   },
   {
     id: "maintenance",
-    title: "Maintenance & Support",
-    detail: "Monthly Retainer",
-    body: "You built something. Now someone needs to keep it running. Dependencies, security patches, performance, feature tweaks. We handle all of it on a monthly retainer.",
-    pricing: "$500–$3K/month",
+    title: "Maintenance Care Plans",
+    detail: "Monthly Plan",
+    body: "You built something. Now someone needs to keep it running. Three tiers — Essential, Professional, and Premium — covering tested updates, daily backups, monitoring, included dev hours, and response SLAs.",
+    pricing: "$99–$599/month",
   },
 ];
 
@@ -311,14 +311,19 @@ export default function ServicesPage() {
             </div>
             <div className="mt-6 space-y-4 leading-relaxed text-muted-foreground md:mt-0">
               <p>
-                Hourly rates run $100 to $200 depending on what the work
-                requires. Complex AI work, architecture, and technical consulting
-                sit at the higher end. Standard development and integrations are
-                in the middle.
+                Standard development runs $150/hr. Complex AI work,
+                architecture, and technical consulting run $200/hr. Active
+                care-plan clients get a $125/hr member rate.
               </p>
               <p>
-                Project-based pricing is available for well-defined scopes. We
-                can talk through that on the discovery call.
+                Project-based pricing is available for well-defined scopes —
+                starter sites from $7,500, business sites from $15,000, custom
+                web apps from $35,000. Minimum engagement is $5,000. See the
+                full breakdown on our{" "}
+                <Link href={routes.pricing} className="text-foreground underline underline-offset-4">
+                  pricing page
+                </Link>
+                .
               </p>
               <p>
                 All projects start with a free 30-minute call. We&apos;ll tell

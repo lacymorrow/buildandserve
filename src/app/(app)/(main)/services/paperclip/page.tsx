@@ -134,7 +134,7 @@ export default function PaperclipPage() {
             </p>
             <p className="mt-4 text-sm text-neutral-600">
               Setup starts at $5,000 &middot; Optional monthly management
-              $1K–$3K/mo
+              $1.5K–$3K/mo
             </p>
             <div className="mt-8">
               <ScheduleCallModal
