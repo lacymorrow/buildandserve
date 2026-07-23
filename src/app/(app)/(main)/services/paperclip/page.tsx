@@ -16,7 +16,7 @@ import { CompanyStructure } from "../_components/company-structure";
 export const metadata: Metadata = constructMetadata({
   title: "Paperclip AI Company Setup | Build And Serve",
   description:
-    "Stand up an AI-powered company with agent teams via Paperclip. Company design, agent hiring, workflow setup, and governance. $5K–$15K setup + optional management.",
+    "Stand up an AI-powered company with agent teams via Paperclip. Company design, agent hiring, workflow setup, and governance. $5K–$15K setup, autonomous business transformation to $75K.",
 });
 
 const deliverables = [
@@ -336,6 +336,33 @@ export default function PaperclipPage() {
             Optional monthly management: $1,000–$3,000/mo&mdash;we handle
             ongoing optimization, agent additions, and system maintenance.
           </p>
+
+          <div className="mt-10 rounded-2xl border border-amber-500/30 bg-card p-8 md:p-10">
+            <div className="md:flex md:items-start md:justify-between md:gap-12">
+              <div className="max-w-2xl">
+                <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-amber-500">
+                  Enterprise
+                </p>
+                <h3 className="mt-2 text-xl font-medium">
+                  Autonomous Business Transformation
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  For companies that want the whole operation run on agents, not
+                  a pilot. We audit every process in your business, design a
+                  complete agent organization around it, integrate with the
+                  systems you already use&mdash;CRM, billing, support,
+                  email&mdash;and co-manage the first 90 days until it runs
+                  without us. Scoped after a paid discovery engagement.
+                </p>
+              </div>
+              <div className="mt-6 shrink-0 md:mt-0 md:text-right">
+                <p className="text-2xl font-medium">$25,000&ndash;$75,000</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  + managed operations $3K&ndash;$8K/mo
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

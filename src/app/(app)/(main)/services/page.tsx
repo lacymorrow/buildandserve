@@ -205,7 +205,7 @@ export default function ServicesPage() {
                   governance. Set up by the people who built the platform.
                 </p>
                 <p className="mt-4 text-sm font-medium">
-                  $5K–$15K setup + optional management
+                  $5K–$15K setup · transformation engagements $25K–$75K
                 </p>
               </div>
               <ArrowRight className="mt-10 h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
