@@ -10,7 +10,7 @@ import { routes } from "@/config/routes";
 export const metadata: Metadata = constructMetadata({
   title: "Pricing | Build And Serve",
   description:
-    "Transparent pricing for web development, maintenance care plans, managed hosting, SEO, and AI implementation. Project floors, monthly plans, and hourly rates — no surprises.",
+    "Transparent pricing for web development, maintenance care plans, managed hosting, SEO, AI implementation, and AI orchestration. Project floors, monthly plans, and hourly rates — no surprises.",
 });
 
 const projectPricing = [
@@ -157,6 +157,17 @@ const otherServices = [
       { label: "Standard implementation (4–6 weeks)", price: "$10,000–$20,000" },
       { label: "Custom AI integration project", price: "$20,000–$45,000" },
       { label: "AI ops retainer", price: "$1,500–$3,000/mo" },
+    ],
+  },
+  {
+    id: "orchestration",
+    title: "AI orchestration (Paperclip)",
+    items: [
+      { label: "AI company setup (up to 3 agents)", price: "$5,000–$8,000" },
+      { label: "AI company setup (up to 8 agents)", price: "$8,000–$12,000" },
+      { label: "AI company setup (unlimited agents)", price: "$12,000–$15,000+" },
+      { label: "Autonomous business transformation", price: "$25,000–$75,000" },
+      { label: "Managed AI company operations", price: "$3,000–$8,000/mo" },
     ],
   },
   {
