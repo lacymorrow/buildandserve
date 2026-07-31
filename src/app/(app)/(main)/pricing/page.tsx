@@ -160,17 +160,6 @@ const otherServices = [
     ],
   },
   {
-    id: "orchestration",
-    title: "AI orchestration (Paperclip)",
-    items: [
-      { label: "AI company setup (up to 3 agents)", price: "$5,000–$8,000" },
-      { label: "AI company setup (up to 8 agents)", price: "$8,000–$12,000" },
-      { label: "AI company setup (unlimited agents)", price: "$12,000–$15,000+" },
-      { label: "Autonomous business transformation", price: "$25,000–$75,000" },
-      { label: "Managed AI company operations", price: "$3,000–$8,000/mo" },
-    ],
-  },
-  {
     id: "design",
     title: "Design & brand",
     items: [
