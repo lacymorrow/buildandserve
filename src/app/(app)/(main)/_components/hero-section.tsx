@@ -78,7 +78,7 @@ export default function HeroSection() {
                                     delay={0.5}
                                     as="p"
                                     className="mt-8 max-w-2xl text-balance text-lg">
-                                    We build stunning, high-performance websites and applications that drive results. From concept to launch, we're the partner you need to bring your digital vision to life.
+                                    We build stunning, high-performance websites and applications that drive results. From concept to launch, we&apos;re the partner you need to bring your digital vision to life.
                                 </TextEffect>
 
                                 <div className="mt-12 flex flex-col items-center justify-center gap-2 sm:flex-row lg:justify-start">
@@ -127,7 +127,7 @@ export default function HeroSection() {
                     <div className="group relative m-auto max-w-7xl px-6">
                         <div className="flex flex-col items-center md:flex-row">
                             <div className="md:max-w-44 md:border-r md:pr-6">
-                                <p className="text-end text-sm">Trusted by amazing companies</p>
+                                <p className="text-end text-sm">Brands our team has built for</p>
                             </div>
                             <div className="relative py-6 md:w-[calc(100%-11rem)] select-none">
                                 <InfiniteSlider

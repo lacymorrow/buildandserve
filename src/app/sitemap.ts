@@ -41,7 +41,7 @@ async function getContentFiles(contentDir: string): Promise<ContentFile[]> {
 // This function will be called at build time and can also be called on-demand
 export async function generateSitemaps() {
   // Count the number of blog posts and docs to determine sitemap splitting
-  const [blogFiles, docFiles] = await Promise.all([
+  const [_blogFiles, _docFiles] = await Promise.all([
     getContentFiles("blog"),
     getContentFiles("docs"),
   ]);
@@ -77,18 +77,6 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
       lastModified: staticLastModified,
       changeFrequency: "weekly" as const,
       priority: 0.9,
-    },
-    {
-      url: `${siteConfig.url}${routes.servicesOpenclaw}`,
-      lastModified: staticLastModified,
-      changeFrequency: "weekly" as const,
-      priority: 0.85,
-    },
-    {
-      url: `${siteConfig.url}${routes.servicesPaperclip}`,
-      lastModified: staticLastModified,
-      changeFrequency: "weekly" as const,
-      priority: 0.85,
     },
     {
       url: `${siteConfig.url}${routes.features}`,

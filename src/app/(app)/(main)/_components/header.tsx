@@ -9,22 +9,15 @@ import { ScheduleCallModal } from "@/components/modals/schedule-call-modal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type MenuItem = {
+interface MenuItem {
   name: string;
   href: string;
   children?: { name: string; href: string }[];
-};
+}
 
 const menuItems: MenuItem[] = [
   { name: "Home", href: "/" },
-  {
-    name: "Services",
-    href: "/services",
-    children: [
-      { name: "OpenClaw Setup", href: "/services/openclaw" },
-      { name: "Paperclip AI Company", href: "/services/paperclip" },
-    ],
-  },
+  { name: "Services", href: "/services" },
   { name: "FAQ", href: "/#faq" },
 ];
 
