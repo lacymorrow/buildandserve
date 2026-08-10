@@ -17,7 +17,14 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { name: "Home", href: "/" },
-  { name: "Services", href: "/services" },
+  {
+    name: "Services",
+    href: "/services",
+    children: [
+      { name: "OpenClaw Setup", href: "/services/openclaw" },
+      { name: "Paperclip AI Company", href: "/services/paperclip" },
+    ],
+  },
   { name: "FAQ", href: "/#faq" },
 ];
 

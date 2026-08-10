@@ -79,6 +79,18 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
       priority: 0.9,
     },
     {
+      url: `${siteConfig.url}${routes.servicesOpenclaw}`,
+      lastModified: staticLastModified,
+      changeFrequency: "weekly" as const,
+      priority: 0.85,
+    },
+    {
+      url: `${siteConfig.url}${routes.servicesPaperclip}`,
+      lastModified: staticLastModified,
+      changeFrequency: "weekly" as const,
+      priority: 0.85,
+    },
+    {
       url: `${siteConfig.url}${routes.features}`,
       lastModified: staticLastModified,
       changeFrequency: "weekly" as const,
