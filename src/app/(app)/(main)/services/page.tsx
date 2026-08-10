@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ScheduleCallModal } from "@/components/modals/schedule-call-modal";
@@ -152,8 +152,70 @@ export default function ServicesPage() {
         </div>
       </section>
 
+      {/* Flagship Offerings */}
+      <section className="border-t py-20 md:py-28">
+        <div className="mx-auto max-w-5xl px-6">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            Dedicated offerings
+          </p>
+
+          <div className="mt-12 space-y-0 divide-y">
+            <Link
+              href={routes.servicesOpenclaw}
+              className="group flex items-start justify-between gap-8 py-10 first:pt-0"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  <span className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                    AI Agent Orchestration
+                  </span>
+                </div>
+                <h2 className="mt-3 text-2xl font-medium md:text-3xl">
+                  OpenClaw Setup &amp; Deployment
+                </h2>
+                <p className="mt-3 max-w-lg text-muted-foreground">
+                  Multi-agent systems deployed and running. Architecture,
+                  configuration, training. We know where setups go wrong because
+                  we run agent teams ourselves.
+                </p>
+                <p className="mt-4 text-sm font-medium">
+                  $5K–$15K project-based
+                </p>
+              </div>
+              <ArrowRight className="mt-10 h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
+            </Link>
+
+            <Link
+              href={routes.servicesPaperclip}
+              className="group flex items-start justify-between gap-8 py-10"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                  <span className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                    AI Company Platform
+                  </span>
+                </div>
+                <h2 className="mt-3 text-2xl font-medium md:text-3xl">
+                  Paperclip AI Company Setup
+                </h2>
+                <p className="mt-3 max-w-lg text-muted-foreground">
+                  Build your AI-powered company. Agent teams, workflows,
+                  governance. Set up by the people who built the platform.
+                </p>
+                <p className="mt-4 text-sm font-medium">
+                  $5K–$15K setup · transformation engagements $25K–$75K
+                </p>
+              </div>
+              <ArrowRight className="mt-10 h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Packaged Services */}
-      <section className="border-t bg-muted/30 py-20 md:py-28">
+      <section className="bg-muted/30 py-20 md:py-28">
         <div className="mx-auto max-w-5xl px-6">
           <div className="md:grid md:grid-cols-[1fr_2fr] md:gap-16">
             <div>
