@@ -642,11 +642,18 @@ export const deployments = createTable("deployment", {
 		.primaryKey()
 		.$defaultFn(() => crypto.randomUUID()),
 	userId: varchar("user_id", { length: 255 }).notNull(),
-	repoName: varchar("repo_name", { length: 255 }).notNull(),
-	repoOwner: varchar("repo_owner", { length: 255 }).notNull(),
+	projectName: varchar("project_name", { length: 255 }),
+	description: text("description"),
+	repoName: varchar("repo_name", { length: 255 }),
+	repoOwner: varchar("repo_owner", { length: 255 }),
+	githubRepoUrl: varchar("github_repo_url", { length: 1024 }),
+	githubRepoName: varchar("github_repo_name", { length: 512 }),
 	status: varchar("status", { length: 50 }).default("pending").notNull(),
+	error: text("error"),
 	vercelProjectId: varchar("vercel_project_id", { length: 255 }),
+	vercelProjectUrl: varchar("vercel_project_url", { length: 1024 }),
 	vercelDeploymentId: varchar("vercel_deployment_id", { length: 255 }),
+	vercelDeploymentUrl: varchar("vercel_deployment_url", { length: 1024 }),
 	url: varchar("url", { length: 1024 }),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.default(sql`CURRENT_TIMESTAMP`)
