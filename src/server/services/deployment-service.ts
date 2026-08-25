@@ -269,7 +269,8 @@ class DeploymentService {
 
     for (const deployment of deploymentsToSync) {
       const projectIdentifier = deployment.vercelProjectId || deployment.projectName;
-      const deploymentAge = Date.now() - new Date(deployment.updatedAt).getTime();
+      const lastUpdated = deployment.updatedAt ?? deployment.createdAt;
+      const deploymentAge = Date.now() - new Date(lastUpdated).getTime();
       const isStale = deploymentAge > STALE_DEPLOYMENT_MS;
 
       if (!projectIdentifier) {
@@ -418,7 +419,11 @@ class DeploymentService {
 
     // Apply rate limiting
     try {
-      await rateLimitService.checkLimit(userId, "deployment:create", rateLimits.deployments.create);
+      const { maxRequests, windowMs } = rateLimits.deployments.create;
+      await rateLimitService.checkLimit(userId, "deployment:create", {
+        requests: maxRequests,
+        duration: Math.round(windowMs / 1000),
+      });
     } catch (error) {
       logger.warn("Rate limit exceeded for deployment", { userId, error });
       return {
@@ -715,7 +720,7 @@ class DeploymentService {
     error?: string;
   }> {
     try {
-      const githubToken = await getGitHubAccessToken(userId);
+      const githubToken = await getGitHubAccessToken();
       if (!githubToken) {
         return { hasPendingInvitation: false };
       }
@@ -744,7 +749,7 @@ class DeploymentService {
     projectName: string
   ): Promise<{ available: boolean; error?: string; checked: boolean; reason?: string }> {
     try {
-      const githubToken = await getGitHubAccessToken(userId);
+      const githubToken = await getGitHubAccessToken();
       if (!githubToken) {
         return { available: true, checked: false, reason: "no_github_connection" };
       }
@@ -839,7 +844,7 @@ class DeploymentService {
    * Get GitHub token (OAuth or provided)
    */
   private async getGitHubToken(userId: string, providedToken?: string): Promise<string | null> {
-    let githubToken = await getGitHubAccessToken(userId);
+    let githubToken = await getGitHubAccessToken();
 
     if (!githubToken && providedToken) {
       const tokenRegex = /^(ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})$/;
