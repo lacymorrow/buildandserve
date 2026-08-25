@@ -21,8 +21,8 @@ const menuItems: MenuItem[] = [
     name: "Services",
     href: "/services",
     children: [
-      { name: "OpenClaw Setup", href: "/services/openclaw" },
-      { name: "Paperclip AI Company", href: "/services/paperclip" },
+      { name: "OpenClaw Setup", href: "/services/openclaw-setup" },
+      { name: "Paperclip AI Company", href: "/services/paperclip-ai" },
     ],
   },
   { name: "FAQ", href: "/#faq" },

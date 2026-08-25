@@ -33,8 +33,8 @@ export const routes = {
 	features: "/features",
 	pricing: "/pricing",
 	services: "/services",
-	servicesOpenclaw: "/services/openclaw",
-	servicesPaperclip: "/services/paperclip",
+	servicesOpenclaw: "/services/openclaw-setup",
+	servicesPaperclip: "/services/paperclip-ai",
 	launch: "/launch",
 
 	// App routes
@@ -214,13 +214,25 @@ export const routes = {
 
 interface Redirect {
 	source: Route;
-	destination: Route;
+	destination: Route | `https://${string}`;
 	permanent: boolean;
 }
 
 /* eslint-disable-next-line @typescript-eslint/require-await */
 export const redirects = async (): Promise<Redirect[]> => {
 	return [
+		// Legacy AI-fleet URLs point to lacymorrow.com; the pages live on at
+		// /services/openclaw-setup and /services/paperclip-ai (LAC-3146)
+		{
+			source: "/services/openclaw" as Route,
+			destination: "https://lacymorrow.com/services",
+			permanent: true,
+		},
+		{
+			source: "/services/paperclip" as Route,
+			destination: "https://lacymorrow.com/services",
+			permanent: true,
+		},
 		...createRedirects(["/x"], routes.home),
 		...createRedirects(["/docs", "/documentation"], routes.docs),
 		...createRedirects(["/join", "/signup", "/sign-up"], routes.auth.signUp),
