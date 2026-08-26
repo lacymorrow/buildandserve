@@ -8,6 +8,7 @@ import { constructMetadata } from "@/config/metadata";
 import { routes } from "@/config/routes";
 
 export const metadata: Metadata = constructMetadata({
+  path: routes.pricing,
   title: "Pricing | Build And Serve",
   description:
     "Transparent pricing for web development, maintenance care plans, managed hosting, SEO, AI implementation, and AI orchestration. Project floors, monthly plans, and hourly rates — no surprises.",
@@ -107,22 +108,19 @@ const hostingTiers = [
     id: "standard",
     title: "Standard",
     price: "$99/mo",
-    detail:
-      "Managed hosting for marketing sites and small apps. Deploys, SSL, CDN, monitoring.",
+    detail: "Managed hosting for marketing sites and small apps. Deploys, SSL, CDN, monitoring.",
   },
   {
     id: "business",
     title: "Business",
     price: "$179/mo",
-    detail:
-      "Higher-traffic sites. Adds a staging environment and priority infrastructure support.",
+    detail: "Higher-traffic sites. Adds a staging environment and priority infrastructure support.",
   },
   {
     id: "enterprise",
     title: "Enterprise / Custom",
     price: "$299+/mo",
-    detail:
-      "High traffic, compliance requirements, custom SLAs. Scoped to your needs.",
+    detail: "High traffic, compliance requirements, custom SLAs. Scoped to your needs.",
   },
 ];
 
@@ -188,13 +186,11 @@ export default function PricingPage() {
       <section className="pb-16 pt-24 md:pb-20 md:pt-36">
         <div className="mx-auto max-w-5xl px-6">
           <h1 className="max-w-3xl text-balance text-4xl font-medium tracking-tight md:text-5xl lg:text-[3.5rem] lg:leading-[1.1]">
-            Clear pricing.{" "}
-            <span className="text-muted-foreground">No surprises.</span>
+            Clear pricing. <span className="text-muted-foreground">No surprises.</span>
           </h1>
           <p className="mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">
-            Project floors, monthly plans, and hourly rates — published so you
-            can budget before we ever get on a call. Every engagement starts at
-            $5,000 minimum.
+            Project floors, monthly plans, and hourly rates — published so you can budget before we
+            ever get on a call. Every engagement starts at $5,000 minimum.
           </p>
           <div className="mt-10 flex items-center gap-6">
             <ScheduleCallModal
@@ -220,12 +216,10 @@ export default function PricingPage() {
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
                 Web development
               </p>
-              <h2 className="mt-3 text-2xl font-medium md:text-3xl">
-                Project pricing
-              </h2>
+              <h2 className="mt-3 text-2xl font-medium md:text-3xl">Project pricing</h2>
               <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-                Ranges reflect typical scope. Fixed quotes come after a
-                discovery call. Minimum engagement is $5,000.
+                Ranges reflect typical scope. Fixed quotes come after a discovery call. Minimum
+                engagement is $5,000.
               </p>
             </div>
             <div className="mt-10 space-y-0 divide-y md:mt-0">
@@ -236,13 +230,9 @@ export default function PricingPage() {
                 >
                   <div className="min-w-0">
                     <h3 className="text-lg font-medium">{project.title}</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {project.detail}
-                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">{project.detail}</p>
                   </div>
-                  <span className="text-sm font-medium tabular-nums">
-                    {project.price}
-                  </span>
+                  <span className="text-sm font-medium tabular-nums">{project.price}</span>
                 </div>
               ))}
             </div>
@@ -260,9 +250,9 @@ export default function PricingPage() {
             Someone keeps your site running. That someone is us.
           </h2>
           <p className="mt-4 max-w-2xl leading-relaxed text-muted-foreground">
-            Every plan includes tested updates, restore-tested daily backups,
-            uptime and security monitoring, and a monthly health report. Unused
-            hours don&apos;t roll over. Pay annually and get one month free.
+            Every plan includes tested updates, restore-tested daily backups, uptime and security
+            monitoring, and a monthly health report. Unused hours don&apos;t roll over. Pay annually
+            and get one month free.
           </p>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {carePlans.map((plan) => (
@@ -284,25 +274,16 @@ export default function PricingPage() {
                   <span className="text-4xl font-medium">{plan.price}</span>
                   <span className="text-sm text-muted-foreground">/month</span>
                 </p>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  {plan.tagline}
-                </p>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{plan.tagline}</p>
                 <ul className="mt-6 flex-1 space-y-3">
                   {plan.features.map((feature) => (
-                    <li
-                      key={feature.label}
-                      className="flex items-start gap-2 text-sm"
-                    >
+                    <li key={feature.label} className="flex items-start gap-2 text-sm">
                       {feature.included ? (
                         <Check className="mt-0.5 h-4 w-4 shrink-0" />
                       ) : (
                         <Minus className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/40" />
                       )}
-                      <span
-                        className={
-                          feature.included ? "" : "text-muted-foreground/60"
-                        }
-                      >
+                      <span className={feature.included ? "" : "text-muted-foreground/60"}>
                         {feature.label}
                       </span>
                     </li>
@@ -324,9 +305,8 @@ export default function PricingPage() {
             ))}
           </div>
           <p className="mt-8 text-sm text-muted-foreground">
-            Overage hours bill at $125/hr for Essential and Professional,
-            $115/hr for Premium. Need same-day response and extended hours? Add
-            an enhanced SLA rider for $250/mo on any plan.
+            Overage hours bill at $125/hr for Essential and Professional, $115/hr for Premium. Need
+            same-day response and extended hours? Add an enhanced SLA rider for $250/mo on any plan.
           </p>
         </div>
       </section>
@@ -339,9 +319,7 @@ export default function PricingPage() {
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
                 Managed hosting
               </p>
-              <h2 className="mt-3 text-2xl font-medium md:text-3xl">
-                We run the infrastructure
-              </h2>
+              <h2 className="mt-3 text-2xl font-medium md:text-3xl">We run the infrastructure</h2>
               <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
                 Bundle hosting with any care plan and save $20/mo on hosting.
               </p>
@@ -354,13 +332,9 @@ export default function PricingPage() {
                 >
                   <div className="min-w-0">
                     <h3 className="text-lg font-medium">{tier.title}</h3>
-                    <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                      {tier.detail}
-                    </p>
+                    <p className="mt-1 max-w-md text-sm text-muted-foreground">{tier.detail}</p>
                   </div>
-                  <span className="text-sm font-medium tabular-nums">
-                    {tier.price}
-                  </span>
+                  <span className="text-sm font-medium tabular-nums">{tier.price}</span>
                 </div>
               ))}
             </div>
@@ -383,17 +357,14 @@ export default function PricingPage() {
                     className="flex items-baseline justify-between gap-6 py-4 first:pt-0"
                   >
                     <span className="text-sm">{item.label}</span>
-                    <span className="text-sm font-medium tabular-nums">
-                      {item.rate}
-                    </span>
+                    <span className="text-sm font-medium tabular-nums">{item.rate}</span>
                   </div>
                 ))}
               </div>
               <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
-                Government and public-sector work carries a +25% premium
-                covering Section 508 / WCAG 2.2 AA conformance, VPAT
-                documentation, and procurement requirements. Rush timelines add
-                +50%; same-day or weekend work adds +100%.
+                Government and public-sector work carries a +25% premium covering Section 508 / WCAG
+                2.2 AA conformance, VPAT documentation, and procurement requirements. Rush timelines
+                add +50%; same-day or weekend work adds +100%.
               </p>
             </div>
             <div className="space-y-12">
@@ -430,9 +401,8 @@ export default function PricingPage() {
               Not sure what you need?
             </h2>
             <p className="mt-4 max-w-xl text-neutral-400">
-              Book a free 30-minute call. We&apos;ll tell you whether
-              we&apos;re the right fit and roughly what it would cost before
-              anyone commits to anything.
+              Book a free 30-minute call. We&apos;ll tell you whether we&apos;re the right fit and
+              roughly what it would cost before anyone commits to anything.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <ScheduleCallModal

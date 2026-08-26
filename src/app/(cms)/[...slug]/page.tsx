@@ -1,4 +1,3 @@
-import { AppRouterLayout } from "@/components/layouts/app-router-layout";
 import { env } from "@/env";
 import { RenderBuilderContent } from "@/lib/builder-io/builder-io";
 import { getPayloadClient } from "@/lib/payload/payload";
@@ -8,6 +7,7 @@ import { type BuilderContent, builder } from "@builder.io/sdk";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { siteConfig } from "@/config/site-config";
 import type { PageBlock } from "@/types/blocks";
 import { BlockRenderer } from "../payload-blocks";
 
@@ -105,7 +105,7 @@ async function getPageData(
       if (pageQuery?.docs[0]) {
         return { source: "payload", data: pageQuery.docs[0] };
       }
-    } catch (error) {
+    } catch (_error) {
       // Silently handle errors, as in original code
     }
   }
@@ -125,7 +125,7 @@ async function getPageData(
       if (builderContent) {
         return { source: "builder", data: builderContent };
       }
-    } catch (error) {
+    } catch (_error) {
       // Silently handle errors
     }
   }
@@ -135,7 +135,7 @@ async function getPageData(
 
 export async function generateMetadata({
   params: paramsPromise,
-  searchParams: searchParamsPromise,
+  searchParams: _searchParamsPromise,
 }: PageProps): Promise<Metadata> {
   const params = await paramsPromise;
   // const searchParams = await searchParamsPromise;
@@ -146,21 +146,26 @@ export async function generateMetadata({
     return notFound();
   }
 
+  // This route group has no shared metadataBase, so the canonical must be absolute.
+  const canonical = `${siteConfig.url}/${params.slug.join("/")}`;
+
   if (pageData.source === "builder") {
     return {
       title: pageData.data.data?.title ?? "Page",
       description: pageData.data.data?.description ?? "",
+      alternates: { canonical },
     };
   }
 
   if (pageData.source === "payload") {
     const { meta } = pageData.data;
-    const isMedia = (image: any): image is Media =>
-      image && typeof image === "object" && "url" in image;
+    const isMedia = (image: unknown): image is Media =>
+      !!image && typeof image === "object" && "url" in image;
 
     return {
       title: meta?.title,
       description: meta?.description,
+      alternates: { canonical },
       openGraph:
         meta?.image && isMedia(meta.image) && meta.image.url
           ? {

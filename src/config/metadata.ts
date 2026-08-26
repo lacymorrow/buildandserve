@@ -133,11 +133,14 @@ export const headLinkHints: readonly HeadLinkHint[] = [
 type ConstructMetadataProps = Metadata & {
   images?: { url: string; width: number; height: number; alt: string }[];
   noIndex?: boolean;
+  /** Route path (e.g. "/pricing") used to derive the page's canonical URL via metadataBase. */
+  path?: string;
 };
 
 export const constructMetadata = ({
   images = [],
   noIndex = false,
+  path,
   ...metadata
 }: ConstructMetadataProps = {}): Metadata => {
   // Use helper function to get title strings
@@ -147,9 +150,10 @@ export const constructMetadata = ({
   return {
     ...defaultMetadata,
     ...metadata,
-    // Don't inherit the root canonical — each page should declare its own or omit it.
-    // Inheriting root canonical causes all pages to claim the homepage as their canonical.
-    alternates: metadata.alternates ?? undefined,
+    // Each page declares its own canonical (via `path`, resolved against metadataBase).
+    // Never inherit the root canonical — that makes every page claim the homepage
+    // as its canonical, which Search Console reports as duplicate-page errors.
+    alternates: metadata.alternates ?? (path ? { canonical: path } : undefined),
     openGraph: {
       ...defaultOpenGraph,
       // Assign the extracted title string or fallback

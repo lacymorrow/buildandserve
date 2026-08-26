@@ -7,6 +7,7 @@ import { FAQ } from "../_shipkit-io-components/faq";
 import { FeaturesTable } from "../_shipkit-io-components/features-table";
 
 export const metadata: Metadata = constructMetadata({
+  path: "/features",
   title: `${siteConfig.title} Features & Capabilities`,
   description:
     "Explore Shipkit's powerful features: Next.js 14, TypeScript, Payload CMS, Auth.js, Builder.io, and more. Everything you need to build modern, scalable applications.",

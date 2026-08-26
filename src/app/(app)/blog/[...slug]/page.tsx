@@ -56,6 +56,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   ogUrl.searchParams.set("url", siteConfig.url.replace(/https?:\/\//, ""));
 
   return constructMetadata({
+    path: `/blog/${slug}`,
     title: `${post.title} | Shipkit Blog`,
     description:
       post.description ||

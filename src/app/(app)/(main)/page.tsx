@@ -1,14 +1,18 @@
+import type { Metadata } from "next";
+import Script from "next/script";
 import CallToAction from "@/app/(app)/(main)/_components/call-to-action";
+import { CaseStudyMarquee } from "@/app/(app)/(main)/_components/case-study-marquee";
 import FAQsTwo from "@/app/(app)/(main)/_components/faqs-2";
-import IntegrationsSection from "@/app/(app)/(main)/_components/integrations-7";
 import FeaturesSection1 from "@/app/(app)/(main)/_components/features-8";
 import FeaturesSection from "@/app/(app)/(main)/_components/features-eleven";
 import FeaturesSection2 from "@/app/(app)/(main)/_components/features-six";
 import HeroSection from "@/app/(app)/(main)/_components/hero-section";
-import { CaseStudyMarquee } from "@/app/(app)/(main)/_components/case-study-marquee";
+import IntegrationsSection from "@/app/(app)/(main)/_components/integrations-7";
 import { JsonLd } from "@/components/primitives/json-ld";
-import Script from "next/script";
+import { constructMetadata } from "@/config/metadata";
 import { siteConfig } from "@/config/site-config";
+
+export const metadata: Metadata = constructMetadata({ path: "/" });
 
 export default function BuildAndServePage() {
   return (

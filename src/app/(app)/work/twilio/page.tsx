@@ -1,23 +1,17 @@
-import { Metadata } from "next";
+import { Calendar, ExternalLink, MessageSquare, Users } from "lucide-react";
+import type { Metadata } from "next";
 import Image from "next/image";
 import { Link } from "@/components/primitives/link-with-transition";
-import {
-  ArrowLeft,
-  ExternalLink,
-  Calendar,
-  Users,
-  MessageSquare,
-} from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { BackNavigation } from "@/components/ui/back-navigation";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { constructMetadata } from "@/config/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = constructMetadata({
+  path: "/work/twilio",
   title: "Twilio - Case Study",
-  description:
-    "Building developer tools and hackathon projects with Twilio's communication APIs",
-};
+  description: "Building developer tools and hackathon projects with Twilio's communication APIs",
+});
 
 export default function TwilioPage() {
   return (
@@ -32,9 +26,9 @@ export default function TwilioPage() {
             <h1 className="text-4xl font-bold">Twilio</h1>
           </div>
           <p className="text-xl text-muted-foreground leading-relaxed">
-            Building innovative communication tools and developer experiences
-            with Twilio's APIs. Created hackathon projects and developer
-            resources that showcase the power of programmable communications.
+            Building innovative communication tools and developer experiences with Twilio's APIs.
+            Created hackathon projects and developer resources that showcase the power of
+            programmable communications.
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -76,8 +70,7 @@ export default function TwilioPage() {
             className="w-full rounded-lg shadow-lg"
           />
           <p className="text-sm text-muted-foreground text-center">
-            Custom hardware hackpack combining IoT sensors with Twilio
-            communication APIs
+            Custom hardware hackpack combining IoT sensors with Twilio communication APIs
           </p>
         </div>
 
@@ -86,33 +79,19 @@ export default function TwilioPage() {
           <h2 className="text-2xl font-semibold">Project Overview</h2>
           <div className="prose prose-gray dark:prose-invert max-w-none">
             <p>
-              Twilio empowers developers to build the future of communications
-              with powerful APIs for voice, video, messaging, and more. I
-              created innovative hackpack projects that demonstrate creative
-              applications of Twilio's communication platform.
+              Twilio empowers developers to build the future of communications with powerful APIs
+              for voice, video, messaging, and more. I created innovative hackpack projects that
+              demonstrate creative applications of Twilio's communication platform.
             </p>
 
             <h3>Key Contributions</h3>
             <ul>
-              <li>
-                Designed and built physical hackpack combining hardware with
-                Twilio APIs
-              </li>
-              <li>
-                Created educational resources for developer community workshops
-              </li>
+              <li>Designed and built physical hackpack combining hardware with Twilio APIs</li>
+              <li>Created educational resources for developer community workshops</li>
               <li>Developed proof-of-concept IoT communication projects</li>
-              <li>
-                Built interactive demos showcasing SMS, voice, and video
-                capabilities
-              </li>
-              <li>
-                Contributed to open-source Twilio SDK examples and documentation
-              </li>
-              <li>
-                Led hackathon workshops teaching developers communication API
-                integration
-              </li>
+              <li>Built interactive demos showcasing SMS, voice, and video capabilities</li>
+              <li>Contributed to open-source Twilio SDK examples and documentation</li>
+              <li>Led hackathon workshops teaching developers communication API integration</li>
             </ul>
           </div>
         </div>
@@ -124,25 +103,22 @@ export default function TwilioPage() {
             <div>
               <h4 className="font-medium mb-2">Hardware Integration</h4>
               <p className="text-sm text-muted-foreground">
-                Custom PCB design with integrated sensors, LED displays, and
-                wireless connectivity. Seamlessly interfaces with Twilio APIs
-                for real-world communication triggers.
+                Custom PCB design with integrated sensors, LED displays, and wireless connectivity.
+                Seamlessly interfaces with Twilio APIs for real-world communication triggers.
               </p>
             </div>
             <div>
               <h4 className="font-medium mb-2">API Integration</h4>
               <p className="text-sm text-muted-foreground">
-                Utilized Twilio's REST APIs for SMS, Voice, and Video
-                communication. Implemented webhook endpoints for real-time event
-                processing and response.
+                Utilized Twilio's REST APIs for SMS, Voice, and Video communication. Implemented
+                webhook endpoints for real-time event processing and response.
               </p>
             </div>
             <div>
               <h4 className="font-medium mb-2">Developer Experience</h4>
               <p className="text-sm text-muted-foreground">
-                Created comprehensive setup guides, code examples, and
-                interactive tutorials to help developers quickly prototype
-                communication-enabled applications.
+                Created comprehensive setup guides, code examples, and interactive tutorials to help
+                developers quickly prototype communication-enabled applications.
               </p>
             </div>
           </div>
@@ -155,8 +131,7 @@ export default function TwilioPage() {
             <div className="bg-muted/30 rounded-lg p-4">
               <h4 className="font-medium mb-2">Smart Notifications</h4>
               <p className="text-sm text-muted-foreground">
-                Environmental sensors trigger SMS/voice alerts when thresholds
-                are exceeded
+                Environmental sensors trigger SMS/voice alerts when thresholds are exceeded
               </p>
             </div>
             <div className="bg-muted/30 rounded-lg p-4">
@@ -168,15 +143,13 @@ export default function TwilioPage() {
             <div className="bg-muted/30 rounded-lg p-4">
               <h4 className="font-medium mb-2">Visual Feedback</h4>
               <p className="text-sm text-muted-foreground">
-                LED displays and indicators provide real-time status and
-                communication feedback
+                LED displays and indicators provide real-time status and communication feedback
               </p>
             </div>
             <div className="bg-muted/30 rounded-lg p-4">
               <h4 className="font-medium mb-2">Extensible Design</h4>
               <p className="text-sm text-muted-foreground">
-                Modular architecture allows developers to add custom sensors and
-                communication flows
+                Modular architecture allows developers to add custom sensors and communication flows
               </p>
             </div>
           </div>
@@ -185,11 +158,7 @@ export default function TwilioPage() {
         {/* CTA */}
         <div className="flex gap-4 pt-6">
           <Button asChild>
-            <Link
-              href="https://twilio.com"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <Link href="https://twilio.com" target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4 mr-2" />
               Visit Twilio
             </Link>

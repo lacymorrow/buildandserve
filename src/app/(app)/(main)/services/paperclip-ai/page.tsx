@@ -14,6 +14,7 @@ import { routes } from "@/config/routes";
 import { CompanyStructure } from "../_components/company-structure";
 
 export const metadata: Metadata = constructMetadata({
+  path: routes.servicesPaperclip,
   title: "Paperclip AI Company Setup | Build And Serve",
   description:
     "Stand up an AI-powered company with agent teams via Paperclip. Company design, agent hiring, workflow setup, and governance. $5K–$15K setup, autonomous business transformation to $75K.",
@@ -128,13 +129,11 @@ export default function PaperclipPage() {
               Build Your AI-Powered Company
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-neutral-400">
-              We set up Paperclip for your business&mdash;agent teams, workflows,
-              governance. A structured AI workforce handling real tasks, managed
-              by you.
+              We set up Paperclip for your business&mdash;agent teams, workflows, governance. A
+              structured AI workforce handling real tasks, managed by you.
             </p>
             <p className="mt-4 text-sm text-neutral-600">
-              Setup starts at $5,000 &middot; Optional monthly management
-              $1.5K–$3K/mo
+              Setup starts at $5,000 &middot; Optional monthly management $1.5K–$3K/mo
             </p>
             <div className="mt-8">
               <ScheduleCallModal
@@ -166,16 +165,15 @@ export default function PaperclipPage() {
             </h2>
             <div className="mt-6 space-y-4 leading-relaxed text-muted-foreground">
               <p>
-                Paperclip is our platform. When we set up your AI company,
-                you&apos;re getting the team that designed the system and runs
-                their own operations on it every day. That&apos;s the practical
-                difference between a setup that works and one that needs constant
-                fixing.
+                Paperclip is our platform. When we set up your AI company, you&apos;re getting the
+                team that designed the system and runs their own operations on it every day.
+                That&apos;s the practical difference between a setup that works and one that needs
+                constant fixing.
               </p>
               <p>
-                We&apos;re not writing reports about what you could do with AI
-                someday. We&apos;re standing up a working system with real agents
-                doing real tasks by the time we hand it over.
+                We&apos;re not writing reports about what you could do with AI someday. We&apos;re
+                standing up a working system with real agents doing real tasks by the time we hand
+                it over.
               </p>
             </div>
           </div>
@@ -207,10 +205,7 @@ export default function PaperclipPage() {
                 body: "The first two months are when you figure out how to actually run this thing. We're there for all of it. Adjusting agents, tuning workflows, answering the questions you didn't know you'd have.",
               },
             ].map((b, i) => (
-              <div
-                key={b.title}
-                className="grid gap-4 md:grid-cols-[3rem_1fr_1.5fr] md:gap-8"
-              >
+              <div key={b.title} className="grid gap-4 md:grid-cols-[3rem_1fr_1.5fr] md:gap-8">
                 <span className="hidden text-4xl font-light text-amber-500/30 md:block">
                   {String(i + 1)}
                 </span>
@@ -252,14 +247,10 @@ export default function PaperclipPage() {
                   <span className="flex h-7 w-7 items-center justify-center rounded-full border text-xs tabular-nums text-muted-foreground">
                     {i + 1}
                   </span>
-                  {i < 3 && (
-                    <div className="hidden h-px flex-1 bg-border lg:block" />
-                  )}
+                  {i < 3 && <div className="hidden h-px flex-1 bg-border lg:block" />}
                 </div>
                 <h3 className="font-medium">{step.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {step.body}
-                </p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
               </div>
             ))}
           </div>
@@ -271,9 +262,7 @@ export default function PaperclipPage() {
         <div className="mx-auto max-w-5xl px-6">
           <div className="md:grid md:grid-cols-[1fr_1.5fr] md:gap-16">
             <div>
-              <h2 className="text-2xl font-medium md:text-3xl">
-                Every engagement includes
-              </h2>
+              <h2 className="text-2xl font-medium md:text-3xl">Every engagement includes</h2>
             </div>
             <ul className="mt-8 grid gap-3 sm:grid-cols-2 md:mt-0">
               {deliverables.map((item) => (
@@ -294,8 +283,8 @@ export default function PaperclipPage() {
             Pricing
           </p>
           <p className="mt-3 max-w-lg text-muted-foreground">
-            All packages include company design, agent setup, workflow
-            configuration, team training, and 60 days post-launch support.
+            All packages include company design, agent setup, workflow configuration, team training,
+            and 60 days post-launch support.
           </p>
 
           <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-3">
@@ -320,10 +309,7 @@ export default function PaperclipPage() {
                 <div className="mt-8">
                   <ScheduleCallModal
                     trigger={
-                      <Button
-                        className="w-full"
-                        variant={pkg.featured ? "default" : "outline"}
-                      >
+                      <Button className="w-full" variant={pkg.featured ? "default" : "outline"}>
                         Get started
                       </Button>
                     }
@@ -333,8 +319,8 @@ export default function PaperclipPage() {
             ))}
           </div>
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            Optional monthly management: $1,000–$3,000/mo&mdash;we handle
-            ongoing optimization, agent additions, and system maintenance.
+            Optional monthly management: $1,000–$3,000/mo&mdash;we handle ongoing optimization,
+            agent additions, and system maintenance.
           </p>
 
           <div className="mt-10 rounded-2xl border border-amber-500/30 bg-card p-8 md:p-10">
@@ -343,16 +329,13 @@ export default function PaperclipPage() {
                 <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-amber-500">
                   Enterprise
                 </p>
-                <h3 className="mt-2 text-xl font-medium">
-                  Autonomous Business Transformation
-                </h3>
+                <h3 className="mt-2 text-xl font-medium">Autonomous Business Transformation</h3>
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  For companies that want the whole operation run on agents, not
-                  a pilot. We audit every process in your business, design a
-                  complete agent organization around it, integrate with the
-                  systems you already use&mdash;CRM, billing, support,
-                  email&mdash;and co-manage the first 90 days until it runs
-                  without us. Scoped after a paid discovery engagement.
+                  For companies that want the whole operation run on agents, not a pilot. We audit
+                  every process in your business, design a complete agent organization around it,
+                  integrate with the systems you already use&mdash;CRM, billing, support,
+                  email&mdash;and co-manage the first 90 days until it runs without us. Scoped after
+                  a paid discovery engagement.
                 </p>
               </div>
               <div className="mt-6 shrink-0 md:mt-0 md:text-right">
@@ -371,24 +354,16 @@ export default function PaperclipPage() {
         <div className="mx-auto max-w-5xl px-6">
           <div className="md:grid md:grid-cols-[1fr_2fr] md:gap-16">
             <div>
-              <h2 className="text-2xl font-medium md:text-3xl">
-                Common questions
-              </h2>
+              <h2 className="text-2xl font-medium md:text-3xl">Common questions</h2>
             </div>
             <Accordion type="single" collapsible className="w-full">
               {faqs.map((faq) => (
-                <AccordionItem
-                  key={faq.id}
-                  value={faq.id}
-                  className="border-b border-dashed"
-                >
+                <AccordionItem key={faq.id} value={faq.id} className="border-b border-dashed">
                   <AccordionTrigger className="cursor-pointer py-5 text-left text-[15px] hover:no-underline">
                     {faq.question}
                   </AccordionTrigger>
                   <AccordionContent>
-                    <p className="pb-2 leading-relaxed text-muted-foreground">
-                      {faq.answer}
-                    </p>
+                    <p className="pb-2 leading-relaxed text-muted-foreground">{faq.answer}</p>
                   </AccordionContent>
                 </AccordionItem>
               ))}
@@ -405,18 +380,14 @@ export default function PaperclipPage() {
               Let&apos;s talk about your AI company.
             </h2>
             <p className="mt-4 max-w-xl text-neutral-400">
-              30-minute call, no commitment. We&apos;ll discuss what your
-              operations look like, which agent roles make sense, and what the
-              setup would involve. If Paperclip isn&apos;t the right fit,
-              we&apos;ll say so.
+              30-minute call, no commitment. We&apos;ll discuss what your operations look like,
+              which agent roles make sense, and what the setup would involve. If Paperclip
+              isn&apos;t the right fit, we&apos;ll say so.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <ScheduleCallModal
                 trigger={
-                  <Button
-                    size="lg"
-                    className="bg-amber-600 text-white hover:bg-amber-500"
-                  >
+                  <Button size="lg" className="bg-amber-600 text-white hover:bg-amber-500">
                     <span className="text-nowrap">Book a discovery call</span>
                     <ChevronRight className="ml-1" />
                   </Button>
