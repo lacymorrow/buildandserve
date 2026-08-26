@@ -3,7 +3,14 @@ title: Privacy Policy
 description: Our commitment to protecting your privacy
 ---
 
+import { constructMetadata } from "@/config/metadata";
 import { siteConfig } from "@/config/site-config";
+
+export const metadata = constructMetadata({
+  path: "/privacy-policy",
+  title: "Privacy Policy",
+  description: "Our commitment to protecting your privacy",
+});
 
 # Privacy Policy
 
