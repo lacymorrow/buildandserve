@@ -29,7 +29,12 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const resolvedParams = await params;
+  const slugPath = resolvedParams.slug?.join("/");
+  const docsPath = slugPath ? `/docs/${slugPath}` : "/docs";
+
   const defaultMetadata = constructMetadata({
+    path: docsPath,
     title: `Documentation - Build Better Apps Faster | ${siteConfig.title}`,
     description: `Master app development with ${siteConfig.title}'s comprehensive documentation. Step-by-step guides, API references, and best practices for building production-ready applications.`,
     openGraph: {
@@ -47,6 +52,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
 
     return constructMetadata({
+      path: docsPath,
       title: `${doc.title} - ${siteConfig.title} Documentation`,
       description:
         doc.description ||
@@ -59,7 +65,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         locale: "en_US",
       },
     });
-  } catch (error) {
+  } catch (_error) {
     return defaultMetadata;
   }
 }

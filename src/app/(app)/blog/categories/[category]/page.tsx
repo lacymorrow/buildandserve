@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { Link } from "@/components/primitives/link-with-transition";
 import { Badge } from "@/components/ui/badge";
+import { constructMetadata } from "@/config/metadata";
 import { getBlogCategories, getBlogPosts } from "@/lib/blog";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +21,17 @@ interface CategoryPageProps {
   params: Promise<{
     category: string;
   }>;
+}
+
+export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
+  const resolvedParams = await params;
+  const category = decodeURIComponent(resolvedParams.category);
+
+  return constructMetadata({
+    path: `/blog/categories/${encodeURIComponent(category)}`,
+    title: `${category} Posts`,
+    description: `Blog posts in the ${category} category.`,
+  });
 }
 
 // Note: The component signature is updated to use params as Promise

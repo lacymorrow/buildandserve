@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { constructMetadata } from "@/config/metadata";
 import Image from "next/image";
 import { Link } from "@/components/primitives/link-with-transition";
 import { ArrowLeft, ExternalLink, Calendar, Users, Zap } from "lucide-react";
@@ -7,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BackNavigation } from "@/components/ui/back-navigation";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = constructMetadata({
+  path: "/work/swell-energy",
   title: "Swell Energy - Case Study",
   description:
     "Building the future of distributed energy with React, Node.js, and modern web technologies",
-};
+});
 
 export default function SwellEnergyPage() {
   return (

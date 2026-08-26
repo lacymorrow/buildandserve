@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   authorUtils,
-  type BlogAuthor,
   getActiveAuthors,
   getAuthorById,
   getAuthorByName,
@@ -27,7 +26,9 @@ export async function generateStaticParams() {
   const authorIds = new Set<string>();
 
   // Add author IDs from active authors
-  activeAuthors.forEach((author) => authorIds.add(author.id));
+  activeAuthors.forEach((author) => {
+    authorIds.add(author.id);
+  });
 
   // Add legacy author names that have posts
   posts.forEach((post) => {
@@ -39,7 +40,9 @@ export async function generateStaticParams() {
       authorIds.add(post.authorObject.id);
     }
     if (post.authorObjects) {
-      post.authorObjects.forEach((author) => authorIds.add(author.id));
+      post.authorObjects.forEach((author) => {
+        authorIds.add(author.id);
+      });
     }
   });
 
@@ -55,6 +58,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const displayName = authorUtils.getDisplayName(author);
 
   return constructMetadata({
+    path: `/blog/authors/${encodeURIComponent(authorId)}`,
     title: `Posts by ${displayName} | Shipkit Blog`,
     description: `Read all blog posts written by ${displayName}. Discover insights, tutorials, and best practices for app development.`,
   });

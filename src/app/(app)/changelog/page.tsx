@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/utils/format-date";
 export const revalidate = 3600;
 
 export const metadata: Metadata = constructMetadata({
+  path: "/changelog",
   title: `Changelog | ${siteConfig.title}`,
   description: `See what's new in ${siteConfig.title}. Latest updates, features, and fixes.`,
 });

@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { constructMetadata } from "@/config/metadata";
 import Image from "next/image";
 import { Link } from "@/components/primitives/link-with-transition";
 import {
@@ -13,11 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BackNavigation } from "@/components/ui/back-navigation";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = constructMetadata({
+  path: "/work/credit-karma",
   title: "Credit Karma - Case Study",
   description:
     "Building financial wellness tools with React, helping millions manage their credit and finances",
-};
+});
 
 export default function CreditKarmaPage() {
   return (

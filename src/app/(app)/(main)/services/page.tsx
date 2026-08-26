@@ -9,6 +9,7 @@ import { routes } from "@/config/routes";
 import { ServicesFaq } from "./_components/services-faq";
 
 export const metadata: Metadata = constructMetadata({
+  path: routes.services,
   title: "Web Development Services | Build And Serve",
   description:
     "Next.js, React, AI integration, and full-stack development from a team with 20+ years of experience. Based in Charlotte. Working with startups and growing companies.",

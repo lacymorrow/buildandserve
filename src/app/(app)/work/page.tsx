@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { constructMetadata } from "@/config/metadata";
 import Image from "next/image";
 import { Link } from "@/components/primitives/link-with-transition";
 import {
@@ -23,11 +24,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = constructMetadata({
+  path: "/work",
   title: "Work & Projects - Portfolio",
   description:
     "Featured work and case studies showcasing expertise in React, TypeScript, and modern web development",
-};
+});
 
 const projects = [
   {

@@ -363,9 +363,9 @@ siteConfig.payload.adminTitleSuffix = ` - ${siteConfig.title} CMS`;
 
 // siteConfig.manifest.startUrl = routes.home; // Uncomment and import routes if needed
 
-// Make sure alternates exists before assigning canonical
-siteConfig.metadata.alternates ??= {};
-siteConfig.metadata.alternates.canonical = siteConfig.url;
+// No site-wide canonical: a global canonical makes every inheriting page claim
+// the homepage as its canonical (Search Console "duplicate" errors, LAC-3466).
+// Pages declare their own canonical via constructMetadata({ path }).
 
 // Check appleWebApp is an object before assigning title
 if (

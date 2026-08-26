@@ -14,6 +14,7 @@ import { routes } from "@/config/routes";
 import { CompanyStructure } from "../_components/company-structure";
 
 export const metadata: Metadata = constructMetadata({
+  path: routes.servicesPaperclip,
   title: "Paperclip AI Company Setup | Build And Serve",
   description:
     "Stand up an AI-powered company with agent teams via Paperclip. Company design, agent hiring, workflow setup, and governance. $5K–$15K setup, autonomous business transformation to $75K.",

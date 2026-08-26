@@ -8,6 +8,7 @@ import { constructMetadata } from "@/config/metadata";
 import { routes } from "@/config/routes";
 
 export const metadata: Metadata = constructMetadata({
+  path: routes.pricing,
   title: "Pricing | Build And Serve",
   description:
     "Transparent pricing for web development, maintenance care plans, managed hosting, SEO, AI implementation, and AI orchestration. Project floors, monthly plans, and hourly rates — no surprises.",

@@ -10,6 +10,7 @@ import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
 
 export const metadata: Metadata = constructMetadata({
+  path: routes.contact,
   title: "Contact Us",
   description: `Get in touch with the ${siteConfig.name} team. We'd love to hear from you and answer any questions.`,
 });

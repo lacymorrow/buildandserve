@@ -8,6 +8,7 @@ import { type BlogPost, getBlogPosts } from "@/lib/blog";
 import { formatDate } from "@/lib/utils/format-date";
 
 export const metadata: Metadata = constructMetadata({
+  path: "/blog",
   title: "Blog - Latest Updates & Guides | Shipkit",
   description:
     "Stay up to date with the latest app development trends, tutorials, and best practices. Learn how to build better apps faster with Shipkit's expert guides and tips.",

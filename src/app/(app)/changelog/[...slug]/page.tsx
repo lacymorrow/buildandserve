@@ -37,6 +37,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   return constructMetadata({
+    path: `/changelog/${slug}`,
     title: `${entry.title} | ${siteConfig.title} Changelog`,
     description: entry.description,
   });

@@ -14,6 +14,7 @@ import { routes } from "@/config/routes";
 import { AgentTerminal } from "../_components/agent-terminal";
 
 export const metadata: Metadata = constructMetadata({
+  path: routes.servicesOpenclaw,
   title: "OpenClaw Setup & Deployment | Build And Serve",
   description:
     "Deploy AI agent orchestration with OpenClaw. We handle architecture, configuration, agent design, deployment, and training. $5K–$15K project-based.",

@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { constructMetadata } from "@/config/metadata";
 import Image from "next/image";
 import { Link } from "@/components/primitives/link-with-transition";
 import {
@@ -13,11 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BackNavigation } from "@/components/ui/back-navigation";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = constructMetadata({
+  path: "/work/twilio",
   title: "Twilio - Case Study",
   description:
     "Building developer tools and hackathon projects with Twilio's communication APIs",
-};
+});
 
 export default function TwilioPage() {
   return (
