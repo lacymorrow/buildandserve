@@ -1,11 +1,12 @@
-import { Calendar, ExternalLink, Users, Zap } from "lucide-react";
-import type { Metadata } from "next";
+import { Metadata } from "next";
+import { constructMetadata } from "@/config/metadata";
 import Image from "next/image";
 import { Link } from "@/components/primitives/link-with-transition";
-import { BackNavigation } from "@/components/ui/back-navigation";
-import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, ExternalLink, Calendar, Users, Zap } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-import { constructMetadata } from "@/config/metadata";
+import { Badge } from "@/components/ui/badge";
+import { BackNavigation } from "@/components/ui/back-navigation";
 
 export const metadata: Metadata = constructMetadata({
   path: "/work/swell-energy",
@@ -27,8 +28,9 @@ export default function SwellEnergyPage() {
             <h1 className="text-4xl font-bold">Swell Energy</h1>
           </div>
           <p className="text-xl text-muted-foreground leading-relaxed">
-            Building the future of distributed energy with advanced battery storage and solar
-            solutions. Led development of customer-facing platforms and internal management tools.
+            Building the future of distributed energy with advanced battery
+            storage and solar solutions. Led development of customer-facing
+            platforms and internal management tools.
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -79,19 +81,32 @@ export default function SwellEnergyPage() {
           <h2 className="text-2xl font-semibold">Project Overview</h2>
           <div className="prose prose-gray dark:prose-invert max-w-none">
             <p>
-              Swell Energy is revolutionizing the energy sector by building distributed battery
-              networks that provide grid services while delivering savings to homeowners. As Senior
-              Frontend Engineer, I led the development of multiple customer-facing and internal
+              Swell Energy is revolutionizing the energy sector by building
+              distributed battery networks that provide grid services while
+              delivering savings to homeowners. As Senior Frontend Engineer, I
+              led the development of multiple customer-facing and internal
               platforms.
             </p>
 
             <h3>Key Contributions</h3>
             <ul>
-              <li>Built responsive customer enrollment and management portals</li>
-              <li>Developed real-time energy monitoring dashboards with D3.js visualizations</li>
-              <li>Implemented complex data tables for internal operations teams</li>
-              <li>Created automated testing suites improving code reliability by 40%</li>
-              <li>Led migration from legacy systems to modern React architecture</li>
+              <li>
+                Built responsive customer enrollment and management portals
+              </li>
+              <li>
+                Developed real-time energy monitoring dashboards with D3.js
+                visualizations
+              </li>
+              <li>
+                Implemented complex data tables for internal operations teams
+              </li>
+              <li>
+                Created automated testing suites improving code reliability by
+                40%
+              </li>
+              <li>
+                Led migration from legacy systems to modern React architecture
+              </li>
             </ul>
           </div>
         </div>
@@ -134,22 +149,24 @@ export default function SwellEnergyPage() {
             <div>
               <h4 className="font-medium mb-2">Frontend Architecture</h4>
               <p className="text-sm text-muted-foreground">
-                Built with React 18, TypeScript, and modern state management. Implemented
-                micro-frontend architecture for scalability across multiple product lines.
+                Built with React 18, TypeScript, and modern state management.
+                Implemented micro-frontend architecture for scalability across
+                multiple product lines.
               </p>
             </div>
             <div>
               <h4 className="font-medium mb-2">Data Visualization</h4>
               <p className="text-sm text-muted-foreground">
-                Custom D3.js charts and dashboards for real-time energy data, battery performance
-                metrics, and grid interaction visualization.
+                Custom D3.js charts and dashboards for real-time energy data,
+                battery performance metrics, and grid interaction visualization.
               </p>
             </div>
             <div>
               <h4 className="font-medium mb-2">Performance Optimization</h4>
               <p className="text-sm text-muted-foreground">
-                Implemented lazy loading, code splitting, and caching strategies. Achieved 95+
-                Lighthouse scores across all user-facing applications.
+                Implemented lazy loading, code splitting, and caching
+                strategies. Achieved 95+ Lighthouse scores across all
+                user-facing applications.
               </p>
             </div>
           </div>
@@ -158,7 +175,11 @@ export default function SwellEnergyPage() {
         {/* CTA */}
         <div className="flex gap-4 pt-6">
           <Button asChild>
-            <Link href="https://swellenergy.com" target="_blank" rel="noopener noreferrer">
+            <Link
+              href="https://swellenergy.com"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <ExternalLink className="h-4 w-4 mr-2" />
               Visit Swell Energy
             </Link>

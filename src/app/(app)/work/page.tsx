@@ -1,19 +1,20 @@
+import type { Metadata } from "next";
+import { constructMetadata } from "@/config/metadata";
+import Image from "next/image";
+import { Link } from "@/components/primitives/link-with-transition";
 import {
   ArrowLeft,
   ArrowRight,
   Calendar,
-  CreditCard,
-  Gamepad2,
-  MessageSquare,
   Users,
   Zap,
+  CreditCard,
+  MessageSquare,
+  Gamepad2,
 } from "lucide-react";
-import type { Metadata } from "next";
-import Image from "next/image";
-import { Link } from "@/components/primitives/link-with-transition";
-import { Badge } from "@/components/ui/badge";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -22,7 +23,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { constructMetadata } from "@/config/metadata";
 
 export const metadata: Metadata = constructMetadata({
   path: "/work",
@@ -39,7 +39,14 @@ const projects = [
       "Building the future of distributed energy with advanced battery storage and solar solutions. Led development of customer-facing platforms and internal management tools.",
     image: "/static/swell-energy/swell-program.jpeg",
     href: "/work/swell-energy",
-    technologies: ["React", "Node.js", "TypeScript", "PostgreSQL", "AWS", "D3.js"],
+    technologies: [
+      "React",
+      "Node.js",
+      "TypeScript",
+      "PostgreSQL",
+      "AWS",
+      "D3.js",
+    ],
     duration: "2022-2023",
     scale: "10k+ Users",
     role: "Senior Frontend Lead",
@@ -52,7 +59,14 @@ const projects = [
       "Empowering millions of Americans to make financial progress. Built modern web applications for credit monitoring, financial products, and personalized recommendations.",
     image: "/static/credit-karma/credit-karma-1.png",
     href: "/work/credit-karma",
-    technologies: ["React", "Redux", "TypeScript", "Node.js", "GraphQL", "A/B Testing"],
+    technologies: [
+      "React",
+      "Redux",
+      "TypeScript",
+      "Node.js",
+      "GraphQL",
+      "A/B Testing",
+    ],
     duration: "2021-2022",
     scale: "120M+ Users",
     role: "Senior Frontend Engineer",
@@ -65,7 +79,14 @@ const projects = [
       "Building innovative communication tools and developer experiences with Twilio's APIs. Created hackathon projects and developer resources.",
     image: "/static/twilio/hackpack/hackpack.png",
     href: "/work/twilio",
-    technologies: ["JavaScript", "Node.js", "Twilio API", "WebRTC", "Hardware", "IoT"],
+    technologies: [
+      "JavaScript",
+      "Node.js",
+      "Twilio API",
+      "WebRTC",
+      "Hardware",
+      "IoT",
+    ],
     duration: "2020-2021",
     scale: "Developer",
     role: "Hackpack Creator",
@@ -78,7 +99,14 @@ const projects = [
       "Making personal finance fun through gamification. Built mobile-first experiences that turn saving money into an engaging game with real financial rewards.",
     image: "/static/long-game/longgame.png",
     href: "/work/longgame",
-    technologies: ["React Native", "TypeScript", "Redux", "Firebase", "Stripe", "Game Design"],
+    technologies: [
+      "React Native",
+      "TypeScript",
+      "Redux",
+      "Firebase",
+      "Stripe",
+      "Game Design",
+    ],
     duration: "2020-2021",
     scale: "100k+ Downloads",
     role: "Senior Mobile Engineer",
@@ -101,8 +129,9 @@ export default function WorkPage() {
         <div className="space-y-4">
           <h1 className="text-4xl font-bold">Work & Projects</h1>
           <p className="text-xl text-muted-foreground leading-relaxed max-w-3xl">
-            Featured case studies showcasing expertise in React, TypeScript, and modern web
-            development. From fintech platforms serving millions to innovative hardware projects.
+            Featured case studies showcasing expertise in React, TypeScript, and
+            modern web development. From fintech platforms serving millions to
+            innovative hardware projects.
           </p>
         </div>
       </div>
@@ -182,10 +211,12 @@ export default function WorkPage() {
 
       {/* Call to Action */}
       <div className="mt-16 text-center space-y-4">
-        <h2 className="text-2xl font-semibold">Interested in working together?</h2>
+        <h2 className="text-2xl font-semibold">
+          Interested in working together?
+        </h2>
         <p className="text-muted-foreground max-w-2xl mx-auto">
-          We&apos;re always excited to take on new challenges and build amazing products. Let&apos;s
-          discuss how we can bring your ideas to life.
+          We&apos;re always excited to take on new challenges and build amazing
+          products. Let&apos;s discuss how we can bring your ideas to life.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
           <Button asChild>

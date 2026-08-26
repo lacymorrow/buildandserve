@@ -1,16 +1,24 @@
-import { Calendar, Gamepad2, Users } from "lucide-react";
-import type { Metadata } from "next";
+import { Metadata } from "next";
+import { constructMetadata } from "@/config/metadata";
 import Image from "next/image";
 import { Link } from "@/components/primitives/link-with-transition";
-import { BackNavigation } from "@/components/ui/back-navigation";
-import { Badge } from "@/components/ui/badge";
+import {
+  ArrowLeft,
+  ExternalLink,
+  Calendar,
+  Users,
+  Gamepad2,
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-import { constructMetadata } from "@/config/metadata";
+import { Badge } from "@/components/ui/badge";
+import { BackNavigation } from "@/components/ui/back-navigation";
 
 export const metadata: Metadata = constructMetadata({
   path: "/work/longgame",
   title: "Long Game - Case Study",
-  description: "Gamifying personal finance with React Native, making saving money fun and engaging",
+  description:
+    "Gamifying personal finance with React Native, making saving money fun and engaging",
 });
 
 export default function LongGamePage() {
@@ -26,8 +34,9 @@ export default function LongGamePage() {
             <h1 className="text-4xl font-bold">Long Game</h1>
           </div>
           <p className="text-xl text-muted-foreground leading-relaxed">
-            Making personal finance fun through gamification. Built mobile-first experiences that
-            turn saving money into an engaging game with real financial rewards.
+            Making personal finance fun through gamification. Built mobile-first
+            experiences that turn saving money into an engaging game with real
+            financial rewards.
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -78,18 +87,30 @@ export default function LongGamePage() {
           <h2 className="text-2xl font-semibold">Project Overview</h2>
           <div className="prose prose-gray dark:prose-invert max-w-none">
             <p>
-              Long Game revolutionizes personal finance by turning saving money into an engaging
-              game. Users play mini-games with their actual savings, earning rewards while building
-              healthy financial habits. As Senior Mobile Engineer, I built core gaming experiences
-              and financial integrations.
+              Long Game revolutionizes personal finance by turning saving money
+              into an engaging game. Users play mini-games with their actual
+              savings, earning rewards while building healthy financial habits.
+              As Senior Mobile Engineer, I built core gaming experiences and
+              financial integrations.
             </p>
 
             <h3>Key Contributions</h3>
             <ul>
-              <li>Built cross-platform mobile app with React Native serving 100k+ users</li>
-              <li>Developed interactive mini-games with smooth 60fps animations</li>
-              <li>Implemented secure financial integrations with banking APIs and Stripe</li>
-              <li>Created gamification systems with achievements, streaks, and rewards</li>
+              <li>
+                Built cross-platform mobile app with React Native serving 100k+
+                users
+              </li>
+              <li>
+                Developed interactive mini-games with smooth 60fps animations
+              </li>
+              <li>
+                Implemented secure financial integrations with banking APIs and
+                Stripe
+              </li>
+              <li>
+                Created gamification systems with achievements, streaks, and
+                rewards
+              </li>
               <li>Built real-time multiplayer gaming features with Firebase</li>
               <li>Designed user onboarding flow increasing retention by 35%</li>
             </ul>
@@ -103,22 +124,25 @@ export default function LongGamePage() {
             <div>
               <h4 className="font-medium mb-2">Mobile Architecture</h4>
               <p className="text-sm text-muted-foreground">
-                React Native with TypeScript for type safety and Redux for state management. Custom
-                native modules for device-specific features and performance optimization.
+                React Native with TypeScript for type safety and Redux for state
+                management. Custom native modules for device-specific features
+                and performance optimization.
               </p>
             </div>
             <div>
               <h4 className="font-medium mb-2">Game Engine</h4>
               <p className="text-sm text-muted-foreground">
-                Custom game engine built with React Native Reanimated 2 for smooth 60fps animations.
-                Implements physics simulations and collision detection for engaging gameplay.
+                Custom game engine built with React Native Reanimated 2 for
+                smooth 60fps animations. Implements physics simulations and
+                collision detection for engaging gameplay.
               </p>
             </div>
             <div>
               <h4 className="font-medium mb-2">Financial Security</h4>
               <p className="text-sm text-muted-foreground">
-                Bank-level security with encrypted data transmission, secure token management, and
-                compliance with financial regulations including PCI DSS standards.
+                Bank-level security with encrypted data transmission, secure
+                token management, and compliance with financial regulations
+                including PCI DSS standards.
               </p>
             </div>
           </div>
@@ -131,7 +155,8 @@ export default function LongGamePage() {
             <div className="bg-muted/30 rounded-lg p-4">
               <h4 className="font-medium mb-2">Mini-Games</h4>
               <p className="text-sm text-muted-foreground">
-                Multiple engaging games including coin flips, wheel spins, and scratch cards
+                Multiple engaging games including coin flips, wheel spins, and
+                scratch cards
               </p>
             </div>
             <div className="bg-muted/30 rounded-lg p-4">
@@ -143,13 +168,15 @@ export default function LongGamePage() {
             <div className="bg-muted/30 rounded-lg p-4">
               <h4 className="font-medium mb-2">Social Gaming</h4>
               <p className="text-sm text-muted-foreground">
-                Compete with friends and family in multiplayer savings challenges
+                Compete with friends and family in multiplayer savings
+                challenges
               </p>
             </div>
             <div className="bg-muted/30 rounded-lg p-4">
               <h4 className="font-medium mb-2">Progress Tracking</h4>
               <p className="text-sm text-muted-foreground">
-                Visualize savings goals with gamified progress bars and achievement badges
+                Visualize savings goals with gamified progress bars and
+                achievement badges
               </p>
             </div>
           </div>
@@ -161,15 +188,21 @@ export default function LongGamePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <div className="text-2xl font-bold text-purple-600">$2M+</div>
-              <div className="text-sm text-muted-foreground">Total User Savings</div>
+              <div className="text-sm text-muted-foreground">
+                Total User Savings
+              </div>
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <div className="text-2xl font-bold text-purple-600">85%</div>
-              <div className="text-sm text-muted-foreground">User Retention Rate</div>
+              <div className="text-sm text-muted-foreground">
+                User Retention Rate
+              </div>
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <div className="text-2xl font-bold text-purple-600">4.8★</div>
-              <div className="text-sm text-muted-foreground">App Store Rating</div>
+              <div className="text-sm text-muted-foreground">
+                App Store Rating
+              </div>
             </div>
           </div>
         </div>

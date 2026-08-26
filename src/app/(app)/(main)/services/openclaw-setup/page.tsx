@@ -127,8 +127,9 @@ export default function OpenClawPage() {
                 Deploy AI Agent Teams That Actually Work
               </h1>
               <p className="mt-6 max-w-lg text-lg leading-relaxed text-neutral-400">
-                We set up OpenClaw agent orchestration for your business&mdash;architecture,
-                deployment, training. Your agents coordinating on real tasks in weeks, not months.
+                We set up OpenClaw agent orchestration for your
+                business&mdash;architecture, deployment, training. Your agents
+                coordinating on real tasks in weeks, not months.
               </p>
               <p className="mt-4 text-sm text-neutral-600">Starting at $5,000</p>
               <div className="mt-8">
@@ -163,15 +164,17 @@ export default function OpenClawPage() {
             </div>
             <div className="mt-6 space-y-4 leading-relaxed text-muted-foreground md:mt-0">
               <p>
-                We didn&apos;t learn OpenClaw from a tutorial. We&apos;ve built agent orchestration
-                tools, shipped them to production, and run our own multi-agent teams daily. When we
-                deploy OpenClaw for you, we&apos;re drawing on problems we&apos;ve already solved on
-                our own systems.
+                We didn&apos;t learn OpenClaw from a tutorial. We&apos;ve built
+                agent orchestration tools, shipped them to production, and run
+                our own multi-agent teams daily. When we deploy OpenClaw for you,
+                we&apos;re drawing on problems we&apos;ve already solved on our
+                own systems.
               </p>
               <p>
-                Juno, Lacy Shell, our own internal agent teams all run on these same patterns. We
-                know where the configuration gets tricky, which agent designs hold up under real
-                workloads, and how to keep the whole system from falling over on day two.
+                Juno, Lacy Shell, our own internal agent teams all run on these
+                same patterns. We know where the configuration gets tricky, which
+                agent designs hold up under real workloads, and how to keep the
+                whole system from falling over on day two.
               </p>
             </div>
           </div>
@@ -208,9 +211,13 @@ export default function OpenClawPage() {
                   key={s.step}
                   className="grid border-t py-8 md:grid-cols-[3rem_10rem_1fr] md:gap-8"
                 >
-                  <span className="text-sm tabular-nums text-emerald-500/60">{s.step}</span>
+                  <span className="text-sm tabular-nums text-emerald-500/60">
+                    {s.step}
+                  </span>
                   <h3 className="text-lg font-medium">{s.title}</h3>
-                  <p className="mt-2 leading-relaxed text-muted-foreground md:mt-0">{s.body}</p>
+                  <p className="mt-2 leading-relaxed text-muted-foreground md:mt-0">
+                    {s.body}
+                  </p>
                 </div>
               ))}
             </div>
@@ -223,7 +230,9 @@ export default function OpenClawPage() {
         <div className="mx-auto max-w-5xl px-6">
           <div className="md:grid md:grid-cols-[1fr_1.5fr] md:gap-16">
             <div>
-              <h2 className="text-2xl font-medium md:text-3xl">Every engagement includes</h2>
+              <h2 className="text-2xl font-medium md:text-3xl">
+                Every engagement includes
+              </h2>
             </div>
             <ul className="mt-8 grid gap-3 sm:grid-cols-2 md:mt-0">
               {deliverables.map((item) => (
@@ -244,15 +253,17 @@ export default function OpenClawPage() {
             Pricing
           </p>
           <p className="mt-3 max-w-lg text-muted-foreground">
-            All packages include architecture design, deployment, team training, and 30 days
-            post-launch support.
+            All packages include architecture design, deployment, team training,
+            and 30 days post-launch support.
           </p>
 
           <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-3">
             {packages.map((pkg) => (
               <div
                 key={pkg.name}
-                className={`flex flex-col bg-card p-8 ${pkg.featured ? "bg-card" : ""}`}
+                className={`flex flex-col bg-card p-8 ${
+                  pkg.featured ? "bg-card" : ""
+                }`}
               >
                 {pkg.featured && (
                   <p className="mb-4 text-[10px] font-medium uppercase tracking-[0.2em] text-emerald-500">
@@ -273,7 +284,10 @@ export default function OpenClawPage() {
                 <div className="mt-8">
                   <ScheduleCallModal
                     trigger={
-                      <Button className="w-full" variant={pkg.featured ? "default" : "outline"}>
+                      <Button
+                        className="w-full"
+                        variant={pkg.featured ? "default" : "outline"}
+                      >
                         Get started
                       </Button>
                     }
@@ -293,16 +307,24 @@ export default function OpenClawPage() {
         <div className="mx-auto max-w-5xl px-6">
           <div className="md:grid md:grid-cols-[1fr_2fr] md:gap-16">
             <div>
-              <h2 className="text-2xl font-medium md:text-3xl">Common questions</h2>
+              <h2 className="text-2xl font-medium md:text-3xl">
+                Common questions
+              </h2>
             </div>
             <Accordion type="single" collapsible className="w-full">
               {faqs.map((faq) => (
-                <AccordionItem key={faq.id} value={faq.id} className="border-b border-dashed">
+                <AccordionItem
+                  key={faq.id}
+                  value={faq.id}
+                  className="border-b border-dashed"
+                >
                   <AccordionTrigger className="cursor-pointer py-5 text-left text-[15px] hover:no-underline">
                     {faq.question}
                   </AccordionTrigger>
                   <AccordionContent>
-                    <p className="pb-2 leading-relaxed text-muted-foreground">{faq.answer}</p>
+                    <p className="pb-2 leading-relaxed text-muted-foreground">
+                      {faq.answer}
+                    </p>
                   </AccordionContent>
                 </AccordionItem>
               ))}
@@ -319,14 +341,18 @@ export default function OpenClawPage() {
               Ready to deploy?
             </h2>
             <p className="mt-4 max-w-xl text-neutral-400">
-              Most projects start with a 30-minute call&mdash;no commitment, just a conversation
-              about what you&apos;re trying to automate and whether OpenClaw is the right approach.
-              If it&apos;s not, we&apos;ll tell you.
+              Most projects start with a 30-minute call&mdash;no commitment,
+              just a conversation about what you&apos;re trying to automate and
+              whether OpenClaw is the right approach. If it&apos;s not,
+              we&apos;ll tell you.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <ScheduleCallModal
                 trigger={
-                  <Button size="lg" className="bg-emerald-600 text-white hover:bg-emerald-500">
+                  <Button
+                    size="lg"
+                    className="bg-emerald-600 text-white hover:bg-emerald-500"
+                  >
                     <span className="text-nowrap">Book a discovery call</span>
                     <ChevronRight className="ml-1" />
                   </Button>
