@@ -4,6 +4,13 @@ description: Legal information
 ---
 
 import { siteConfig } from "@/config/site-config";
+import { constructMetadata } from "@/config/metadata";
+
+export const metadata = constructMetadata({
+  title: "Legal Information",
+  description: "Legal information",
+  path: "/legal",
+});
 
 # Legal Information
 
