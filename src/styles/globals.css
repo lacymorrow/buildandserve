@@ -15,8 +15,8 @@ body {
 
 /* ! Custom text highlight styles */
 ::selection {
-	color: rgba(255, 255, 255, 0.8);
-	background-color: rgba(255, 20, 188, 0.75);
+	color: rgba(255, 255, 255, 0.9);
+	background-color: rgba(37, 99, 235, 0.75);
 }
 
 /* Connection highlight animation */

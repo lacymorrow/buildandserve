@@ -242,7 +242,7 @@ export const siteConfig: SiteConfig = {
 		fullName: "Build And Serve",
 		role: "Web Development Agency",
 		avatar: "/logo.png",
-		location: "San Francisco, CA",
+		location: "Charlotte, NC",
 		bio: "We build modern sites and applications with an emphasis on AI features.",
 	},
 
@@ -267,8 +267,8 @@ export const siteConfig: SiteConfig = {
 			"Server Components",
 		],
 		themeColor: {
-			light: "white",
-			dark: "black",
+			light: "#ffffff",
+			dark: "#0f172a",
 		},
 		locale: "en-US",
 		generator: "Next.js", // Use Next.js as generator
