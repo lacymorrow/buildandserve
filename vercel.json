@@ -10,6 +10,19 @@
       "destination": "https://ai-offline.vercel.app/:match*"
     }
   ],
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "cal.buildandserve.com"
+        }
+      ],
+      "destination": "https://cal.com/lacymorrow/dev",
+      "permanent": false
+    }
+  ],
   "buildCommand": "pnpm run build:vercel",
   "devCommand": "pnpm run dev",
   "installCommand": "pnpm install",
