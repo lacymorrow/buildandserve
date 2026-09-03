@@ -19,8 +19,8 @@
           "value": "cal.buildandserve.com"
         }
       ],
-      "destination": "https://cal.com/lacymorrow/dev",
-      "permanent": false
+      "destination": "https://cal.com/build-and-serve/discovery",
+      "permanent": true
     }
   ],
   "buildCommand": "pnpm run build:vercel",
