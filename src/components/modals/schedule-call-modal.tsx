@@ -69,7 +69,7 @@ export function ScheduleCallModal({ trigger }: { trigger: React.ReactNode }) {
                         </div>
                     }>
                         <CalEmbed
-                            calLink="lacymorrow/dev"
+                            calLink="build-and-serve/discovery"
                             className="w-full h-full"
                             style={{
                                 width: '100%',
