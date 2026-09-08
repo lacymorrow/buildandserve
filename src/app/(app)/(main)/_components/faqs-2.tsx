@@ -12,6 +12,11 @@ export default function FAQsTwo() {
             answer: 'We start with a discovery call to understand your needs, then move on to a proposal. Once approved, we move to design, development, and deployment. We work with you every step of the way to ensure you are happy with the final product.',
         },
         {
+            id: 'item-ai',
+            question: 'Do you build AI features, or just websites?',
+            answer: 'Both. We build websites, and we build AI systems: chat assistants, automations, custom agents, and LLM features inside your product. We also ship our own AI tools, so this is core work for us, not a side offering.',
+        },
+        {
             id: 'item-2',
             question: 'How much does a project cost?',
             answer: 'The cost of a project depends on the scope of work. We provide a detailed proposal with a breakdown of costs before we begin any work.',
