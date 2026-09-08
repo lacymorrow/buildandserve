@@ -124,13 +124,13 @@ const ProjectTile = ({ project }: { project: PortfolioProject }) => {
       {/* Readability scrim */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
 
-      {/* Category eyebrow */}
-      <span className="absolute left-4 top-4 z-10 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white backdrop-blur-md ring-1 ring-white/20">
+      {/* Category eyebrow — dark chip so it stays legible over light screenshots */}
+      <span className="absolute left-4 top-4 z-10 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white backdrop-blur-md ring-1 ring-white/15">
         {project.category}
       </span>
 
       {/* Hover affordance */}
-      <span className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white opacity-0 backdrop-blur-md ring-1 ring-white/20 transition-all duration-300 group-hover:opacity-100 group-hover:-translate-y-0.5">
+      <span className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white opacity-0 backdrop-blur-md ring-1 ring-white/15 transition-all duration-300 group-hover:opacity-100 group-hover:-translate-y-0.5">
         <ArrowUpRight className="h-4 w-4" />
       </span>
 
