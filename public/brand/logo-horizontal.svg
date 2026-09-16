@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 160">
+  <g transform="translate(16, 16) scale(0.25)">
+    <path d="M64 64 L304 256 L64 448 Z" fill="#2563EB"/>
+    <path d="M208 64 L448 256 L208 448 Z" fill="#0891B2" opacity="0.85"/>
+  </g>
+  <text x="170" y="72" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="42" font-weight="700" fill="#0f172a" letter-spacing="-0.02em">Build</text>
+  <text x="170" y="120" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="42" font-weight="700" fill="#0f172a" letter-spacing="-0.02em"><tspan fill="#64748b" font-weight="400">And </tspan>Serve</text>
+</svg>

@@ -52,11 +52,11 @@ export async function GET(request: Request) {
 
   const isDark = theme === "dark";
   const colors = {
-    bg: isDark ? "#000000" : "#ffffff",
-    fg: isDark ? "#ffffff" : "#000000",
-    border: isDark ? "#44403c" : "#d6d3d1",
-    muted: isDark ? "#78716c" : "#57534e",
-    body: isDark ? "#a8a29e" : "#57534e",
+    bg: isDark ? "#0f172a" : "#ffffff",
+    fg: isDark ? "#f8fafc" : "#0f172a",
+    border: isDark ? "#1e293b" : "#e2e8f0",
+    muted: isDark ? "#64748b" : "#475569",
+    body: isDark ? "#94a3b8" : "#475569",
   };
 
   const [fonts] = await Promise.all([loadAssets()]);
