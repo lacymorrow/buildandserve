@@ -32,6 +32,8 @@ describe("sitemap", () => {
       "/docs",
       "/terms-of-service",
       "/privacy-policy",
+      "/eula",
+      "/legal",
     ]) {
       expect(urls).toContain(`${siteConfig.url}${path}`);
     }

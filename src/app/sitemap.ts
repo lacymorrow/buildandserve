@@ -150,6 +150,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly" as const,
       priority: 0.4,
     },
+    // Remaining legal pages. These gained self-referencing canonicals in #41
+    // but were still absent from the sitemap.
+    ...["/eula", "/legal"].map((path) => ({
+      url: `${siteConfig.url}${path}`,
+      lastModified: staticLastModified,
+      changeFrequency: "monthly" as const,
+      priority: 0.3,
+    })),
   ];
 
   const [blogFiles, docFiles] = await Promise.all([
