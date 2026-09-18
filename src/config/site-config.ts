@@ -181,11 +181,11 @@ export const siteConfig: SiteConfig = {
 
 	name: "Build And Serve",
 	title: "Build And Serve",
-	tagline: "Modern sites and applications with an emphasis on AI features.",
+	tagline: "Websites and AI systems for companies.",
 	url: "https://buildandserve.com",
 	ogImage: "https://buildandserve.com/og",
 	description:
-		"Charlotte's preferred web studio building high-performance websites and AI-powered apps—fast, secure, SEO-ready, and designed to convert visitors into customers.",
+		"Build And Serve designs and builds websites and AI systems for companies, from local businesses to global enterprises. We ship our own AI products, so we build yours from real experience.",
 
 	branding: {
 		projectName: "Build And Serve",
@@ -240,10 +240,10 @@ export const siteConfig: SiteConfig = {
 		twitter_handle: "buildandserve",
 		domain: "buildandserve.com",
 		fullName: "Build And Serve",
-		role: "Web Development Agency",
+		role: "Web and AI Development Agency",
 		avatar: "/logo.png",
 		location: "San Francisco, CA",
-		bio: "We build modern sites and applications with an emphasis on AI features.",
+		bio: "We build websites and AI systems for companies, from local businesses to global enterprises.",
 	},
 
 	store: {
@@ -258,13 +258,13 @@ export const siteConfig: SiteConfig = {
 	metadata: {
 		keywords: [
 			"Web Development",
+			"AI Development",
+			"AI Integration",
+			"AI Agents",
 			"Web Agency",
-			"Web Studio",
-			"AI Features",
+			"Enterprise AI",
 			"Next.js",
 			"React",
-			"Tailwind CSS",
-			"Server Components",
 		],
 		themeColor: {
 			light: "white",

@@ -8,7 +8,7 @@ export default function FeaturesSection() {
             <div className="py-24">
                 <div className="mx-auto w-full max-w-3xl px-6">
                     <h2 className="text-foreground text-balance text-3xl font-semibold md:text-4xl">
-                        <span className="text-muted-foreground">A flexible development team for your business, whenever you need it.</span>
+                        <span className="text-muted-foreground">A flexible team for your website and AI projects, whenever you need it.</span>
                     </h2>
                     <div className="@container mt-12 space-y-12">
                         <Card

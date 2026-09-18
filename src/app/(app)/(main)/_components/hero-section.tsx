@@ -68,7 +68,7 @@ export default function HeroSection() {
                                         speedSegment={0.3}
                                         as="span"
                                         className="mt-8 max-w-2xl text-balance text-5xl md:text-6xl lg:mt-16 xl:text-7xl">
-                                        Charlotte’s Trusted Partner for Websites & Digital Growth
+                                        We build websites and AI systems for companies
                                     </TextEffect>
                                 </h1>
                                 <TextEffect
@@ -78,7 +78,7 @@ export default function HeroSection() {
                                     delay={0.5}
                                     as="p"
                                     className="mt-8 max-w-2xl text-balance text-lg">
-                                    We build stunning, high-performance websites and applications that drive results. From concept to launch, we&apos;re the partner you need to bring your digital vision to life.
+                                    From a local business site to an enterprise AI platform, we build it and keep it running. We ship our own AI products like ShipKit and Juno, so we build yours from real experience.
                                 </TextEffect>
 
                                 <div className="mt-12 flex flex-col items-center justify-center gap-2 sm:flex-row lg:justify-start">
