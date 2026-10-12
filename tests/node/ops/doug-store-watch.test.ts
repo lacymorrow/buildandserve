@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { type StoreResult, toIncidents } from "../../../scripts/doug-store-watch";
+import {
+  EVIDENCE_DIR_NAME,
+  expiredRuns,
+  RETENTION_DAYS,
+  resolveEvidenceBase,
+  type StoreResult,
+  toIncidents,
+} from "../../../scripts/doug-store-watch";
 
 const DETECTED_AT = "2026-10-12T18:00:00.000Z";
 
@@ -131,5 +138,59 @@ describe("toIncidents", () => {
       DETECTED_AT
     );
     expect(incidents).toEqual([]);
+  });
+});
+
+describe("resolveEvidenceBase", () => {
+  const MAIN = "/Users/lacy/repo/buildandserve";
+
+  it("writes into the checkout it was run from when that checkout is the main one", () => {
+    expect(resolveEvidenceBase(MAIN, null)).toBe(`${MAIN}/${EVIDENCE_DIR_NAME}`);
+  });
+
+  it("escapes a disposable worktree and writes into the main checkout (LAC-4300)", () => {
+    // Paperclip wakes the agent inside .paperclip/worktrees/<issue>/, which is
+    // deleted when the issue closes. Evidence written there does not survive
+    // 30 days, which is the whole point of keeping it.
+    const worktree = `${MAIN}/.paperclip/worktrees/LAC-4299-doug-store-watch-every-4h-read-only`;
+    const gitFile = `gitdir: ${MAIN}/.git/worktrees/LAC-4299-doug-store-watch-every-4h-read-only\n`;
+    expect(resolveEvidenceBase(worktree, gitFile)).toBe(`${MAIN}/${EVIDENCE_DIR_NAME}`);
+  });
+
+  it("falls back to the current checkout when the .git pointer is not a worktree pointer", () => {
+    // A submodule or a relocated gitdir. Unknown shape must not throw or write
+    // evidence somewhere unrelated.
+    expect(resolveEvidenceBase(MAIN, "gitdir: /somewhere/else/modules/thing\n")).toBe(
+      `${MAIN}/${EVIDENCE_DIR_NAME}`
+    );
+  });
+});
+
+describe("expiredRuns", () => {
+  const NOW = Date.parse("2026-11-12T00:00:00.000Z");
+  const daysAgo = (d: number) => NOW - d * 86_400_000;
+
+  it("keeps everything inside the 30-day retention window", () => {
+    const runs = [
+      { name: "2026-11-12T00-00-00-000Z", mtimeMs: NOW },
+      { name: "2026-11-11T20-00-00-000Z", mtimeMs: daysAgo(0.2) },
+      { name: "2026-10-14T00-00-00-000Z", mtimeMs: daysAgo(29) },
+    ];
+    expect(expiredRuns(runs, NOW)).toEqual([]);
+  });
+
+  it("drops runs older than the retention window", () => {
+    const runs = [
+      { name: "fresh", mtimeMs: daysAgo(1) },
+      { name: "stale", mtimeMs: daysAgo(31) },
+      { name: "ancient", mtimeMs: daysAgo(400) },
+    ];
+    expect(expiredRuns(runs, NOW)).toEqual(["stale", "ancient"]);
+  });
+
+  it("uses a 30-day window by default", () => {
+    expect(RETENTION_DAYS).toBe(30);
+    expect(expiredRuns([{ name: "edge", mtimeMs: daysAgo(30.5) }], NOW)).toEqual(["edge"]);
+    expect(expiredRuns([{ name: "edge", mtimeMs: daysAgo(29.5) }], NOW)).toEqual([]);
   });
 });

@@ -93,6 +93,9 @@ does not support a "checkout works" claim. If the screenshot and the summary
 disagree, the screenshot wins.
 
 Keep the evidence for at least 30 days so a slow regression can be traced back.
+Evidence that does not outlive the run is not evidence: if the job runs inside a
+temporary checkout, a container, or anything else that gets thrown away, write
+it somewhere that survives.
 
 ## When the store changes shape
 
@@ -166,12 +169,21 @@ That is the whole message. The ticket carries the detail and the evidence.
 The BAS implementation is `scripts/doug-store-watch.ts` in this repo:
 
 ```bash
-bun scripts/doug-store-watch.ts --out ./store-watch-runs/$(date -u +%Y%m%dT%H%M%SZ)
+bun scripts/doug-store-watch.ts
 ```
 
 Exit codes: `0` clean, `1` incident, `2` needs a human or agent to adapt, `3`
-harness error. Evidence lands in the `--out` directory as `report.json` plus the
-screenshots.
+harness error.
+
+Evidence lands in `store-watch-runs/<timestamp>/` as `report.json` plus the
+screenshots. That path is resolved against the **main checkout**, not the
+working directory, because an agent woken on this job runs inside a disposable
+git worktree (`.paperclip/worktrees/<issue>/`) and evidence written there dies
+with the worktree (LAC-4300). Pass `--out <dir>` to override; an explicit
+`--out` is used as given.
+
+Each run prunes evidence older than 30 days, so the directory stays bounded
+without anyone tending it.
 
 To rehearse the failure path without breaking anything, point it at a host that
 does not exist:
