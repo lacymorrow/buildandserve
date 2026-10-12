@@ -158,6 +158,17 @@ Until `~/.paperclip/fleet-health/bas-enabled` exists the section logs a visible
 `bas-jobs` deliberately only runs when `bas` passed. When the control plane is
 down, one alarm for one cause is enough.
 
+Because the box does not exist yet, the monitor's own dry run only ever reaches
+the skip branch, so the failure branches would otherwise ship unverified.
+`scripts/bas-fleet-health-block.test.sh` stubs `curl`, `ssh`, `log` and `check`
+and asserts all nine outcomes, including against the copy actually installed on
+graphite:
+
+```bash
+./scripts/bas-fleet-health-block.test.sh                 # the copy in this repo
+BLOCK=/tmp/installed-block.sh ./scripts/bas-fleet-health-block.test.sh
+```
+
 To prove the alert path end to end without breaking anything:
 
 ```bash

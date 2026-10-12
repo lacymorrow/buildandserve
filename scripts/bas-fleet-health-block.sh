@@ -29,16 +29,16 @@ if [ ! -f "$BAS_MARKER" ]; then
 else
   # --- bas: control plane + its own backup freshness ---
   CHECK_OK=0; CHECK_DETAIL=""
-  bh=$(curl -sS -m 15 "https://$BAS_HOST/api/health" 2>&1)
-  if echo "$bh" | jq -e '.status=="ok"' >/dev/null 2>&1; then
-    bage=$(echo "$bh" | jq -r '.databaseBackup.latestBackup.ageHours // 999')
-    if [ "$(echo "$bage > 26" | bc)" = "1" ]; then
-      CHECK_DETAIL="control plane ok but its DB backup age ${bage}h > 26h"
+  bas_h=$(curl -sS -m 15 "https://$BAS_HOST/api/health" 2>&1)
+  if echo "$bas_h" | jq -e '.status=="ok"' >/dev/null 2>&1; then
+    bas_age=$(echo "$bas_h" | jq -r '.databaseBackup.latestBackup.ageHours // 999')
+    if [ "$(echo "$bas_age > 26" | bc)" = "1" ]; then
+      CHECK_DETAIL="control plane ok but its DB backup age ${bas_age}h > 26h"
     else
       CHECK_OK=1
     fi
   else
-    CHECK_DETAIL="https://$BAS_HOST/api/health bad: $bh"
+    CHECK_DETAIL="https://$BAS_HOST/api/health bad: $bas_h"
   fi
   check bas "BAS automation box unhealthy ($BAS_HOST)"
 
@@ -47,28 +47,28 @@ else
   # already fired and this would just be a second alarm for one cause.
   if [ "$CHECK_OK" = "1" ]; then
     CHECK_OK=0; CHECK_DETAIL=""
-    jobs_out=$($BAS_SSH "root@$BAS_HOST" /usr/local/bin/bas-job-freshness.sh 2>&1)
-    if [ -z "$jobs_out" ]; then
+    bas_jobs_out=$($BAS_SSH "root@$BAS_HOST" /usr/local/bin/bas-job-freshness.sh 2>&1)
+    if [ -z "$bas_jobs_out" ]; then
       # No active routines at all. Not a failure: the box is built before the
       # first job is scheduled, and an empty roster is the expected state then.
       CHECK_OK=1
       log "INFO bas-jobs: no active routines on $BAS_HOST yet"
-    elif ! echo "$jobs_out" | grep -q '|'; then
-      CHECK_DETAIL="job freshness probe failed: $jobs_out"
+    elif ! echo "$bas_jobs_out" | grep -q '|'; then
+      CHECK_DETAIL="job freshness probe failed: $bas_jobs_out"
     else
-      stale=""
-      while IFS='|' read -r title hours; do
-        [ -n "$title" ] || continue
-        if [ "$hours" = "never" ]; then
-          stale="$stale; $title has never completed"
-        elif [ "$hours" -gt "$BAS_JOB_MAX_HOURS" ] 2>/dev/null; then
-          stale="$stale; $title last succeeded ${hours}h ago"
+      bas_stale=""
+      while IFS='|' read -r bas_title bas_hours; do
+        [ -n "$bas_title" ] || continue
+        if [ "$bas_hours" = "never" ]; then
+          bas_stale="$bas_stale; $bas_title has never completed"
+        elif [ "$bas_hours" -gt "$BAS_JOB_MAX_HOURS" ] 2>/dev/null; then
+          bas_stale="$bas_stale; $bas_title last succeeded ${bas_hours}h ago"
         fi
       done <<EOF_JOBS
-$jobs_out
+$bas_jobs_out
 EOF_JOBS
-      if [ -n "$stale" ]; then
-        CHECK_DETAIL="client jobs stale (budget ${BAS_JOB_MAX_HOURS}h)${stale}"
+      if [ -n "$bas_stale" ]; then
+        CHECK_DETAIL="client jobs stale (budget ${BAS_JOB_MAX_HOURS}h)${bas_stale}"
       else
         CHECK_OK=1
       fi
@@ -80,14 +80,14 @@ EOF_JOBS
   # Judged on the NAS so this still fails when the box is gone entirely, which is
   # exactly the case where the box's own report would be unavailable.
   CHECK_OK=0; CHECK_DETAIL=""
-  nas_age=$(ssh -i "$HOME/.ssh/fleet_health_ed25519" $SSH_OPTS root@100.119.64.141 \
+  bas_nas_age=$(ssh -i "$HOME/.ssh/fleet_health_ed25519" $SSH_OPTS root@100.119.64.141 \
     "ls -t '$BAS_NAS_DIR' 2>/dev/null | head -1 | while read -r f; do stat -c %Y \"$BAS_NAS_DIR/\$f\"; done" 2>/dev/null)
-  if [ -z "$nas_age" ]; then
+  if [ -z "$bas_nas_age" ]; then
     CHECK_DETAIL="no Paperclip dump in library:$BAS_NAS_DIR at all; the BAS database exists only on the box"
   else
-    hrs=$(( ( $(date +%s) - nas_age ) / 3600 ))
-    if [ "$hrs" -gt 26 ]; then
-      CHECK_DETAIL="newest dump in library:$BAS_NAS_DIR is ${hrs}h old (> 26h)"
+    bas_hrs=$(( ( $(date +%s) - bas_nas_age ) / 3600 ))
+    if [ "$bas_hrs" -gt 26 ]; then
+      CHECK_DETAIL="newest dump in library:$BAS_NAS_DIR is ${bas_hrs}h old (> 26h)"
     else
       CHECK_OK=1
     fi

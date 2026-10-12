@@ -160,4 +160,28 @@ describe("outside monitoring cannot fail open", () => {
   it("logs a visible skip while the box does not exist", () => {
     expect(healthBlock).toMatch(/log "SKIP bas:/);
   });
+
+  it("namespaces every variable it assigns", () => {
+    // This block is pasted into a 1573-line script of shared globals, whose own
+    // sections prefix their working variables (pc_newest, pc_push_due). A bare
+    // `stale` or `hrs` here can silently collide with another section's, and the
+    // first version of this block shipped exactly that.
+    const assigned = [...healthBlock.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)=/gm)].map((m) => m[1]);
+    expect(assigned.length).toBeGreaterThan(5);
+    const leaked = assigned.filter((v) => !/^(BAS_|bas_|CHECK_)/.test(v));
+    expect(leaked, `unnamespaced globals: ${leaked.join(", ")}`).toEqual([]);
+  });
+
+  it("reads its loop variables under the same namespace", () => {
+    // `read -r title hours` assigns too, and no regex over `name=` catches it.
+    // Only the block's own loops matter: a `read` inside a quoted remote command
+    // runs in a shell on the far host and cannot collide with anything here.
+    const ownLoops = healthBlock
+      .split("\n")
+      .filter((l) => /^\s*while\s+IFS=/.test(l))
+      .flatMap((l) => (l.match(/read -r ([^\n;]+)/)?.[1] ?? "").trim().split(/\s+/))
+      .filter(Boolean);
+    expect(ownLoops.length).toBeGreaterThan(0);
+    for (const v of ownLoops) expect(v).toMatch(/^bas_/);
+  });
 });
