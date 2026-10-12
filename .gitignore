@@ -83,6 +83,9 @@ gha-creds-*.json
 .lighthouse/
 .tmp/
 
+# Doug store watch evidence (screenshots + report.json per run, LAC-4280)
+store-watch-runs/
+
 # AI
 ai.mdx
 .env*.local
