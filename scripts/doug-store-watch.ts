@@ -20,19 +20,30 @@
  * Usage:
  *   bun scripts/doug-store-watch.ts [--out <dir>] [--store <key>] [--base <url>]
  *
+ * Evidence defaults to `<main checkout>/store-watch-runs/<timestamp>/` — the
+ * main checkout, not the cwd, so a run from a disposable git worktree still
+ * leaves evidence behind (LAC-4300). Runs past RETENTION_DAYS are pruned.
+ *
  * Exit codes: 0 = all clean, 1 = incident (something is broken), 2 = needs agent
  * adaptation, 3 = harness error.
  */
 
 import { promises as dns } from "node:dns";
-import { access, mkdir, readdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import tls from "node:tls";
+import { fileURLToPath } from "node:url";
 import { type Browser, chromium, type Page } from "playwright";
 
 const TLS_MIN_DAYS = 14;
 const NAV_TIMEOUT = 45_000;
+
+/** Directory, under the main checkout, that holds one subdirectory per run. */
+export const EVIDENCE_DIR_NAME = "store-watch-runs";
+
+/** The runbook's evidence standard: keep runs long enough to trace a regression. */
+export const RETENTION_DAYS = 30;
 
 interface StoreSpec {
   key: string;
@@ -327,8 +338,9 @@ async function selectProductOptions(page: Page, label: string, notes: string[]):
               .filter((o) => !(o as HTMLOptionElement).disabled && (o as HTMLOptionElement).value)
               .map((o) => (o as HTMLOptionElement).value)
           );
-        if (values.length) {
-          await select.first().selectOption(values[0], { timeout: 8_000 });
+        const [firstValue] = values;
+        if (firstValue) {
+          await select.first().selectOption(firstValue, { timeout: 8_000 });
           await page.waitForTimeout(600);
         }
       }
@@ -356,7 +368,7 @@ async function discoverProduct(spec: StoreSpec): Promise<string | null> {
   if (!res.ok) return null;
   const xml = await res.text();
   const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)]
-    .map((m) => m[1].replace(/&amp;/g, "&"))
+    .flatMap((m) => (m[1] ? [m[1].replace(/&amp;/g, "&")] : []))
     .filter((u) => u.includes("/products/"));
   return urls[0] ?? null;
 }
@@ -561,6 +573,66 @@ async function runStore(spec: StoreSpec, browser: Browser, outDir: string): Prom
   };
 }
 
+/**
+ * Where a run's evidence belongs, given the checkout the script was invoked
+ * from and the contents of that checkout's `.git` when it is a pointer file.
+ *
+ * Evidence has to outlive the process that produced it. The default used to be
+ * the cwd-relative `./store-watch-runs`, which is correct from the main
+ * checkout and wrong everywhere else: Paperclip wakes an agent inside
+ * `.paperclip/worktrees/<issue>/`, so screenshots and report.json landed in a
+ * directory that is deleted with the worktree and the 30-day retention the
+ * runbook promises silently did not happen (LAC-4300). A linked worktree's
+ * `.git` is a file pointing at `<main>/.git/worktrees/<name>`, which names the
+ * main checkout, so anchor there instead of at the cwd.
+ */
+export function resolveEvidenceBase(repoRoot: string, gitPointer: string | null): string {
+  const gitDir = gitPointer ? /^gitdir:\s*(.+?)\s*$/m.exec(gitPointer)?.[1] : undefined;
+  const mainCheckout = gitDir
+    ? /^(.*)[/\\]\.git[/\\]worktrees[/\\][^/\\]+$/.exec(gitDir)?.[1]
+    : undefined;
+  return path.join(mainCheckout ?? repoRoot, EVIDENCE_DIR_NAME);
+}
+
+/** Run directories whose evidence has aged past the retention window. */
+export function expiredRuns(
+  runs: { name: string; mtimeMs: number }[],
+  nowMs: number,
+  retentionDays: number = RETENTION_DAYS
+): string[] {
+  const cutoff = nowMs - retentionDays * 86_400_000;
+  return runs.filter((run) => run.mtimeMs < cutoff).map((run) => run.name);
+}
+
+/** The `.git` of a linked worktree is a file; of a normal checkout, a directory. */
+async function readGitPointer(repoRoot: string): Promise<string | null> {
+  const dotGit = path.join(repoRoot, ".git");
+  try {
+    if (!(await stat(dotGit)).isFile()) return null;
+    return await readFile(dotGit, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Enforce retention. Nothing else does, so without this the evidence directory
+ * grows without bound and "keep it 30 days" means "keep it forever".
+ */
+async function pruneExpiredRuns(base: string, nowMs: number): Promise<string[]> {
+  const names = await readdir(base).catch(() => [] as string[]);
+  const runs: { name: string; mtimeMs: number }[] = [];
+  for (const name of names) {
+    const info = await stat(path.join(base, name)).catch(() => null);
+    if (info?.isDirectory()) runs.push({ name, mtimeMs: info.mtimeMs });
+  }
+  const expired = expiredRuns(runs, nowMs);
+  for (const name of expired) {
+    await rm(path.join(base, name), { recursive: true, force: true }).catch(() => {});
+  }
+  return expired;
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const arg = (flag: string) => {
@@ -569,10 +641,17 @@ async function main() {
   };
 
   const startedAt = new Date();
-  const outDir = path.resolve(
-    arg("--out") ?? `./store-watch-runs/${startedAt.toISOString().replace(/[:.]/g, "-")}`
-  );
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const evidenceBase = resolveEvidenceBase(repoRoot, await readGitPointer(repoRoot));
+  const explicitOut = arg("--out");
+  const outDir = explicitOut
+    ? path.resolve(explicitOut)
+    : path.join(evidenceBase, startedAt.toISOString().replace(/[:.]/g, "-"));
   await mkdir(outDir, { recursive: true });
+
+  // Before the run, so retention holds even if this run dies half way through.
+  const pruned = await pruneExpiredRuns(evidenceBase, startedAt.getTime());
+  if (pruned.length) console.log(`Pruned ${pruned.length} run(s) older than ${RETENTION_DAYS}d`);
 
   // --store / --base exist so the runbook's forced-failure drill can point the
   // job at a known-bad host and prove it files exactly one correct ticket.
@@ -625,6 +704,8 @@ async function main() {
     startedAt: detectedAt,
     finishedAt: new Date().toISOString(),
     outDir,
+    retentionDays: RETENTION_DAYS,
+    prunedRuns: pruned,
     results,
     // File exactly one ticket per entry here, deduped on dedupeKey.
     incidents,
