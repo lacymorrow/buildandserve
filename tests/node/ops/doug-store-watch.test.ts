@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  closeQuietly,
   EVIDENCE_DIR_NAME,
+  exitCodeFor,
   expiredRuns,
+  HARNESS_CHECK,
   RETENTION_DAYS,
   resolveEvidenceBase,
   type StoreResult,
   toIncidents,
+  verdictFor,
 } from "../../../scripts/doug-store-watch";
 
 const DETECTED_AT = "2026-10-12T18:00:00.000Z";
@@ -138,6 +142,99 @@ describe("toIncidents", () => {
       DETECTED_AT
     );
     expect(incidents).toEqual([]);
+  });
+
+  it("never files a store ticket when the harness itself crashed", () => {
+    // A Playwright crash ("Target page, context or browser has been closed")
+    // says nothing about Doug's store. Filing it as a store incident points a
+    // client-facing ticket at a store that is actually fine. Observed on the
+    // 2026-10-13T12:23Z run, which reported `purplehaze:harness` as degraded.
+    const incidents = toIncidents(
+      makeResult([{ name: HARNESS_CHECK, status: "fail", detail: "probe threw: ...closed" }]),
+      DETECTED_AT
+    );
+    expect(incidents).toEqual([]);
+  });
+
+  it("still files the real store failures when the harness dies after them", () => {
+    // A crash must suppress only the harness entry, never mask a genuine
+    // outage the run had already observed.
+    const incidents = toIncidents(
+      makeResult([
+        { name: "dns", status: "pass" },
+        { name: "homepage", status: "fail", detail: "-> 503" },
+        { name: HARNESS_CHECK, status: "fail", detail: "probe threw" },
+      ]),
+      DETECTED_AT
+    );
+    expect(incidents).toHaveLength(1);
+    expect(incidents[0].severity).toBe("down");
+    expect(incidents[0].failedChecks).not.toContain(HARNESS_CHECK);
+  });
+});
+
+describe("verdictFor", () => {
+  const PASSING = makeResult(PASS_ALL);
+
+  it("is clean when every store passes", () => {
+    expect(verdictFor([PASSING])).toBe("clean");
+    expect(exitCodeFor("clean")).toBe(0);
+  });
+
+  it("is an incident when a store check fails", () => {
+    const broken = makeResult([{ name: "homepage", status: "fail" }]);
+    expect(verdictFor([PASSING, broken])).toBe("incident");
+    expect(exitCodeFor("incident")).toBe(1);
+  });
+
+  it("needs adaptation when a store only adapted", () => {
+    const adapted = makeResult([
+      { name: "homepage", status: "pass" },
+      { name: "product_page", status: "adapt" },
+    ]);
+    expect(verdictFor([PASSING, adapted])).toBe("needs_adaptation");
+    expect(exitCodeFor("needs_adaptation")).toBe(2);
+  });
+
+  it("exits 3 on a harness crash instead of blaming the store", () => {
+    // The runbook splits these deliberately: exit 3 means "fix the harness",
+    // exit 1 means "file a ticket against the store". A browser crash took the
+    // exit-1 path on 2026-10-13T12:23Z.
+    const crashed = makeResult([{ name: HARNESS_CHECK, status: "fail", detail: "probe threw" }]);
+    expect(verdictFor([PASSING, crashed])).toBe("harness_error");
+    expect(exitCodeFor("harness_error")).toBe(3);
+  });
+
+  it("reports a real outage even when another store's harness crashed", () => {
+    // Two stores, one run. A crash probing store B must not swallow store A's
+    // outage, which still needs its ticket and its DM.
+    const down = makeResult([{ name: "dns", status: "fail" }]);
+    const crashed = makeResult([{ name: HARNESS_CHECK, status: "fail" }]);
+    expect(verdictFor([down, crashed])).toBe("incident");
+  });
+});
+
+describe("closeQuietly", () => {
+  it("swallows a cleanup failure so it cannot discard a finished probe", async () => {
+    // The 2026-10-13T12:23Z run lost every thepurplehaze check — DNS, TLS,
+    // homepage, cart, checkout — because `context.close()` threw in a finally
+    // after they had all already run and been recorded.
+    await expect(
+      closeQuietly({
+        close: () => Promise.reject(new Error("Target page, context or browser has been closed")),
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it("still closes on the happy path", async () => {
+    let closed = false;
+    await closeQuietly({
+      close: () => {
+        closed = true;
+        return Promise.resolve();
+      },
+    });
+    expect(closed).toBe(true);
   });
 });
 
