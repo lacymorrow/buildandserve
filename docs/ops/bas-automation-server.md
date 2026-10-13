@@ -7,17 +7,29 @@ Ticket: LAC-4279. First job it will run: [Doug store watch](./doug-store-watch.m
 
 ## Status
 
-**Not provisioned yet.** The location is an open spend decision, see
-[Location and cost](#location-and-cost). Everything that costs nothing is
-already in place:
+**Running.** Provisioned 2026-10-12 in Falkenstein.
 
 | Thing | State |
 |---|---|
 | Hetzner project | BAS Automation (16372856), separate from the production project so this token cannot touch prod |
+| Server | `bas`, id 169986608, `128.140.50.130`, **cx33** (4 vCPU / 8 GB), fsn1, EUR 9.99/mo |
 | ssh keys | `bas-zero-lacy` (131232206), `bas-graphite-fleet-health` (131232207) |
 | Firewall | `bas-automation` (11789519): inbound tcp/22, udp/41641, icmp. Nothing else. |
-| Monitoring | installed on graphite, skipping until the box exists |
-| Server | not created |
+| Paperclip | 2026.1005.0, pinned, on node 24.21.0 |
+| Postgres | real, loopback 5432, 226 tables. Nothing listening on the embedded 54329. |
+| Service | `paperclip.service` active, `Restart=always`, survives `kill -9` |
+| Backups | every 12h to `/var/backups/paperclip`, shipped nightly 03:30 to the NAS |
+| Restore | tested 2026-10-13, 226 tables into a scratch database |
+| Monitoring | installed on graphite, **still skipping**: waiting on the tailnet name |
+
+Left to do, both needing something only Lacy can give:
+
+- **Tailscale.** `tailscale up --hostname=bas` on the box prints a URL she has to
+  open once. Until then there is no `bas.hyrax-boga.ts.net`, the monitor stays
+  off, and the off-box backup cannot reach the NAS (it is a tailnet address).
+- **Company and roster.** "Build and Serve", prefix `BAS`, one Operator agent.
+  The board is empty (0 companies, 0 agents) and creating the first one needs an
+  account on the box's Paperclip.
 
 ## Why this exists
 
@@ -48,23 +60,28 @@ notices they stopped cannot be the thing that stopped.
 
 ## Location and cost
 
-Hetzner's live prices on 2026-10-12, CPX31 (4 vCPU, 8 GB, 160 GB):
+Settled: **cx33 in Falkenstein, EUR 9.99/mo.** How it got there matters, because
+the ticket's numbers were impossible.
 
-| Location | Price |
-|---|---|
-| Falkenstein (`fsn1`) | EUR 20.49/mo |
-| Ashburn (`ash`) | EUR 73.49/mo |
+Hetzner's live prices on 2026-10-12, for 4 vCPU / 8 GB:
 
-The ticket asked for CPX31, in Ashburn, at about EUR 15/mo. Those three can no
-longer all be true: US locations now carry a roughly 3.5x premium across every
-shared type, and the EUR 15 figure is the old EU price. Ashburn costs EUR 881/yr
-against EUR 246/yr for Falkenstein.
+| Type | Location | Price | Note |
+|---|---|---|---|
+| cx33 | fsn1 | **EUR 9.99/mo** | what runs |
+| cpx31 | fsn1 | EUR 20.49/mo | approved ceiling |
+| cpx31 | ash | EUR 73.49/mo | as originally ticketed |
 
-Falkenstein is the recommendation. The workload is agent heartbeats plus
-read-only HTTPS fetches of client sites every 4 hours, so EU-versus-US latency
-does not matter, backups go to the library NAS over Tailscale from anywhere, and
-only public-site monitoring data lives on the box, so no client PII crosses a
-border. The decision is Lacy's and is pending on LAC-4279.
+The ticket asked for CPX31, in Ashburn, at about EUR 15/mo. Those three could not
+all be true: US locations now carry a roughly 3.5x premium across every shared
+type, and EUR 15 was the old EU price. Lacy approved Falkenstein, and CPX31 turns
+out not to be offered in fsn1 at all ("unsupported location for server type"), so
+the box is a cx33: same 4 vCPU and 8 GB, Intel instead of AMD, less than half the
+approved price. EUR 120/yr against EUR 881/yr for the Ashburn original.
+
+EU rather than US costs nothing here. The workload is agent heartbeats plus
+read-only HTTPS fetches of client sites every 4 hours, backups go to the library
+NAS over Tailscale from anywhere, and only public-site monitoring data lives on
+the box, so no client PII crosses a border.
 
 `bas-provision.sh` has no default location on purpose. It refuses to run until
 you pass one, because that argument is what sets the monthly bill.
@@ -73,7 +90,7 @@ you pass one, because that argument is what sets the monthly bill.
 
 ```bash
 # 1. create the server (BAS_LOCATION is mandatory)
-BAS_LOCATION=fsn1 ./scripts/bas-provision.sh
+BAS_LOCATION=fsn1 BAS_TYPE=cx33 ./scripts/bas-provision.sh
 
 # 2. join the tailnet. This prints a URL that Lacy has to open once; there is no
 #    Tailscale auth key in the secrets store, and an interactive login avoids
@@ -113,27 +130,50 @@ Not automatic, and not a surprise.
 
 ## Backups and restore
 
-Paperclip writes its own dumps to `/var/backups/paperclip` every 24 hours, which
-is what makes `/api/health` report a backup age the outside monitor can check.
-`bas-ship-backup.timer` then copies the newest dump to
-`library:/mnt/user/backups/paperclip-bas/` at 03:30 and keeps 14 there. A backup
-that only exists on the box it is backing up is not a backup.
+Paperclip writes its own dumps to `/var/backups/paperclip` **every 12 hours**,
+which is what makes `/api/health` report a backup age the outside monitor can
+check. 12 and not 24 because the monitor alarms at 26h: a nightly interval
+leaves only two hours of slack before one late run looks like a real failure.
+`bas-ship-backup.timer` copies the newest dump to
+`library:/mnt/user/backups/paperclip-bas/` at 03:30 and keeps 14 there, so the
+off-box copy is never more than 12h behind. A backup that only exists on the box
+it is backing up is not a backup.
 
-Restore test, which has to be run once and the output pasted on LAC-4279:
+The first dump is taken during setup. Otherwise the box spends its first half day
+with no backup at all, which the monitor correctly reports as a failure the
+moment it is switched on.
+
+### Restore test
+
+Run once, output on LAC-4279. Dumps are gzipped plain SQL, so `psql`, not
+`pg_restore`. `ON_ERROR_STOP=1` is the point: without it psql reports success
+having skipped every failed statement.
 
 ```bash
-# on the box, into a scratch database, never over the live one
-ssh root@bas
-newest=$(ls -t /var/backups/paperclip/* | head -1)
+ssh root@128.140.50.130
+newest=$(ls -t /var/backups/paperclip/*.sql.gz | head -1)
+su - postgres -c "dropdb --if-exists paperclip_restore_test"
 su - postgres -c "createdb paperclip_restore_test"
-su - postgres -c "pg_restore -d paperclip_restore_test --no-owner '$newest'" \
-  || su - postgres -c "gunzip -c '$newest' | psql -d paperclip_restore_test"
-su - postgres -c "psql -d paperclip_restore_test -At -c \
-  \"select count(*) from information_schema.tables where table_schema='public'\""
-su - postgres -c "dropdb paperclip_restore_test"
+gunzip -c "$newest" > /tmp/r.sql && chmod 644 /tmp/r.sql
+su - postgres -c "psql -q -v ON_ERROR_STOP=1 -d paperclip_restore_test -f /tmp/r.sql"
+# compare against live, then clean up
+su - postgres -c "dropdb paperclip_restore_test"; rm -f /tmp/r.sql
 ```
 
-A restore that has never been tried is a guess, not a backup.
+Result, 2026-10-13, from `paperclip-20261013-001045.sql.gz` (97 KB):
+
+```
+restore: OK (ON_ERROR_STOP=1, no errors)
+restored copy: tables=226  issues_rows=0  agents_rows=0  routines_rows=0
+live database: tables=226  issues_rows=0  agents_rows=0  routines_rows=0
+scratch database dropped; live database untouched
+```
+
+Honest caveat: the schema restores completely, but every row count is zero
+because the board has no company or agents yet. **Re-run this once the BAS
+company and the Doug job exist**, so it proves rows survive the trip and not
+just tables. A restore that has never been tried is a guess, not a backup, and
+one tried against an empty database is only half an answer.
 
 ## Monitoring
 
@@ -157,6 +197,15 @@ Until `~/.paperclip/fleet-health/bas-enabled` exists the section logs a visible
 
 `bas-jobs` deliberately only runs when `bas` passed. When the control plane is
 down, one alarm for one cause is enough.
+
+**Known gap, close it when the Doug job lands.** `bas-jobs` treats "no active
+routines" as OK, because that is the honest state of a box built before its first
+job is scheduled. Once a job exists, zero routines is no longer benign: a routine
+someone deactivated, or a board that came up blank, would read green. The fix is
+to alarm when the routine count drops to zero after having been non-zero. Not
+built yet, because until the first routine exists there is nothing to drop from.
+Pointing `database.mode` at the real Postgres (see below) removes the blank-board
+half of this; the deactivated-routine half is still open.
 
 Because the box does not exist yet, the monitor's own dry run only ever reaches
 the skip branch, so the failure branches would otherwise ship unverified.
@@ -183,11 +232,51 @@ is untouched and the next real run does not log a fake recovery.
 
 LAC-4279 is done when all of this is on the ticket:
 
-- [ ] `curl https://bas.hyrax-boga.ts.net/api/health` output
-- [ ] `systemctl kill -s KILL paperclip` followed by health coming back on its own
-- [ ] a fleet-health alert fired on purpose, screenshotted
-- [ ] the restore log above
-- [ ] one successful Doug store watch run on this box
+- [ ] `curl https://bas.hyrax-boga.ts.net/api/health` output (needs the tailnet)
+- [x] `systemctl kill -s KILL paperclip` followed by health coming back on its own
+- [ ] a fleet-health alert fired on purpose, screenshotted (needs the tailnet)
+- [x] the restore log above (re-run it once there are rows)
+- [ ] one successful Doug store watch run on this box (needs the roster)
+
+The kill test, 2026-10-13, nothing touched it but systemd:
+
+```
+pid before: 27197, health: ok
+right after SIGKILL: state=activating
+recovered: state=active pid=27705 health=ok
+pid changed: yes
+```
+
+## Traps found during bring-up
+
+All five are fixed in the scripts and guarded by tests. They are written down
+because every one of them is silent.
+
+1. **Ubuntu's node is useless here.** 24.04 ships node 18 with no `npm` at all,
+   and paperclipai 2026.1005.0 needs node >=24.11. cloud-init installs
+   NodeSource 24.
+2. **`paperclipai run` refuses to start with no config**, and onboarding is
+   interactive by default. Setup runs
+   `paperclipai onboard -y --bind loopback --no-install-service` as the
+   `paperclip` user first.
+3. **onboard always writes `database.mode: embedded-postgres`.** The server does
+   honour `DATABASE_URL` over it, so it ran on the real database anyway, but the
+   disagreement broke every CLI subcommand (`db:backup` dialled the embedded port
+   54329 and failed), and a `DATABASE_URL` that ever went missing would have
+   brought the board up as a brand-new empty one, reporting healthy, with the
+   real data orphaned. Setup now sets `mode: postgres` so it fails closed.
+4. **`systemctl enable` does not start a timer.** `bas-ship-backup.timer` was
+   `enabled` while `systemctl list-timers` showed zero timers: the off-box copy
+   would never have run until the next reboot. It is `enable --now`.
+5. **`StartLimitIntervalSec` and `StartLimitBurst` are `[Unit]` options.** Under
+   `[Service]` systemd ignores them with only a log line, so the crash-loop guard
+   did nothing.
+
+Two smaller ones: `$meta.source` in `config.json` is a strict enum
+(`onboard`/`configure`/`doctor`) and anything else makes `paperclip doctor` fail
+and the service refuse to boot; and `/etc/paperclip` is `0750 root:root` on
+purpose, so CLI commands need their environment passed in with `systemd-run`
+rather than being readable by the service user.
 
 ## What was left out on purpose
 

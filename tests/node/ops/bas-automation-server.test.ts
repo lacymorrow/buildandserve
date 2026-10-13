@@ -95,6 +95,35 @@ describe("the box survives being killed, and its logs stay bounded", () => {
     expect(setup).toMatch(/StartLimitBurst=\d+/);
   });
 
+  it("puts the start limit in [Unit], where systemd actually reads it", () => {
+    // Under [Service] systemd ignores these with only a log line ("Unknown key
+    // name ... in section 'Service', ignoring"), so the guard silently does
+    // nothing. The first version of this unit shipped exactly that way.
+    const unit = setup.match(/\[Unit\]\n([\s\S]*?)\n\[Service\]/);
+    expect(unit, "the unit file must have a [Unit] section").not.toBeNull();
+    const unitSection = (unit as RegExpMatchArray)[1];
+    expect(unitSection).toMatch(/StartLimitIntervalSec=\d+/);
+    expect(unitSection).toMatch(/StartLimitBurst=\d+/);
+    const service = setup.match(/\[Service\]\n([\s\S]*?)\n\[Install\]/);
+    expect((service as RegExpMatchArray)[1]).not.toMatch(/StartLimit/);
+  });
+
+  it("installs a node new enough for the pinned Paperclip", () => {
+    // Ubuntu 24.04's own nodejs is 18 and ships no npm at all, and paperclipai
+    // 2026.1005.0 needs >=24.11, so 22 is not enough either.
+    const ci = cloudInit();
+    const m = ci.match(/setup_(\d+)\.x/);
+    expect(m, "cloud-init must install node from NodeSource").not.toBeNull();
+    expect(Number((m as RegExpMatchArray)[1])).toBeGreaterThanOrEqual(24);
+  });
+
+  it("starts the off-box backup timer instead of only enabling it", () => {
+    // Plain `enable` leaves it inactive until the next boot, so the only copy of
+    // the database stays on the box it is backing up. That shipped once.
+    expect(setup).toMatch(/systemctl enable --now bas-ship-backup\.timer/);
+    expect(setup).not.toMatch(/systemctl enable bas-ship-backup\.timer/);
+  });
+
   it("caps the journal and rotates any log file Paperclip writes itself", () => {
     // server.log reached 2 GB on zero because nothing rotated it.
     const ci = cloudInit();
@@ -130,6 +159,27 @@ describe("it proves which database it came up on", () => {
   it("fails loudly rather than quietly using the embedded database", () => {
     expect(setup).toContain("came up on its embedded database");
     expect(setup).toMatch(/exit 1/);
+  });
+
+  it("also rewrites the config, so env and config cannot disagree", () => {
+    // onboard always writes embedded-postgres. Left alone, every CLI subcommand
+    // dials the embedded port and fails, and a missing DATABASE_URL would bring
+    // the board up blank-but-healthy instead of refusing to start.
+    expect(setup).toMatch(/\.database\.mode = \\?"postgres\\?"/);
+    expect(setup).toMatch(/\.database\.connectionString/);
+  });
+
+  it("keeps $meta.source inside the enum paperclip doctor accepts", () => {
+    // "onboard+LAC-4279" fails validation and the service refuses to boot.
+    const sources = [...setup.matchAll(/\$meta\\?"\]?\.source = \\?"([^"\\]+)\\?"/g)].map(
+      (m) => m[1]
+    );
+    for (const s of sources) expect(["onboard", "configure", "doctor"]).toContain(s);
+  });
+
+  it("onboards first, because `paperclipai run` refuses without a config", () => {
+    expect(setup).toMatch(/paperclipai onboard[^\n]*-y/);
+    expect(setup).toMatch(/--no-install-service/);
   });
 });
 

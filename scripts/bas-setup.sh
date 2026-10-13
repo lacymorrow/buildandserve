@@ -51,7 +51,10 @@ HOST=127.0.0.1
 # monitor on graphite can check it. Shipping them off the box is a separate timer.
 PAPERCLIP_DB_BACKUP_ENABLED=true
 PAPERCLIP_DB_BACKUP_DIR=/var/backups/paperclip
-PAPERCLIP_DB_BACKUP_INTERVAL_MINUTES=1440
+# Every 12h, not nightly. The outside monitor alarms at 26h, and a 1440 interval
+# leaves only 2h of slack before one late run reads as a real failure. The off-box
+# ship stays nightly, so it never carries a dump more than 12h old.
+PAPERCLIP_DB_BACKUP_INTERVAL_MINUTES=720
 PAPERCLIP_DB_BACKUP_RETENTION_DAYS=7
 EOF
     chown root:paperclip /etc/paperclip/paperclip.env
@@ -81,6 +84,46 @@ $SSH "set -e
     echo 'WARNING: something that looks like a Paperclip auto-upgrade job exists; this box is meant to be pinned' >&2
   fi"
 
+echo "==> 4b/8 onboard, then point its config at the real Postgres"
+# Two separate problems, both of which stop the box from working:
+#
+# 1. `paperclipai run` refuses to start with no config at all, and its onboarding
+#    is interactive by default. These flags make it non-interactive and stop it
+#    installing a service of its own, since systemd owns that here.
+#
+# 2. onboard always writes `database.mode: embedded-postgres`. The server itself
+#    does honour DATABASE_URL over that, so it runs on the real database either
+#    way, but leaving the two disagreeing is a trap worth closing:
+#      - every CLI subcommand (db:backup, and so the restore path) reads the
+#        config, not the env, so it dials the embedded port 54329 and fails;
+#      - if DATABASE_URL ever went missing from the env, the server would quietly
+#        start an embedded Postgres and come up as a brand-new EMPTY board while
+#        the real data sat orphaned, and /api/health would report ok.
+#    Setting mode=postgres makes that fail closed: no reachable database means no
+#    start, which the monitor on graphite reports.
+$SSH 'set -e
+  if [ ! -f /var/lib/paperclip/.paperclip/instances/default/config.json ]; then
+    su - paperclip -s /bin/bash -c "paperclipai onboard -y --bind loopback --no-install-service" >/dev/null
+    echo "onboarded"
+  else
+    echo "already onboarded"
+  fi
+  C=/var/lib/paperclip/.paperclip/instances/default/config.json
+  DB_URL=$(sed -n "s/^DATABASE_URL=//p" /etc/paperclip/paperclip.env)
+  [ -n "$DB_URL" ] || { echo "no DATABASE_URL in /etc/paperclip/paperclip.env" >&2; exit 1; }
+  # $meta.source is a strict enum ("onboard"|"configure"|"doctor"). Anything else
+  # makes paperclip doctor fail and the service refuse to boot.
+  jq --arg u "$DB_URL" "
+      .database.mode = \"postgres\"
+    | .database.connectionString = \$u
+    | .database.backup.dir = \"/var/backups/paperclip\"
+    | .database.backup.intervalMinutes = 720
+    | .database.backup.retentionDays = 7
+    | .\"\$meta\".source = \"configure\"
+  " "$C" > "$C.new"
+  chown paperclip:paperclip "$C.new"; chmod 0600 "$C.new"; mv "$C.new" "$C"
+  jq -c "{mode:.database.mode, backup:.database.backup}" "$C"'
+
 echo "==> 5/8 systemd unit"
 $SSH "cat > /etc/systemd/system/paperclip.service <<'UNIT'
 [Unit]
@@ -89,6 +132,13 @@ Documentation=https://github.com/lacymorrow/buildandserve/blob/main/docs/ops/bas
 After=network-online.target postgresql.service
 Wants=network-online.target
 Requires=postgresql.service
+# A boot-loop must not hammer Postgres forever: 5 starts in 5 min, then stop and
+# let the outside monitor on graphite report it, rather than spinning silently.
+# These are [Unit] options. systemd ignores them under [Service] with only a log
+# line ('Unknown key name ... in section Service, ignoring'), which is how the
+# first version of this unit shipped with no crash-loop guard at all.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -100,10 +150,6 @@ ExecStart=/usr/bin/paperclipai run
 # A killed process has to come back without anyone noticing it died.
 Restart=always
 RestartSec=5
-# ... but a boot-loop must not hammer Postgres forever: 5 starts in 5 min, then stop
-# and let the outside monitor on graphite report it, rather than spinning silently.
-StartLimitIntervalSec=300
-StartLimitBurst=5
 # Log to the journal, which is capped in cloud-init. Nothing writes an
 # unrotated server.log here: that file reached 2 GB on zero.
 StandardOutput=journal
@@ -174,7 +220,10 @@ Persistent=true
 WantedBy=timers.target
 TMR
   systemctl daemon-reload
-  systemctl enable bas-ship-backup.timer >/dev/null
+  # --now matters: plain 'enable' leaves the timer inactive until the next boot,
+  # so the off-box copy silently never happens. That shipped once; 'systemctl
+  # list-timers' showed zero timers on a box whose timer was 'enabled'.
+  systemctl enable --now bas-ship-backup.timer >/dev/null
   echo 'bas-ship-backup.timer installed (nightly 03:30)'"
 
 echo "==> 6b/8 job freshness probe (read by graphite's fleet-health over ssh)"
@@ -221,7 +270,24 @@ $SSH 'set -e
   n=$(su - postgres -c "psql -tAc \"SELECT count(*) FROM information_schema.tables WHERE table_schema='"'"'public'"'"'\" paperclip")
   echo "tables in the paperclip database: $n"
   [ "$n" -gt 0 ] || { echo "FAIL: our Postgres is empty, so Paperclip came up on its embedded database; check DATABASE_URL in /etc/paperclip/paperclip.env" >&2; exit 1; }
-  ss -lntp 2>/dev/null | grep -E ":(54329|5432)\b" || true'
+  ss -lntp 2>/dev/null | grep -E ":(54329|5432)\b" || true
+  # Take the first backup now. The scheduler only fires every 12h, so without
+  # this the box spends its first half day with no backup at all, which the
+  # outside monitor correctly reports as a failure the moment it is switched on.
+  echo "--- first backup ---"
+  if ls /var/backups/paperclip/*.sql.gz >/dev/null 2>&1; then
+    echo "a dump already exists: $(ls -t /var/backups/paperclip/*.sql.gz | head -1)"
+  else
+    # The CLI needs the env passed in explicitly, because /etc/paperclip is
+    # root-only and this has to run as the paperclip user.
+    systemd-run --uid=paperclip --property=EnvironmentFile=/etc/paperclip/paperclip.env \
+      --property=WorkingDirectory=/var/lib/paperclip --wait --pipe --quiet \
+      /usr/bin/paperclipai db:backup 2>&1 | tail -2
+  fi
+  ls -la /var/backups/paperclip/
+  echo "--- off-box timer is actually running ---"
+  systemctl is-active bas-ship-backup.timer
+  systemctl list-timers bas-ship-backup.timer --no-pager | head -2'
 
 cat <<EOF
 

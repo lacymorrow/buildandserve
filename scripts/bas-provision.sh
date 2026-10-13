@@ -109,14 +109,21 @@ runcmd:
   - sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
   - systemctl restart ssh || systemctl restart sshd
   - systemctl restart systemd-journald
-  # Node 22 LTS from NodeSource, for the paperclipai npm package
-  - bash -c 'curl -fsSL https://deb.nodesource.com/setup_22.x | bash -'
+  # Node 24 from NodeSource. Not Ubuntu's nodejs: 24.04 ships node 18 with no npm
+  # at all, and paperclipai 2026.1005.0 requires node >=24.11 (verified on the box,
+  # which came up on v24.21.0). Node 22 is too old for it.
+  - bash -c 'curl -fsSL https://deb.nodesource.com/setup_24.x | bash -'
   - DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
   # Tailscale installed, deliberately not started (no credential in user_data)
   - bash -c 'curl -fsSL https://tailscale.com/install.sh | sh'
   - systemctl enable --now postgresql
   - useradd --system --create-home --home-dir /var/lib/paperclip --shell /bin/bash paperclip
   - install -d -m 0750 -o paperclip -g paperclip /var/backups/paperclip
+  # 0750 root:root on purpose, and do not "fix" it: systemd reads EnvironmentFile
+  # as root before dropping to the paperclip user, so the service gets the Max
+  # token and the DB password without the service user being able to read either
+  # file. The cost is that CLI commands need the env passed in explicitly, which
+  # bas-setup.sh does with systemd-run.
   - install -d -m 0750 -o root -g root /etc/paperclip
   - touch /var/lib/cloud/bas-os-ready
 CLOUDINIT
