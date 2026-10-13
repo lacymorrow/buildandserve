@@ -19,17 +19,18 @@ Ticket: LAC-4279. First job it will run: [Doug store watch](./doug-store-watch.m
 | Postgres | real, loopback 5432, 226 tables. Nothing listening on the embedded 54329. |
 | Service | `paperclip.service` active, `Restart=always`, survives `kill -9` |
 | Backups | every 12h to `/var/backups/paperclip`, shipped nightly 03:30 to the NAS |
-| Restore | tested 2026-10-13, 226 tables into a scratch database |
+| Restore | tested 2026-10-13 with real rows: 226 tables, company + Operator came back |
+| Company | **Build and Serve**, prefix `BAS`, one **Operator** agent (Opus 5, heartbeat off) |
 | Monitoring | installed on graphite, **still skipping**: waiting on the tailnet name |
 
-Left to do, both needing something only Lacy can give:
+Left to do, both needing Lacy:
 
 - **Tailscale.** `tailscale up --hostname=bas` on the box prints a URL she has to
   open once. Until then there is no `bas.hyrax-boga.ts.net`, the monitor stays
   off, and the off-box backup cannot reach the NAS (it is a tailnet address).
-- **Company and roster.** "Build and Serve", prefix `BAS`, one Operator agent.
-  The board is empty (0 companies, 0 agents) and creating the first one needs an
-  account on the box's Paperclip.
+- **AI connection.** Wire her Max account as the company's default connection,
+  then enable Operator's heartbeat. See
+  [Company and roster](#company-and-roster).
 
 ## Why this exists
 
@@ -113,10 +114,38 @@ curl https://bas.hyrax-boga.ts.net/api/health
 ssh graphite 'touch ~/.paperclip/fleet-health/bas-enabled'
 ```
 
-Then create the company: **Build and Serve**, prefix `BAS`, with one agent,
-**Operator**, on `claude-opus-5` with `cheap` set to `claude-sonnet-5-5`.
-Not `claude-opus-5-5`: the bundled Claude Code (2.1.257) rejects it, which is
-why the whole fleet sits on Opus 5. Nothing else goes on the roster yet.
+## Company and roster
+
+Created 2026-10-13. Nothing else goes on the roster yet.
+
+| | |
+|---|---|
+| Company | **Build and Serve**, `81dd8f55-cf77-4726-bb91-7f6d6b726ece`, prefix `BAS` |
+| Agent | **Operator**, `fbc7e6a7-28c6-4ff6-8974-48ddd0715096`, `claude_local`, `claude-opus-5` |
+
+Not `claude-opus-5-5`: the bundled Claude Code (2.1.257) rejects it, which is why
+the whole fleet sits on Opus 5.
+
+**Operator's heartbeat is deliberately disabled** (`heartbeat.enabled: false`,
+`wakeOnDemand: true`), the same shape Banks uses on graphite. Until an AI
+connection is wired, a heartbeat-enabled agent would fail every wake, and this
+fleet has already paid for that: mis-classified failures turn into
+`transient_failure` retry storms (LAC-2760). Routines still wake it on demand.
+**Turn the heartbeat on only after a run succeeds.**
+
+Still Lacy's to do: wire the Max account as this company's AI connection. The
+token is already on the box in `/etc/paperclip/paperclip.env` as
+`CLAUDE_CODE_OAUTH_TOKEN`, but selecting a company's default connection is a UI
+flow on her account, and on the LAC board it also needed
+`PUT /api/companies/:cid/ai-connections/default` with a `grantId` before the
+default actually moved.
+
+**No cheap model tier on this version.** `runtimeConfig.modelProfiles` is
+rejected outright by 2026.1005.0 ("no longer supported") and the string `cheap`
+appears nowhere in the shipped bundle, so the Opus-primary / Sonnet-fallback
+pairing the ticket asked for cannot be expressed here. Opus 5 primary is set;
+there is no second tier to set. Worth checking whether the `cheap` profiles
+applied across the other boards on 2026-10-11 are now inert.
 
 ## Upgrading
 
@@ -160,20 +189,19 @@ su - postgres -c "psql -q -v ON_ERROR_STOP=1 -d paperclip_restore_test -f /tmp/r
 su - postgres -c "dropdb paperclip_restore_test"; rm -f /tmp/r.sql
 ```
 
-Result, 2026-10-13, from `paperclip-20261013-001045.sql.gz` (97 KB):
+Result, 2026-10-13, re-run after the company and Operator existed so it proves
+rows and not just tables:
 
 ```
 restore: OK (ON_ERROR_STOP=1, no errors)
-restored copy: tables=226  issues_rows=0  agents_rows=0  routines_rows=0
-live database: tables=226  issues_rows=0  agents_rows=0  routines_rows=0
-scratch database dropped; live database untouched
+restored copy: tables=226  companies=1  agents=1  prefix=BAS
+               operator_model=claude-opus-5  heartbeat_enabled=false
+scratch dropped; live untouched
 ```
 
-Honest caveat: the schema restores completely, but every row count is zero
-because the board has no company or agents yet. **Re-run this once the BAS
-company and the Doug job exist**, so it proves rows survive the trip and not
-just tables. A restore that has never been tried is a guess, not a backup, and
-one tried against an empty database is only half an answer.
+The first attempt ran against an empty board and every row count was zero, which
+proved only that the schema restores. Re-run it after any change you would hate
+to lose. A restore that has never been tried is a guess, not a backup.
 
 ## Monitoring
 
@@ -235,8 +263,8 @@ LAC-4279 is done when all of this is on the ticket:
 - [ ] `curl https://bas.hyrax-boga.ts.net/api/health` output (needs the tailnet)
 - [x] `systemctl kill -s KILL paperclip` followed by health coming back on its own
 - [ ] a fleet-health alert fired on purpose, screenshotted (needs the tailnet)
-- [x] the restore log above (re-run it once there are rows)
-- [ ] one successful Doug store watch run on this box (needs the roster)
+- [x] the restore log above, re-run with real rows
+- [ ] one successful Doug store watch run on this box (needs the AI connection)
 
 The kill test, 2026-10-13, nothing touched it but systemd:
 
@@ -271,6 +299,14 @@ because every one of them is silent.
 5. **`StartLimitIntervalSec` and `StartLimitBurst` are `[Unit]` options.** Under
    `[Service]` systemd ignores them with only a log line, so the crash-loop guard
    did nothing.
+
+6. **`issuePrefix` is not settable through the API.** `company create` derived
+   `BUI` from the name and ignored the field; `company update` ignored it both
+   flat and nested. Fixed with one `update companies set issue_prefix = 'BAS'`,
+   safe only because the board had zero issues at the time. Do it before the
+   first issue exists, or not at all.
+7. **`runtimeConfig.modelProfiles` is rejected** by this version, so there is no
+   cheap-model tier to configure. See [Company and roster](#company-and-roster).
 
 Two smaller ones: `$meta.source` in `config.json` is a strict enum
 (`onboard`/`configure`/`doctor`) and anything else makes `paperclip doctor` fail
