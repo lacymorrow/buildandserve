@@ -91,6 +91,15 @@ export interface StoreResult {
 
 type Severity = "down" | "checkout_broken" | "degraded";
 
+/**
+ * Check name reserved for the probe failing on its own terms (browser crash,
+ * timeout starting a context). It is not a verdict about the store, so it never
+ * becomes a store incident — see verdictFor.
+ */
+export const HARNESS_CHECK = "harness";
+
+export type Verdict = "clean" | "incident" | "needs_adaptation" | "harness_error";
+
 interface Incident {
   store: string;
   /** Stable across runs so the filing agent can dedupe instead of re-filing. */
@@ -113,7 +122,9 @@ interface Incident {
  * symptoms are folded into it.
  */
 export function toIncidents(result: StoreResult, detectedAt: string): Incident[] {
-  const failed = result.checks.filter((c) => c.status === "fail");
+  // A crashed probe is our bug, not Doug's outage. Dropping it here keeps it out
+  // of the ticket stream entirely; verdictFor turns it into exit 3 instead.
+  const failed = result.checks.filter((c) => c.status === "fail" && c.name !== HARNESS_CHECK);
   if (!failed.length) return [];
 
   const names = failed.map((c) => c.name);
@@ -168,6 +179,41 @@ export function toIncidents(result: StoreResult, detectedAt: string): Incident[]
     failedChecks: [c.name],
     evidence: c.evidence ? [c.evidence] : [],
   }));
+}
+
+/**
+ * Decide what the whole run means, across every store it probed.
+ *
+ * The runbook routes on this: exit 1 sends an agent to file a ticket against the
+ * store, exit 3 sends it to fix this script. Conflating them points a
+ * client-facing ticket at a store that is healthy, which is what happened on the
+ * 2026-10-13T12:23Z run when Playwright closed mid-probe.
+ *
+ * A real store failure outranks a harness crash: if one store is down and the
+ * probe died on the other, the outage still has to surface.
+ */
+export function verdictFor(results: StoreResult[]): Verdict {
+  const checks = results.flatMap((r) => r.checks);
+  if (checks.some((c) => c.status === "fail" && c.name !== HARNESS_CHECK)) return "incident";
+  if (checks.some((c) => c.status === "fail" && c.name === HARNESS_CHECK)) return "harness_error";
+  return checks.some((c) => c.status === "adapt") ? "needs_adaptation" : "clean";
+}
+
+export function exitCodeFor(verdict: Verdict): number {
+  return { clean: 0, incident: 1, needs_adaptation: 2, harness_error: 3 }[verdict];
+}
+
+/**
+ * Close a browser context or browser without letting teardown sink the run.
+ * Playwright throws here when the target is already gone, which is a cleanup
+ * detail and never a finding about the store.
+ */
+export async function closeQuietly(closable: { close: () => Promise<void> }): Promise<void> {
+  try {
+    await closable.close();
+  } catch {
+    // Nothing actionable: the evidence is already written.
+  }
 }
 
 const ok = (name: string, detail: string, httpCode?: number, evidence?: string): Check => ({
@@ -560,7 +606,10 @@ async function runStore(spec: StoreSpec, browser: Browser, outDir: string): Prom
     checks.push(...(await walkPurchasePath(spec, page, outDir, notes)));
     checks.push(await checkSignup(spec, page, outDir));
   } finally {
-    await context.close();
+    // Best-effort: by now every check has run and every screenshot is on disk,
+    // so a failure tearing the context down must not throw away the run. It did
+    // on 2026-10-13T12:23Z, which cost us all seven thepurplehaze results.
+    await closeQuietly(context);
   }
 
   return {
@@ -676,7 +725,7 @@ async function main() {
           store: spec.label,
           base: spec.base,
           platform: spec.platform,
-          checks: [bad("harness", `probe threw: ${(error as Error).message}`)],
+          checks: [bad(HARNESS_CHECK, `probe threw: ${(error as Error).message}`)],
           notes: [],
         })
       );
@@ -687,7 +736,9 @@ async function main() {
       results.push(result);
     }
   } finally {
-    await browser.close();
+    // Same reason as the per-store context: this runs before report.json is
+    // written, so a throw here would lose the evidence for every store.
+    await closeQuietly(browser);
   }
 
   const detectedAt = startedAt.toISOString();
@@ -696,7 +747,7 @@ async function main() {
     r.checks.filter((c) => c.status === "adapt").map((c) => ({ store: r.store, ...c }))
   );
 
-  const verdict = incidents.length ? "incident" : adaptations.length ? "needs_adaptation" : "clean";
+  const verdict = verdictFor(results);
   const report = {
     job: "doug-store-watch",
     issue: "LAC-4280",
@@ -720,9 +771,18 @@ async function main() {
       console.log(`  [${i.severity}${i.slack ? " +slack" : ""}] ${i.dedupeKey}: ${i.firstLine}`);
     }
   }
+  if (verdict === "harness_error") {
+    console.log("\nHARNESS ERROR — this is this script's bug, not a store outage.");
+    console.log("Fix the harness and re-run. Do NOT file a ticket against the store.");
+    for (const r of results) {
+      for (const c of r.checks.filter((c) => c.name === HARNESS_CHECK && c.status === "fail")) {
+        console.log(`  ${r.store}: ${c.detail}`);
+      }
+    }
+  }
   console.log(`\nVERDICT: ${verdict}`);
   console.log(`Evidence: ${reportPath}`);
-  process.exit(verdict === "clean" ? 0 : verdict === "incident" ? 1 : 2);
+  process.exit(exitCodeFor(verdict));
 }
 
 // Guarded so the pure helpers above can be imported by tests without launching
