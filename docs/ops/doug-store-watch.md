@@ -216,6 +216,10 @@ or if no run has ever been recorded, it prints one line and exits 1. Five hours
 is one 4h cadence plus an hour of slack, so a run that merely started late does
 not wake anyone.
 
+Exit codes: `0` the watch is running, `1` the watch is blind, `2` bad usage. A
+typo in the schedule exits 2 rather than 1, so it cannot sit in the log looking
+like a real blind window.
+
 Two things make it a real check rather than another thing that can go dark with
 everything else:
 

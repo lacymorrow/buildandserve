@@ -22,7 +22,7 @@
  *   bun scripts/doug-store-watch-freshness.ts [--notify] [--max-age-hours N]
  *                                             [--evidence <dir>]
  *
- * Exit codes: 0 = the watch is running, 1 = the watch is blind.
+ * Exit codes: 0 = the watch is running, 1 = the watch is blind, 2 = bad usage.
  *
  * Output follows the same contract as the watch itself: silence means healthy.
  * When the watch is blind it prints one line, and with `--notify` it Slack-DMs
@@ -74,13 +74,13 @@ function easternTime(ms: number): string {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    // h23 rather than hour12:false, which renders midnight as hour 24 on some
+    // ICU builds. A 4h cadence puts a run at midnight ET twice a day.
+    hourCycle: "h23",
   }).formatToParts(new Date(ms));
   const at = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((p) => p.type === type)?.value ?? "";
-  // Intl renders midnight as hour 24 in some ICU versions; the date is already correct.
-  const hour = at("hour") === "24" ? "00" : at("hour");
-  return `${at("year")}-${at("month")}-${at("day")} ${hour}:${at("minute")} ET`;
+  return `${at("year")}-${at("month")}-${at("day")} ${at("hour")}:${at("minute")} ET`;
 }
 
 /**
@@ -218,8 +218,10 @@ async function main() {
   const maxAgeRaw = arg("--max-age-hours");
   const maxAgeHours = maxAgeRaw === undefined ? STALE_AFTER_HOURS : Number(maxAgeRaw);
   if (!Number.isFinite(maxAgeHours) || maxAgeHours <= 0) {
+    // Exit 2, not 1: a typo in the schedule must not read as "the watch is
+    // blind" in the log, or the real thing gets lost among its own false alarms.
     console.error(`--max-age-hours must be a positive number, got ${maxAgeRaw}`);
-    process.exit(1);
+    process.exit(2);
   }
 
   const verdict = assessStaleness(await readRuns(base), Date.now(), maxAgeHours);

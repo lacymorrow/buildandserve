@@ -71,6 +71,18 @@ describe("assessStaleness", () => {
   it("accepts a wider window so a human can check against a different cadence", () => {
     expect(assessStaleness([run("x", 8)], NOW, 12).stale).toBe(false);
   });
+
+  it("writes midnight ET as 00:00, not 24:00", () => {
+    // A 4h cadence puts a run at midnight ET twice a day, and some ICU builds
+    // render that hour as 24 under `hour12: false`. "2026-10-13 24:00 ET" in a
+    // 3am phone alert is a line that makes the reader doubt the alert.
+    const midnightEt = Date.parse("2026-10-13T04:00:00.000Z");
+    const verdict = assessStaleness(
+      [{ name: "midnight", startedAtMs: midnightEt }],
+      midnightEt + 8 * 3_600_000
+    );
+    expect(verdict.line).toContain("Last run 2026-10-13 00:00 ET");
+  });
 });
 
 describe("shouldNotify", () => {
