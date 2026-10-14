@@ -29,21 +29,16 @@
  */
 
 import { promises as dns } from "node:dns";
-import { access, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import tls from "node:tls";
 import { fileURLToPath } from "node:url";
 import { type Browser, chromium, type Page } from "playwright";
+import { evidenceBaseFor, expiredRuns, RETENTION_DAYS } from "./utils/store-watch-evidence";
 
 const TLS_MIN_DAYS = 14;
 const NAV_TIMEOUT = 45_000;
-
-/** Directory, under the main checkout, that holds one subdirectory per run. */
-export const EVIDENCE_DIR_NAME = "store-watch-runs";
-
-/** The runbook's evidence standard: keep runs long enough to trace a regression. */
-export const RETENTION_DAYS = 30;
 
 interface StoreSpec {
   key: string;
@@ -623,48 +618,6 @@ async function runStore(spec: StoreSpec, browser: Browser, outDir: string): Prom
 }
 
 /**
- * Where a run's evidence belongs, given the checkout the script was invoked
- * from and the contents of that checkout's `.git` when it is a pointer file.
- *
- * Evidence has to outlive the process that produced it. The default used to be
- * the cwd-relative `./store-watch-runs`, which is correct from the main
- * checkout and wrong everywhere else: Paperclip wakes an agent inside
- * `.paperclip/worktrees/<issue>/`, so screenshots and report.json landed in a
- * directory that is deleted with the worktree and the 30-day retention the
- * runbook promises silently did not happen (LAC-4300). A linked worktree's
- * `.git` is a file pointing at `<main>/.git/worktrees/<name>`, which names the
- * main checkout, so anchor there instead of at the cwd.
- */
-export function resolveEvidenceBase(repoRoot: string, gitPointer: string | null): string {
-  const gitDir = gitPointer ? /^gitdir:\s*(.+?)\s*$/m.exec(gitPointer)?.[1] : undefined;
-  const mainCheckout = gitDir
-    ? /^(.*)[/\\]\.git[/\\]worktrees[/\\][^/\\]+$/.exec(gitDir)?.[1]
-    : undefined;
-  return path.join(mainCheckout ?? repoRoot, EVIDENCE_DIR_NAME);
-}
-
-/** Run directories whose evidence has aged past the retention window. */
-export function expiredRuns(
-  runs: { name: string; mtimeMs: number }[],
-  nowMs: number,
-  retentionDays: number = RETENTION_DAYS
-): string[] {
-  const cutoff = nowMs - retentionDays * 86_400_000;
-  return runs.filter((run) => run.mtimeMs < cutoff).map((run) => run.name);
-}
-
-/** The `.git` of a linked worktree is a file; of a normal checkout, a directory. */
-async function readGitPointer(repoRoot: string): Promise<string | null> {
-  const dotGit = path.join(repoRoot, ".git");
-  try {
-    if (!(await stat(dotGit)).isFile()) return null;
-    return await readFile(dotGit, "utf8");
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Enforce retention. Nothing else does, so without this the evidence directory
  * grows without bound and "keep it 30 days" means "keep it forever".
  */
@@ -691,7 +644,7 @@ async function main() {
 
   const startedAt = new Date();
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const evidenceBase = resolveEvidenceBase(repoRoot, await readGitPointer(repoRoot));
+  const evidenceBase = await evidenceBaseFor(repoRoot);
   const explicitOut = arg("--out");
   const outDir = explicitOut
     ? path.resolve(explicitOut)

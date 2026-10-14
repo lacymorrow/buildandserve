@@ -163,6 +163,7 @@ That is the whole message. The ticket carries the detail and the evidence.
 | Checkout broken | Cannot add to cart, or checkout does not render | Ticket + Slack DM |
 | Degraded | Signup form missing, or TLS under 14 days | Ticket only |
 | Adapted | Layout changed, job recovered on its own | No ticket. Append to Notes |
+| Blind | No run has landed in 5h | Slack DM only, once per gap |
 
 ## Running it on the BAS server
 
@@ -194,6 +195,92 @@ bun scripts/doug-store-watch.ts --store raw-kratom --base https://store-watch-dr
 
 The Managed Agents trial gets this same file and uses its own tooling. The
 checks, the evidence standard, and the output rules are what must match.
+
+## Watching the watch
+
+Silence is the success signal, which means a run that never starts looks
+exactly like a clean one. On 2026-10-13 the 04:00 ET slot never executed: no
+evidence directory, no exit code, no message. Doug's stores were unwatched for
+four hours and the only way anyone found out was by counting directories
+afterwards (LAC-4335, and the missed run itself was LAC-4326).
+
+So a second, much smaller job watches the first one:
+
+```bash
+bun scripts/doug-store-watch-freshness.ts [--notify] [--max-age-hours N] [--evidence <dir>]
+```
+
+It reads the newest `store-watch-runs/<ts>/report.json` and compares its
+`startedAt` to now. Under 5 hours, it prints nothing and exits 0. Over 5 hours,
+or if no run has ever been recorded, it prints one line and exits 1. Five hours
+is one 4h cadence plus an hour of slack, so a run that merely started late does
+not wake anyone.
+
+Two things make it a real check rather than another thing that can go dark with
+everything else:
+
+- **It is not scheduled by Paperclip.** The Paperclip runner is what failed, so
+  a check it schedules inherits the failure. The operating system schedules this
+  one.
+- **It shares no dependency with the watch.** No Playwright, no browser, no
+  network, no database. One JSON file and the clock.
+
+A run directory with no `report.json` does not count as a run. That is a run
+that died before producing evidence, which is the condition being alerted on.
+
+With `--notify` it Slack-DMs the line, at most once per gap. The key is pinned
+to the last good run, so it does not move while a gap lasts and does move once
+a run lands and a later gap opens. An hourly check without that turns a two-day
+outage into forty-eight identical messages, and the next real one gets ignored.
+If Slack itself fails, the line still goes to stdout, the exit code is still 1,
+and the gap keeps its unsent alert for the next hour.
+
+Credentials come from the environment, not from a path on Lacy's laptop, so the
+Managed Agents trial runs the same file:
+
+| Variable | Value |
+|---|---|
+| `STORE_WATCH_SLACK_TOKEN` | clawdbot bot token (`~/.openclaw/openclaw.json`, `.channels.slack.botToken`) |
+| `STORE_WATCH_SLACK_CHANNEL` | `U3XC80UUQ` (DMs Lacy) |
+
+### What is scheduled, and where
+
+On the BAS Mac it is a launchd agent, hourly at :20, so a run that started on
+the hour has time to write its evidence first:
+
+```
+~/Library/LaunchAgents/com.buildandserve.store-watch-freshness.plist
+launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.buildandserve.store-watch-freshness.plist
+launchctl print gui/$UID/com.buildandserve.store-watch-freshness   # state, run count, last exit
+tail /tmp/store-watch-freshness.log
+```
+
+launchd rather than cron because editing the cron spool on macOS needs Full
+Disk Access, which an agent session cannot grant itself. launchd also runs the
+job on wake, so a gap that opens while the Mac is asleep is caught when it comes
+back rather than at the next whole hour.
+
+On a Linux box (the Hetzner move, LAC-4279) the same thing is one cron line:
+
+```cron
+20 * * * * cd /path/to/buildandserve && STORE_WATCH_SLACK_TOKEN=... STORE_WATCH_SLACK_CHANNEL=... bun scripts/doug-store-watch-freshness.ts --notify >> /tmp/store-watch-freshness.log 2>&1
+```
+
+Worst case detection is about six hours after the last good run, roughly two
+hours into a missed slot.
+
+One thing this does not cover: if the script itself goes missing, `bun` fails to
+load it and exits before any of the above runs, so the failure lands in
+`/tmp/store-watch-freshness.log` and nobody is DMed. The script is in this repo
+and under test, so the realistic way that happens is someone deleting it on
+purpose.
+
+To rehearse it without waiting for a real gap, point it at a directory holding
+one old report:
+
+```bash
+bun scripts/doug-store-watch-freshness.ts --evidence /tmp/drill/store-watch-runs
+```
 
 ## Notes
 
