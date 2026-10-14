@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   closeQuietly,
-  EVIDENCE_DIR_NAME,
   exitCodeFor,
-  expiredRuns,
   HARNESS_CHECK,
-  RETENTION_DAYS,
-  resolveEvidenceBase,
   type StoreResult,
   toIncidents,
   verdictFor,
 } from "../../../scripts/doug-store-watch";
+import {
+  EVIDENCE_DIR_NAME,
+  expiredRuns,
+  RETENTION_DAYS,
+  resolveEvidenceBase,
+} from "../../../scripts/utils/store-watch-evidence";
 
 const DETECTED_AT = "2026-10-12T18:00:00.000Z";
 
