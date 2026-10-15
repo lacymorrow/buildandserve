@@ -1,5 +1,6 @@
 import { Logo } from '@/components/assets/logo'
 import Link from 'next/link'
+import { MoreByLacy } from '@/components/footers/more-by-lacy'
 
 const links = [
 
@@ -89,6 +90,7 @@ export default function FooterSection() {
                         </Link>
                     </div>
                 </div>
+                <MoreByLacy className="-mt-2 pb-6 text-center text-sm text-muted-foreground md:text-left" />
             </div>
         </footer>
     )
