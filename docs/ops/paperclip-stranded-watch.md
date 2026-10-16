@@ -97,5 +97,7 @@ three wait on the LAC-4482 decision about shipping platform patches.
   seconds after a write.
 - It watches the board, not the machine. The laptop sleeping at 1% battery is
   what started this, and nothing here notices that.
+  [The fleet power watch](./fleet-power-watch.md) is the machine half: it warns
+  before the battery runs out, so this one has less to report afterwards.
 - The GHOST company (`6002a0d1-…`, split 2026-09-24) is skipped; its 25 blocked
   issues are a frozen copy.
