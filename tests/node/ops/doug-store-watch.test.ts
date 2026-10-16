@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  type AddToCartOutcome,
+  addToCartAdaptDetail,
+  briefError,
+  clickAddToCart,
   closeQuietly,
   exitCodeFor,
   HARNESS_CHECK,
@@ -172,6 +176,172 @@ describe("toIncidents", () => {
     expect(incidents).toHaveLength(1);
     expect(incidents[0].severity).toBe("down");
     expect(incidents[0].failedChecks).not.toContain(HARNESS_CHECK);
+  });
+});
+
+describe("clickAddToCart", () => {
+  const PLAYWRIGHT_CLICK_TIMEOUT = [
+    "locator.click: Timeout 20000ms exceeded.",
+    "Call log:",
+    '  - waiting for getByRole("button", { name: /add to cart/i }).first()',
+    "  - locator resolved to <button>Add to cart</button>",
+  ].join("\n");
+
+  /** A locator stand-in: `clicks` is the queue of outcomes per click attempt. */
+  const target = (opts: { visible: boolean; clicks: ("ok" | "timeout")[] }) => {
+    let attempt = 0;
+    return {
+      attempts: () => attempt,
+      waitFor: () =>
+        opts.visible
+          ? Promise.resolve()
+          : Promise.reject(
+              new Error("locator.waitFor: Timeout 25000ms exceeded.\nCall log:\n  - x")
+            ),
+      scrollIntoViewIfNeeded: () => Promise.resolve(),
+      click: () => {
+        const next = opts.clicks[attempt++];
+        return next === "ok"
+          ? Promise.resolve()
+          : Promise.reject(new Error(PLAYWRIGHT_CLICK_TIMEOUT));
+      },
+    };
+  };
+
+  it("adds the item on the first click and settles nothing", async () => {
+    const notes: string[] = [];
+    let settled = 0;
+    const t = target({ visible: true, clicks: ["ok"] });
+
+    const outcome = await clickAddToCart(t, "thepurplehaze.com", notes, async () => {
+      settled++;
+    });
+
+    expect(outcome).toEqual({ added: true, stage: "click", error: "" });
+    expect(t.attempts()).toBe(1);
+    expect(settled).toBe(0);
+    expect(notes).toEqual([]);
+  });
+
+  it("retries once after a settle and recovers from a single flaked click", async () => {
+    // The 2026-10-16 20:03Z run on thepurplehaze.com: the control was visible,
+    // one click timed out, and the next scheduled run added the same product
+    // fine. One flake must not cost an agent wake.
+    const notes: string[] = [];
+    const order: string[] = [];
+    const t = target({ visible: true, clicks: ["timeout", "ok"] });
+
+    const outcome = await clickAddToCart(t, "thepurplehaze.com", notes, async () => {
+      order.push("settle");
+    });
+
+    expect(outcome.added).toBe(true);
+    expect(t.attempts()).toBe(2);
+    // The settle (re-dismissing the age gate) must happen between the attempts,
+    // not after the second one, or it clears the overlay too late to help.
+    expect(order).toEqual(["settle"]);
+    expect(notes).toEqual([
+      "thepurplehaze.com: add-to-cart click failed (attempt 1 of 2: Timeout 20000ms exceeded.)",
+      "thepurplehaze.com: add-to-cart click landed on retry",
+    ]);
+  });
+
+  it("reports stage 'click' when a visible control refuses two clicks", async () => {
+    const notes: string[] = [];
+    const t = target({ visible: true, clicks: ["timeout", "timeout"] });
+
+    const outcome = await clickAddToCart(t, "thepurplehaze.com", notes, async () => {});
+
+    expect(outcome.added).toBe(false);
+    expect(outcome.stage).toBe("click");
+    expect(outcome.error).toBe("Timeout 20000ms exceeded.");
+    expect(t.attempts()).toBe(2);
+  });
+
+  it("reports stage 'locate' when the control never appears, and never clicks", async () => {
+    const notes: string[] = [];
+    const t = target({ visible: false, clicks: [] });
+
+    const outcome = await clickAddToCart(t, "raw-kratom.com", notes, async () => {});
+
+    expect(outcome.added).toBe(false);
+    expect(outcome.stage).toBe("locate");
+    expect(t.attempts()).toBe(0);
+    expect(notes).toEqual([
+      "raw-kratom.com: no add-to-cart control became visible (Timeout 25000ms exceeded.)",
+    ]);
+  });
+});
+
+describe("addToCartAdaptDetail", () => {
+  const URL = "https://thepurplehaze.com/products/top-shelf-pre-roll-5-pack-0-5g-each";
+  const clicked: AddToCartOutcome = {
+    added: false,
+    stage: "click",
+    error: "Timeout 20000ms exceeded.",
+  };
+  const missing: AddToCartOutcome = {
+    added: false,
+    stage: "locate",
+    error: "Timeout 25000ms exceeded.",
+  };
+
+  it("does not claim the template changed when it was the click that timed out", () => {
+    // The 20:03Z report said "No add-to-cart control matched ... the product
+    // template likely changed". The control had matched and was visible, so
+    // that sent the next agent looking for a rename that never happened.
+    const detail = addToCartAdaptDetail(clicked, URL);
+    expect(detail).not.toMatch(/template likely changed/);
+    expect(detail).toMatch(/was found and visible/);
+    expect(detail).toMatch(/not a template change/);
+    expect(detail).toMatch(/re-run the job before adapting/i);
+  });
+
+  it("still sends the agent to find a renamed control when nothing matched", () => {
+    const detail = addToCartAdaptDetail(missing, URL);
+    expect(detail).toMatch(/No add-to-cart control matched/);
+    expect(detail).toMatch(/template likely changed/);
+  });
+
+  it("quotes the Playwright error and the product URL in both cases", () => {
+    for (const outcome of [clicked, missing]) {
+      const detail = addToCartAdaptDetail(outcome, URL);
+      expect(detail).toContain(URL);
+      expect(detail).toContain(outcome.error);
+    }
+  });
+
+  it("gives the two failure modes different text", () => {
+    expect(addToCartAdaptDetail(clicked, URL)).not.toBe(addToCartAdaptDetail(missing, URL));
+  });
+});
+
+describe("briefError", () => {
+  it("keeps the finding and drops Playwright's call log", () => {
+    const error = new Error(
+      "locator.click: Timeout 20000ms exceeded.\nCall log:\n  - waiting for locator\n  - resolved"
+    );
+    expect(briefError(error)).toBe("Timeout 20000ms exceeded.");
+  });
+
+  it("drops the API-call prefix, which arrives mangled under Bun", () => {
+    // Observed verbatim on 2026-10-16: playwright under Bun reports a
+    // locator.waitFor timeout as "for: Timeout 25000ms exceeded.". Quoting that
+    // in a report reads like the harness is broken.
+    expect(briefError(new Error("for: Timeout 25000ms exceeded.\nCall log:\n  - x"))).toBe(
+      "Timeout 25000ms exceeded."
+    );
+  });
+
+  it("leaves a message alone when its prefix is not an API call", () => {
+    const error = new Error("Protocol error (Runtime.callFunctionOn): Target closed");
+    expect(briefError(error)).toBe("Protocol error (Runtime.callFunctionOn): Target closed");
+  });
+
+  it("truncates a single long line and survives a non-Error throw", () => {
+    expect(briefError(new Error("x".repeat(400)))).toHaveLength(160);
+    expect(briefError("plain string")).toBe("plain string");
+    expect(briefError(undefined)).toBe("undefined");
   });
 });
 

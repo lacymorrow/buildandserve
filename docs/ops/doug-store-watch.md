@@ -78,6 +78,11 @@ them.
   password field.
 - **An empty cart page still returns 200**, and a soft-404 can return 200 too. A
   status code alone never proves a step passed.
+- **A single Add to Cart click can time out on a button that is right there.**
+  The age gate re-shows over it, or the theme bundle lands late. The job clicks
+  twice with the gate re-cleared in between, and only gives up after both. One
+  run reporting this is a flake, not a store change. See "Two different
+  add_to_cart failures" below.
 
 ## Evidence
 
@@ -85,6 +90,8 @@ A run is judged on its evidence, not on the agent's summary. Every run saves:
 
 - The **HTTP status code** for each navigation (checks 3 through 7).
 - A **screenshot of the cart page and of the checkout page**, per store.
+- A **screenshot of the product page** whenever Add to Cart gives up, per store.
+  The run that cannot add the item is the run someone needs a picture of.
 - The product URL actually used.
 - A machine-readable report of every check with pass/fail and detail.
 
@@ -115,6 +122,19 @@ Layouts and URLs change. That is expected and is not an incident by itself.
 5. **Write down what changed in the Notes section at the bottom of this file**,
    with the date, so the next run starts from the new reality instead of
    rediscovering it. This is the part that makes the job cheaper over time.
+
+### Two different add_to_cart failures
+
+`add_to_cart` reaches exit 2 for two unrelated reasons. Read which one the
+report names before you go looking for a renamed control.
+
+| Report says | What happened | What to do |
+|---|---|---|
+| "No add-to-cart control matched on ... within 25s" | The control never became visible. | This is the layout change. Find the new control, record it in Notes. |
+| "was found and visible, but two clicks timed out" | The control is there. Two clicks did not land, with the age gate re-cleared between them. | Nothing changed on the store. Re-run the job. Open `<store>-product.png` in the run's evidence to see what was covering the button. |
+
+Both quote the Playwright error that ended the attempt. The product screenshot
+is saved either way.
 
 ## What to do with the result
 
@@ -298,9 +318,10 @@ appends a line here.
   control was found and visible; it was the *click* that timed out at 20s, so
   the "No add-to-cart control matched" wording in that report was misleading.
   **A lone exit 2 on add_to_cart is not evidence of a layout change. Re-run the
-  job first** — if the next run is clean, the store is fine and there is nothing
-  to adapt. The adapt path saves no screenshot, so the 20:03 run left nothing
-  showing what blocked the click; see LAC-4597.
+  job first.** If the next run is clean, the store is fine and there is nothing
+  to adapt. Fixed in LAC-4597: the job now retries the click once after
+  re-dismissing the age gate, names which of the two failures happened, quotes
+  the Playwright error, and saves a product-page screenshot before it gives up.
 - **2026-10-12** Baseline established. Both stores pass all 7 checks. Known
   shape at this date: both stores show a 21+ age gate on first load;
   raw-kratom products require Strength and Flavor options before Add to Cart

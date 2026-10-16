@@ -39,6 +39,8 @@ import { evidenceBaseFor, expiredRuns, RETENTION_DAYS } from "./utils/store-watc
 
 const TLS_MIN_DAYS = 14;
 const NAV_TIMEOUT = 45_000;
+const ATC_VISIBLE_TIMEOUT = 25_000;
+const ATC_CLICK_TIMEOUT = 20_000;
 
 interface StoreSpec {
   key: string;
@@ -225,7 +227,114 @@ const bad = (name: string, detail: string, httpCode?: number, evidence?: string)
   httpCode,
   evidence,
 });
-const adapt = (name: string, detail: string): Check => ({ name, status: "adapt", detail });
+const adapt = (name: string, detail: string, evidence?: string): Check => ({
+  name,
+  status: "adapt",
+  detail,
+  evidence,
+});
+
+/**
+ * Playwright errors are a one-line finding followed by a long "Call log:" dump.
+ * Keep the finding, drop the dump: the full text goes nowhere useful in a report
+ * and the first line is the part that names what timed out.
+ *
+ * The first line also carries an API-call prefix that arrives mangled under Bun
+ * ("for: Timeout 25000ms exceeded." for a locator.waitFor), so drop it. The
+ * caller already says which step it was, in words a reader can act on.
+ */
+export function briefError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const line = (message.split("\n")[0] ?? "").trim();
+  return line.replace(/^[\w.]+:\s+/, "").slice(0, 160);
+}
+
+/** Which step of the add-to-cart interaction gave up. */
+export type AddToCartStage = "locate" | "click";
+
+export interface AddToCartOutcome {
+  added: boolean;
+  stage: AddToCartStage;
+  /** First line of the Playwright error. Empty when the item went in. */
+  error: string;
+}
+
+/** The slice of a Playwright Locator this interaction needs, so it can be faked. */
+interface AddToCartTarget {
+  waitFor(options: { state: "visible"; timeout: number }): Promise<void>;
+  scrollIntoViewIfNeeded(options: { timeout: number }): Promise<void>;
+  click(options: { timeout: number }): Promise<void>;
+}
+
+/**
+ * Add the item, and keep the two failure modes apart.
+ *
+ * "The control never appeared" and "the control was there but the click timed
+ * out" need different responses, so the caller is told which one happened
+ * (LAC-4597). A timed-out click is usually an overlay swallowing the pointer
+ * event rather than anything about the store, so it gets one retry after the
+ * caller re-clears overlays. A single flake used to cost a full agent wake.
+ *
+ * The retry can in principle add the item twice, if a click landed and then the
+ * page detached before Playwright saw it resolve. That is harmless here: the
+ * cart is a throwaway session, the cart check only asserts the line item exists,
+ * and the probe never submits an order.
+ */
+export async function clickAddToCart(
+  target: AddToCartTarget,
+  label: string,
+  notes: string[],
+  settle: () => Promise<void>
+): Promise<AddToCartOutcome> {
+  try {
+    // The control is rendered by the theme bundle, so it is absent at
+    // domcontentloaded. Wait for it rather than racing it.
+    await target.waitFor({ state: "visible", timeout: ATC_VISIBLE_TIMEOUT });
+  } catch (error) {
+    const brief = briefError(error);
+    notes.push(`${label}: no add-to-cart control became visible (${brief})`);
+    return { added: false, stage: "locate", error: brief };
+  }
+
+  let last = "";
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (attempt > 1) await settle();
+    try {
+      await target.scrollIntoViewIfNeeded({ timeout: 10_000 }).catch(() => {});
+      await target.click({ timeout: ATC_CLICK_TIMEOUT });
+      if (attempt > 1) notes.push(`${label}: add-to-cart click landed on retry`);
+      return { added: true, stage: "click", error: "" };
+    } catch (error) {
+      last = briefError(error);
+      notes.push(`${label}: add-to-cart click failed (attempt ${attempt} of 2: ${last})`);
+    }
+  }
+  return { added: false, stage: "click", error: last };
+}
+
+/**
+ * Say which add-to-cart failure happened, and quote the error that proves it.
+ *
+ * The old single message asserted the template had changed whatever the cause,
+ * which sent the next agent hunting for a renamed control that was never
+ * renamed (2026-10-16 20:03Z run on thepurplehaze.com).
+ */
+export function addToCartAdaptDetail(outcome: AddToCartOutcome, productUrl: string): string {
+  if (outcome.stage === "locate") {
+    return [
+      `No add-to-cart control matched on ${productUrl} within ${ATC_VISIBLE_TIMEOUT / 1000}s.`,
+      "The product template likely changed; locate the new control and record it in the runbook notes.",
+      `Playwright: ${outcome.error}`,
+    ].join(" ");
+  }
+  return [
+    `The add-to-cart control on ${productUrl} was found and visible, but two clicks timed out.`,
+    "This is not a template change. Look for an overlay eating the pointer event (the age gate re-shows)",
+    "or a theme bundle that loaded late, and re-run the job before adapting anything.",
+    "The product screenshot in this run's evidence shows the page as the click saw it.",
+    `Playwright: ${outcome.error}`,
+  ].join(" ");
+}
 
 /** Resolve apex A records. The raw-kratom outage was exactly this going empty. */
 async function checkDns(spec: StoreSpec): Promise<Check> {
@@ -457,28 +566,21 @@ async function walkPurchasePath(
   // which therefore has no text node to match on.
   const addToCart = page.getByRole("button", { name: /add to cart|add to bag/i }).first();
 
-  let added = false;
-  try {
-    // The control is rendered by the theme bundle, so it is absent at
-    // domcontentloaded. Wait for it rather than racing it.
-    await addToCart.waitFor({ state: "visible", timeout: 25_000 });
-    await addToCart.scrollIntoViewIfNeeded({ timeout: 10_000 }).catch(() => {});
-    await addToCart.click({ timeout: 20_000 });
-    await page.waitForTimeout(5_000);
-    added = true;
-  } catch (error) {
-    notes.push(
-      `${spec.label}: add-to-cart click failed (${(error as Error).message.slice(0, 120)})`
-    );
-  }
+  const outcome = await clickAddToCart(addToCart, spec.label, notes, async () => {
+    // The age gate re-shows and covers the button, which is the likeliest reason
+    // a click on a visible control times out. Clear it, then let the theme settle.
+    await dismissAgeGate(page, spec.label, notes);
+    await dismissCookieBanner(page);
+    await page.waitForTimeout(2_000);
+  });
+  if (outcome.added) await page.waitForTimeout(5_000);
 
-  if (!added) {
-    checks.push(
-      adapt(
-        "add_to_cart",
-        `No add-to-cart control matched on ${productUrl}. The product template likely changed; locate the new control and record it in the runbook notes.`
-      )
-    );
+  if (!outcome.added) {
+    // This path used to return before any screenshot, so the one run that needed
+    // a picture of the page was the one run that had none (LAC-4597).
+    const productShot = path.join(outDir, `${spec.key}-product.png`);
+    await page.screenshot({ path: productShot, fullPage: false }).catch(() => {});
+    checks.push(adapt("add_to_cart", addToCartAdaptDetail(outcome, productUrl), productShot));
     return checks;
   }
 
