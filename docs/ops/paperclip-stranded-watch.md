@@ -94,7 +94,12 @@ three wait on the LAC-4482 decision about shipping platform patches.
 
 - Read-only on purpose. It never unparks anything. Unparking 100 issues at once
   would stampede the fleet, and the platform re-parks `configuration_incomplete`
-  seconds after a write.
+  seconds after a write. This property is load-bearing and stays: an alarm that
+  can break itself is a bad alarm. The repair lives in a separate job,
+  [the lease-loss retry](./paperclip-lease-loss-retry.md), which re-runs the one
+  strand cause where retrying is unambiguously right. A slot it repairs inside
+  the 30-minute grace above never reaches this check at all, which is the
+  intended division: that job fixes, this one tells.
 - It watches the board, not the machine. The laptop sleeping at 1% battery is
   what started this, and nothing here notices that.
   [The fleet power watch](./fleet-power-watch.md) is the machine half: it warns

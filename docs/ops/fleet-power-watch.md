@@ -24,6 +24,11 @@ Nothing said any of it. The gap was found afterwards, by reading `pmset -g log`.
 [The stranded-work watch](./paperclip-stranded-watch.md) names this as its own
 known gap: it watches the board, not the machine. This is the machine half.
 
+Those six reaped runs are measured and fixed separately. Lease loss killed 15
+runs in 14 days and cost one routine 3 of its 7 daily slots;
+[the lease-loss retry](./paperclip-lease-loss-retry.md) re-runs them on wake, so
+a sleep this warning did not prevent costs less (LAC-4586).
+
 ## The alert
 
 ```
