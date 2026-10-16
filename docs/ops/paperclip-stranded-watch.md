@@ -30,10 +30,20 @@ blocker. Three outcomes:
 |---|---|---|
 | escalated | an active recovery action owns it, nobody was told | yes |
 | orphaned | no recovery action, no declared wait, nothing will wake it | yes |
-| declared wait | `unblock_descriptor` names the owner and the thing | no |
+| declared wait | `unblock_descriptor` names the owner and the thing, and no board-owned action | no |
 
 A declared wait is a person parking work on purpose. Alerting on it would bury
 the hundred cases where nobody chose anything.
+
+When an issue has both a descriptor and an active recovery action, the action's
+`owner_type` decides which it is:
+
+- **agent-owned** (`deliberate_wait_without_target`) is the platform restating
+  the agent's own declared wait. One wait, described twice. Not alerted.
+- **board-owned** is still an escalation, descriptor or not. LAC-4085 named
+  "when LAC-4177 resolves, re-record"; LAC-4177 went `done` and the issue stayed
+  parked, because `blocked` wakes nobody when the named condition comes true.
+  Treating a descriptor as proof of health would silence that.
 
 A park younger than 30 minutes is ignored: platform revalidation clears a
 transient one in seconds, and an agent mid-PATCH holds the state for a moment.
