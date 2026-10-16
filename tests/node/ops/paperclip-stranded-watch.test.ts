@@ -20,6 +20,7 @@ const issue = (over: Partial<BlockedIssue> & { identifier: string }): BlockedIss
   assignee: "Founding Engineer",
   strandedSinceMs: minutesAgo(120),
   recoveryCause: "",
+  recoveryOwner: "",
   hasDescriptor: false,
   ...over,
 });
@@ -29,6 +30,7 @@ const escalated = issue({
   identifier: "LAC-4564",
   title: "Doug store watch (every 4h, read-only)",
   recoveryCause: "stranded_assigned_issue",
+  recoveryOwner: "board",
   strandedSinceMs: Date.parse("2026-10-16T13:29:17.000Z"),
 });
 
@@ -48,19 +50,44 @@ describe("classify", () => {
     expect(stranded(verdict)).toEqual([]);
   });
 
-  it("counts a recovery action as the reason even when a descriptor is also set", () => {
+  it("still escalates a descriptor whose action was handed to the board", () => {
+    // The real LAC-4085: the descriptor said "when LAC-4177 resolves, re-record",
+    // LAC-4177 went done, and the issue stayed parked under a board-owned
+    // `stranded_assigned_issue` because `blocked` wakes nobody. A declared wait
+    // whose condition came true is the exact case this check exists for.
     const verdict = classify(
       [
         issue({
-          identifier: "LAC-4192",
-          recoveryCause: "configuration_incomplete",
+          identifier: "LAC-4085",
+          recoveryCause: "stranded_assigned_issue",
+          recoveryOwner: "board",
           hasDescriptor: true,
         }),
       ],
       NOW
     );
-    expect(verdict.escalated).toHaveLength(1);
+    expect(verdict.escalated.map((i) => i.identifier)).toEqual(["LAC-4085"]);
     expect(verdict.declared).toEqual([]);
+  });
+
+  it("leaves a declared wait alone when the platform only restated it", () => {
+    // The real LAC-3980: waiting on Janet Harriman's reply, owner and condition
+    // written down, and `deliberate_wait_without_target` filed against the agent
+    // itself. One wait described twice, not an escalation. It reported as one for
+    // a week (LAC-4573).
+    const verdict = classify(
+      [
+        issue({
+          identifier: "LAC-3980",
+          recoveryCause: "deliberate_wait_without_target",
+          recoveryOwner: "agent",
+          hasDescriptor: true,
+        }),
+      ],
+      NOW
+    );
+    expect(verdict.declared.map((i) => i.identifier)).toEqual(["LAC-3980"]);
+    expect(stranded(verdict)).toEqual([]);
   });
 
   it("holds its fire inside the grace window and fires just past it", () => {

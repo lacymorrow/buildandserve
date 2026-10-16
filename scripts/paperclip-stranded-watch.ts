@@ -69,6 +69,8 @@ export interface BlockedIssue {
   strandedSinceMs: number;
   /** `cause` of the active recovery action, or "" when there is none. */
   recoveryCause: string;
+  /** `owner_type` of that action: "board", "agent", or "" when there is none. */
+  recoveryOwner: string;
   /** True when the issue declares who it is waiting on and what for. */
   hasDescriptor: boolean;
 }
@@ -95,6 +97,17 @@ export function alertKey(issue: BlockedIssue): string {
  * An issue carrying an `unblockDescriptor` is waiting on a named owner for a
  * named thing. That is a person choosing to park work, which is the system
  * working. Alerting on it would bury the 99 cases where nobody chose anything.
+ *
+ * What decides it is who owns the recovery action, not whether one exists. A
+ * descriptor alongside an **agent-owned** action is one wait described twice:
+ * `deliberate_wait_without_target` is the platform noting the agent's own
+ * declared wait, so LAC-3980 (waiting on Janet Harriman's reply) reported as an
+ * escalation for a week while being perfectly healthy. A descriptor alongside a
+ * **board-owned** action is not the same animal and must still be reported: on
+ * LAC-4085 the descriptor said "when LAC-4177 resolves, re-record", LAC-4177
+ * went `done` on 2026-10-15, and the issue stayed parked because `blocked`
+ * wakes nobody when the named condition comes true. Descriptor-first would have
+ * silenced exactly the case this check exists for.
  */
 export function classify(
   issues: BlockedIssue[],
@@ -115,8 +128,8 @@ export function classify(
       verdict.young += 1;
       continue;
     }
-    if (issue.recoveryCause) verdict.escalated.push(issue);
-    else if (issue.hasDescriptor) verdict.declared.push(issue);
+    if (issue.hasDescriptor && issue.recoveryOwner !== "board") verdict.declared.push(issue);
+    else if (issue.recoveryCause) verdict.escalated.push(issue);
     else verdict.orphaned.push(issue);
   }
   return verdict;
@@ -196,6 +209,7 @@ const QUERY = `
          coalesce(a.name, '') AS assignee,
          (extract(epoch FROM coalesce(i.blocked_transition_at, i.updated_at)) * 1000)::bigint AS stranded_since_ms,
          coalesce(ra.cause, '') AS recovery_cause,
+         coalesce(ra.owner_type, '') AS recovery_owner,
          (i.unblock_descriptor IS NOT NULL) AS has_descriptor
     FROM issues i
     LEFT JOIN agents a ON a.id = i.assignee_agent_id
@@ -233,6 +247,7 @@ async function readBlockedIssues(url: string): Promise<BlockedIssue[]> {
       assignee: String(row.assignee ?? ""),
       strandedSinceMs: Number(row.stranded_since_ms),
       recoveryCause: String(row.recovery_cause ?? ""),
+      recoveryOwner: String(row.recovery_owner ?? ""),
       hasDescriptor: row.has_descriptor === true,
     }));
   } finally {
@@ -287,7 +302,8 @@ async function main() {
   const argv = process.argv.slice(2);
   const statePath = (() => {
     const i = argv.indexOf("--state");
-    return i >= 0 && argv[i + 1] ? path.resolve(argv[i + 1]) : DEFAULT_STATE_PATH;
+    const given = i >= 0 ? argv[i + 1] : undefined;
+    return given ? path.resolve(given) : DEFAULT_STATE_PATH;
   })();
 
   const url = process.env.PAPERCLIP_DB_URL;
