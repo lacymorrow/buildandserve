@@ -17,7 +17,6 @@ const minutesAgo = (m: number) => NOW - m * 60_000;
 
 const issue = (over: Partial<BlockedIssue> & { identifier: string }): BlockedIssue => ({
   title: "a task",
-  priority: "medium",
   assignee: "Founding Engineer",
   strandedSinceMs: minutesAgo(120),
   recoveryCause: "",

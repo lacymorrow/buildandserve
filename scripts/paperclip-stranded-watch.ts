@@ -65,7 +65,6 @@ const DEFAULT_STATE_PATH = path.join(
 export interface BlockedIssue {
   identifier: string;
   title: string;
-  priority: string;
   assignee: string;
   strandedSinceMs: number;
   /** `cause` of the active recovery action, or "" when there is none. */
@@ -194,7 +193,6 @@ export function nextState(current: BlockedIssue[]): string[] {
 const QUERY = `
   SELECT i.identifier,
          i.title,
-         i.priority,
          coalesce(a.name, '') AS assignee,
          (extract(epoch FROM coalesce(i.blocked_transition_at, i.updated_at)) * 1000)::bigint AS stranded_since_ms,
          coalesce(ra.cause, '') AS recovery_cause,
@@ -232,7 +230,6 @@ async function readBlockedIssues(url: string): Promise<BlockedIssue[]> {
     return rows.map((row) => ({
       identifier: String(row.identifier),
       title: String(row.title),
-      priority: String(row.priority),
       assignee: String(row.assignee ?? ""),
       strandedSinceMs: Number(row.stranded_since_ms),
       recoveryCause: String(row.recovery_cause ?? ""),
