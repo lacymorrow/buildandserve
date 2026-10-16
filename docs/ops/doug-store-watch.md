@@ -291,6 +291,16 @@ bun scripts/doug-store-watch-freshness.ts --evidence /tmp/drill/store-watch-runs
 Running log of what changed on the stores, newest first. Each run that adapts
 appends a line here.
 
+- **2026-10-16** thepurplehaze.com returned `needs_adaptation` on add_to_cart at
+  20:03Z and nothing had changed on the store. The 16:14Z run before it and the
+  21:21Z run after it both added the same product
+  (`/products/top-shelf-pre-roll-5-pack-0-5g-each`) and reached checkout. The
+  control was found and visible; it was the *click* that timed out at 20s, so
+  the "No add-to-cart control matched" wording in that report was misleading.
+  **A lone exit 2 on add_to_cart is not evidence of a layout change. Re-run the
+  job first** — if the next run is clean, the store is fine and there is nothing
+  to adapt. The adapt path saves no screenshot, so the 20:03 run left nothing
+  showing what blocked the click; see LAC-4597.
 - **2026-10-12** Baseline established. Both stores pass all 7 checks. Known
   shape at this date: both stores show a 21+ age gate on first load;
   raw-kratom products require Strength and Flavor options before Add to Cart
