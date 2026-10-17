@@ -69,7 +69,18 @@ interface SearchResult {
   url: string;
 }
 
-export const SearchAi = ({ ...props }: ButtonProps) => {
+interface SearchAiProps extends ButtonProps {
+  /** Label shown on the trigger button. */
+  buttonText?: string | React.ReactNode;
+  /** Collapse the label to an icon-only trigger below `lg`. */
+  collapsible?: boolean;
+}
+
+export const SearchAi = ({
+  buttonText = "Search docs...",
+  collapsible = false,
+  ...props
+}: SearchAiProps) => {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState<string>("");
   const [searchResults, setSearchResults] = React.useState<SearchResult[]>([]);
@@ -234,8 +245,12 @@ export const SearchAi = ({ ...props }: ButtonProps) => {
           "relative",
         )}
       >
-        <span className="hidden lg:inline-flex">Search docs...</span>
-        <span className="inline-flex lg:hidden">Search...</span>
+        <span
+          className={cn("truncate", collapsible ? "hidden lg:inline-flex" : "inline-flex")}
+        >
+          {buttonText}
+        </span>
+        {collapsible && <span className="inline-flex lg:hidden">Search...</span>}
         <ShortcutDisplay
           action={ShortcutAction.OPEN_AI_SEARCH}
           className="pointer-events-none absolute top-1/2 -translate-y-1/2 right-1 opacity-100 group-hover:flex"

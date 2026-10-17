@@ -66,6 +66,7 @@ export const routes = {
 	app: {
 		dashboard: "/dashboard",
 		deploy: "/deploy",
+		deployments: "/deployments",
 		apiKeys: "/api-keys",
 		logs: "/logs",
 		network: "/network",
@@ -105,6 +106,12 @@ export const routes = {
 		sendTestLog: "/api/send-test-log",
 		activityStream: "/api/activity/stream",
 		logger: "/v1",
+		projects: "/api/projects",
+		teams: "/api/teams",
+		payments: {
+			checkPurchase: "/api/payments/check-purchase",
+			checkSubscription: "/api/payments/check-subscription",
+		},
 	},
 
 	// Integration routes

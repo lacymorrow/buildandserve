@@ -22,7 +22,9 @@ export function AppRouterLayout({
   themeProvider: ThemeProviderWrapper = ThemeProvider,
 }: {
   children: ReactNode;
-  themeProvider?: typeof ThemeProvider;
+  // Only ever rendered with `children`, so any children-accepting component
+  // works here — including the no-op provider used by the 404 page.
+  themeProvider?: React.ComponentType<{ children: ReactNode }>;
 }) {
   return (
     <ViewTransitions>

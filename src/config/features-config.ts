@@ -27,6 +27,43 @@ function isEnabled(name: string): boolean {
 	return ["true", "1", "yes", "on", "enable", "enabled"].includes(value || "");
 }
 
+/**
+ * Read an environment variable's trimmed value, or undefined when unset/blank.
+ */
+function getEnvValue(name: string): string | undefined {
+	const value = process.env[name];
+	return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+// ======== AI Provider Detection =========
+
+export type AiProviderId = "claude-code" | "codex" | "gemini";
+
+export interface AiProvider {
+	id: AiProviderId;
+	/** Resolved value of the relevant API key for this provider. */
+	env: string | undefined;
+}
+
+/**
+ * Generic preferred AI provider resolved at build time.
+ * Carries a single resolved `env` value — whichever API key is present.
+ * Downstream configs (e.g. react-grab-config) import this and layer
+ * feature-specific details on top.
+ */
+export const preferredAiProvider: AiProvider | undefined = (() => {
+	if (hasEnv("ANTHROPIC_API_KEY") && !isEnabled("DISABLE_ANTHROPIC"))
+		return { id: "claude-code", env: getEnvValue("ANTHROPIC_API_KEY") };
+	if (hasEnv("OPENAI_API_KEY") && !isEnabled("DISABLE_OPENAI"))
+		return { id: "codex", env: getEnvValue("OPENAI_API_KEY") };
+	if (hasEnv("GOOGLE_GEMINI_API_KEY") || hasEnv("GOOGLE_API_KEY"))
+		return {
+			id: "gemini",
+			env: getEnvValue("GOOGLE_GEMINI_API_KEY") ?? getEnvValue("GOOGLE_API_KEY"),
+		};
+	return undefined;
+})();
+
 // ======== Feature Detection =========
 
 const buildTimeFeatures = {} as Record<string, boolean>;

@@ -7,6 +7,7 @@ import { STATUS_CODES } from "@/config/status-codes";
 // This service can be imported by Node scripts; avoid importing "server-only" here
 import { env } from "@/env";
 import { logger } from "@/lib/logger";
+import type { RequiredDataFromCollectionSlug } from "payload";
 import { getPayloadClient, payload } from "@/lib/payload/payload";
 import { signInSchema } from "@/lib/schemas/auth";
 import { signIn, signOut } from "@/server/auth";
@@ -21,6 +22,23 @@ interface PayloadUser {
   email: string;
   [key: string]: unknown;
 }
+
+/**
+ * Payload's generated `User` doubles as the authenticated-user type, so it
+ * carries a required `collection: "users"` discriminator. That leaks into the
+ * required `data` shape for `payload.create({ collection: "users" })` even
+ * though `collection` is not a writable field. `id` is likewise typed `number`
+ * while we supply our own string ids to keep Payload and Drizzle in sync.
+ *
+ * Both are shape mismatches in the generated types rather than real runtime
+ * constraints, so the cast lives here once instead of at each call site.
+ */
+const payloadUserCreateData = (data: {
+  id: string;
+  email: string;
+  password: string;
+}): RequiredDataFromCollectionSlug<"users"> =>
+  data as unknown as RequiredDataFromCollectionSlug<"users">;
 
 interface AuthOptions {
   redirectTo?: string;
@@ -137,15 +155,13 @@ export const AuthService = {
         try {
           payloadUser = (await payload.create({
             collection: "users",
-            data: {
-              // For Payload, we need to handle both string and number IDs
-              // Some Payload configurations might expect number IDs
-              id: id as any, // Use type assertion to bypass type checking
+            data: payloadUserCreateData({
+              id,
               email,
               // Generate a random password that won't be used
               // User will need to use "forgot password" to set a real password
               password: crypto.randomBytes(16).toString("hex"),
-            },
+            }),
           })) as unknown as PayloadUser;
           logger.info(`Created user ${id} in Payload CMS`);
         } catch (error) {
@@ -445,13 +461,7 @@ export const AuthService = {
       // Create new user in Payload CMS with the consistent ID
       const newUser = await payload.create({
         collection: "users",
-        data: {
-          // For Payload, we need to handle both string and number IDs
-          // Some Payload configurations might expect number IDs
-          id: userId as any, // Use type assertion to bypass type checking
-          email,
-          password,
-        },
+        data: payloadUserCreateData({ id: userId, email, password }),
       });
 
       if (!newUser) {
@@ -912,11 +922,11 @@ export const AuthService = {
       // Create user in Payload CMS
       const newUser = await payload.create({
         collection: "users",
-        data: {
-          id: userId as any,
+        data: payloadUserCreateData({
+          id: userId,
           email: userData.email,
           password: userData.password,
-        },
+        }),
       });
 
       if (!newUser) {

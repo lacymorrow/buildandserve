@@ -36,7 +36,7 @@ interface AppSidebarProps
 
 export const AppSidebar = React.forwardRef<HTMLDivElement, AppSidebarProps>(
   ({ className, variant = "sidebar", size = "default", ...props }, ref) => {
-    const sidebarId = useId();
+    const sidebarId = React.useId();
 
     return (
       <Sidebar

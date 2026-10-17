@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfettiSideCannons } from "@/components/ui/magicui/confetti/confetti-side-cannons";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { env } from "@/env";
+import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
 import { initiateDeployment } from "@/server/actions/deployment-actions";
 
@@ -37,7 +37,7 @@ interface DeploymentStatus {
 	error?: string;
 }
 
-const SHIPKIT_REPO = env.NEXT_PUBLIC_SHIPKIT_REPO;
+const SHIPKIT_REPO = `${siteConfig.repo.owner}/${siteConfig.repo.name}`;
 
 interface DashboardVercelDeployProps {
 	className?: string;

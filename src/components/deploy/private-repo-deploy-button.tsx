@@ -3,9 +3,10 @@
 import { AlertCircle, CheckCircle, Clock, ExternalLink, Github } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Link as LinkWithTransition } from "@/components/primitives/link-with-transition";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,9 @@ import { routes } from "@/config/routes";
 import { siteConfig } from "@/config/site-config";
 import { cn } from "@/lib/utils";
 import { deployPrivateRepository } from "@/server/actions/deploy-private-repo";
+
+/** Mirrors the template repo resolved server-side in `deployment-service`. */
+const SHIPKIT_REPO = `${siteConfig.repo.owner}/${siteConfig.repo.name}`;
 
 interface DeploymentStatus {
   step:

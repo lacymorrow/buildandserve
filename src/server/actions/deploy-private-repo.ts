@@ -6,16 +6,12 @@
  * import { deploymentService } from "@/server/services/deployment-service"
  */
 
-import { generateProjectNameSuggestions } from "@/lib/utils";
 import { auth } from "@/server/auth";
 import {
   type DeploymentResult,
   deploymentService,
   type DeploymentConfig as ServiceDeploymentConfig,
 } from "@/server/services/deployment-service";
-
-// Re-export from utils for backwards compatibility
-export { generateProjectNameSuggestions };
 
 // Types for backwards compatibility
 type EnvVarTarget = readonly ("production" | "preview" | "development")[];

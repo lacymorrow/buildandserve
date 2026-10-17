@@ -14,7 +14,6 @@ import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import type * as React from "react";
-// import { RestartOnboardingButton } from "@/app/(app)/(dashboard)/_components/onboarding-check";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +48,6 @@ interface UserMenuDropdownProps {
   isAdmin?: boolean;
   showUpgrade?: boolean;
   hasActiveSubscription?: boolean;
-  showOnboarding?: boolean;
   theme?: string;
   handleThemeChange?: (value: string) => void;
   children: React.ReactNode;
@@ -68,7 +66,6 @@ export function UserMenuDropdown({
   isAdmin = false,
   showUpgrade = false,
   hasActiveSubscription = false,
-  showOnboarding = false,
   theme,
   handleThemeChange,
   children,
@@ -147,16 +144,6 @@ export function UserMenuDropdown({
               <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
             </Link>
           </DropdownMenuItem>
-          {showOnboarding && (
-            <DropdownMenuItem asChild>
-              <RestartOnboardingButton
-                user={user}
-                className="w-full justify-start"
-                forceVisible={isAdmin}
-              />
-            </DropdownMenuItem>
-          )}
-
           {additionalMenuItems.map((item) => (
             <DropdownMenuItem
               key={`menu-item-${item.label}`}

@@ -139,6 +139,7 @@ const serverSchema = {
   VERCEL_CLIENT_ID: z.string().optional(),
   VERCEL_CLIENT_SECRET: z.string().optional(),
   VERCEL_BLOB_READ_WRITE_TOKEN: z.string().optional(),
+  VERCEL_ACCESS_TOKEN: z.string().optional(),
 };
 
 // Auto-generate server runtimeEnv — dynamic process.env[key] works on the server.

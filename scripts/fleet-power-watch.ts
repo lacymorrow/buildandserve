@@ -199,7 +199,8 @@ async function slackDm(text: string): Promise<string | null> {
 async function main() {
   const argv = process.argv.slice(2);
   const i = argv.indexOf("--state");
-  const statePath = i >= 0 && argv[i + 1] ? path.resolve(argv[i + 1]) : DEFAULT_STATE_PATH;
+  const stateArg = i >= 0 ? argv[i + 1] : undefined;
+  const statePath = stateArg ? path.resolve(stateArg) : DEFAULT_STATE_PATH;
 
   let output: string;
   try {

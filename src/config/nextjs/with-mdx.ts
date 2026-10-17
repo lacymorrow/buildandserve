@@ -12,14 +12,12 @@ export default function withMDXConfig(nextConfig: NextConfig): NextConfig {
 		options: {
 			remarkPlugins: [
 				[
-					// @ts-expect-error
 					"remark-frontmatter",
 					{
 						type: "yaml",
 						marker: "-",
 					},
 				],
-				// @ts-expect-error
 				["remark-mdx-frontmatter", {}],
 			],
 			rehypePlugins: [],
