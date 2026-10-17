@@ -74,16 +74,48 @@ mail composed in Gmail. Without a Workspace subscription publishing
 
 ## Non-fixes
 
-Both of these have been proposed by agents reading live DNS. Neither works.
+Both of these have been proposed by agents reading live DNS. Neither fixes the
+fault in the title.
 
 1. **"Add `include:_spf.google.com` to SPF."** Buys zero alignment, for the
-   envelope-sender reason above. It also authorises every Google relay to send
-   with a buildandserve.com envelope. It was added on 2026-10-16, questioned,
-   and reverted the same night. Do not re-add it. The same applies to
-   `include:amazonses.com`, which was added in the same edit.
-2. **"Enable DKIM in Google Workspace, Gmail > Authenticate email."** There is
+   envelope-sender reason above, and so does not fix Calendar invites or any
+   other Google-origin mail. **It is nevertheless live as of 2026-10-17, on
+   Lacy's explicit instruction. Leave it alone.** It is close to free: one DNS
+   lookup (the record is flat, no nested includes) and no practical spoofing
+   surface, because Google requires domain verification before a tenant can
+   send with your envelope. Do not remove it without Lacy, and do not expect it
+   to have fixed anything.
+2. **"Also add `include:amazonses.com`."** Declined on 2026-10-17 and it should
+   stay declined. There is no SES sending path of ours to authorise (Resend's
+   SES traffic uses its own `send.buildandserve.com` envelope and the `resend`
+   DKIM key), SES is shared infrastructure, and every needless include spends
+   part of the 10-lookup SPF budget.
+3. **"Enable DKIM in Google Workspace, Gmail > Authenticate email."** There is
    no Workspace for this domain, so this admin screen does not exist. This is
    not a configuration step, it is a purchase (see below).
+
+### The SPF edit timeline, so nobody hunts a phantom second writer
+
+All times UTC. This record was written three times in 20 hours and the middle
+write was mine, which is not obvious from Cloudflare's metadata alone.
+
+| When | What |
+|---|---|
+| 2026-10-16 23:11 | widened to add `_spf.google.com` + `amazonses.com` on Lacy's go, announced in Slack |
+| 2026-10-16 ~23:15 | CEO measures the widened record live on 1.1.1.1 and the authoritative NS |
+| 2026-10-16 ~23:20 | CEO questions it over the bridge, not knowing Lacy had authorised it |
+| **2026-10-16 23:38:57** | **io reverts to Cloudflare-only. This is the `modified_on` that looks suspicious** |
+| 2026-10-17 19:15 | re-applied with `_spf.google.com` only, on Lacy's second explicit go |
+
+A `modified_on` later than the edit you are looking for means someone wrote
+after you, not that your write failed. Check for a revert before concluding the
+save was lost.
+
+**The actual lesson:** an authorised change and a well-meant revert crossed
+because the authorisation was in Slack and the revert reasoning was in
+Paperclip. When you change DNS on Lacy's say-so, put "authorised by Lacy,
+<quote>, <time>" in the change record itself. A reviewer who cannot see the
+authorisation reads the change as drift and undoes it.
 
 ## Standing decisions (CEO, 2026-10-15, LAC-4546)
 
