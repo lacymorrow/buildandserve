@@ -29,6 +29,9 @@ interface PortfolioProject {
   featured?: boolean;
 }
 
+// Tile art lives in /static/portfolio as 1200-1600px WebP. next.config sets
+// images.unoptimized, so whatever we reference ships byte-for-byte: pointing at
+// the full-size case-study assets put ~10MB of PNG on the homepage.
 const PROJECTS: PortfolioProject[] = [
   {
     id: "town-of-harmony",
@@ -36,7 +39,7 @@ const PROJECTS: PortfolioProject[] = [
     category: "Government · Iredell County, NC",
     description:
       "A modern civic home for a historic North Carolina town — events, agendas, and resident services in one accessible place.",
-    image: "/static/town-of-harmony/home.png",
+    image: "/static/portfolio/town-of-harmony.webp",
     href: "https://townofharmony.org",
     external: true,
     span: "sm:col-span-2 lg:col-span-3 h-[320px] lg:h-[380px]",
@@ -48,7 +51,7 @@ const PROJECTS: PortfolioProject[] = [
     category: "Construction · Charlotte, NC",
     description:
       "A polished marketing site for a Charlotte construction and home-remodeling firm, built to turn visitors into estimates.",
-    image: "/static/rcb-construction/home.png",
+    image: "/static/portfolio/rcb-construction.webp",
     href: "https://rcbconstructionmgmt.com",
     external: true,
     span: "sm:col-span-2 lg:col-span-3 h-[320px] lg:h-[380px]",
@@ -59,7 +62,7 @@ const PROJECTS: PortfolioProject[] = [
     title: "Credit Karma",
     category: "Fintech · 120M+ users",
     description: "Credit monitoring and personalized financial products at scale.",
-    image: "/static/credit-karma/credit-karma-1.png",
+    image: "/static/portfolio/credit-karma.webp",
     href: "/work/credit-karma",
     span: "lg:col-span-2 h-[260px]",
   },
@@ -68,7 +71,7 @@ const PROJECTS: PortfolioProject[] = [
     title: "Twilio",
     category: "Developer tools",
     description: "Hardware + API experiences and developer resources.",
-    image: "/static/twilio/hackpack/hackpack.png",
+    image: "/static/portfolio/twilio.webp",
     href: "/work/twilio",
     span: "lg:col-span-2 h-[260px]",
   },
@@ -77,7 +80,7 @@ const PROJECTS: PortfolioProject[] = [
     title: "Swell Energy",
     category: "Clean energy · 10k+ users",
     description: "Customer platforms and internal tools for distributed energy.",
-    image: "/static/swell-energy/swell-program.jpeg",
+    image: "/static/portfolio/swell-energy.webp",
     href: "/work/swell-energy",
     span: "lg:col-span-2 h-[260px]",
   },
@@ -86,7 +89,7 @@ const PROJECTS: PortfolioProject[] = [
     title: "Long Game",
     category: "Fintech · 100k+ installs",
     description: "Gamified saving that makes personal finance genuinely fun.",
-    image: "/static/long-game/longgame.png",
+    image: "/static/portfolio/long-game.webp",
     href: "/work/longgame",
     span: "lg:col-span-2 h-[260px]",
   },
@@ -95,7 +98,7 @@ const PROJECTS: PortfolioProject[] = [
     title: "Viasat",
     category: "In-flight connectivity",
     description: "In-flight entertainment and connectivity experiences.",
-    image: "/static/viasat/ife.jpg",
+    image: "/static/portfolio/viasat.webp",
     href: "/work",
     span: "lg:col-span-2 h-[260px]",
   },
@@ -104,7 +107,7 @@ const PROJECTS: PortfolioProject[] = [
     title: "Novant Health",
     category: "Healthcare",
     description: "Patient-facing portal for a major health system.",
-    image: "/static/novant-health/novant-health-pf-portal.png",
+    image: "/static/portfolio/novant-health.webp",
     href: "/work",
     span: "lg:col-span-2 h-[260px]",
   },
