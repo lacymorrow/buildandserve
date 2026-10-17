@@ -14,13 +14,4 @@ export {
 } from "./skeleton";
 export { TableOfContents } from "./table-of-contents";
 export { MobileToc } from "./mobile-toc";
-export {
-  BlogPostSkeleton,
-  TOCSkeleton,
-  BlogPostListItemSkeleton,
-  BlogPostListSkeleton,
-  BlogAuthorSkeleton,
-  BlogCategoriesSkeleton,
-  MobileTOCSkeleton,
-} from "./skeleton";
 export { AuthorProfile, AuthorByline } from "./author-profile";

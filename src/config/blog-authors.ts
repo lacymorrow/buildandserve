@@ -39,7 +39,7 @@ export interface BlogAuthor {
  *
  * Add new authors here. The key should be URL-friendly (lowercase, no spaces).
  */
-export const blogAuthors: Record<string, BlogAuthor> = {
+const blogAuthorsMap = {
   "lacy-morrow": {
     id: "lacy-morrow",
     name: "Lacy Morrow",
@@ -68,12 +68,19 @@ export const blogAuthors: Record<string, BlogAuthor> = {
     location: "Remote",
     isActive: true,
   },
-};
+} satisfies Record<string, BlogAuthor>;
+
+/**
+ * Lookup by arbitrary author id. Declared as a wide `Record` so callers can
+ * index it with any string; `blogAuthorsMap` keeps the literal keys so the
+ * default author below is known to exist.
+ */
+export const blogAuthors: Record<string, BlogAuthor> = blogAuthorsMap;
 
 /**
  * Default/fallback author for posts without a specified author
  */
-export const defaultAuthor: BlogAuthor = blogAuthors["lacy-morrow"];
+export const defaultAuthor: BlogAuthor = blogAuthorsMap["lacy-morrow"];
 
 /**
  * Get author by ID/slug

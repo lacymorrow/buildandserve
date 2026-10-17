@@ -92,7 +92,7 @@ export function SearchMenu({
   const [isClient, setIsClient] = React.useState(false);
 
   useKeyboardShortcut(
-    ShortcutAction.OPEN_SEARCH,
+    ShortcutAction.OPEN_SEARCH_MENU,
     (event) => {
       const target = event.target as HTMLElement;
       if (
@@ -139,7 +139,7 @@ export function SearchMenu({
         </span>
         {showShortcut && (
           <ShortcutDisplay
-            action={ShortcutAction.OPEN_SEARCH}
+            action={ShortcutAction.OPEN_SEARCH_MENU}
             className={cn(
               "pointer-events-none absolute right-[0.3rem] top-[0.3rem] text-xs",
               "transition-opacity duration-300",

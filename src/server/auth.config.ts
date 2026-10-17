@@ -12,6 +12,7 @@ import {
 } from "@/server/services/github/github-service";
 import { userService } from "@/server/services/user-service";
 import { SEARCH_PARAM_KEYS } from "@/config/search-param-keys";
+import type { User } from "@/types/user";
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.

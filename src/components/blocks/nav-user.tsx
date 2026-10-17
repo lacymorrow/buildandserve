@@ -45,11 +45,6 @@ export function NavUser({ className, showUpgrade = true }: NavUserProps) {
           user={session?.user}
           showUpgrade={showUpgrade}
           hasActiveSubscription={hasActiveSubscription}
-          showOnboarding={
-            env.NEXT_PUBLIC_FEATURE_VERCEL_INTEGRATION_ENABLED &&
-            env.NEXT_PUBLIC_FEATURE_GITHUB_API_ENABLED &&
-            env.NEXT_PUBLIC_FEATURE_DATABASE_ENABLED
-          }
           side={isMobile ? "bottom" : "right"}
           align="end"
           sideOffset={4}

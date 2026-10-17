@@ -9,7 +9,7 @@ import {
   Settings2,
 } from "lucide-react";
 import type React from "react";
-import { FeedbackDialog } from "@/components/forms/feedback-dialog";
+import { FeedbackDialog } from "@/components/shipkit/feedback-dialog";
 import { Link } from "@/components/primitives/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";

@@ -51,6 +51,9 @@
   "include": [
     "eslint.config.mjs",
     "next-env.d.ts",
+    // Dot-directories are skipped by the `**/*` globs below, so route handlers
+    // under `.well-known` have to be listed explicitly to be typechecked.
+    "src/app/.well-known/**/*.ts",
     "**/*.ts",
     "**/*.tsx",
     "**/*.cjs",
@@ -73,7 +76,9 @@
     "tests",
     "public",
     "packages",
-    "cli/dist",
+    // `cli` is a separate package with its own package.json, lockfile and
+    // tsconfig. It must be typechecked from inside `cli/`, not from the root.
+    "cli",
     "debug/**/*.ts",
     "src/app/(app)/(demo)/examples/**/*",
     "src/workers/**/*.ts"

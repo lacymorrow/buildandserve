@@ -64,16 +64,21 @@ const DotMatrix: React.FC<DotMatrixProps> = ({
 	center = ["x", "y"],
 }) => {
 	const uniforms = React.useMemo(() => {
-		let colorsArray = [colors[0], colors[0], colors[0], colors[0], colors[0], colors[0]];
+		// `colors` is indexed positionally below; fall back to black so every
+		// slot is a concrete triplet even when fewer colors were supplied.
+		const BLACK: number[] = [0, 0, 0];
+		const at = (index: number): number[] => colors[index] ?? BLACK;
+
+		let colorsArray = [at(0), at(0), at(0), at(0), at(0), at(0)];
 		if (colors.length === 2) {
-			colorsArray = [colors[0], colors[0], colors[0], colors[1], colors[1], colors[1]];
+			colorsArray = [at(0), at(0), at(0), at(1), at(1), at(1)];
 		} else if (colors.length === 3) {
-			colorsArray = [colors[0], colors[0], colors[1], colors[1], colors[2], colors[2]];
+			colorsArray = [at(0), at(0), at(1), at(1), at(2), at(2)];
 		}
 
 		return {
 			u_colors: {
-				value: colorsArray.map((color) => [color[0] / 255, color[1] / 255, color[2] / 255]),
+				value: colorsArray.map(([r = 0, g = 0, b = 0]) => [r / 255, g / 255, b / 255]),
 				type: "uniform3fv",
 			},
 			u_opacities: {

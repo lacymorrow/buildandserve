@@ -287,7 +287,8 @@ async function main() {
   const argv = process.argv.slice(2);
   const statePath = (() => {
     const i = argv.indexOf("--state");
-    return i >= 0 && argv[i + 1] ? path.resolve(argv[i + 1]) : DEFAULT_STATE_PATH;
+    const stateArg = i >= 0 ? argv[i + 1] : undefined;
+    return stateArg ? path.resolve(stateArg) : DEFAULT_STATE_PATH;
   })();
 
   const url = process.env.PAPERCLIP_DB_URL;

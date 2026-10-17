@@ -19,6 +19,15 @@ const eslintConfig = [
 			"src/app/(demo)/**/*",
 			"src/components/blocks/**",
 			"src/components/ui/**",
+			// Typed linting resolves files through `tsconfig.json`, so anything
+			// that tsconfig excludes cannot be parsed here either. Keep these two
+			// lists in sync or ESLint reports "file was not found in any of the
+			// provided project(s)" instead of real findings.
+			"tests/**",
+			"cli/**",
+			"debug/**",
+			"packages/**",
+			"src/app/(app)/(demo)/examples/**",
 		],
 	},
 

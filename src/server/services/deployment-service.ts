@@ -419,11 +419,11 @@ class DeploymentService {
 
     // Apply rate limiting
     try {
-      const { maxRequests, windowMs } = rateLimits.deployments.create;
-      await rateLimitService.checkLimit(userId, "deployment:create", {
-        requests: maxRequests,
-        duration: Math.round(windowMs / 1000),
-      });
+      await rateLimitService.checkLimit(
+        userId,
+        "deployment:create",
+        rateLimits.deployments.create
+      );
     } catch (error) {
       logger.warn("Rate limit exceeded for deployment", { userId, error });
       return {

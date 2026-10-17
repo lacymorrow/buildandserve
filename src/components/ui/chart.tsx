@@ -3,14 +3,23 @@
 import * as React from "react";
 import type {
   DefaultLegendContentProps,
+  DefaultTooltipContentProps,
   LegendPayload,
   TooltipContentProps,
-  TooltipPayloadEntry,
-  TooltipValueType,
 } from "recharts";
 import * as RechartsPrimitive from "recharts";
 
 import { cn } from "@/lib/utils";
+
+/**
+ * recharts v3 does not re-export these from its package root, so they are
+ * derived here from the types it does export rather than reaching into
+ * `recharts/types/*` internals.
+ */
+type TooltipValueType = number | string | ReadonlyArray<number | string>;
+type TooltipPayloadEntry = NonNullable<
+  DefaultTooltipContentProps<TooltipValueType, string>["payload"]
+>[number];
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
