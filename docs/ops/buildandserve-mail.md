@@ -9,8 +9,8 @@ Read this before touching DNS, Gmail settings, or DMARC for this domain.
 If you are about to propose a fix, check it against "Non-fixes" first.
 
 Tickets: LAC-4545 (the bounce), LAC-4546 (the direction decision), LAC-4673
-(the `rua` evidence), LAC-4548 (Cal.com), LACA-2287 (`support@`), LACA-694 and
-LACA-1913 (the DMARC ramp programme).
+(the `rua` evidence), LACA-2302 (Resend's delivery log), LAC-4548 (Cal.com),
+LACA-2287 (`support@`), LACA-694 and LACA-1913 (the DMARC ramp programme).
 
 ## The setup
 
@@ -20,15 +20,57 @@ LACA-1913 (the DMARC ramp programme).
 | Inbound | Cloudflare Email Routing (`route1-3.mx.cloudflare.net`) forwarding into Gmail (gojukebox) |
 | Google Workspace | **None.** This domain has no Workspace subscription |
 | `admin@buildandserve.com` | A Google account with **no Gmail mailbox at all** (the Gmail API returns `400 failedPrecondition`). It exists to hold a Calendar |
-| `lacy@buildandserve.com` | A Gmail send-as alias, routed through `smtp.resend.com:465`, `treatAsAlias: true`, verification `accepted`. **Aligns.** |
-| `support@buildandserve.com` | A Gmail send-as alias still on `smtp.gmail.com:587`, no `treatAsAlias`. **Cannot align.** Client-facing. LACA-2287 |
+| `lacy@buildandserve.com` | A Gmail send-as alias, routed through `smtp.resend.com:465`, `treatAsAlias: true`, verification `accepted`. **Aligns, and that is observed, not inferred** (see "Observed mail") |
+| `support@buildandserve.com` | A Gmail send-as alias still on `smtp.gmail.com:587`, `treatAsAlias` absent. **Cannot align.** Client-facing. LACA-2287 |
 | Outbound that can align | Resend, and only Resend. Not every send-as is on it, see `support@` above |
 
-List the send-as rows yourself rather than assuming:
+### Every send-as row, so nobody reasons from two of them
+
+All ten rows on gojukebox@gmail.com, read 2026-10-17:
+
+| Send-as | SMTP relay | Port | Mode |
+|---|---|---|---|
+| `gojukebox@gmail.com` | (primary, none) | | |
+| `lacy@shipkit.io` | `smtp.resend.com` | 465 | ssl |
+| `lacy@buildandserve.com` | `smtp.resend.com` | 465 | ssl |
+| `me@lacymorrow.com` | `smtp.resend.com` | 465 | ssl |
+| `spin@spinrc.com` | `server21.abstractdns.com` | 465 | ssl |
+| **`support@buildandserve.com`** | **`smtp.gmail.com`** | **587** | **starttls** |
+| 4 consumer/edu addresses | (none, correct for them) | | |
+
+`support@` is the only address on a domain we own that is routed through
+Google's own SMTP. That is the whole defect, and the table is the argument.
+
+List the rows yourself rather than assuming, and **pass `--json`**:
 
 ```sh
 gog gmail settings sendas list --account gojukebox@gmail.com --json
 ```
+
+**`--json` is not a preference, it is the difference between right and wrong.**
+`gog gmail settings sendas get` in its default format prints eight fields and
+**silently omits `smtpMsa` entirely**:
+
+```
+send_as_email  support@buildandserve.com
+display_name   Build And Serve Support
+reply_to
+signature
+is_primary     false
+is_default     false
+treat_as_alias false
+verification_status  accepted
+```
+
+Read that output and every alias looks like it has no SMTP relay configured,
+which reads as "Gmail sends it directly" for all ten rows. It has already been
+reported once as `lacy@` having "treatAsAlias: true with no smtpMsa at all."
+That is the formatter, not the mailbox. `--json` shows the field.
+
+Generalise it, because it is the same mistake as the DKIM-selector one below:
+**absence in a tool's output is not absence in the world.** Confirm a field is
+missing from a raw view before you say it is missing. And before calling
+anything human-only, name the API call and show its error.
 
 Verify any of it yourself in under a minute:
 
@@ -100,8 +142,10 @@ Both of these have been proposed by agents reading live DNS. Neither works.
 
 **What would flip decision 3:** evidence that Lacy's ordinary client mail from
 `lacy@buildandserve.com` is failing DMARC at volume. That test has now been run
-(LAC-4673, 2026-10-17) and it came back negative, so **decision 3 stands on
-data, not inference.** Do not reopen the Workspace purchase without new
+twice and came back negative both times: the `rua` data (LAC-4673) and then
+Resend's own delivery log, ten delivered client messages from `lacy@` with no
+failures (LACA-2302, see "Observed mail"). So **decision 3 stands on data, not
+inference.** Do not reopen the Workspace purchase without new
 evidence of the same kind. The authoritative source is the DMARC aggregate
 reports arriving at `dmarc@buildandserve.com`, read as described below, not
 another round of DNS inference.
@@ -138,8 +182,50 @@ Three traps when reading this data. All three have already cost a day:
 **What `rua` cannot tell you:** Gmail send-as traffic and Resend-API app
 traffic are indistinguishable. Both emit SES IPs, selector `resend`, envelope
 `send.buildandserve.com`. So the 25-message block proves the path aligns; it
-does not single out the messages Lacy typed in Gmail. Closing that last gap
-needs Resend's own delivery log. Not worth Lacy's time to pull.
+does not single out the messages Lacy typed in Gmail. Closing that gap needs
+Resend's own delivery log, which is what the next section is.
+
+## Observed mail from `lacy@buildandserve.com`
+
+Pulled 2026-10-17 (LACA-2302). `lacy@` is not just configured correctly, it is
+**observed sending real client mail through Resend**, the same standard of
+proof `support@` now has:
+
+```sh
+curl -s -H "Authorization: Bearer $RESEND_API_KEY" \
+  'https://api.resend.com/emails?limit=100'
+```
+
+63 messages logged, 2026-09-21 to 2026-10-17. By sender:
+
+| From | Msgs |
+|---|---|
+| `invoice@buildandserve.com` | 21 |
+| `notify@buildandserve.com` | 28 |
+| **`lacy@buildandserve.com`** | **10** |
+| `support@buildandserve.com` | 2 (the LACA-2287 tests) |
+| `noreply@buildandserve.com` | 2 (contact form) |
+
+All ten `lacy@` messages show `last_event: delivered`. They are ordinary
+correspondence to named clients, dated 2026-09-25 through 2026-10-17: a
+Jellyfish proposal, a Klaviyo account transfer, three `Fwd:` of a BigCommerce
+migration quote, `Re: RCB - Google ad account`, a Town of Harmony listing
+update. `GET /emails/:id` returns the body, and it is hand-written prose.
+
+**That is enough to attribute them to the Gmail compose path.** The app sends
+as `team@` (`RESEND_FROM_EMAIL`), `invoice@`, `notify@` and `noreply@`. Nothing
+in the codebase sends as `lacy@`, and no app generates a `Fwd:` of a client
+quote. So the only origin for these ten is Lacy typing in Gmail and Gmail
+relaying through `smtp.resend.com:465`.
+
+Two limits worth stating. The log records the message, not the submission
+protocol, so it does not literally stamp these "arrived over SMTP". And
+Resend's log is the only place this exists: the `rua` data cannot show it, for
+the reason in the paragraph above.
+
+Cost: one authenticated `GET`, no DNS change, none of Lacy's time. The earlier
+note that this was not worth pulling was wrong, and so was any claim that
+observed proof for `lacy@` could not be obtained.
 
 ## Known blast radius
 
@@ -153,8 +239,34 @@ on `smtp.gmail.com:587`: header-from buildandserve.com, envelope `gmail.com`,
 zero DKIM signatures, both aligned checks fail, disposition `reject`
 (2026-10-10, reported by Enterprise Outlook). Same fingerprint as the Oct 9
 `action=oreject` bounce to `hadas.milstein@emburyjarvis.co`. It is client-facing
-and it needs no DNS change, only the send-as MSA swap to Resend once a key
-exists. Tracked on **LACA-2287**.
+and it needs no DNS change, only the send-as MSA swap to Resend. Tracked on
+**LACA-2287**.
+
+The key is no longer the blocker and never needed a human. Resend already had a
+per-address convention (`Gmail - lacy@buildandserve.com`, `Gmail -
+jonathan@buildandserve.com`), so `POST /api-keys` with
+`permission: sending_access` and the buildandserve.com `domain_id` minted
+`Gmail - support@buildandserve.com` on 2026-10-17. No coupling to the site's
+production key. Enumerate with `GET /api-keys` before concluding a key must be
+reused. A `sending_access` key cannot read `GET /emails`; it returns
+`401 restricted_api_key`.
+
+**The actual blocker is that send-as cannot be written by API at all.**
+`gmail.users.settings.sendAs.patch` returns:
+
+```
+403 PERMISSION_DENIED
+Access restricted to service accounts that have been delegated
+domain-wide authority
+```
+
+This is **not** specific to `smtpMsa`. A no-op `displayName`-only patch against
+`gmail.settings.basic` returns the identical 403, which is the control that
+makes this a real negative rather than an assumption. gojukebox@gmail.com is a
+consumer account, so domain-wide delegation cannot exist for it. Do not hunt
+for a scope, a service account, or a re-auth. The Gmail web UI is the only
+path, permanently. Budget it as a two-minute human paste, hand over the exact
+field values, and include the rollback config.
 
 ## Who can change what
 
