@@ -207,3 +207,11 @@ that is not a cron job on a NAS in the same house.
   an outage that is not happening. It would be a true statement that `library`
   cannot see the fleet, which is worth knowing, but the message would point at
   the wrong laptop.
+- **Nothing watches this watcher.** If cron on `library` stops, or the script is
+  deleted, or the token expires, the result is silence, and silence is also what
+  a healthy fleet looks like. This is the irreducible problem with a dead-man's
+  switch and the reason every poll writes an `OK` line: the log can be read to
+  tell "quiet because healthy" from "quiet because the watch stopped". But
+  nobody is paged for the second one. The real fix is a heartbeat _out_ to
+  something off-site that alerts on absence, which needs a host outside the
+  building and is the same prerequisite as the first gap above.
