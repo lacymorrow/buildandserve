@@ -40,14 +40,14 @@ is normal for a minute or two after unplugging.
 
 ## One discharge, two messages
 
-| Battery | On battery | Sent |
-|---|---|---|
-| 21% | yes | nothing |
-| 18% | yes | first DM |
-| 14% | yes | nothing |
-| 8% | yes | second DM |
-| 3% | yes | nothing |
-| any | plugged in | nothing, and the two warnings rearm |
+| Battery | On battery | Sent                                |
+| ------- | ---------- | ----------------------------------- |
+| 21%     | yes        | nothing                             |
+| 18%     | yes        | first DM                            |
+| 14%     | yes        | nothing                             |
+| 8%      | yes        | second DM                           |
+| 3%      | yes        | nothing                             |
+| any     | plugged in | nothing, and the two warnings rearm |
 
 AC is the only thing that rearms it, so a long discharge produces two messages
 rather than twenty. Crossing both thresholds between two checks (the Mac was
@@ -136,6 +136,11 @@ and its plist go.
 ## Known gaps
 
 - It warns about battery, not about the other ways the Mac goes away: lid
-  closed on AC, a reboot, Wi-Fi dropping. Those stay invisible.
+  closed on AC, a reboot, Wi-Fi dropping. Those are invisible to this file, and
+  are now caught after the fact by [the fleet dark watch](./fleet-dark-watch.md),
+  which runs on `library` and so survives the Mac dying.
+- It is a pre-mortem, and it only works if someone acts on it. This log holds
+  four discharge cycles down to 2-7%, every one a delivered DM and every one
+  ignored (LAC-4874). The dark watch is the half that does not depend on that.
 - `pmset`'s time estimate is its own guess and swings under changing load. The
   percentage is the number to trust.

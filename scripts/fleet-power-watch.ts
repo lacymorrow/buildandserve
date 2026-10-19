@@ -60,6 +60,50 @@ const DEFAULT_STATE_PATH = path.join(
   "power-watch-state.json"
 );
 
+/**
+ * `%Y-%m-%dT%H:%M:%S%z`: local time with an explicit offset, the same spelling
+ * `fleet-dark-watch.sh` writes, so the laptop-side and library-side logs of one
+ * outage read side by side. Local rather than UTC because the other evidence
+ * this log gets cross-referenced against (`pmset -g log`, `log show`,
+ * `kern.boottime`) is all local to this Mac; the offset keeps it unambiguous
+ * anyway.
+ */
+function isoLocal(at: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const offset = -at.getTimezoneOffset();
+  const abs = Math.abs(offset);
+  return (
+    `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}` +
+    `T${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}` +
+    `${offset < 0 ? "-" : "+"}${pad(Math.floor(abs / 60))}${pad(abs % 60)}`
+  );
+}
+
+/**
+ * Stamp every line this watch prints with the time it printed it.
+ *
+ * launchd appends stdout and stderr straight into `fleet-power-watch.log` and
+ * adds no time of its own, so without this the file reads
+ * `Mac at 2% on battery, about 3 min left.` four discharge cycles deep and
+ * cannot say when any of them happened. Reconstructing the 2026-10-19 outage
+ * needed `kern.boottime` cross-referenced against `usage-governor.log` for
+ * exactly that reason, and this log is the file the next outage gets read from
+ * (LAC-4874).
+ *
+ * A multi-line message gets a stamp per line: a `pmset` dump folded into the
+ * log unstamped is the same unreadable file in a smaller way.
+ */
+export function stamp(message: string, at: Date = new Date()): string {
+  const prefix = isoLocal(at);
+  return message
+    .split("\n")
+    .map((line) => `${prefix} ${line}`)
+    .join("\n");
+}
+
+const say = (message: string) => console.log(stamp(message));
+const fail = (message: string) => console.error(stamp(message));
+
 export interface PowerState {
   percent: number;
   onAC: boolean;
@@ -206,7 +250,7 @@ async function main() {
   try {
     output = await readPmset();
   } catch (error) {
-    console.error(`could not run pmset: ${(error as Error).message}`);
+    fail(`could not run pmset: ${(error as Error).message}`);
     process.exit(2);
   }
 
@@ -214,7 +258,7 @@ async function main() {
   if (state === null) {
     // Exit 2, not 0. "Could not look" and "the power is fine" are the two
     // readings this file exists to keep apart.
-    console.error(`could not read the power state from pmset:\n${output.trim()}`);
+    fail(`could not read the power state from pmset:\n${output.trim()}`);
     process.exit(2);
   }
 
@@ -233,11 +277,11 @@ async function main() {
 
   // Still low but already warned: the log keeps following the discharge, Slack
   // does not.
-  console.log(formatAlert(state));
+  say(formatAlert(state));
 
   if (decision.alert && argv.includes("--notify")) {
     const failure = await slackDm(formatAlert(state));
-    if (failure) console.error(failure);
+    if (failure) fail(failure);
     // Written only on a delivered DM, so a Slack outage retries in five minutes
     // instead of silently spending the one warning this discharge was owed.
     else await writeAlerted(statePath, decision.nextAlerted);
@@ -250,7 +294,7 @@ async function main() {
 // pmset, the filesystem or Slack.
 if (import.meta.main) {
   main().catch((error) => {
-    console.error("power watch failed:", error);
+    fail(`power watch failed: ${(error as Error)?.stack ?? String(error)}`);
     process.exit(2);
   });
 }

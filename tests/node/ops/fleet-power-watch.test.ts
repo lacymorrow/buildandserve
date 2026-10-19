@@ -5,6 +5,7 @@ import {
   formatMinutes,
   type PowerState,
   parsePmset,
+  stamp,
   URGENT_PERCENT,
   WARN_PERCENT,
 } from "../../../scripts/fleet-power-watch";
@@ -131,5 +132,38 @@ describe("formatAlert", () => {
       "Mac at 18% on battery. Below ~5% it sleeps and the whole fleet stops: no routines, " +
         "no agent runs, no store watch. Plug in."
     );
+  });
+});
+
+describe("stamp", () => {
+  // Without this the log reads `Mac at 2% on battery` four discharge cycles
+  // deep and cannot say when any of them happened, which is why reconstructing
+  // the 2026-10-19 outage needed kern.boottime and usage-governor.log instead
+  // (LAC-4874). launchd adds no time of its own, so the line has to carry it.
+  it("prefixes the line with local ISO-8601 and an explicit offset", () => {
+    const at = new Date("2026-10-19T03:36:52Z");
+    const offset = -at.getTimezoneOffset();
+    const sign = offset < 0 ? "-" : "+";
+    const pad = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, "0");
+    const expected = `${sign}${pad(offset / 60)}${pad(Math.abs(offset) % 60)}`;
+
+    // Asserted against the runner's own zone rather than a frozen string, so
+    // this passes on the Mac it ships on and in CI's UTC alike.
+    expect(stamp("Mac at 2% on battery", at)).toMatch(
+      new RegExp(`^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:52\\${expected} Mac at 2% on battery$`)
+    );
+  });
+
+  it("stamps every line, so a pmset dump cannot slip in unstamped", () => {
+    // The exit-2 path prints the raw pmset output it could not parse. That is
+    // the most useful thing in the file and the easiest to lose track of.
+    const lines = stamp("could not read the power state from pmset:\nNow drawing from 'X'").split(
+      "\n"
+    );
+    expect(lines).toHaveLength(2);
+    for (const line of lines)
+      expect(line).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{4} /);
+    // One call, one moment: both lines carry the same stamp.
+    expect(lines[0]?.slice(0, 24)).toBe(lines[1]?.slice(0, 24));
   });
 });
