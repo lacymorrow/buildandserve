@@ -16,31 +16,44 @@ const run = (name: string, ageHours: number): RunSummary => ({
 });
 
 describe("assessStaleness", () => {
-  it("stays silent while runs are landing on the 4h cadence", () => {
+  it("stays silent while runs are landing on the twice-daily cadence", () => {
     // Silence is the success signal for this whole job. A fresh run must
     // produce no line to print and no alert key to remember.
-    const verdict = assessStaleness([run("a", 8), run("b", 4), run("c", 0.2)], NOW);
+    const verdict = assessStaleness([run("a", 24), run("b", 12), run("c", 0.2)], NOW);
     expect(verdict.stale).toBe(false);
     expect(verdict.line).toBeNull();
     expect(verdict.alertKey).toBeNull();
     expect(verdict.newest?.name).toBe("c");
   });
 
-  it("alerts once the newest run passes the 5h window", () => {
-    // LAC-4335: the 04:00 ET slot on 2026-10-13 never started. Nothing noticed
-    // because a run that never runs looks exactly like a clean one.
-    const verdict = assessStaleness([run("old", 12), run("last-good", 8)], NOW);
+  it("stays silent on a full healthy gap between twice-daily slots", () => {
+    // LAC-4913 regression. The cadence moved from every 4h to 08:00 and 20:00
+    // ET, so at 08:00 the previous run is the 20:00 slot 12h earlier and that
+    // is the healthiest the watch ever looks. Against the old 5h window this
+    // read as blind and DM'd Lacy twice a day about a watch that was fine,
+    // which is the one failure that trains someone to ignore the real alert.
+    const verdict = assessStaleness([run("yesterday-am", 24), run("last-night", 12)], NOW);
+    expect(verdict.stale).toBe(false);
+    expect(verdict.line).toBeNull();
+    expect(verdict.alertKey).toBeNull();
+  });
+
+  it("alerts once the newest run passes the 13h window", () => {
+    // LAC-4335: a scheduled slot never started. Nothing noticed because a run
+    // that never runs looks exactly like a clean one. Here the 20:00 ET slot
+    // was missed, so the newest evidence is a full day old.
+    const verdict = assessStaleness([run("old", 36), run("last-good", 24)], NOW);
     expect(verdict.stale).toBe(true);
     expect(verdict.newest?.name).toBe("last-good");
-    expect(verdict.ageHours).toBe(8);
+    expect(verdict.ageHours).toBe(24);
     expect(verdict.line).toBe(
-      "Store watch is blind: no run in 8h. Last run 2026-10-13 00:00 ET, expected every 4h. Doug's stores are unwatched."
+      "Store watch is blind: no run in 24h. Last run 2026-10-12 08:00 ET, expected twice daily (08:00 and 20:00 ET). Doug's stores are unwatched."
     );
   });
 
   it("holds its fire right up to the grace window and fires just past it", () => {
-    // Cadence is 4h, so 5h is one full cycle plus an hour of slack. A run that
-    // merely started late must not page anyone.
+    // Cadence is twice daily, so 13h is one full 12h gap plus an hour of
+    // slack. A run that merely started late must not page anyone.
     expect(assessStaleness([run("x", STALE_AFTER_HOURS - 0.1)], NOW).stale).toBe(false);
     expect(assessStaleness([run("x", STALE_AFTER_HOURS + 0.1)], NOW).stale).toBe(true);
   });
@@ -73,20 +86,21 @@ describe("assessStaleness", () => {
   });
 
   it("writes midnight ET as 00:00, not 24:00", () => {
-    // A 4h cadence puts a run at midnight ET twice a day, and some ICU builds
-    // render that hour as 24 under `hour12: false`. "2026-10-13 24:00 ET" in a
-    // 3am phone alert is a line that makes the reader doubt the alert.
+    // Some ICU builds render the midnight hour as 24 under `hour12: false`.
+    // "2026-10-13 24:00 ET" in a 3am phone alert is a line that makes the
+    // reader doubt the alert. A stalled run can sit on any hour, midnight
+    // included, so the formatter has to be right there too.
     const midnightEt = Date.parse("2026-10-13T04:00:00.000Z");
     const verdict = assessStaleness(
       [{ name: "midnight", startedAtMs: midnightEt }],
-      midnightEt + 8 * 3_600_000
+      midnightEt + 24 * 3_600_000
     );
     expect(verdict.line).toContain("Last run 2026-10-13 00:00 ET");
   });
 });
 
 describe("shouldNotify", () => {
-  const blind = assessStaleness([run("last-good", 8)], NOW);
+  const blind = assessStaleness([run("last-good", 24)], NOW);
 
   it("sends nothing when the watch is healthy", () => {
     expect(shouldNotify(assessStaleness([run("x", 1)], NOW), null)).toBe(false);
@@ -106,7 +120,7 @@ describe("shouldNotify", () => {
   it("sends again when a new gap opens after the watch recovered", () => {
     // Recovered: a run landed, so the newest run moved. A later gap is a
     // different gap and deserves its own DM.
-    const recoveredThenBlindAgain = assessStaleness([run("later-good", 6)], NOW);
+    const recoveredThenBlindAgain = assessStaleness([run("later-good", 20)], NOW);
     expect(recoveredThenBlindAgain.alertKey).not.toBe(blind.alertKey);
     expect(shouldNotify(recoveredThenBlindAgain, blind.alertKey)).toBe(true);
   });
@@ -114,10 +128,10 @@ describe("shouldNotify", () => {
   it("keys on the last good run, so the key does not drift as the gap widens", () => {
     // Same run, later clock. The hourly check must compute the same key every
     // hour of the gap or the dedupe above never fires.
-    const lastGood = run("last-good", 8);
+    const lastGood = run("last-good", 24);
     const first = assessStaleness([lastGood], NOW);
     const anHourLater = assessStaleness([lastGood], NOW + 3_600_000);
-    expect(anHourLater.ageHours).toBe(9);
+    expect(anHourLater.ageHours).toBe(25);
     expect(anHourLater.alertKey).toBe(first.alertKey);
   });
 });
@@ -154,7 +168,7 @@ describe("formatAge", () => {
 });
 
 describe("STALE_AFTER_HOURS", () => {
-  it("is one 4h cadence plus an hour of grace", () => {
-    expect(STALE_AFTER_HOURS).toBe(5);
+  it("is one twice-daily gap plus an hour of grace", () => {
+    expect(STALE_AFTER_HOURS).toBe(13);
   });
 });
