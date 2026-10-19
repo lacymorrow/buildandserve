@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { siteConfig } from "@/config/site-config";
 import { createGitHubTemplateService } from "@/lib/github-template";
 import { logger } from "@/lib/logger";
@@ -152,6 +152,24 @@ class DeploymentService {
       throw new Error("Database not available");
     }
 
+    // Mark any deployment stuck in "deploying" longer than the stale threshold
+    // as timed out. This is a safety net that works even when the Vercel token
+    // is unavailable or the Vercel API is unreachable.
+    await db
+      .update(deployments)
+      .set({
+        status: "timeout",
+        error: "Deployment timed out — exceeded maximum expected duration",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(deployments.userId, userId),
+          eq(deployments.status, "deploying"),
+          lt(deployments.createdAt, new Date(Date.now() - STALE_DEPLOYMENT_MS))
+        )
+      );
+
     // Refresh deployment statuses from Vercel before returning results.
     await this.syncDeploymentStatuses(userId);
 
@@ -185,7 +203,7 @@ class DeploymentService {
       .where(and(eq(deployments.id, deploymentId), eq(deployments.userId, userId)))
       .returning();
 
-    return updatedDeployment || null;
+    return updatedDeployment ?? null;
   }
 
   /**
@@ -236,7 +254,7 @@ class DeploymentService {
       .where(and(eq(deployments.id, deploymentId), eq(deployments.userId, userId)))
       .returning();
 
-    return canceledDeployment || null;
+    return canceledDeployment ?? null;
   }
 
   /**
@@ -268,9 +286,8 @@ class DeploymentService {
     const vercelService = createVercelAPIService(vercelToken);
 
     for (const deployment of deploymentsToSync) {
-      const projectIdentifier = deployment.vercelProjectId || deployment.projectName;
-      const lastUpdated = deployment.updatedAt ?? deployment.createdAt;
-      const deploymentAge = Date.now() - new Date(lastUpdated).getTime();
+      const projectIdentifier = deployment.vercelProjectId ?? deployment.projectName;
+      const deploymentAge = Date.now() - new Date(deployment.updatedAt).getTime();
       const isStale = deploymentAge > STALE_DEPLOYMENT_MS;
 
       if (!projectIdentifier) {
@@ -327,7 +344,7 @@ class DeploymentService {
         }
 
         // Handle both 'state' and 'readyState' fields from Vercel API
-        const deploymentState = latestDeployment.state || latestDeployment.readyState;
+        const deploymentState = latestDeployment.state ?? latestDeployment.readyState;
 
         if (!deploymentState) {
           if (isStale) {
@@ -419,11 +436,7 @@ class DeploymentService {
 
     // Apply rate limiting
     try {
-      await rateLimitService.checkLimit(
-        userId,
-        "deployment:create",
-        rateLimits.deployments.create
-      );
+      await rateLimitService.checkLimit(userId, "deployment:create", rateLimits.deployments.create);
     } catch (error) {
       logger.warn("Rate limit exceeded for deployment", { userId, error });
       return {
@@ -466,7 +479,7 @@ class DeploymentService {
       if (!currentDeploymentId) {
         const newDeployment = await this.createDeployment(userId, {
           projectName,
-          description: description || `Deployment of ${projectName}`,
+          description: description ?? `Deployment of ${projectName}`,
           status: "deploying",
         });
         currentDeploymentId = newDeployment.id;
@@ -502,7 +515,7 @@ class DeploymentService {
       // Step 1: Get GitHub username
       const userInfo = await githubService.getCurrentUserInfo();
       if (!userInfo.success || !userInfo.username) {
-        const error = userInfo.error || "Failed to get GitHub user information.";
+        const error = userInfo.error ?? "Failed to get GitHub user information.";
         await this.updateDeployment(currentDeploymentId, userId, { status: "failed", error });
         return { success: false, error };
       }
@@ -526,18 +539,18 @@ class DeploymentService {
         templateRepo: templateRepoName,
         newRepoName: projectName,
         newRepoOwner: githubUsername,
-        description: description || `Deployed from ${templateRepo} template`,
+        description: description ?? `Deployed from ${templateRepo} template`,
         private: false,
       });
 
       if (!repoResult.success) {
-        const error = repoResult.error || "Failed to create GitHub repository";
+        const error = repoResult.error ?? "Failed to create GitHub repository";
         await this.updateDeployment(currentDeploymentId, userId, { status: "failed", error });
 
         if (repoResult.isPendingInvitation) {
           return {
             success: false,
-            error: `${error} Visit: ${repoResult.invitationUrl || "https://github.com/notifications"}`,
+            error: `${error} Visit: ${repoResult.invitationUrl ?? "https://github.com/notifications"}`,
             data: {
               step: "github-pending-invitation",
               isPendingInvitation: true,
@@ -720,7 +733,7 @@ class DeploymentService {
     error?: string;
   }> {
     try {
-      const githubToken = await getGitHubAccessToken();
+      const githubToken = await getGitHubAccessToken(userId);
       if (!githubToken) {
         return { hasPendingInvitation: false };
       }
@@ -749,7 +762,7 @@ class DeploymentService {
     projectName: string
   ): Promise<{ available: boolean; error?: string; checked: boolean; reason?: string }> {
     try {
-      const githubToken = await getGitHubAccessToken();
+      const githubToken = await getGitHubAccessToken(userId);
       if (!githubToken) {
         return { available: true, checked: false, reason: "no_github_connection" };
       }
@@ -844,7 +857,7 @@ class DeploymentService {
    * Get GitHub token (OAuth or provided)
    */
   private async getGitHubToken(userId: string, providedToken?: string): Promise<string | null> {
-    let githubToken = await getGitHubAccessToken();
+    let githubToken = await getGitHubAccessToken(userId);
 
     if (!githubToken && providedToken) {
       const tokenRegex = /^(ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})$/;

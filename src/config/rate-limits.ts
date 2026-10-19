@@ -38,6 +38,18 @@ export const rateLimits = {
       duration: 60,
     },
   },
+  magicLink: {
+    // A real user rarely needs more than a few sign-in links in a window.
+    perEmail: {
+      requests: 3,
+      duration: 60 * 15,
+    },
+    // Headroom for shared/NAT networks while stopping bulk abuse from one host.
+    perIp: {
+      requests: 10,
+      duration: 60 * 15,
+    },
+  },
   importPayments: {
     requests: 5,
     duration: 60 * 30,

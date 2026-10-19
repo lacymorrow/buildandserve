@@ -1,7 +1,6 @@
-import type React from "react";
 import Image from "next/image";
-import { Link } from "@/components/primitives/link-with-transition";
-import { type BlogAuthor, authorUtils } from "@/config/blog-authors";
+import { Link } from "@/components/primitives/link";
+import { authorUtils, type BlogAuthor } from "@/config/blog-authors";
 
 // Legacy author interface for backward compatibility
 interface LegacyAuthor {
@@ -24,16 +23,11 @@ export const BlogAuthors = ({ authors }: BlogAuthorsProps) => {
   if (!authors || authors.length === 0) return null;
 
   return (
-    <div
-      className="flex -space-x-2 relative z-0 mt-6"
-      role="group"
-      aria-label="Article authors"
-    >
+    // biome-ignore lint/a11y/useSemanticElements: presentational author group with explicit aria role
+    <div className="relative z-0 mt-6 flex -space-x-2" role="group" aria-label="Article authors">
       {authors.map((author, i) => {
         const isNewAuthor = isBlogAuthor(author);
-        const displayName = isNewAuthor
-          ? authorUtils.getDisplayName(author)
-          : author.name;
+        const displayName = isNewAuthor ? authorUtils.getDisplayName(author) : author.name;
         const authorUrl = isNewAuthor ? authorUtils.getAuthorUrl(author) : null;
 
         const imageElement = (
@@ -54,7 +48,7 @@ export const BlogAuthors = ({ authors }: BlogAuthorsProps) => {
             <Link
               key={isNewAuthor ? author.id : `legacy-${i}`}
               href={authorUrl}
-              className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-full"
+              className="rounded-full focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden"
               aria-label={`View ${displayName}'s profile`}
             >
               {imageElement}
@@ -64,10 +58,7 @@ export const BlogAuthors = ({ authors }: BlogAuthorsProps) => {
 
         // Legacy author or no URL
         return (
-          <div
-            key={isNewAuthor ? author.id : `legacy-${i}`}
-            className="focus:outline-none"
-          >
+          <div key={isNewAuthor ? author.id : `legacy-${i}`} className="focus:outline-hidden">
             {imageElement}
           </div>
         );

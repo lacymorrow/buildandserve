@@ -42,11 +42,11 @@ describe("safeDbExecute", () => {
     // Override the module for this test
     vi.doMock("@/server/db", () => ({
       db: mockDb,
-      safeDbExecute: async (callback: Function, defaultValue: any) => {
+      safeDbExecute: async <T>(callback: (db: unknown) => Promise<T>, fallback: T) => {
         try {
           return await callback(mockDb);
-        } catch (error) {
-          return defaultValue;
+        } catch {
+          return fallback;
         }
       },
     }));
