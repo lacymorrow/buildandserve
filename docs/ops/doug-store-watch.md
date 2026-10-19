@@ -1,10 +1,10 @@
 # Doug store watch
 
-Monitoring job for Doug's two stores. Runs every 4 hours. Read-only.
+Monitoring job for Doug's two stores. Runs twice daily (08:00 and 20:00 ET).
+Read-only.
 
-This file is the whole job. The BAS server and the Managed Agents trial both run
-it unchanged, so whatever difference shows up between them is the service, not
-the brief.
+This file is the whole job. Run it unchanged; whatever difference shows up
+between runs is the stores, not the brief.
 
 Ticket: LAC-4280.
 
@@ -40,7 +40,10 @@ The job has to walk the path a paying customer walks and prove it got there.
 
 ## Cadence
 
-Every 4 hours. If a run overlaps the previous one, skip it rather than stacking.
+Twice daily, at 08:00 and 20:00 ET. If a run overlaps the previous one, skip it
+rather than stacking. Cut from every 4h on 2026-10-19 (LAC-4913): the 4h cadence
+existed for a parallel trial that is now cancelled, and it was already missing
+slots silently, so a stated 12h gap is more honest than an unannounced 15h one.
 
 ## What to check, per store
 
@@ -213,8 +216,8 @@ does not exist:
 bun scripts/doug-store-watch.ts --store raw-kratom --base https://store-watch-drill.raw-kratom.com
 ```
 
-The Managed Agents trial gets this same file and uses its own tooling. The
-checks, the evidence standard, and the output rules are what must match.
+Any runner of this file may use its own tooling. The checks, the evidence
+standard, and the output rules are what must match.
 
 ## Watching the watch
 
@@ -231,10 +234,11 @@ bun scripts/doug-store-watch-freshness.ts [--notify] [--max-age-hours N] [--evid
 ```
 
 It reads the newest `store-watch-runs/<ts>/report.json` and compares its
-`startedAt` to now. Under 5 hours, it prints nothing and exits 0. Over 5 hours,
-or if no run has ever been recorded, it prints one line and exits 1. Five hours
-is one 4h cadence plus an hour of slack, so a run that merely started late does
-not wake anyone.
+`startedAt` to now. Under 13 hours, it prints nothing and exits 0. Over 13
+hours, or if no run has ever been recorded, it prints one line and exits 1.
+Thirteen hours is one full 12h gap between the two daily slots plus an hour of
+slack, so a run that merely started late does not wake anyone. Change the
+cadence and this threshold moves with it: longest gap between slots, plus 1h.
 
 Exit codes: `0` the watch is running, `1` the watch is blind, `2` bad usage. A
 typo in the schedule exits 2 rather than 1, so it cannot sit in the log looking
@@ -259,8 +263,8 @@ outage into forty-eight identical messages, and the next real one gets ignored.
 If Slack itself fails, the line still goes to stdout, the exit code is still 1,
 and the gap keeps its unsent alert for the next hour.
 
-Credentials come from the environment, not from a path on Lacy's laptop, so the
-Managed Agents trial runs the same file:
+Credentials come from the environment, not from a path on Lacy's laptop, so any
+host runs the same file:
 
 | Variable | Value |
 |---|---|
