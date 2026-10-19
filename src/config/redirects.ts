@@ -42,12 +42,12 @@ export const redirects = async (): Promise<Redirect[]> => {
     // Legacy AI-fleet URLs point to lacymorrow.com; the pages live on at
     // /services/openclaw-setup and /services/paperclip-ai (LAC-3146)
     {
-      source: "/services/openclaw" as Route,
+      source: "/services/openclaw",
       destination: "https://lacymorrow.com/services",
       permanent: true,
     },
     {
-      source: "/services/paperclip" as Route,
+      source: "/services/paperclip",
       destination: "https://lacymorrow.com/services",
       permanent: true,
     },

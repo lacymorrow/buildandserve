@@ -37,6 +37,10 @@ const nextConfig: NextConfig = {
     // Add client-side feature flags
     ...buildTimeFeatureFlags,
 
+    // Site-specific: Build And Serve is dark-only (theme forced to dark, no toggle).
+    NEXT_PUBLIC_FEATURE_LIGHT_MODE_ENABLED: "false",
+    NEXT_PUBLIC_FEATURE_DARK_MODE_ENABLED: "true",
+
     // Auto-mirrored public env vars from their non-prefixed counterparts
     // e.g. STRIPE_PUBLISHABLE_KEY -> NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
     ...buildTimePublicEnv,
@@ -160,10 +164,6 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: [
           {
-            key: "X-Powered-By",
-            value: "shipkit.io",
-          },
-          {
             key: "X-Frame-Options",
             value: "DENY",
           },
@@ -191,7 +191,7 @@ const nextConfig: NextConfig = {
 
   // Production optimizations
   compress: true,
-  poweredByHeader: false, // Disable default "Next.js" — custom "shipkit.io" header set in headers()
+  poweredByHeader: false,
 
   /*
    * React configuration
