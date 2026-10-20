@@ -74,8 +74,17 @@ nowhere else. Same contract as the power watch, for the same reason, written on
 the power watch's own comment: a monitor that repeats itself every five minutes
 for twelve hours is a monitor nobody reads.
 
-The state file is written **only on a delivered DM**, so a Slack outage retries
-on the next poll instead of silently spending the one page the outage was owed.
+The state file changes **only on a delivered DM**, in both directions. A dark
+page that Slack rejects is not recorded, so the next poll retries it rather than
+silently spending the one page the outage was owed. A recovery that Slack
+rejects does not clear the state either, and the moment the plane came back is
+pinned into it so the retry reports the duration that was measured rather than
+one inflated by however long the notifier was broken.
+
+That second half was missing at first: the recovery cleared the state whether or
+not the message went out, so a single transient Slack failure permanently ate
+the measured duration, which is the headline number this whole file exists to
+produce.
 
 ## Run it by hand
 
@@ -84,8 +93,9 @@ bash scripts/fleet-dark-watch.sh            # poll, log, print what it would sen
 bash scripts/fleet-dark-watch.sh --notify   # poll, log, and DM for real
 ```
 
-Without `--notify` it never writes the state file, so a dry run cannot eat the
-page a real outage is owed.
+Without `--notify` it never writes _or clears_ the state file, so a dry run
+during an outage cannot eat the page, or the recovery message, that a real poll
+still owes.
 
 Exit codes: `0` the plane answered, `1` it did not, `2` **this script could not
 do its job** (no `curl`, no `jq`, nowhere to write). `2` is never reported as
@@ -93,10 +103,39 @@ do its job** (no `curl`, no `jq`, nowhere to write). `2` is never reported as
 exists to keep apart, and for a dead-man's switch that distinction is the whole
 product. Silence means the fleet is alive.
 
+An exit 2 also **Slack-DMs that it is blind**, and says to treat silence from it
+as meaningless until fixed. Printing that to stderr alone was not enough: the
+cron line discarded stderr, and when the watch directory is the broken thing the
+log is on it too, so the channel is the only place left that works. Since there
+is no state file to dedupe against in that case, it is rate-limited by the clock
+to one message an hour rather than 288 a day.
+
 Everything is overridable by environment variable for testing, including the
 clock, so a 15-minute threshold and an 11-hour outage both cost a millisecond to
-test: `FLEET_DARK_WATCH_NOW`, `_DIR`, `_URL`, `_HOST`, `_IP`, `_TIMEOUT`,
-`_DARK_AFTER`, `_SLACK_CHANNEL`, `_SLACK_TOKEN`, `_SLACK_TOKEN_FILE`.
+test: `FLEET_DARK_WATCH_NOW`, `_DIR`, `_FALLBACK_DIR`, `_URL`, `_HOST`, `_IP`,
+`_TIMEOUT`, `_DARK_AFTER`, `_SLACK_CHANNEL`, `_SLACK_TOKEN`, `_SLACK_TOKEN_FILE`,
+`_SLACK_API`.
+
+## A full pool must not switch the pager off
+
+The pool is at 91% of 932G. One large download closes that gap, and then every
+state write fails. The first version of this treated state writes as
+infallible, and the result was the worst failure a dead-man's switch has: the
+write failed, the next poll found no state, restarted the clock, and never
+reached the threshold. A twelve-hour outage would have produced zero pages and
+no log line explaining why.
+
+So every state write is checked, and the directory is proven by **writing to
+it** rather than by `[ -w ]`, which tests a permission bit and would miss this
+entirely. If the pool refuses, state moves to `/tmp` (RAM, so it survives a full
+disk) and every healthy log line says `degraded:` until it is fixed. Losing
+state on reboot costs at most one duplicate page. Losing it entirely costs the
+whole outage.
+
+The Slack token stays pinned to the pool path even when state has fallen back,
+because a full filesystem still reads fine. Deriving it from the fallback would
+turn a full disk into a missing token and take the notifier down with the thing
+it was supposed to report.
 
 ## `--resolve` is load-bearing
 
@@ -131,11 +170,19 @@ Cron on `library` (Unraid, wired, always on), every 5 minutes.
 /mnt/cachex/appdata/fleet-dark-watch/slack-token      the token, 0600
 /mnt/cachex/appdata/fleet-dark-watch/fleet-dark-watch.log
 /mnt/cachex/appdata/fleet-dark-watch/state            present only during an outage
+/tmp/fleet-dark-watch/                                where state goes if the pool refuses a write
+/tmp/fleet-dark-watch.err                             anything the script said on stderr
 ```
 
 ```
-*/5 * * * * /usr/bin/bash /boot/config/scripts/fleet-dark-watch.sh --notify > /dev/null 2>&1
+*/5 * * * * /usr/bin/bash /boot/config/scripts/fleet-dark-watch.sh --notify >/dev/null 2>>/tmp/fleet-dark-watch.err
 ```
+
+**Do not put `2>&1` back on that line.** stdout is a duplicate of the log and is
+safe to drop, but stderr is where "I cannot do my job" goes, and the first
+version of this discarded it. An exit-2 poll then produced literally nothing,
+which is also what a healthy fleet produces. stderr is empty in normal
+operation, so the file only grows when something is actually wrong.
 
 To install or update, from this repo:
 

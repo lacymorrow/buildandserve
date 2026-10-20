@@ -64,7 +64,20 @@ DARK_AFTER_SECONDS="${FLEET_DARK_WATCH_DARK_AFTER:-900}"
 # /mnt/user on purpose: the appdata share sets shareFloor=97.7G, the pool has
 # less free than that, and so every write through shfs is refused with ENOSPC.
 # /mnt/cachex is the same bytes without the share layer in the way.
-WATCH_DIR="${FLEET_DARK_WATCH_DIR:-/mnt/cachex/appdata/fleet-dark-watch}"
+PRIMARY_DIR="${FLEET_DARK_WATCH_DIR:-/mnt/cachex/appdata/fleet-dark-watch}"
+
+# Where state goes when the pool will not take it. Unraid's /tmp is RAM, so it
+# survives the realistic failure here: that 932G pool is at 91%, and one large
+# download closes the gap. State in RAM is lost on reboot, which costs at most
+# one duplicate page; state nowhere at all costs every page of the outage,
+# because a state write that fails leaves the next poll re-reading "no outage
+# recorded", restarting the clock, and never reaching the threshold.
+FALLBACK_DIR="${FLEET_DARK_WATCH_FALLBACK_DIR:-/tmp/fleet-dark-watch}"
+
+# Resolved below once the directories have been tried for real. WATCH_DIR is
+# whichever one actually accepted a write.
+WATCH_DIR="$PRIMARY_DIR"
+DEGRADED=""
 
 # Who hears about it. Lacy's Slack DM, the same channel the power watch and the
 # stranded-work watch already use, because an alert in a channel nobody reads is
@@ -73,11 +86,20 @@ WATCH_DIR="${FLEET_DARK_WATCH_DIR:-/mnt/cachex/appdata/fleet-dark-watch}"
 SLACK_CHANNEL="${FLEET_DARK_WATCH_SLACK_CHANNEL:-U3XC80UUQ}"
 SLACK_TOKEN="${FLEET_DARK_WATCH_SLACK_TOKEN:-}"
 
+# Overridable so the tests can point the notifier at a local server and assert
+# on the bytes it actually sends.
+SLACK_API_URL="${FLEET_DARK_WATCH_SLACK_API:-https://slack.com/api/chat.postMessage}"
+
 # Falls back to a file so the cron line can stay clean. Unraid regenerates root's
 # crontab onto /boot, which is FAT32 and carries no permission bits at all, so a
 # token inlined there would be readable by anything that can see the flash. The
 # pool is a real filesystem and can hold a 600.
-SLACK_TOKEN_FILE="${FLEET_DARK_WATCH_SLACK_TOKEN_FILE:-$WATCH_DIR/slack-token}"
+#
+# Pinned to PRIMARY_DIR, not WATCH_DIR: a full pool still reads fine, so the
+# token stays exactly where it was installed even when state has fallen back to
+# RAM. Deriving this from WATCH_DIR would make a full disk look like a missing
+# token and take the notifier down with it.
+SLACK_TOKEN_FILE="${FLEET_DARK_WATCH_SLACK_TOKEN_FILE:-$PRIMARY_DIR/slack-token}"
 
 NOTIFY=0
 for arg in "$@"; do
@@ -107,8 +129,11 @@ iso_epoch() {
     || TZ=UTC date -j -f '%Y-%m-%dT%H:%M:%S' "$trimmed" +%s 2>/dev/null
 }
 
-STATE_FILE="$WATCH_DIR/state"
-LOG_FILE="$WATCH_DIR/fleet-dark-watch.log"
+# Both are derived from WATCH_DIR only after the directory has been proven
+# writable below, so a fallback moves the state and the log together. Nothing
+# above that point may call `log` or `state_get`.
+STATE_FILE=""
+LOG_FILE=""
 
 # Every line carries the time it happened. The power watch shipped without this
 # and reconstructing the 2026-10-19 outage needed kern.boottime cross-referenced
@@ -136,7 +161,22 @@ state_get() {
   sed -n "s/^$1=\([0-9]*\)$/\1/p" "$STATE_FILE" | tail -n1
 }
 
-state_put() { printf 'down_since=%s\npaged=%s\n' "$1" "$2" > "$STATE_FILE"; }
+# Returns non-zero when the state could not be persisted. Every call site checks
+# it. An unchecked state write is how this script turns its own pager off: the
+# write fails, the next poll finds nothing, the clock restarts, and a twelve-hour
+# outage produces zero pages and no log line saying why.
+#
+# `recovered_at` is only present between measuring a recovery and delivering it,
+# so a retry reports the duration that was measured rather than one inflated by
+# however long the notifier was broken.
+state_put() {
+  local down_since=$1 paged=$2 recovered_at=${3:-} payload
+  payload=$(printf 'down_since=%s\npaged=%s' "$down_since" "$paged")
+  if [ -n "$recovered_at" ]; then
+    payload=$(printf '%s\nrecovered_at=%s' "$payload" "$recovered_at")
+  fi
+  printf '%s\n' "$payload" > "$STATE_FILE" 2>/dev/null
+}
 
 # The dark message. What happened first, because that is the fact. What is
 # stopped second, because "the control plane is down" means nothing on its own.
@@ -163,6 +203,20 @@ format_back() {
 # broken notifier still leaves the event in the log and the exit code honest. A
 # monitor that goes quiet because its own notifier failed is the exact bug this
 # file exists to prevent.
+#
+# Deliberately free of `jq`. jq is required to read the health body, but it must
+# not be required to raise the alarm: "jq is missing" is itself one of the things
+# this script has to be able to say, and a notifier that needs the missing tool
+# to report the missing tool reports nothing.
+#
+# A JSON string needs exactly three things escaped: backslash, double quote, and
+# control characters. Backslash first, or it would double-escape the quotes it
+# just introduced. Control characters are flattened to spaces because every
+# message here is one line by construction.
+json_string() {
+  printf '%s' "$1" | tr '\n\r\t' '   ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
 notify() {
   local text=$1 response token=$SLACK_TOKEN
   if [ -z "$token" ] && [ -r "$SLACK_TOKEN_FILE" ]; then
@@ -173,11 +227,11 @@ notify() {
       "$SLACK_TOKEN_FILE" >&2
     return 1
   fi
-  response=$(curl -sS -m 15 -X POST https://slack.com/api/chat.postMessage \
+  response=$(curl -sS -m 15 -X POST "$SLACK_API_URL" \
     -H "Authorization: Bearer $token" \
     -H 'Content-Type: application/json; charset=utf-8' \
-    --data "$(jq -n --arg c "$SLACK_CHANNEL" --arg t "$text" '{channel:$c,text:$t}')" 2>&1)
-  if printf '%s' "$response" | jq -e '.ok == true' >/dev/null 2>&1; then
+    --data "{\"channel\":\"$(json_string "$SLACK_CHANNEL")\",\"text\":\"$(json_string "$text")\"}" 2>&1)
+  if printf '%s' "$response" | grep -q '"ok"[[:space:]]*:[[:space:]]*true'; then
     printf '%s' "$response"
     return 0
   fi
@@ -185,18 +239,77 @@ notify() {
   return 1
 }
 
+# The alarm for when this script cannot do its job. Goes to Slack, not only to
+# stderr, because the shipped cron line cannot keep stderr: a `2>&1` into
+# /dev/null made exit 2 produce literally nothing, and silence is also what a
+# healthy fleet looks like. When the watch dir is the broken thing the log is on
+# it too, so the channel is the only place left that works.
+cannot_look() {
+  local reason=$1
+  printf 'fleet-dark-watch cannot do its job: %s\n' "$reason" >&2
+  if [ "$NOTIFY" = "1" ]; then
+    notify "Fleet dark watch is blind on library: $reason. It is not watching anything until this is fixed, so treat silence from it as meaningless." >/dev/null \
+      || printf 'and could not report it to Slack either\n' >&2
+  fi
+}
+
+# One Slack message an hour, without a state file to dedupe against, for the one
+# failure where there is nowhere to keep state. A 5-minute cron crosses the top
+# of the hour exactly once, so this is 24 messages a day rather than 288. Plain
+# stderr is never gated: a human running this by hand must always see it.
+#
+# Reads the injected clock rather than the wall clock, so this is the same
+# moment the rest of the poll is reasoning about and the tests can stand on
+# either side of the boundary.
+top_of_hour() { [ "$(at_epoch "$(now)" %M | sed 's/^0//')" -lt 5 ]; }
+
 # --- the check -------------------------------------------------------------
 
 # Dependencies before anything else, and exit 2 rather than 0. Without curl
 # there is no check and no way to report that there is no check.
 for dep in curl jq date; do
-  command -v "$dep" >/dev/null 2>&1 || { printf 'fleet-dark-watch needs %s and it is not on PATH\n' "$dep" >&2; exit 2; }
+  command -v "$dep" >/dev/null 2>&1 || {
+    # Reported through the channel, not just stderr. curl is what the notifier
+    # needs, so losing jq or date still leaves a way to say so; losing curl
+    # leaves none, and stderr is all there is.
+    cannot_look "$dep is not on PATH"
+    exit 2
+  }
 done
 
-if ! mkdir -p "$WATCH_DIR" 2>/dev/null || ! [ -w "$WATCH_DIR" ]; then
-  printf 'fleet-dark-watch cannot write to %s, so it cannot tell one outage from twelve hours of them\n' "$WATCH_DIR" >&2
+# Proves the directory by writing to it. `[ -w ]` answers a question nobody
+# asked: it tests the permission bits, and the failure that actually threatens
+# this host is free space. /mnt/user/appdata already refuses every write with
+# ENOSPC while df reports 88G free, because the share's shareFloor sits above
+# the pool's free space, and root does not bypass a full filesystem either.
+can_write() {
+  local dir=$1 probe
+  mkdir -p "$dir" 2>/dev/null || return 1
+  probe="$dir/.probe.$$"
+  printf 'x' > "$probe" 2>/dev/null || { rm -f "$probe" 2>/dev/null; return 1; }
+  rm -f "$probe" 2>/dev/null
+  return 0
+}
+
+if can_write "$PRIMARY_DIR"; then
+  WATCH_DIR="$PRIMARY_DIR"
+elif can_write "$FALLBACK_DIR"; then
+  WATCH_DIR="$FALLBACK_DIR"
+  DEGRADED="state is in $FALLBACK_DIR because $PRIMARY_DIR would not take a write"
+  printf 'fleet-dark-watch: %s\n' "$DEGRADED" >&2
+else
+  # Nowhere to keep state means no dedupe, so this is the one path that cannot
+  # rate-limit itself with a file. Still better than exiting 0 and looking fine.
+  printf 'fleet-dark-watch cannot write to %s or %s, so it cannot tell one outage from twelve hours of them\n' \
+    "$PRIMARY_DIR" "$FALLBACK_DIR" >&2
+  if top_of_hour; then
+    cannot_look "it cannot write to $PRIMARY_DIR or $FALLBACK_DIR, so it cannot tell one outage from twelve hours of them"
+  fi
   exit 2
 fi
+
+STATE_FILE="$WATCH_DIR/state"
+LOG_FILE="$WATCH_DIR/fleet-dark-watch.log"
 
 # There is deliberately no lock here. A cycle costs at most 25 seconds against a
 # 300 second interval, so two copies would have to overlap by a factor of twelve;
@@ -230,7 +343,8 @@ fi
 
 DOWN_SINCE=$(state_get down_since)
 PAGED=$(state_get paged)
-: "${DOWN_SINCE:=}" "${PAGED:=0}"
+RECOVERED_AT=$(state_get recovered_at)
+: "${DOWN_SINCE:=}" "${PAGED:=0}" "${RECOVERED_AT:=}"
 
 if [ "$ALIVE" = "1" ]; then
   if [ -n "$DOWN_SINCE" ]; then
@@ -238,7 +352,12 @@ if [ "$ALIVE" = "1" ]; then
     # answering, which is more honest than when this poll happened to notice:
     # between those two is up to five minutes of cron, not of outage.
     BACK_AT=$NOW
-    if [ -n "$STARTED_AT" ]; then
+    if [ -n "$RECOVERED_AT" ]; then
+      # An earlier poll already measured this recovery and failed to deliver it.
+      # That number is the honest one. Recomputing would quietly add however
+      # long the notifier stayed broken to the reported outage.
+      BACK_AT=$RECOVERED_AT
+    elif [ -n "$STARTED_AT" ]; then
       parsed=$(iso_epoch "$STARTED_AT")
       # Only trust it if it falls inside the outage. A process that started
       # before the outage began never restarted, so the network was the problem
@@ -251,15 +370,30 @@ if [ "$ALIVE" = "1" ]; then
     if [ "$PAGED" = "1" ]; then
       message=$(format_back "$DARK_FOR" "$BACK_AT")
       log "RECOVERED $message"
-      if [ "$NOTIFY" = "1" ]; then notify "$message" || log "NOTIFY-FAILED recovery message not delivered"; fi
+      if [ "$NOTIFY" = "1" ]; then
+        if notify "$message"; then
+          rm -f "$STATE_FILE"
+        else
+          # The outage is over and unreported, and an unreported recovery is the
+          # message this whole file exists to produce. Keep the state so the
+          # next poll retries, and pin the moment it came back so the retry
+          # reports the duration that was measured. Clearing here instead is how
+          # one transient Slack failure used to eat the headline number for good.
+          log "NOTIFY-FAILED recovery message not delivered, keeping the outage open so the next poll retries"
+          state_put "$DOWN_SINCE" 1 "$BACK_AT" \
+            || cannot_look "it measured a ${DARK_FOR}s outage, could not deliver it, and could not write $STATE_FILE to retry"
+        fi
+      fi
+      # A dry run deliberately leaves the state alone: it must not consume the
+      # recovery message the next real poll still owes.
     else
       # Down for less than the threshold and back again. A restart, not an
       # outage. It belongs in the log and nowhere else.
       log "BLIP plane was unreachable for $(fmt_duration "$DARK_FOR") and recovered before the $(fmt_duration "$DARK_AFTER_SECONDS") threshold"
+      rm -f "$STATE_FILE"
     fi
-    rm -f "$STATE_FILE"
   else
-    log "OK plane answered 200, up since ${STARTED_AT:-unknown}"
+    log "OK plane answered 200, up since ${STARTED_AT:-unknown}${DEGRADED:+ (degraded: $DEGRADED)}"
   fi
   exit 0
 fi
@@ -267,8 +401,15 @@ fi
 # Not answering. First failure starts the clock; it does not page.
 if [ -z "$DOWN_SINCE" ]; then
   DOWN_SINCE=$NOW
-  state_put "$DOWN_SINCE" 0
-  log "UNREACHABLE http=$HTTP ${WHY:-no curl error}, starting the clock, paging if this lasts $(fmt_duration "$DARK_AFTER_SECONDS")"
+  if state_put "$DOWN_SINCE" 0; then
+    log "UNREACHABLE http=$HTTP ${WHY:-no curl error}, starting the clock, paging if this lasts $(fmt_duration "$DARK_AFTER_SECONDS")"
+  else
+    # The clock cannot be started, so no later poll will ever reach the
+    # threshold. Page now instead: the plane is unreachable and the only thing
+    # that could have reported that properly is broken, and both facts matter.
+    log "UNREACHABLE http=$HTTP ${WHY:-no curl error}, and $STATE_FILE could not be written"
+    cannot_look "the plane is unreachable and it cannot write $STATE_FILE, so it cannot time the outage"
+  fi
   exit 1
 fi
 
@@ -288,8 +429,12 @@ log "DARK $message"
 if [ "$NOTIFY" = "1" ]; then
   if notify "$message"; then
     # Written only on a delivered DM, so a Slack outage retries in five minutes
-    # instead of silently spending the one page this outage was owed.
-    state_put "$DOWN_SINCE" 1
+    # instead of silently spending the one page this outage was owed. If that
+    # write fails the page was still delivered, so the only cost is a repeat on
+    # the next poll. Logged rather than escalated, because repeating a true page
+    # is the harmless direction of this failure.
+    state_put "$DOWN_SINCE" 1 \
+      || log "STATE-WRITE-FAILED page delivered but $STATE_FILE could not record it, so it will repeat next poll"
   else
     log "NOTIFY-FAILED dark message not delivered, will retry next cycle"
   fi
