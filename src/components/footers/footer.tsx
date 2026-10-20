@@ -49,7 +49,6 @@ const defaultGroups: FooterElement[] = [
     content: {
       header: { label: "Resources" },
       items: [
-        { href: routes.docs, label: "Documentation" },
         // Only include blog link when blog is enabled
         ...(process.env.NEXT_PUBLIC_HAS_BLOG === "true"
           ? [{ href: routes.blog, label: "Blog" }]
