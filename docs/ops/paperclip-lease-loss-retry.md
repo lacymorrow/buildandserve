@@ -97,23 +97,41 @@ whether a skip will ever clear:
 | `already_retried` | this run already has a retry, ours or the server's | no |
 | `superseded` | a later run already started on this issue | no |
 | `grace` | reaped under 3 minutes ago | yes |
-| `stale` | reaped over 2 hours ago | no |
+| `stale` | **requested** over 2 hours ago | no |
 | `operator_hold` | agent is `paused`, `terminated` or `pending_approval` | on the operator |
 | `agent_busy` | the agent has a queued or running run | yes |
+| `agent_retried_this_pass` | this pass already retried a reap for the agent | yes |
 
-Three of these carry the reasoning worth keeping:
+Four of these carry the reasoning worth keeping:
 
-- **`stale` at 2 hours** is what replaces a per-routine supersession check. A
-  stale re-run is worse than none: it would draft yesterday's plan, or report a
-  store window a later slot already covered. The fastest routine on the board is
-  4-hourly, so nothing inside a 2h window can have been superseded by its own
-  next slot. One rule instead of two, and the stricter of the two.
+- **`stale` at 2 hours, measured from the request.** A stale re-run is worse than
+  none: it would draft yesterday's plan, or report a store window a later slot
+  already covered. The fastest routine on the board is 4-hourly, so nothing
+  inside a 2h window can have been superseded by its own next slot. One rule
+  instead of two, and the stricter of the two.
+
+  The clock matters, and it is not the reap. A sleeping machine reaps the run
+  whenever it wakes, so the reap lags the request by the length of the sleep.
+  LAC-4210 was requested at 04:52:16Z and reaped at 06:52:32Z, two hours later;
+  on the reap clock it reads 5 minutes old at its retry and a 2h cap stops
+  nothing. The guard takes the older of the two ages, so the cap bounds how stale
+  the *work* is and keeps a full 2h of margin against the 4-hourly period. That
+  margin was the whole argument for deleting the supersession check (LAC-4608).
+
+  **Add a routine faster than 4-hourly and this has to come down with it.** The
+  `MAX_AGE_HOURS < 4` test pins the cap against a hardcoded 4, so it cannot
+  notice a 1-hourly routine appearing on the board later.
 - **`superseded` is not `already_retried`.** A later routine slot, a board
   comment or a reassignment starts a fresh run on the issue that is nobody's
   retry of anything. Either way the work is moving.
 - **`agent_busy` is unbounded on purpose.** Two concurrent runs on one agent is a
   worse failure than a visible delay, so even a stale queued row defers the
   retry. The next pass is 5 minutes away.
+- **`agent_retried_this_pass` is the same rule, held within one pass.**
+  `agent_busy` is resolved in SQL once before the loop, so it cannot see a retry
+  the same pass just posted. Two reaps for one agent minutes apart are real: the
+  CEO's LAC-4270 and LAC-4271 were reaped four minutes apart on 2026-10-12, both
+  still live. The second waits for the next pass.
 
 An `error` agent is still retried. `error` is invokable in Paperclip, and a lease
 loss is a common way for an agent to be left in it, so skipping those would skip

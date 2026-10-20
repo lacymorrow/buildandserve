@@ -75,6 +75,15 @@ export const GRACE_MINUTES = 3;
  * routine on the board is 4-hourly, so nothing inside this window can have been
  * superseded by its own next slot, and the sweep runs every 5 minutes, so the
  * window is ample. One rule instead of two, and the stricter of the two.
+ *
+ * Measured against the **request** clock, not the reap clock. The reap lags the
+ * request by however long the machine slept, so the two are not interchangeable:
+ * LAC-4210 was requested at 04:52:16Z and reaped at 06:52:32Z, 120 minutes later.
+ * On the reap clock it reads 5 minutes old at its retry and this cap is no cap at
+ * all; on the request clock it reads 125 minutes and is correctly skipped. See
+ * `stale` in decide() (LAC-4608).
+ *
+ * Add a routine faster than 4-hourly and this has to come down with it.
  */
 export const MAX_AGE_HOURS = 2;
 
@@ -105,7 +114,14 @@ export interface ReapedRun {
   title: string;
   issueStatus: string;
   originKind: string;
+  /** When the run was reaped. Grace is measured from here. */
   diedAtMs: number;
+  /**
+   * When the work was asked for: the run row's own creation, which for a routine
+   * slot is the trigger that minted it. Staleness is measured from here, because
+   * the reap lags the request by however long the machine slept.
+   */
+  requestedAtMs: number;
   /** A run started on this issue after the reap. Something already resumed it. */
   newerRunForIssue: boolean;
   /** This exact run already has a retry. Ours, or the server's. */
@@ -127,11 +143,21 @@ export type Decision = { action: "retry" } | { action: "skip"; reason: string; d
 export function decide(
   run: ReapedRun,
   nowMs: number,
-  opts: { graceMinutes?: number; maxAgeHours?: number } = {}
+  opts: {
+    graceMinutes?: number;
+    maxAgeHours?: number;
+    /** Agents this pass has already posted a retry for. See `agent_retried_this_pass`. */
+    retriedAgentIds?: ReadonlySet<string>;
+  } = {}
 ): Decision {
   const graceMinutes = opts.graceMinutes ?? GRACE_MINUTES;
   const maxAgeHours = opts.maxAgeHours ?? MAX_AGE_HOURS;
   const ageMs = nowMs - run.diedAtMs;
+  // The older of the two clocks. `created_at <= finished_at` holds on all 31,158
+  // runs on the board, so in practice this is always the request age; taking the
+  // max means a clock that ever went backwards costs a skipped retry, not a stale
+  // one, which is the cheap direction to fail.
+  const staleAgeMs = Math.max(ageMs, nowMs - run.requestedAtMs);
 
   if (!run.identifier) {
     return { action: "skip", reason: "no_issue", detail: "the run carries no issue id" };
@@ -163,11 +189,17 @@ export function decide(
       detail: `reaped ${formatAge(run.diedAtMs, nowMs)} ago, inside the ${graceMinutes}m grace window`,
     };
   }
-  if (ageMs > maxAgeHours * 3_600_000) {
+  // Measured from the request, not the reap. The reap lags the request by however
+  // long the machine slept, so on the reap clock this cap could pass a slot one
+  // minute before its own successor fired, which is the harm the cap exists to
+  // prevent (LAC-4608). Both ages are in the line so the log says which bit.
+  if (staleAgeMs > maxAgeHours * 3_600_000) {
     return {
       action: "skip",
       reason: "stale",
-      detail: `reaped ${formatAge(run.diedAtMs, nowMs)} ago, past the ${maxAgeHours}h window`,
+      detail:
+        `requested ${formatAge(run.requestedAtMs, nowMs)} ago ` +
+        `(reaped ${formatAge(run.diedAtMs, nowMs)} ago), past the ${maxAgeHours}h window`,
     };
   }
   if (OPERATOR_HOLD_STATUSES.has(run.agentStatus)) {
@@ -185,6 +217,17 @@ export function decide(
       action: "skip",
       reason: "agent_busy",
       detail: "the agent has a queued or running run",
+    };
+  }
+  // `agentBusy` is resolved in SQL once before the loop, so it cannot see a retry
+  // this same pass just posted. Two reaps for one agent four minutes apart are
+  // real (CEO LAC-4270 and LAC-4271, 2026-10-12), and without this the guard
+  // above reads stale for the second one. The next pass is 5 minutes away.
+  if (opts.retriedAgentIds?.has(run.agentId)) {
+    return {
+      action: "skip",
+      reason: "agent_retried_this_pass",
+      detail: "this pass already posted a retry for the agent",
     };
   }
   return { action: "retry" };
@@ -230,13 +273,16 @@ const QUERY = `
            r.agent_id,
            r.company_id,
            coalesce(r.finished_at, r.created_at) AS died_at,
+           r.created_at AS requested_at,
            r.context_snapshot ->> 'issueId' AS issue_id
       FROM heartbeat_runs r
      WHERE r.error = $1
        AND r.company_id <> $2
-       -- Bounded by the decision window itself, so an old reap is never read,
-       -- let alone retried. The guard is re-applied in decide() against the
-       -- caller's clock; this clause only keeps the scan small.
+       -- Bounded on the reap clock, which is the looser of the two on purpose:
+       -- created_at <= finished_at, so anything decide() could still retry on
+       -- the request clock is inside this scan. The real window is re-applied in
+       -- decide() against the caller's clock; this clause only keeps the scan
+       -- small, and a few extra rows read and skipped stale is the safe miss.
        AND coalesce(r.finished_at, r.created_at) > now() - ($3 || ' hours')::interval
   )
   SELECT x.id AS run_id,
@@ -248,6 +294,7 @@ const QUERY = `
          coalesce(i.status, '') AS issue_status,
          coalesce(i.origin_kind, '') AS origin_kind,
          (extract(epoch FROM x.died_at) * 1000)::bigint AS died_at_ms,
+         (extract(epoch FROM x.requested_at) * 1000)::bigint AS requested_at_ms,
          EXISTS (
            SELECT 1 FROM heartbeat_runs n
             WHERE n.context_snapshot ->> 'issueId' = x.issue_id
@@ -293,6 +340,7 @@ async function readReapedRuns(url: string, maxAgeHours: number): Promise<ReapedR
       issueStatus: String(row.issue_status ?? ""),
       originKind: String(row.origin_kind ?? ""),
       diedAtMs: Number(row.died_at_ms),
+      requestedAtMs: Number(row.requested_at_ms),
       newerRunForIssue: row.newer_run_for_issue === true,
       alreadyRetried: row.already_retried === true,
       agentBusy: row.agent_busy === true,
@@ -393,10 +441,11 @@ async function main() {
   const seen = await readSeenKeys(statePath);
   const seenSet = new Set(seen);
   const newKeys: string[] = [];
+  const retriedAgentIds = new Set<string>();
   let failures = 0;
 
   for (const run of runs) {
-    const decision = decide(run, now, { maxAgeHours });
+    const decision = decide(run, now, { maxAgeHours, retriedAgentIds });
 
     if (decision.action === "skip") {
       const key = skipKey(run, decision.reason, now);
@@ -410,21 +459,28 @@ async function main() {
     }
 
     if (dryRun) {
+      // Recorded here too, so a dry run reports the decisions a live pass would
+      // actually make rather than one retry per agent too many.
+      retriedAgentIds.add(run.agentId);
       console.log(`${stamp} DRY-RUN would retry ${describe(run)} via run ${run.runId}`);
       continue;
     }
 
     const result = await retryRun(apiBase, run);
     if ("error" in result) {
+      // Deliberately not recorded: no run was minted, so the agent is no busier
+      // than before and the next reap in this pass is still fair game.
       failures += 1;
       console.error(
         `${stamp} ERROR retrying ${describe(run)} via run ${run.runId}: ${result.error}`
       );
       continue;
     }
+    retriedAgentIds.add(run.agentId);
     console.log(
       `${stamp} RETRIED ${describe(run)}: reaped run ${run.runId} -> ${result.runId} ` +
-        `(lease lost ${formatAge(run.diedAtMs, now)} ago)`
+        `(requested ${formatAge(run.requestedAtMs, now)} ago, lease lost ` +
+        `${formatAge(run.diedAtMs, now)} ago)`
     );
   }
 

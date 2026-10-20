@@ -24,6 +24,7 @@ const reaped = (over: Partial<ReapedRun> = {}): ReapedRun => ({
   issueStatus: "blocked",
   originKind: "routine_execution",
   diedAtMs: minutesAgo(30),
+  requestedAtMs: minutesAgo(30),
   newerRunForIssue: false,
   alreadyRetried: false,
   agentBusy: false,
@@ -40,7 +41,23 @@ const reaped = (over: Partial<ReapedRun> = {}): ReapedRun => ({
 const lac4564 = reaped({
   identifier: "LAC-4564",
   title: "Doug store watch (every 4h, read-only)",
-  diedAtMs: Date.parse("2026-10-16T09:29:17.000Z"),
+  requestedAtMs: Date.parse("2026-10-16T08:00:20.471Z"),
+  diedAtMs: Date.parse("2026-10-16T09:29:17.038Z"),
+});
+
+/**
+ * The real LAC-4210, the reap that made `stale` measure the request clock. Its
+ * run was created at 04:52:16Z and not reaped until 06:52:32Z, 120 minutes of
+ * sleep later. On the reap clock it reads 5 minutes old at the retry moment and
+ * sails through a 2h cap; on the request clock it reads 125 minutes and is
+ * correctly skipped. This pair is the whole LAC-4608 finding.
+ */
+const lac4210 = reaped({
+  identifier: "LAC-4210",
+  originKind: "manual",
+  title: "a run requested two hours before it was reaped",
+  requestedAtMs: Date.parse("2026-10-08T04:52:16.225Z"),
+  diedAtMs: Date.parse("2026-10-08T06:52:32.390Z"),
 });
 
 describe("decide", () => {
@@ -60,8 +77,39 @@ describe("decide", () => {
   it("will not draft yesterday's plan", () => {
     // A stale re-run is worse than no re-run: the slot's moment has passed and a
     // later slot has already covered the window.
-    const decision = decide(reaped({ diedAtMs: minutesAgo(4 * 60) }), NOW);
+    const old = reaped({ diedAtMs: minutesAgo(4 * 60), requestedAtMs: minutesAgo(4 * 60) });
+    expect(decide(old, NOW)).toMatchObject({ action: "skip", reason: "stale" });
+  });
+
+  it("skips the real LAC-4210, stale by two hours the reap clock cannot see", () => {
+    // Five minutes past the reap, so grace has passed and the reap clock reads
+    // 5m. The request clock reads 125m, and that is the one that decides.
+    const at = Date.parse("2026-10-08T06:57:32.390Z");
+    expect(Math.round((at - lac4210.diedAtMs) / 60_000)).toBe(5);
+    expect(Math.round((at - lac4210.requestedAtMs) / 60_000)).toBe(125);
+
+    const decision = decide(lac4210, at);
     expect(decision).toMatchObject({ action: "skip", reason: "stale" });
+    // The line has to carry both clocks or the skip is not diagnosable.
+    expect(decision).toHaveProperty("detail", expect.stringContaining("requested 2.1h ago"));
+    expect(decision).toHaveProperty("detail", expect.stringContaining("reaped 5m ago"));
+  });
+
+  it("still retries LAC-4564 on the request clock, 94m after its slot fired", () => {
+    // The tightening must not cost the reaps this file exists for. LAC-4564 is
+    // 94m old when the sweep reaches it, LAC-4006 was about 105m. Both inside 2h.
+    const at = Date.parse("2026-10-16T09:34:00.000Z");
+    expect(Math.round((at - lac4564.requestedAtMs) / 60_000)).toBe(94);
+    expect(decide(lac4564, at)).toEqual({ action: "retry" });
+  });
+
+  it("would have passed LAC-4210 one minute before its successor on the reap clock", () => {
+    // The counterfactual that makes this a fix and not a preference: 119 minutes
+    // past the reap is 239 minutes past the request, and the fastest routine on
+    // the board fires again at 240.
+    const at = lac4210.diedAtMs + 119 * 60_000;
+    expect(Math.round((at - lac4210.requestedAtMs) / 60_000)).toBe(239);
+    expect(decide(lac4210, at)).toMatchObject({ action: "skip", reason: "stale" });
   });
 
   it.each(["done", "cancelled"])("leaves a %s issue alone", (issueStatus) => {
@@ -126,10 +174,37 @@ describe("decide", () => {
   });
 
   it("honours a widened window without widening the grace", () => {
-    const old = reaped({ diedAtMs: minutesAgo(10 * 60) });
+    const old = reaped({ diedAtMs: minutesAgo(10 * 60), requestedAtMs: minutesAgo(11 * 60) });
     expect(decide(old, NOW, { maxAgeHours: 24 })).toEqual({ action: "retry" });
-    expect(decide(reaped({ diedAtMs: minutesAgo(1) }), NOW, { maxAgeHours: 24 })).toMatchObject({
-      reason: "grace",
+    const fresh = reaped({ diedAtMs: minutesAgo(1), requestedAtMs: minutesAgo(1) });
+    expect(decide(fresh, NOW, { maxAgeHours: 24 })).toMatchObject({ reason: "grace" });
+  });
+
+  it("retries only once per agent per pass", () => {
+    // `agentBusy` is a snapshot taken before the loop, so it cannot see the retry
+    // this pass just posted. CEO LAC-4270 and LAC-4271 were reaped 4 minutes
+    // apart on 2026-10-12, both non-terminal, both for one agent.
+    const run = reaped();
+    expect(decide(run, NOW, { retriedAgentIds: new Set() })).toEqual({ action: "retry" });
+    expect(decide(run, NOW, { retriedAgentIds: new Set([run.agentId]) })).toMatchObject({
+      action: "skip",
+      reason: "agent_retried_this_pass",
+    });
+  });
+
+  it("does not hold up a second agent's reap", () => {
+    const run = reaped({ agentId: "11111111-2222-4333-8444-555555555555" });
+    expect(
+      decide(run, NOW, { retriedAgentIds: new Set(["99999999-0000-4000-8000-000000000000"]) })
+    ).toEqual({ action: "retry" });
+  });
+
+  it("prefers every durable reason over the pass-local one", () => {
+    // `agent_retried_this_pass` clears in 5 minutes, so it must never be the
+    // reason printed for a run that is also terminal, stale or superseded.
+    const run = reaped({ issueStatus: "done" });
+    expect(decide(run, NOW, { retriedAgentIds: new Set([run.agentId]) })).toMatchObject({
+      reason: "issue_terminal",
     });
   });
 });
