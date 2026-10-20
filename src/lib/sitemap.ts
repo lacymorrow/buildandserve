@@ -15,7 +15,7 @@ export async function generateSitemapEntries(): Promise<SitemapEntry[]> {
   const entries: SitemapEntry[] = [];
 
   // High priority static routes
-  const highPriorityRoutes = [routes.home, routes.docs, routes.features, routes.pricing].map(
+  const highPriorityRoutes = [routes.home, routes.docs, routes.pricing].map(
     (route) => ({
       url: `${siteConfig.url}${route}`,
       lastModified: new Date().toISOString(),

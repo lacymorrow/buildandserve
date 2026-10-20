@@ -14,10 +14,6 @@ export const docsConfig: DocsConfig = {
       href: routes.home,
     },
     {
-      title: "Features",
-      href: routes.features,
-    },
-    {
       title: "Sign In",
       href: routes.auth.signIn,
     },
@@ -34,11 +30,6 @@ export const docsConfig: DocsConfig = {
         {
           title: "Home",
           href: routes.home,
-          items: [],
-        },
-        {
-          title: "Features",
-          href: routes.features,
           items: [],
         },
       ],
@@ -113,11 +104,6 @@ export const docsConfig: DocsConfig = {
         {
           title: "Home",
           href: routes.home,
-          items: [],
-        },
-        {
-          title: "Features",
-          href: routes.features,
           items: [],
         },
       ],

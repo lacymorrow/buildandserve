@@ -22,7 +22,6 @@ export const routes = {
 
   // Marketing routes
   faq: "/faq",
-  features: "/features",
   pricing: "/pricing",
   services: "/services",
   servicesOpenclaw: "/services/openclaw-setup",
@@ -111,9 +110,6 @@ export const routes = {
   },
 
   // Integration routes
-  githubConnect: "/connect/github",
-  vercelDeploy: "/connect/vercel/deploy",
-  vercelDeployWebhook: "/connect/vercel/deploy/webhook",
 
   // Example routes
   examples: {
@@ -131,15 +127,6 @@ export const routes = {
     music: "/examples/music",
     authentication: "/examples/authentication",
     profile: "/examples/forms/profile",
-  },
-
-  // Pages Router demo routes
-  pages: {
-    index: "/pages",
-    static: "/pages/static",
-    dynamic: "/pages/dynamic",
-    apiExample: "/pages/api-example",
-    markdown: "/pages/markdown",
   },
 
   ai: {
