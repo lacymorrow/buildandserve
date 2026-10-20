@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { MDXRemote } from "next-mdx-remote/rsc";
 import { Suspense } from "react";
-import remarkGfm from "remark-gfm";
 import { SuspenseFallback } from "@/components/primitives/suspense-fallback";
+import { isHolocronProvider } from "@/config/docs-provider";
 import { constructMetadata } from "@/config/metadata";
 import { siteConfig } from "@/config/site-config";
-import { getAllDocSlugsFromFileSystem, getDocFromParams } from "@/lib/docs";
+import { getAllDocSlugs, getDocFromParams } from "@/lib/docs";
 import { getMDXComponents } from "@/mdx-components";
 
 interface PageProps {
@@ -15,24 +14,17 @@ interface PageProps {
   }>;
 }
 
-export async function generateStaticParams() {
-  const slugs = await getAllDocSlugsFromFileSystem();
+export function generateStaticParams() {
+  // Under the "holocron" provider these routes are proxied away by a rewrite in
+  // next.config.ts, so there is nothing to prerender here.
+  if (isHolocronProvider) return [];
 
-  return slugs.map((slug: string) => {
-    // For the index page, return empty array for slug
-    if (slug === "index") {
-      return { slug: [] };
-    }
-    // For other pages, split the slug into segments
-    return { slug: slug.split("/") };
-  });
+  return getAllDocSlugs().map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const resolvedParams = await params;
-  const slugPath = resolvedParams.slug?.join("/");
-  const docsPath = slugPath ? `/docs/${slugPath}` : "/docs";
-
+  const docsSlug = (await params).slug;
+  const docsPath = docsSlug?.length ? `/docs/${docsSlug.join("/")}` : "/docs";
   const defaultMetadata = constructMetadata({
     path: docsPath,
     title: `Documentation - Build Better Apps Faster | ${siteConfig.title}`,
@@ -45,23 +37,23 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   });
 
   try {
-    const doc = await getDocFromParams(params);
+    const page = await getDocFromParams(params);
 
-    if (!doc) {
+    if (!page) {
       return defaultMetadata;
     }
 
     return constructMetadata({
       path: docsPath,
-      title: `${doc.title} - ${siteConfig.title} Documentation`,
+      title: `${page.data.title} - ${siteConfig.title} Documentation`,
       description:
-        doc.description ||
+        page.data.description ??
         `Learn how to implement ${siteConfig.title} features and best practices in your app development workflow. Detailed guides and examples included.`,
       openGraph: {
         type: "article",
         siteName: `${siteConfig.title} Documentation`,
-        title: doc.title,
-        description: doc.description,
+        title: page.data.title,
+        description: page.data.description,
         locale: "en_US",
       },
     });
@@ -71,20 +63,20 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function DocsPage({ params }: PageProps) {
-  const doc = await getDocFromParams(params);
+  const page = await getDocFromParams(params);
 
-  if (!doc?.content) {
+  if (!page) {
     notFound();
   }
+
+  // Compiled by fumadocs-mdx at build time; custom components (SiteName,
+  // SecretGenerator, callouts, ...) are injected here rather than at compile time.
+  const MDXContent = page.data.body;
 
   return (
     <article className="docs-content">
       <Suspense fallback={<SuspenseFallback />}>
-        <MDXRemote
-          source={doc.content}
-          components={getMDXComponents({})}
-          options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
-        />
+        <MDXContent components={getMDXComponents({})} />
       </Suspense>
     </article>
   );

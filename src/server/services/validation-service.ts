@@ -26,7 +26,7 @@ export class ValidationService {
       };
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const fieldErrors = Object.entries(z.flattenError(error).fieldErrors).reduce(
+        const fieldErrors = Object.entries(error.formErrors.fieldErrors).reduce(
           (acc, [key, value]) => {
             if (value) {
               acc[key] = Array.isArray(value) ? value.filter(Boolean) : [value];
@@ -66,7 +66,12 @@ export class ValidationService {
   static async validateOrThrow<T>(schema: z.ZodType<T>, data: unknown): Promise<T> {
     const result = await ValidationService.validate(schema, data);
     if (!result.success) {
-      throw result.error;
+      const errorInfo = result.error;
+      const validationError = new Error(errorInfo?.message ?? "Validation failed");
+      if (errorInfo) {
+        Object.assign(validationError, errorInfo);
+      }
+      throw validationError;
     }
     return result.data as T;
   }

@@ -23,7 +23,7 @@ export function CommandMenu() {
   const [open, setOpen] = React.useState(false);
 
   useKeyboardShortcut(
-    ShortcutAction.OPEN_SEARCH_MENU,
+    ShortcutAction.OPEN_SEARCH,
     (event) => {
       event.preventDefault();
       setOpen((prevOpen) => !prevOpen);
@@ -44,8 +44,8 @@ export function CommandMenu() {
         <span className="hidden lg:inline-flex">Search {siteConfig.title}...</span>
         <span className="inline-flex lg:hidden">Search...</span>
         <ShortcutDisplay
-          action={ShortcutAction.OPEN_SEARCH_MENU}
-          className="pointer-events-none absolute right-1.5 top-2 hidden opacity-100 sm:flex"
+          action={ShortcutAction.OPEN_SEARCH}
+          className="pointer-events-none absolute top-2 right-1.5 hidden opacity-100 sm:flex"
         />
       </Button>
       <CommandDialog open={open} onOpenChange={setOpen}>

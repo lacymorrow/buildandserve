@@ -8,32 +8,32 @@ import { FeaturesTable } from "../_shipkit-io-components/features-table";
 
 export const metadata: Metadata = constructMetadata({
   path: "/features",
-  title: `${siteConfig.title} Features & Capabilities`,
+  title: `${siteConfig.title} Features - Next.js SaaS Boilerplate`,
   description:
-    "Explore Shipkit's powerful features: Next.js 14, TypeScript, Payload CMS, Auth.js, Builder.io, and more. Everything you need to build modern, scalable applications.",
+    "Compare Shipkit features: Next.js 16, TypeScript, Payload CMS, Better Auth, AI integrations, 100+ components. The most complete Next.js SaaS starter kit.",
   openGraph: {
-    title: `${siteConfig.title} Features & Capabilities`,
+    title: `${siteConfig.title} Features - Next.js SaaS Boilerplate`,
     description:
-      "Explore Shipkit's powerful features: Next.js 14, TypeScript, Payload CMS, Auth.js, Builder.io, and more. Everything you need to build modern, scalable applications.",
+      "Compare Shipkit features: Next.js 16, TypeScript, Payload CMS, Better Auth, AI integrations, 100+ components. The most complete Next.js SaaS starter kit.",
     type: "website",
     siteName: siteConfig.title,
     locale: "en_US",
   },
   keywords: [
-    "Next.js",
+    "Next.js boilerplate features",
+    "SaaS starter kit comparison",
+    "Next.js 16",
     "TypeScript",
     "Payload CMS",
-    "Auth.js",
-    "Builder.io",
-    "App Development",
-    "Web Development",
+    "Better Auth",
+    "AI integrations",
     "Full Stack Framework",
     "Developer Tools",
-    "Application Builder",
+    "Next.js SaaS template",
   ],
 });
 
-export default async function Features() {
+export default function Features() {
   return (
     <div className="container mx-auto mt-header space-y-section py-16">
       <div className="mx-auto max-w-3xl text-center">
@@ -47,7 +47,7 @@ export default async function Features() {
       <section className="mx-auto">
         <h2 className="mb-8 text-center text-2xl font-semibold">Feature Comparison</h2>
 
-        <div className="mx-auto max-w-screen-lg">
+        <div className="mx-auto max-w-(--breakpoint-lg)">
           <FeaturesTable />
         </div>
       </section>

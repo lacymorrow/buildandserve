@@ -1,36 +1,46 @@
 /*
- * Derives react-hook-form `defaultValues` from a Zod object schema.
- *
- * Originally based on https://github.com/colinhacks/zod/discussions/1953, which
- * had to unwrap `ZodEffects`. Zod v4 removed that wrapper entirely — `.refine()`
- * now returns the same schema type — so a refined object is still a `ZodObject`
- * and needs no special case. `ZodDefault`'s `defaultValue` is also a plain value
- * in v4 rather than a getter function.
+ * @see: https://github.com/colinhacks/zod/discussions/1953#discussioncomment-5695528
  */
 import { z } from "zod";
+export const getSchemaDefaults = <T extends z.ZodTypeAny>(
+  schema: z.AnyZodObject | z.ZodEffects<any>
+): z.infer<T> => {
+  // Check if it's a ZodEffect
+  if (schema instanceof z.ZodEffects) {
+    // Check if it's a recursive ZodEffect
+    if (schema.innerType() instanceof z.ZodEffects) {
+      return getSchemaDefaults(schema.innerType());
+    }
+    // return schema inner shape as a fresh zodObject
+    return getSchemaDefaults(z.ZodObject.create(schema.innerType().shape));
+  }
 
-const getDefaultValue = (field: z.ZodType): unknown => {
-  if (field instanceof z.ZodDefault) {
-    return field.def.defaultValue;
-  }
-  if (field instanceof z.ZodArray) {
-    return [];
-  }
-  if (field instanceof z.ZodString) {
-    return "";
-  }
-  if (field instanceof z.ZodObject) {
-    return getSchemaDefaults(field);
-  }
-  // Unwrap optional/nullable//etc. and fall through to their inner type.
-  if ("innerType" in field.def) {
-    return getDefaultValue(field.def.innerType as z.ZodType);
-  }
-  return undefined;
-};
+  function getDefaultValue(schema: z.ZodTypeAny): unknown {
+    if (schema instanceof z.ZodDefault) {
+      return schema._def.defaultValue();
+    }
+    // return an empty array if it is
+    if (schema instanceof z.ZodArray) {
+      return [];
+    }
+    // return an empty string if it is
+    if (schema instanceof z.ZodString) {
+      return "";
+    }
+    // return an content of object recursivly
+    if (schema instanceof z.ZodObject) {
+      return getSchemaDefaults(schema);
+    }
 
-export const getSchemaDefaults = <T extends z.ZodObject>(schema: T): Partial<z.infer<T>> => {
+    if (!("innerType" in schema._def)) {
+      return undefined;
+    }
+    return getDefaultValue(schema._def.innerType);
+  }
+
   return Object.fromEntries(
-    Object.entries(schema.shape).map(([key, value]) => [key, getDefaultValue(value as z.ZodType)])
-  ) as Partial<z.infer<T>>;
+    Object.entries(schema.shape).map(([key, value]) => {
+      return [key, getDefaultValue(value as z.ZodTypeAny)];
+    })
+  );
 };

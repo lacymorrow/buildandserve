@@ -18,9 +18,6 @@ declare module "next-pwa" {
     fallbacks?: Record<string, string>;
     cacheOnFrontEndNav?: boolean;
     reloadOnOnline?: boolean;
-    register?: boolean;
-    scope?: string;
-    sw?: string;
     dynamicStartUrl?: boolean;
   }
 

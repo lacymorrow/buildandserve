@@ -8,7 +8,7 @@ import { routes } from "./routes";
  */
 export interface Redirect {
   source: Route;
-  destination: Route;
+  destination: Route | `https://${string}`;
   permanent: boolean;
 }
 
@@ -21,7 +21,7 @@ const createRedirects = (sources: Route[], destination: Route, permanent = false
   for (const source of sources) {
     expanded.add(source);
     if (source.endsWith("/") && source.length > 1) {
-      expanded.add(source.slice(0, -1) as Route);
+      expanded.add(source.slice(0, -1));
     } else if (!source.endsWith("/")) {
       expanded.add(`${source}/` as Route);
     }
@@ -39,6 +39,18 @@ const createRedirects = (sources: Route[], destination: Route, permanent = false
 /* eslint-disable-next-line @typescript-eslint/require-await */
 export const redirects = async (): Promise<Redirect[]> => {
   return [
+    // Legacy AI-fleet URLs point to lacymorrow.com; the pages live on at
+    // /services/openclaw-setup and /services/paperclip-ai (LAC-3146)
+    {
+      source: "/services/openclaw",
+      destination: "https://lacymorrow.com/services",
+      permanent: true,
+    },
+    {
+      source: "/services/paperclip",
+      destination: "https://lacymorrow.com/services",
+      permanent: true,
+    },
     ...createRedirects(["/doc", "/docs", "/documentation"], routes.docs, true),
     ...createRedirects(
       ["/account", "/accounts", "/settings/accounts"],

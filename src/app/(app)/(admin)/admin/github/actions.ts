@@ -1,56 +1,62 @@
 "use server";
 
-/**
- * @fileoverview Server actions for the admin GitHub panel.
- *
- * Consumed by `_components/add-collaborator-form`. Mutations only — read
- * operations should call `@/server/services/github/github-service` directly
- * from a Server Component.
- */
+import { db } from "@/server/db";
+import { users } from "@/server/db/schema";
+import {
+  grantGitHubAccess,
+  pendingCollaboratorEmail,
+  revokeGitHubAccess,
+} from "@/server/services/github/github-service";
 
-import { auth } from "@/server/auth";
-import { isAdmin } from "@/server/services/admin-service";
-import { grantGitHubAccess } from "@/server/services/github/github-service";
-
-export interface AddCollaboratorResult {
-  success: boolean;
-  error?: string;
-}
-
-/**
- * Invites a GitHub user as a collaborator on the private repository.
- * Admin-only: the panel is admin-gated, but the action re-checks because a
- * server action is independently callable.
- */
-export async function addCollaboratorAction(username: string): Promise<AddCollaboratorResult> {
-  const trimmed = username.trim();
-  if (!trimmed) {
-    return { success: false, error: "GitHub username is required" };
-  }
-
-  const session = await auth();
-  if (!session?.user) {
-    return { success: false, error: "Authentication required" };
-  }
-
-  const authorized = await isAdmin({
-    email: session.user.email,
-    userId: session.user.id,
-  });
-  if (!authorized) {
-    return { success: false, error: "Admin access required" };
-  }
-
+export async function revokeGitHubAccessAction(userId: string) {
   try {
-    const granted = await grantGitHubAccess({ githubUsername: trimmed });
-    if (!granted) {
-      return { success: false, error: "GitHub integration is not configured" };
-    }
+    await revokeGitHubAccess(userId);
     return { success: true };
   } catch (error) {
+    console.error("Failed to revoke GitHub access:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to add collaborator",
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  }
+}
+
+export async function addCollaboratorAction(githubUsername: string) {
+  try {
+    if (!githubUsername?.trim()) {
+      return { success: false, error: "GitHub username is required" };
+    }
+    const trimmed = githubUsername.trim();
+    await grantGitHubAccess({ githubUsername: trimmed });
+
+    // Insert a stub user so the invite can be revoked before acceptance.
+    // emailVerified stays null: this is a synthetic placeholder address and
+    // nobody has signed in through it yet. Passed explicitly because a
+    // database created before LAC-4100 still defaults the column to now.
+    await db
+      ?.insert(users)
+      .values({
+        email: pendingCollaboratorEmail(trimmed),
+        name: trimmed,
+        githubUsername: trimmed,
+        emailVerified: null,
+      })
+      .onConflictDoUpdate({
+        target: users.email,
+        set: { githubUsername: trimmed, updatedAt: new Date() },
+      });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to add collaborator:", error);
+    const message = error instanceof Error ? error.message : "Unknown error occurred";
+    const isBadCredentials =
+      message.toLowerCase().includes("bad credentials") || message.includes("401");
+    return {
+      success: false,
+      error: isBadCredentials
+        ? "Bad credentials — check that GITHUB_ACCESS_TOKEN is set and has the 'repo' scope."
+        : message,
     };
   }
 }

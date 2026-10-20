@@ -54,7 +54,7 @@ export async function deployPrivateRepository(config: DeploymentConfig): Promise
   // Map old config format to new service format
   const serviceConfig: ServiceDeploymentConfig = {
     templateRepo: config.templateRepo,
-    projectName: config.projectName || config.newRepoName || "",
+    projectName: config.projectName ?? config.newRepoName ?? "",
     description: config.description,
     environmentVariables: config.environmentVariables,
     domains: config.domains,

@@ -25,6 +25,12 @@ const serverSchema = {
   PAYLOAD_PUBLIC_DRAFT_SECRET: z.string().optional(),
 
   // ======== Authentication ========
+  // Which server-side auth implementation owns sessions. Unset lets
+  // src/lib/auth/auth-strategy.ts pick from the configured features.
+  // "clerk" is never picked automatically (it needs a paid Clerk account).
+  AUTH_STRATEGY: z.enum(["better-auth", "authjs", "clerk"]).optional(),
+  // Auth.js session strategy override (an Auth.js-specific signal).
+  NEXTAUTH_SESSION_STRATEGY: z.enum(["jwt", "database"]).optional(),
   AUTH_SECRET: z.string().optional(),
   AUTH_URL: z.preprocess(
     (str) => BASE_URL ?? str,
@@ -39,6 +45,9 @@ const serverSchema = {
   RESEND_API_KEY: z.string().optional(),
   RESEND_AUDIENCE_ID: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().optional(),
+  // Comma-separated emails and/or domains ("alice@corp.io, @corp.io") allowed to
+  // sign in via magic link. Unset = everyone.
+  AUTH_ALLOWED_EMAILS: z.string().optional(),
 
   // OAuth Providers
   AUTH_DISCORD_ID: z.string().optional(),
@@ -139,7 +148,9 @@ const serverSchema = {
   VERCEL_CLIENT_ID: z.string().optional(),
   VERCEL_CLIENT_SECRET: z.string().optional(),
   VERCEL_BLOB_READ_WRITE_TOKEN: z.string().optional(),
-  VERCEL_ACCESS_TOKEN: z.string().optional(),
+
+  // Preview / Feature-Flag Overrides
+  PREVIEW_SECRET: z.string().optional(),
 };
 
 // Auto-generate server runtimeEnv — dynamic process.env[key] works on the server.
@@ -190,6 +201,9 @@ export const env = createEnv({
 
     // Clerk Authentication (alternative to Auth.js)
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: z.string().optional(),
+
+    // Mirror of AUTH_STRATEGY (features-config.ts) so client code agrees with the server
+    NEXT_PUBLIC_AUTH_STRATEGY: z.enum(["better-auth", "authjs", "clerk"]).optional(),
 
     // ======== Supabase Authentication ========
     NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
@@ -252,6 +266,7 @@ export const env = createEnv({
     NEXT_PUBLIC_FEATURE_GOOGLE_TAG_MANAGER_ENABLED: zBooleanFeatureFlag,
     NEXT_PUBLIC_FEATURE_C15T_ENABLED: zBooleanFeatureFlag,
     NEXT_PUBLIC_FEATURE_CONSENT_MANAGER_ENABLED: zBooleanFeatureFlag,
+    NEXT_PUBLIC_FEATURE_EVLOG_ENABLED: zBooleanFeatureFlag,
     NEXT_PUBLIC_FEATURE_DEVTOOLS_ENABLED: zBooleanFeatureFlag,
     NEXT_PUBLIC_FEATURE_DEVTOOLS_FONT_SELECTOR_ENABLED: zBooleanFeatureFlag,
     NEXT_PUBLIC_FEATURE_DEVTOOLS_REACT_GRAB_ENABLED: zBooleanFeatureFlag,
@@ -280,6 +295,8 @@ export const env = createEnv({
 
     // Clerk Authentication (alternative to Auth.js)
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+
+    NEXT_PUBLIC_AUTH_STRATEGY: process.env.NEXT_PUBLIC_AUTH_STRATEGY,
 
     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
@@ -358,6 +375,7 @@ export const env = createEnv({
     NEXT_PUBLIC_FEATURE_C15T_ENABLED: process.env.NEXT_PUBLIC_FEATURE_C15T_ENABLED,
     NEXT_PUBLIC_FEATURE_CONSENT_MANAGER_ENABLED:
       process.env.NEXT_PUBLIC_FEATURE_CONSENT_MANAGER_ENABLED,
+    NEXT_PUBLIC_FEATURE_EVLOG_ENABLED: process.env.NEXT_PUBLIC_FEATURE_EVLOG_ENABLED,
     NEXT_PUBLIC_FEATURE_DEVTOOLS_ENABLED: process.env.NEXT_PUBLIC_FEATURE_DEVTOOLS_ENABLED,
     NEXT_PUBLIC_FEATURE_DEVTOOLS_FONT_SELECTOR_ENABLED:
       process.env.NEXT_PUBLIC_FEATURE_DEVTOOLS_FONT_SELECTOR_ENABLED,

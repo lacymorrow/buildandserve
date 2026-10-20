@@ -12,7 +12,7 @@ export default function FeaturesSection() {
                     </h2>
                     <div className="@container mt-12 space-y-12">
                         <Card
-                            className="relative overflow-hidden p-0 sm:col-span-2">
+                            className="gap-0 relative overflow-hidden p-0 sm:col-span-2">
                             <img
                                 src="https://images.unsplash.com/photo-1635776062043-223faf322554?q=80&w=3132&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
                                 alt=""
@@ -23,7 +23,7 @@ export default function FeaturesSection() {
                                 <AIAssistantIllustration />
                             </div>
                         </Card>
-                        <div className="@sm:grid-cols-2 @2xl:grid-cols-3 grid gap-6">
+                        <div className="grid gap-6">
                             <div className="space-y-2">
                                 <h3 className="text-xl font-medium">Custom Solutions</h3>
                                 <p className="text-muted-foreground">We build bespoke solutions tailored to your specific needs.</p>
@@ -48,7 +48,7 @@ const AIAssistantIllustration = () => {
     return (
         <Card
             aria-hidden
-            className="relative space-y-4 p-6">
+            className="relative gap-4 p-6">
             <div className="w-fit">
                 <Sparkles className="size-3.5 fill-purple-300 stroke-purple-300" />
                 <p className="mt-2 line-clamp-2 text-sm">How can we help you grow your business?</p>
@@ -69,7 +69,7 @@ const AIAssistantIllustration = () => {
                     ))}
                 </ul>
             </div>
-            <div className="bg-foreground/5 -mx-3 -mb-3 space-y-3 rounded-lg p-3">
+            <div className="bg-foreground/5 -mx-3 space-y-3 rounded-lg p-3">
                 <div className="text-muted-foreground text-sm">Ask our Assistant</div>
 
                 <div className="flex justify-between">

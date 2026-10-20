@@ -39,7 +39,7 @@ export interface BlogAuthor {
  *
  * Add new authors here. The key should be URL-friendly (lowercase, no spaces).
  */
-const blogAuthorsMap = {
+export const blogAuthors: Record<string, BlogAuthor> = {
   "lacy-morrow": {
     id: "lacy-morrow",
     name: "Lacy Morrow",
@@ -68,19 +68,13 @@ const blogAuthorsMap = {
     location: "Remote",
     isActive: true,
   },
-} satisfies Record<string, BlogAuthor>;
-
-/**
- * Lookup by arbitrary author id. Declared as a wide `Record` so callers can
- * index it with any string; `blogAuthorsMap` keeps the literal keys so the
- * default author below is known to exist.
- */
-export const blogAuthors: Record<string, BlogAuthor> = blogAuthorsMap;
+};
 
 /**
  * Default/fallback author for posts without a specified author
  */
-export const defaultAuthor: BlogAuthor = blogAuthorsMap["lacy-morrow"];
+export const defaultAuthor: BlogAuthor =
+  blogAuthors["lacy-morrow"] ?? Object.values(blogAuthors)[0]!;
 
 /**
  * Get author by ID/slug
@@ -89,7 +83,7 @@ export const defaultAuthor: BlogAuthor = blogAuthorsMap["lacy-morrow"];
  * @returns The author object or default author if not found
  */
 export function getAuthorById(authorId: string): BlogAuthor {
-  return blogAuthors[authorId] || defaultAuthor;
+  return blogAuthors[authorId] ?? defaultAuthor;
 }
 
 /**
@@ -102,7 +96,7 @@ export function getAuthorByName(name: string): BlogAuthor {
   const author = Object.values(blogAuthors).find(
     (author) => author.name.toLowerCase() === name.toLowerCase()
   );
-  return author || defaultAuthor;
+  return author ?? defaultAuthor;
 }
 
 /**
@@ -121,7 +115,7 @@ export function getAuthorsByIds(authorIds: string[]): BlogAuthor[] {
  * @returns Array of active author objects
  */
 export function getActiveAuthors(): BlogAuthor[] {
-  return Object.values(blogAuthors).filter(author => author.isActive !== false);
+  return Object.values(blogAuthors).filter((author) => author.isActive !== false);
 }
 
 /**
@@ -138,7 +132,7 @@ export function convertLegacyAuthor(legacyName: string): BlogAuthor {
   // If not found, create a temporary author object
   if (author === defaultAuthor && legacyName !== defaultAuthor.name) {
     return {
-      id: legacyName.toLowerCase().replace(/\s+/g, '-'),
+      id: legacyName.toLowerCase().replace(/\s+/g, "-"),
       name: legacyName,
       avatar: defaultAuthor.avatar, // Use default avatar as fallback
       bio: `Guest author: ${legacyName}`,
@@ -157,44 +151,44 @@ export const authorUtils = {
    * Get author's display name with fallback
    */
   getDisplayName: (author: BlogAuthor): string => {
-    return author.fullName || author.name;
+    return author.fullName ?? author.name;
   },
 
   /**
    * Get author's social links
    */
   getSocialLinks: (author: BlogAuthor) => {
-    const links: Array<{ platform: string; url: string; handle: string }> = [];
+    const links: { platform: string; url: string; handle: string }[] = [];
 
     if (author.twitter) {
       links.push({
-        platform: 'twitter',
+        platform: "twitter",
         url: `https://twitter.com/${author.twitter}`,
-        handle: `@${author.twitter}`
+        handle: `@${author.twitter}`,
       });
     }
 
     if (author.github) {
       links.push({
-        platform: 'github',
+        platform: "github",
         url: `https://github.com/${author.github}`,
-        handle: author.github
+        handle: author.github,
       });
     }
 
     if (author.linkedin) {
       links.push({
-        platform: 'linkedin',
+        platform: "linkedin",
         url: `https://linkedin.com/in/${author.linkedin}`,
-        handle: author.linkedin
+        handle: author.linkedin,
       });
     }
 
     if (author.website) {
       links.push({
-        platform: 'website',
+        platform: "website",
         url: author.website,
-        handle: author.website.replace(/^https?:\/\//, '')
+        handle: author.website.replace(/^https?:\/\//, ""),
       });
     }
 

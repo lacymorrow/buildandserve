@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * GitHub reserved names that cannot be used as repository names
  */
-const GITHUB_RESERVED_NAMES: readonly string[] = [
+const GITHUB_RESERVED_NAMES = [
   ".git",
   ".github",
   "api",
@@ -36,7 +36,7 @@ const GITHUB_RESERVED_NAMES: readonly string[] = [
   "lpt7",
   "lpt8",
   "lpt9",
-];
+] as const;
 
 /**
  * Dangerous patterns that could indicate injection attempts
@@ -59,7 +59,7 @@ const DANGEROUS_PATTERNS = [
  * - Must be between 1 and 100 characters
  */
 const projectNameValidation = z
-  .string({ error: "Project name is required" })
+  .string({ required_error: "Project name is required" })
   .min(1, { message: "Project name is required" })
   .max(100, { message: "Project name must be between 1 and 100 characters" })
   .trim()
@@ -80,7 +80,7 @@ const projectNameValidation = z
   .refine((name) => !name.includes(".."), {
     message: "Project name cannot contain consecutive dots",
   })
-  .refine((name) => !GITHUB_RESERVED_NAMES.includes(name.toLowerCase()), {
+  .refine((name) => !GITHUB_RESERVED_NAMES.includes(name.toLowerCase() as any), {
     message: "This project name is reserved and cannot be used",
   })
   .refine(
@@ -114,12 +114,19 @@ export function validateProjectName(projectName: string): {
   isValid: boolean;
   error?: string;
 } {
-  const result = deploymentSchema.safeParse({ projectName });
-  if (result.success) {
+  try {
+    deploymentSchema.parse({ projectName });
     return { isValid: true };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        isValid: false,
+        error: error.errors[0]?.message ?? "Invalid project name",
+      };
+    }
+    return {
+      isValid: false,
+      error: "Invalid project name",
+    };
   }
-  return {
-    isValid: false,
-    error: result.error.issues[0]?.message ?? "Invalid project name",
-  };
 }
