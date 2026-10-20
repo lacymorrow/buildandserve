@@ -56,10 +56,6 @@ const data = [
       ...(env.NEXT_PUBLIC_FEATURE_PAYLOAD_ENABLED
         ? [{ title: "Payload CMS", url: routes.demo.payloadCms }]
         : []),
-      ...(env.NEXT_PUBLIC_FEATURE_MDX_ENABLED
-        ? [{ title: "Markdown Content", url: routes.pages.markdown }]
-        : []),
-      { title: "Pages Router", url: routes.pages.index },
       { title: "TRPC Example", url: routes.demo.trpc },
 
       // {
