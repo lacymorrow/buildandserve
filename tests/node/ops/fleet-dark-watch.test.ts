@@ -611,3 +611,62 @@ describe("a recovery that could not be delivered (LAC-4875 finding 3)", () => {
     await rm(dir, { recursive: true, force: true });
   });
 });
+
+describe("review nits (LAC-4875 loop 2)", () => {
+  it("flattens every control byte, not just the three a message usually has", async () => {
+    // Nit 1. A raw \x1b used to pass through and produce invalid JSON, which
+    // Slack rejects, which eats the page. Not reachable as shipped, but the
+    // comment above json_string claimed all control characters were flattened,
+    // so either the code or the comment was wrong.
+    const slack = fakeSlack();
+    const api = await slack.listen();
+    await poll("/proc/nope/esc\x1bhere\x07bell", {
+      now: T0 - (T0 % 3600),
+      url: DEAD_URL,
+      notify: true,
+      fallbackDir: "/proc/nope/esc-fallback",
+      slackApi: api,
+    });
+
+    expect(slack.received).toHaveLength(1);
+    // Parsed by the fake server, so an invalid payload would already have
+    // thrown. Assert the bytes became spaces rather than vanishing.
+    expect(() => JSON.parse(slack.raw)).not.toThrow();
+    expect(slack.received[0]?.text).toContain("esc here bell");
+    await slack.close();
+  });
+
+  it("speaks rather than going silent when it cannot work out the minute", async () => {
+    // The rate limiter needs `date`, and `date` is one of the dependencies the
+    // limiter is asked about, so an unusable clock must mean "speak". Silence
+    // is the failure this file exists to prevent; a flood is merely bad.
+    const slack = fakeSlack();
+    const api = await slack.listen();
+    await poll("/proc/nope", {
+      // Not an epoch, so at_epoch cannot format it and the minute is unknowable.
+      now: "not-a-clock" as unknown as number,
+      url: DEAD_URL,
+      notify: true,
+      fallbackDir: "/proc/nope-fb",
+      slackApi: api,
+    });
+
+    expect(slack.received).toHaveLength(1);
+    expect(slack.received[0]?.text).toContain("blind on library");
+    await slack.close();
+  });
+
+  it("rate-limits the missing-dependency alarm too", async () => {
+    // Nit 2. A missing dependency persists until a human fixes it, so an
+    // ungated DM there is 288 a day and a muted channel. The limiter already
+    // existed one function above; the dep path just was not using it.
+    const script = await readFile(SCRIPT, "utf8");
+    const depGuard = script.slice(
+      script.indexOf("for dep in curl jq date"),
+      script.indexOf("# Proves the directory by writing")
+    );
+    expect(depGuard).toContain("top_of_hour");
+    // And stderr is never gated, so a by-hand run always says it.
+    expect(depGuard).toContain('is not on PATH\\n\' "$dep" >&2');
+  });
+});

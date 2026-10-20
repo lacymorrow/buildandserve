@@ -211,10 +211,13 @@ format_back() {
 #
 # A JSON string needs exactly three things escaped: backslash, double quote, and
 # control characters. Backslash first, or it would double-escape the quotes it
-# just introduced. Control characters are flattened to spaces because every
-# message here is one line by construction.
+# just introduced. Every control byte is flattened to a space, not just the
+# three a message is likely to contain: a raw \x1b would otherwise produce
+# invalid JSON, Slack would reject it, and the rejection would eat the page.
+# `[:cntrl:]` rather than a hand-listed set, so this stays true of bytes nobody
+# thought about (LAC-4875 nit 1).
 json_string() {
-  printf '%s' "$1" | tr '\n\r\t' '   ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+  printf '%s' "$1" | tr '[:cntrl:]' ' ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 }
 
 notify() {
@@ -261,7 +264,20 @@ cannot_look() {
 # Reads the injected clock rather than the wall clock, so this is the same
 # moment the rest of the poll is reasoning about and the tests can stand on
 # either side of the boundary.
-top_of_hour() { [ "$(at_epoch "$(now)" %M | sed 's/^0//')" -lt 5 ]; }
+#
+# Fails *open*. Working out the minute needs `date`, and `date` is one of the
+# dependencies whose absence this gate is asked about, so a missing clock must
+# mean "speak", never "stay silent". A flood is a bad outcome; silence is the
+# failure this whole file exists to prevent.
+top_of_hour() {
+  local minute
+  minute=$(at_epoch "$(now)" %M 2>/dev/null | sed 's/^0*//')
+  case "$minute" in
+    "") return 0 ;;
+    *[!0-9]*) return 0 ;;
+  esac
+  [ "$minute" -lt 5 ]
+}
 
 # --- the check -------------------------------------------------------------
 
@@ -272,7 +288,13 @@ for dep in curl jq date; do
     # Reported through the channel, not just stderr. curl is what the notifier
     # needs, so losing jq or date still leaves a way to say so; losing curl
     # leaves none, and stderr is all there is.
-    cannot_look "$dep is not on PATH"
+    #
+    # Rate-limited like the nowhere-to-write path below, and for the same
+    # reason: a missing dependency persists until a human fixes it, so an
+    # ungated DM here is 288 a day and a muted channel (LAC-4875 nit 2). stderr
+    # is never gated, so a by-hand run always says it.
+    printf 'fleet-dark-watch needs %s and it is not on PATH\n' "$dep" >&2
+    if top_of_hour; then cannot_look "$dep is not on PATH"; fi
     exit 2
   }
 done
