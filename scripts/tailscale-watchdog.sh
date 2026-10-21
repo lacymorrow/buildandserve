@@ -219,9 +219,23 @@ state_get() {
 # checks it. This is the acceptance criterion about the silent-watchdog failure
 # mode: an unchecked write here is how this script turns its own pager off.
 state_put() {
-  printf 'down_since=%s\npaged=%s\nattempts=%s\ngave_up=%s\nlast_repair=%s\nwindow_start=%s\nwindow_repairs=%s\nnotice_at=%s\n' \
+  printf 'down_since=%s\npaged=%s\nattempts=%s\ngave_up=%s\nlast_repair=%s\nwindow_start=%s\nwindow_repairs=%s\nnotice_at=%s\nrecovered_at=%s\n' \
     "$DOWN_SINCE" "$PAGED" "$ATTEMPTS" "$GAVE_UP" "$LAST_REPAIR" \
-    "$WINDOW_START" "$WINDOW_REPAIRS" "$NOTICE_AT" > "$STATE_FILE" 2>/dev/null
+    "$WINDOW_START" "$WINDOW_REPAIRS" "$NOTICE_AT" "$RECOVERED_AT" > "$STATE_FILE" 2>/dev/null
+}
+
+# Clearing the outage without clearing the rate caps.
+#
+# This file is two things at once: a clock for the current outage, and the
+# memory the rate caps are built on. Deleting it on recovery, which is what the
+# first version did, threw away `last_repair`, `window_*` and `notice_at` along
+# with the outage. A node that wobbles would then get a `tailscale up` every
+# cycle, 12 an hour against a cap of 6, which is precisely the "flapped harder
+# by us" case the caps exist to prevent (LAC-5276 review). The repair history
+# has to outlive the outage that produced it.
+clear_outage() {
+  DOWN_SINCE=0; PAGED=0; ATTEMPTS=0; GAVE_UP=0; RECOVERED_AT=0
+  state_put
 }
 
 # --- the notifier ----------------------------------------------------------
@@ -442,6 +456,15 @@ tailscale_shape() {
   fi
   TS_STATE="BackendState=$backend LoggedOut=$loggedout HaveNodeKey=$havekey AuthURL=${authurl:-empty}"
   if [ "$loggedout" = "true" ] || [ -n "$authurl" ]; then TS_SHAPE=needs_human; return; fi
+  # An expired node key reports NeedsLogin with LoggedOut still false and no
+  # AuthURL yet, so it would otherwise pass the act branch. `tailscale up` then
+  # blocks for its full timeout waiting for a browser nobody is looking at, and
+  # only the *next* cycle sees the AuthURL and routes it to a human. Naming
+  # these two states here costs one case statement and saves a 30-second stall
+  # inside a launchd job (LAC-5276 review nit).
+  case "$backend" in
+    NeedsLogin|NeedsMachineAuth) TS_SHAPE=needs_human; return ;;
+  esac
   if [ "$backend" = "Running" ]; then TS_SHAPE=running; return; fi
   if [ "$havekey" = "true" ]; then TS_SHAPE=recoverable; return; fi
   # Not Running, not logged out, and no node key. Not a shape anybody has seen,
@@ -539,14 +562,17 @@ repair_dns() {
 # It is a bound, not a guess: the last healthy check is the earliest moment the
 # host was provably fine. When there is no such record, it falls back to saying
 # only what it can prove.
+# The second argument is when it ended, defaulting to now. It is only ever
+# passed a pinned recovery moment, so a notifier that was broken for an hour
+# cannot add that hour to the outage it is finally reporting.
 outage_phrase() {
-  local since=$1 start=$1
+  local since=$1 until=${2:-$NOW} start=$1
   if [ "$LAST_OK" != "0" ] && [ "$LAST_OK" -lt "$since" ]; then start=$LAST_OK; fi
   if [ "$start" = "$since" ]; then
-    printf 'for %s' "$(fmt_duration $((NOW - since)))"
+    printf 'for %s' "$(fmt_duration $((until - since)))"
   else
     printf 'for up to %s (last healthy check %s)' \
-      "$(fmt_duration $((NOW - start)))" "$(at_epoch "$start" '%H:%M %Z')"
+      "$(fmt_duration $((until - start)))" "$(at_epoch "$start" '%H:%M %Z')"
   fi
 }
 
@@ -582,6 +608,8 @@ LAST_REPAIR=$(state_get last_repair); : "${LAST_REPAIR:=0}"
 WINDOW_START=$(state_get window_start); : "${WINDOW_START:=0}"
 WINDOW_REPAIRS=$(state_get window_repairs); : "${WINDOW_REPAIRS:=0}"
 NOTICE_AT=$(state_get notice_at); : "${NOTICE_AT:=0}"
+# Present only between measuring a recovery and delivering it.
+RECOVERED_AT=$(state_get recovered_at); : "${RECOVERED_AT:=0}"
 
 LAST_OK=$(sed -n 's/^\([0-9]\{1,\}\)$/\1/p' "$LAST_OK_FILE" 2>/dev/null | tail -n1)
 : "${LAST_OK:=0}"
@@ -593,20 +621,27 @@ PUBLIC_OK=0; probe_public && PUBLIC_OK=1
 
 if [ "$PLANE_OK" = "1" ] && [ "$PUBLIC_OK" = "1" ]; then
   if [ "$DOWN_SINCE" != "0" ]; then
-    WAS_BROKEN=$(outage_phrase "$DOWN_SINCE")
+    # An earlier cycle may have measured this recovery and failed to deliver it.
+    # That number is the honest one: recomputing would quietly add however long
+    # the notifier stayed broken to the outage being reported.
+    if [ "$RECOVERED_AT" != "0" ]; then AT=$RECOVERED_AT; else AT=$NOW; fi
+    WAS_BROKEN=$(outage_phrase "$DOWN_SINCE" "$AT")
     if [ "$PAGED" = "1" ]; then
       message="Zero is back on the network. The control plane and public DNS both answer again, after being broken $WAS_BROKEN. Anything scheduled in that window did not run."
       log "RECOVERED $WAS_BROKEN"
       if announce "say recovered" "$message"; then
-        rm -f "$STATE_FILE"
+        clear_outage || log "STATE-WRITE-FAILED recovery delivered but could not be recorded, so it will repeat next cycle"
       else
         # The outage is over and unreported. Keep the state so the next cycle
-        # retries rather than silently spending the message it owes.
+        # retries rather than silently spending the message it owes, and pin the
+        # moment it came back so the retry reports the measured duration.
         log "NOTIFY-FAILED recovery not delivered, keeping the outage open so the next cycle retries"
+        RECOVERED_AT=$AT
+        state_put || log "STATE-WRITE-FAILED could not pin the recovery moment, so a retry will over-report the outage"
       fi
     else
       log "BLIP was broken $WAS_BROKEN and recovered before the $(fmt_duration "$PAGE_AFTER") threshold"
-      rm -f "$STATE_FILE"
+      clear_outage || log "STATE-WRITE-FAILED recovered from a blip but could not clear the outage, so the next cycle will read it as still broken"
     fi
   else
     log "OK plane and public DNS both answer${DEGRADED:+ (degraded: $DEGRADED)}$(override_note)"
@@ -739,8 +774,7 @@ if [ "$PLANE_OK" = "1" ] && [ "$PUBLIC_OK" = "1" ]; then
     log "QUIET fixed it, and the last notice was $(fmt_duration "$((NOW - NOTICE_AT))") ago, under the $(fmt_duration "$NOTICE_GAP") gap"
   fi
   # The repair counters survive; the outage does not.
-  DOWN_SINCE=0; PAGED=0; ATTEMPTS=0; GAVE_UP=0
-  state_put || log "STATE-WRITE-FAILED fixed it but could not record the repair, so the rate cap is blind next cycle"
+  clear_outage || log "STATE-WRITE-FAILED fixed it but could not record the repair, so the rate cap is blind next cycle"
   remember_ok
   exit 0
 fi

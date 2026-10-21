@@ -377,6 +377,21 @@ describe("rung 1, the tailnet", () => {
     expect(later.state?.paged).toBe("1");
   });
 
+  it("treats an expired node key as a human's job without stalling on `up` first", async () => {
+    // NeedsLogin arrives with LoggedOut still false and no AuthURL yet, so it
+    // used to pass the act branch: `up` would block for its whole timeout
+    // waiting for a browser, and only the next cycle would route it to a
+    // human (LAC-5276 review nit).
+    await writeFile(
+      path.join(box.dir, "ts-status.json"),
+      JSON.stringify({ BackendState: "NeedsLogin", AuthURL: "", HaveNodeKey: true })
+    );
+    planeHealthy = () => false;
+    const r = await cycle({ now: T0, repair: true, notify: true });
+    expect(repaired(r)).toEqual([]);
+    expect(r.log).toContain("NO-REPAIR tailnet needs a human");
+  });
+
   it("will not touch a node that is mid-authentication either", async () => {
     await writeFile(
       path.join(box.dir, "ts-status.json"),
@@ -542,7 +557,14 @@ describe("giving up", () => {
     expect(back.code).toBe(0);
     expect(back.log).toContain("RECOVERED for 15m");
     expect(slackPosts.at(-1)).toContain("Zero is back on the network");
-    expect(back.state).toBeNull();
+    // The outage is cleared and the node is repairable again, but the repair
+    // history stays: it is what the rate caps are built on (LAC-5276 review).
+    expect(back.state?.down_since).toBe("0");
+    expect(back.state?.paged).toBe("0");
+    expect(back.state?.gave_up).toBe("0");
+    expect(back.state?.attempts).toBe("0");
+    expect(back.state?.last_repair).toBe(String(T0 + 600));
+    expect(back.state?.window_repairs).toBe("3");
   });
 });
 
@@ -586,6 +608,70 @@ describe("rate caps", () => {
     const capped = await cycle({ now, repair: true, notify: true });
     expect(capped.log).toContain("6 repairs already in the last");
     expect(repaired(capped)).toEqual([]);
+  });
+});
+
+describe("the rate caps outlive the outage", () => {
+  it("keeps the repair floor across a recovery it did not cause", async () => {
+    // LAC-5276 review. The state file is two things at once: the clock for this
+    // outage and the memory the rate caps are built on. Deleting it on recovery
+    // threw away `last_repair` and the window along with the outage, so a node
+    // that wobbles would get a `tailscale up` every cycle, 12 an hour against a
+    // cap of 6. That is the exact case the caps exist to prevent.
+    await writeFile(
+      path.join(box.dir, "ts-status.json"),
+      JSON.stringify({ BackendState: "Stopped", AuthURL: "", HaveNodeKey: true })
+    );
+    await writeFile(path.join(box.dir, "up-fails"), "");
+    planeHealthy = () => false;
+
+    const attempt = await cycle({ now: T0, repair: true, notify: true });
+    expect(repaired(attempt)).toHaveLength(1);
+    expect(attempt.state?.last_repair).toBe(String(T0));
+
+    // It comes back on its own a minute later: a blip, under the threshold.
+    planeHealthy = () => true;
+    const blip = await cycle({ now: T0 + 60, repair: true, notify: true });
+    expect(blip.log).toContain("BLIP");
+    expect(blip.state?.down_since).toBe("0");
+    expect(blip.state?.attempts).toBe("0");
+    // The two that must survive the recovery.
+    expect(blip.state?.last_repair).toBe(String(T0));
+    expect(blip.state?.window_repairs).toBe("1");
+
+    // And it wobbles again inside the floor.
+    planeHealthy = () => false;
+    const again = await cycle({ now: T0 + 120, repair: true, notify: true });
+    expect(again.log).toContain("NO-REPAIR rate cap");
+    expect(repaired(again)).toEqual([]);
+  });
+
+  it("reports the measured outage when a recovery message has to be retried", async () => {
+    // Pinning the recovery moment, so a notifier that stayed broken for an hour
+    // cannot add that hour to the outage it finally reports. The sibling watch
+    // shipped this bug first and documents it; no reason to ship it again.
+    planeHealthy = () => false;
+    await writeFile(path.join(box.dir, "ts-prefs.json"), JSON.stringify({ LoggedOut: true }));
+    await cycle({ now: T0, repair: true, notify: true });
+    const paged = await cycle({ now: T0 + 900, repair: true, notify: true });
+    expect(paged.state?.paged).toBe("1");
+
+    planeHealthy = () => true;
+    const undelivered = await cycle({
+      now: T0 + 1200,
+      repair: true,
+      notify: true,
+      env: { TS_WATCHDOG_SLACK_API: `${origin}/nope` },
+    });
+    expect(undelivered.log).toContain("NOTIFY-FAILED recovery not delivered");
+    expect(undelivered.state?.recovered_at).toBe(String(T0 + 1200));
+
+    // An hour later the notifier works again. 20m is what was measured; 1h20m
+    // is what recomputing from "now" would have claimed.
+    const retry = await cycle({ now: T0 + 4800, repair: true, notify: true });
+    expect(slackPosts.at(-1)).toContain("broken for 20m");
+    expect(retry.state?.down_since).toBe("0");
+    expect(retry.state?.recovered_at).toBe("0");
   });
 });
 

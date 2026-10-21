@@ -90,13 +90,14 @@ an unnecessary change to Lacy's laptop.
 
 ### What it will not touch
 
-| Shape                                              | Why not                                                                                                                                                   |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LoggedOut: true`, or a non-empty `AuthURL`        | `tailscale up` on a logged-out node does nothing but wait for a browser. Pages instead.                                                                   |
-| The CLI does not answer at all                     | The daemon is not listening, so there is nothing to talk to. The 2026-10-21 `NoState` wedge needed a system-extension restart with `sudo`. Pages instead. |
-| `BackendState: Running` but the plane is silent    | The fault is not Tailscale's state, so restarting it would be a guess.                                                                                    |
-| Public DNS fails **and** `1.1.1.1` is silent too   | The link or the gateway is down, not the resolver config. Rewriting DNS here would be a wrong repair that outlives the outage.                            |
-| The default route is not on a configurable service | An exit node can put it on `utun`. Configuring the wrong service is a silent no-op repair, which is worse than no repair.                                 |
+| Shape                                              | Why not                                                                                                                                                                                    |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `LoggedOut: true`, or a non-empty `AuthURL`        | `tailscale up` on a logged-out node does nothing but wait for a browser. Pages instead.                                                                                                    |
+| `BackendState: NeedsLogin` or `NeedsMachineAuth`   | An expired node key reports `NeedsLogin` with `LoggedOut` still false and no `AuthURL` yet, so it would otherwise pass the act branch and stall `up` for its whole timeout. Pages instead. |
+| The CLI does not answer at all                     | The daemon is not listening, so there is nothing to talk to. The 2026-10-21 `NoState` wedge needed a system-extension restart with `sudo`. Pages instead.                                  |
+| `BackendState: Running` but the plane is silent    | The fault is not Tailscale's state, so restarting it would be a guess.                                                                                                                     |
+| Public DNS fails **and** `1.1.1.1` is silent too   | The link or the gateway is down, not the resolver config. Rewriting DNS here would be a wrong repair that outlives the outage.                                                             |
+| The default route is not on a configurable service | An exit node can put it on `utun`. Configuring the wrong service is a silent no-op repair, which is worse than no repair.                                                                  |
 
 ## The DNS override is written down, and stays written down
 
@@ -176,6 +177,19 @@ pages from off the host, which is the backstop by design.
   success resets the attempt counter, so without this second cap a node that
   broke every six minutes would be repaired forever in silence.
 
+**The caps outlive the outage.** The state file is two things at once: the clock
+for the current outage and the memory the caps are built on. The first version
+deleted the whole file on recovery, which threw away `last_repair` and the
+rolling window along with the outage, so a node that wobbled got a
+`tailscale up` every cycle: 12 an hour against a cap of 6, which is the exact
+case the caps exist to prevent. Recovery now clears `down_since`, `paged`,
+`attempts` and `gave_up` and keeps the repair history. Caught in review on
+LAC-5276.
+
+A recovery that Slack rejects pins the moment the host came back into
+`recovered_at`, so the retry reports the duration that was measured rather than
+one inflated by however long the notifier stayed broken.
+
 ## Run it by hand
 
 ```bash
@@ -236,7 +250,8 @@ launchctl list | grep tailscale-watchdog
 ~/Library/LaunchAgents/com.buildandserve.tailscale-watchdog.plist   the schedule
 ~/repo/buildandserve/scripts/tailscale-watchdog.sh                  the script
 ~/.paperclip/tailscale-watchdog/tailscale-watchdog.log              the log to read
-~/.paperclip/tailscale-watchdog/state                               present only during an outage
+~/.paperclip/tailscale-watchdog/state                               the outage clock plus the rate caps' memory
+~/.paperclip/tailscale-watchdog/last-ok                             the last cycle that found the host healthy
 ~/.paperclip/tailscale-watchdog/dns-override                        present only while an override is installed
 ~/.paperclip/logs/tailscale-watchdog.launchd.log                    launchd's copy of stdout and stderr
 ```
