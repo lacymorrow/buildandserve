@@ -199,6 +199,12 @@ bun scripts/doug-store-watch.ts
 Exit codes: `0` clean, `1` incident, `2` needs a human or agent to adapt, `3`
 harness error.
 
+Exit `3` also covers the monitoring host losing DNS, and that case voids the
+whole run: no store ticket is filed, because nothing the run saw is evidence
+either way. The output says `STORE HEALTH WAS NOT VERIFIED THIS RUN` and lists
+what it would have filed under `unprovenFindings` in `report.json`. **Never file
+from that key.** Fix DNS on the host, then re-run to get a real verdict.
+
 Evidence lands in `store-watch-runs/<timestamp>/` as `report.json` plus the
 screenshots. That path is resolved against the **main checkout**, not the
 working directory, because an agent woken on this job runs inside a disposable
@@ -315,6 +321,24 @@ bun scripts/doug-store-watch-freshness.ts --evidence /tmp/drill/store-watch-runs
 Running log of what changed on the stores, newest first. Each run that adapts
 appends a line here.
 
+- **2026-10-21** Neither store changed. The **monitoring host** lost DNS: its
+  only nameserver (`10.0.0.243`) stopped answering mid-run at ~15:12Z. The 15:11Z
+  run reported thepurplehaze.com **DOWN** and raw-kratom.com **unable to take
+  orders**, with a Slack page on both, and both were false. Checked by hand
+  against public resolvers at the time: thepurplehaze.com resolves to
+  23.227.38.32 and served 200 on `/` and `/cart`; raw-kratom.com resolves to
+  192.200.160.14 and served 200 on `/` and `/cart.php`, and `/checkout` served
+  the checkout asset chain and correctly 302'd an empty cart to `/cart.php`. The
+  15:25Z run, with the resolver still dead, passed thepurplehaze's full purchase
+  path through to a real Shopify checkout URL. **A "store is down" finding from
+  this job is only as trustworthy as the host's resolver — check `scutil --dns`
+  and `dig @1.1.1.1 <host>` before you believe it.** Fixed in LAC-5278: an
+  unanswered DNS query (`ETIMEOUT` and friends) is now a `resolver` check, not a
+  `dns` check, which voids the entire run as exit 3 and files nothing. An
+  authoritative `ENOTFOUND`/`ENODATA` is still a real outage and still files, so
+  the LACA-1909 case is unaffected. A failing run also re-probes the resolver at
+  the end, because the first DNS check can pass from cache and the nameserver
+  can die seconds later, which is exactly what happened to raw-kratom here.
 - **2026-10-16** thepurplehaze.com returned `needs_adaptation` on add_to_cart at
   20:03Z and nothing had changed on the store. The 16:14Z run before it and the
   21:21Z run after it both added the same product

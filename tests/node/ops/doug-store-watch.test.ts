@@ -7,6 +7,8 @@ import {
   closeQuietly,
   exitCodeFor,
   HARNESS_CHECK,
+  isResolverFault,
+  RESOLVER_CHECK,
   type StoreResult,
   toIncidents,
   verdictFor,
@@ -157,6 +159,17 @@ describe("toIncidents", () => {
     // 2026-10-13T12:23Z run, which reported `purplehaze:harness` as degraded.
     const incidents = toIncidents(
       makeResult([{ name: HARNESS_CHECK, status: "fail", detail: "probe threw: ...closed" }]),
+      DETECTED_AT
+    );
+    expect(incidents).toEqual([]);
+  });
+
+  it("never files a store ticket when this machine's resolver did not answer", () => {
+    // Without this the resolver entry falls through to the "degraded" branch
+    // and files `raw-kratom:resolver` against the store, blaming Doug for our
+    // nameserver (LAC-5278).
+    const incidents = toIncidents(
+      makeResult([{ name: RESOLVER_CHECK, status: "fail", detail: "resolver did not answer" }]),
       DETECTED_AT
     );
     expect(incidents).toEqual([]);
@@ -383,6 +396,56 @@ describe("verdictFor", () => {
     const down = makeResult([{ name: "dns", status: "fail" }]);
     const crashed = makeResult([{ name: HARNESS_CHECK, status: "fail" }]);
     expect(verdictFor([down, crashed])).toBe("incident");
+  });
+
+  it("voids the whole run when this machine's resolver died, however bad it looked", () => {
+    // LAC-5278: the host's only nameserver went away mid-run on
+    // 2026-10-21T15:11Z. The job paged Lacy that thepurplehaze.com was DOWN and
+    // raw-kratom.com could not take orders; both were serving 200s throughout.
+    // A resolver fault is the one harness failure that outranks a store
+    // failure, because every check starts by resolving a hostname.
+    const unreachable = makeResult([{ name: RESOLVER_CHECK, status: "fail" }]);
+    const lookedBroken = makeResult([
+      { name: "dns", status: "pass" },
+      { name: "checkout", status: "fail", detail: "landed chrome-error://chromewebdata/" },
+    ]);
+    expect(verdictFor([lookedBroken, unreachable])).toBe("harness_error");
+    expect(exitCodeFor("harness_error")).toBe(3);
+  });
+
+  it("still calls a genuine NXDOMAIN an incident", () => {
+    // The outage this job exists to catch (LACA-1909) is the apex A record
+    // going away, which DNS answers authoritatively. Only an unanswered query
+    // is a resolver fault, so the fix above must not mute a real outage.
+    const gone = makeResult([
+      { name: "dns", status: "fail", detail: "did not resolve: queryA ENOTFOUND" },
+    ]);
+    expect(verdictFor([gone])).toBe("incident");
+  });
+});
+
+describe("isResolverFault", () => {
+  it("treats an unanswered query as our problem", () => {
+    // The exact error from the 2026-10-21T15:11Z run.
+    const timeout = Object.assign(new Error("queryA ETIMEOUT thepurplehaze.com"), {
+      code: "ETIMEOUT",
+    });
+    expect(isResolverFault(timeout)).toBe(true);
+    expect(isResolverFault(Object.assign(new Error("x"), { code: "ESERVFAIL" }))).toBe(true);
+    expect(isResolverFault(Object.assign(new Error("x"), { code: "ECONNREFUSED" }))).toBe(true);
+  });
+
+  it("treats an authoritative answer as the store's problem", () => {
+    // NXDOMAIN and NODATA are verdicts from DNS itself, which is what a dead
+    // apex record looks like. These must keep reaching the ticket stream.
+    expect(isResolverFault(Object.assign(new Error("x"), { code: "ENOTFOUND" }))).toBe(false);
+    expect(isResolverFault(Object.assign(new Error("x"), { code: "ENODATA" }))).toBe(false);
+  });
+
+  it("does not crash on a throw that carries no code", () => {
+    expect(isResolverFault(new Error("plain"))).toBe(false);
+    expect(isResolverFault("string throw")).toBe(false);
+    expect(isResolverFault(null)).toBe(false);
   });
 });
 
