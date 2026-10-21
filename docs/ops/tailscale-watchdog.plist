@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.buildandserve.tailscale-watchdog</string>
+
+  <!-- Puts zero's own network back when it drops, so the fleet stops going
+       dark (LAC-5275). PAPERCLIP_API_URL is this laptop's own tailnet name, so
+       when Tailscale here stops the laptop cannot reach itself and every agent
+       write fails. Overnight 2026-10-20/21 that cost ~6 hours.
+       Scheduled by launchd, not by a Paperclip routine: a routine that watches
+       the control plane cannot run when the control plane is unreachable.
+       Runbook: ~/repo/buildandserve/docs/ops/tailscale-watchdog.md -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/lacy/repo/buildandserve/scripts/tailscale-watchdog.sh</string>
+    <string>--repair</string>
+    <string>--notify</string>
+  </array>
+
+  <!-- Every 5 minutes, and the page threshold is three cycles. Short enough
+       that an overnight stop is repaired in minutes rather than hours, long
+       enough that a wifi roam or a lid close never pages anybody. -->
+  <key>StartInterval</key>
+  <integer>300</integer>
+
+  <!-- Check at login and on wake rather than waiting out the interval. Waking
+       with Tailscale stopped is exactly the case worth catching early. The
+       script's own rate cap is what keeps a RunAtLoad burst from flapping the
+       fleet's only network path. -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <!-- HOME is where the Slack bot token lives (~/.openclaw/openclaw.json, the
+       same token the power watch reads) and where state goes. launchd does not
+       set it for a bare job. PATH is set in the script too; it is repeated here
+       so a hand-run `launchctl kickstart` behaves identically. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Users/lacy</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <!-- Under ~/.paperclip/logs with the sibling watches. This is launchd's copy
+       of stdout and stderr; the watchdog's own log, which is the one to read,
+       is ~/.paperclip/tailscale-watchdog/tailscale-watchdog.log. -->
+  <key>StandardOutPath</key>
+  <string>/Users/lacy/.paperclip/logs/tailscale-watchdog.launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/lacy/.paperclip/logs/tailscale-watchdog.launchd.log</string>
+</dict>
+</plist>
