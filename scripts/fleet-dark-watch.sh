@@ -21,9 +21,16 @@
 #      when it comes back, and nothing in between. A monitor that repeats itself
 #      every five minutes for twelve hours is a monitor nobody reads.
 #
+# The switch worked and the channel did not (LAC-5366). Over its first five days
+# it caught all eight dark windows, 22h25m of real dark time, and two of those
+# windows account for 18h45m of it: paged at 03:05 and at 00:30, recovered at
+# 11:30 and 10:20, both times by a human plugging the laptop in. The page was
+# right, the fix was ten seconds, and nobody saw it until morning because Slack
+# suppresses push during Do Not Disturb. So it now sends on two channels.
+#
 # Usage:
 #   fleet-dark-watch.sh              # poll and log, print what it would send
-#   fleet-dark-watch.sh --notify     # poll, log, and Slack-DM for real
+#   fleet-dark-watch.sh --notify     # poll, log, and send for real
 #
 # Exit codes: 0 = the plane answered, 1 = it did not, 2 = this script could not
 # do its job (no curl, no jq, nowhere to write). 2 is never recorded as 0:
@@ -100,6 +107,34 @@ SLACK_API_URL="${FLEET_DARK_WATCH_SLACK_API:-https://slack.com/api/chat.postMess
 # RAM. Deriving this from WATCH_DIR would make a full disk look like a missing
 # token and take the notifier down with it.
 SLACK_TOKEN_FILE="${FLEET_DARK_WATCH_SLACK_TOKEN_FILE:-$PRIMARY_DIR/slack-token}"
+
+# --- the channel that survives Do Not Disturb (LAC-5366) -------------------
+#
+# Slack above is the readable log of what happened. This is the thing that wakes
+# someone, and the two carry the same words on purpose: a pager that disagrees
+# with the log is worse than either one alone.
+#
+# ntfy because it costs nothing to run and nothing to approve: no account, no
+# money, no token. Its iOS and Android apps can be allowed through Do Not
+# Disturb as a Critical Alert, which is the entire reason this exists.
+#
+# The topic IS the credential. A public ntfy topic is world-readable and
+# world-writable by anyone who knows the name, so it is a long random string, it
+# lives in a 600 file beside the Slack token, and it is never logged. Everything
+# this script prints about ntfy goes through `redact_topic` for that reason: the
+# URL contains the secret, and curl puts the URL in some of its own error text.
+NTFY_BASE_URL="${FLEET_DARK_WATCH_NTFY_URL:-https://ntfy.sh}"
+NTFY_TOPIC="${FLEET_DARK_WATCH_NTFY_TOPIC:-}"
+
+# Pinned to PRIMARY_DIR for the same reason as SLACK_TOKEN_FILE: a full pool
+# still reads fine, so a disk that has pushed state into RAM must not also look
+# like a missing topic and take this channel down with it.
+NTFY_TOPIC_FILE="${FLEET_DARK_WATCH_NTFY_TOPIC_FILE:-$PRIMARY_DIR/ntfy-topic}"
+
+# 5 is ntfy's maximum. It is what the iOS app maps to a Critical Alert and what
+# the Android app maps to a Do Not Disturb bypass. Anything lower makes the rest
+# of this change pointless.
+NTFY_PRIORITY="${FLEET_DARK_WATCH_NTFY_PRIORITY:-5}"
 
 NOTIFY=0
 for arg in "$@"; do
@@ -178,6 +213,13 @@ state_put() {
   printf '%s\n' "$payload" > "$STATE_FILE" 2>/dev/null
 }
 
+# The lock-screen glance. ntfy renders the title above the body, so these are
+# the words Lacy reads at 00:30 before he has picked the phone up. They are also
+# the first words of each message below, deliberately: the title on the phone
+# and the sentence in Slack must not say different things about the same event.
+DARK_TITLE='Fleet is dark'
+BACK_TITLE='Fleet is back'
+
 # The dark message. What happened first, because that is the fact. What is
 # stopped second, because "the control plane is down" means nothing on its own.
 # The action last, because it is two things to look at.
@@ -204,6 +246,9 @@ format_back() {
 # monitor that goes quiet because its own notifier failed is the exact bug this
 # file exists to prevent.
 #
+# Named for its channel since LAC-5366 added a second one. `notify` below is the
+# fan-out and is what every call site uses.
+#
 # Deliberately free of `jq`. jq is required to read the health body, but it must
 # not be required to raise the alarm: "jq is missing" is itself one of the things
 # this script has to be able to say, and a notifier that needs the missing tool
@@ -220,7 +265,7 @@ json_string() {
   printf '%s' "$1" | tr '[:cntrl:]' ' ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 }
 
-notify() {
+notify_slack() {
   local text=$1 response token=$SLACK_TOKEN
   if [ -z "$token" ] && [ -r "$SLACK_TOKEN_FILE" ]; then
     token=$(tr -d ' \t\n\r' < "$SLACK_TOKEN_FILE")
@@ -242,16 +287,109 @@ notify() {
   return 1
 }
 
+# The topic is the credential and the topic is in the URL, so anything printed
+# about ntfy is scrubbed before it reaches stderr or the log. curl writes the URL
+# it failed on into several of its own error strings, which is how a 600 file
+# would otherwise end up in /tmp/fleet-dark-watch.err in plain text.
+#
+# A no-op while the topic is unset, because an empty pattern would otherwise
+# have sed insert the placeholder between every character of the message.
+redact_topic() {
+  if [ -z "$NTFY_TOPIC" ]; then cat; else sed "s|$NTFY_TOPIC|<topic>|g"; fi
+}
+
+# Resolved into the global rather than kept local, because `redact_topic` has to
+# know the string to be able to scrub it. Returns non-zero when there is no
+# topic anywhere, which is "this channel is not configured", not an error on its
+# own: Slack is still a channel and the caller still has a page to deliver.
+resolve_ntfy_topic() {
+  if [ -z "$NTFY_TOPIC" ] && [ -r "$NTFY_TOPIC_FILE" ]; then
+    NTFY_TOPIC=$(tr -d ' \t\n\r' < "$NTFY_TOPIC_FILE")
+  fi
+  [ -n "$NTFY_TOPIC" ]
+}
+
+# A header value cannot carry a newline or a carriage return: either one ends the
+# header early and the rest of the string becomes a forged header or a torn
+# request. Flattened with the same `[:cntrl:]` class `json_string` uses, so both
+# channels stay honest about bytes nobody thought about.
+header_value() { printf '%s' "$1" | tr '[:cntrl:]' ' '; }
+
+# Push one line to ntfy, at a priority its app treats as a Critical Alert. Same
+# contract as notify_slack: returns non-zero and prints why rather than exiting.
+#
+# The title rides in a header and the message is the raw request body, so this
+# needs no JSON at all and no quote in a message can break the payload. The body
+# goes in on stdin via `@-` rather than as an argument, because `--data-binary`
+# reads a file when its argument starts with `@` and a message is not a thing
+# that should be able to open files.
+#
+# Success is the HTTP status, not a word in the body. `-w` prints last, so the
+# status is the tail of the captured text whatever shape the failure took, and a
+# connection failure writes its own `000` there the same way the main poll's
+# does.
+notify_ntfy() {
+  local text=$1 title=$2 tags=$3 response
+  if ! resolve_ntfy_topic; then
+    printf 'no ntfy topic: set FLEET_DARK_WATCH_NTFY_TOPIC or put one in %s\n' \
+      "$NTFY_TOPIC_FILE" >&2
+    return 1
+  fi
+  response=$(printf '%s' "$text" | curl -sS -m 15 -w ' http=%{http_code}' \
+    -H "Title: $(header_value "$title")" \
+    -H "Priority: $(header_value "$NTFY_PRIORITY")" \
+    -H "Tags: $(header_value "$tags")" \
+    --data-binary @- "$NTFY_BASE_URL/$NTFY_TOPIC" 2>&1 | redact_topic)
+  case "$response" in
+    *'http=200')
+      printf '%s' "$response"
+      return 0
+      ;;
+  esac
+  printf 'ntfy rejected the message: %s\n' "$response" >&2
+  return 1
+}
+
+# Both channels, one message, one event. Every call site uses this.
+#
+# Delivered means at least one channel accepted it, and the callers read that
+# return value to decide whether the page has been spent. Both alternatives are
+# worse. Requiring both would re-send to the phone every five minutes for the
+# whole outage whenever Slack is the broken half, which is the muted-channel
+# failure this file keeps trying not to cause. Requiring neither would mark a
+# page delivered that nobody received.
+#
+# Sets NOTIFY_OUTCOME so the log can say which channel did what. That line is
+# the only place a half-delivered page is visible: the delivered half hands the
+# caller a success, and the failed half only reaches stderr, which the cron line
+# throws away.
+NOTIFY_OUTCOME=""
+notify() {
+  local text=$1 title=$2 tags=$3 slack=failed ntfy=failed
+  if notify_slack "$text" >/dev/null; then slack=ok; fi
+  if notify_ntfy "$text" "$title" "$tags" >/dev/null; then ntfy=ok; fi
+  NOTIFY_OUTCOME="slack=$slack ntfy=$ntfy"
+  [ "$slack" = ok ] || [ "$ntfy" = ok ]
+}
+
 # The alarm for when this script cannot do its job. Goes to Slack, not only to
 # stderr, because the shipped cron line cannot keep stderr: a `2>&1` into
 # /dev/null made exit 2 produce literally nothing, and silence is also what a
 # healthy fleet looks like. When the watch dir is the broken thing the log is on
 # it too, so the channel is the only place left that works.
+#
+# Slack only, on purpose. This one is already rate-limited to once an hour
+# because it has no state file to dedupe against, it persists until a human
+# fixes it, and it fires while the fleet itself may be perfectly healthy. A
+# Critical Alert that can arrive 24 times in a night for a condition that is not
+# an outage is how the channel gets switched off, and a switched-off channel is
+# the thing LAC-5366 exists to fix. DARK and RECOVERED are the only two events
+# worth waking someone for.
 cannot_look() {
   local reason=$1
   printf 'fleet-dark-watch cannot do its job: %s\n' "$reason" >&2
   if [ "$NOTIFY" = "1" ]; then
-    notify "Fleet dark watch is blind on library: $reason. It is not watching anything until this is fixed, so treat silence from it as meaningless." >/dev/null \
+    notify_slack "Fleet dark watch is blind on library: $reason. It is not watching anything until this is fixed, so treat silence from it as meaningless." >/dev/null \
       || printf 'and could not report it to Slack either\n' >&2
   fi
 }
@@ -333,6 +471,23 @@ fi
 STATE_FILE="$WATCH_DIR/state"
 LOG_FILE="$WATCH_DIR/fleet-dark-watch.log"
 
+# A missing topic leaves the DND channel off while everything else still works,
+# so the next overnight page would land in Slack alone and nobody would know
+# until morning. That is the exact failure LAC-5366 was filed about, so it is
+# reported the same way a fallback state dir is: appended to DEGRADED, which the
+# healthy-path OK line carries. Checked here rather than at page time because by
+# then the information is six hours late.
+#
+# The log and not Slack, on purpose. This is a persistent configuration fault,
+# the watch is still watching, and a page still reaches one channel; nagging the
+# pager hourly about its own configuration is how the pager gets muted. The
+# per-page `SENT slack=... ntfy=...` line says the same thing at the moment it
+# costs something.
+if ! resolve_ntfy_topic; then
+  DEGRADED="${DEGRADED:+$DEGRADED; }no ntfy topic in $NTFY_TOPIC_FILE, so pages go to Slack only and will not survive Do Not Disturb"
+  printf 'fleet-dark-watch: %s\n' "$DEGRADED" >&2
+fi
+
 # There is deliberately no lock here. A cycle costs at most 25 seconds against a
 # 300 second interval, so two copies would have to overlap by a factor of twelve;
 # and if they ever did, the worst a torn state file causes is one duplicate page,
@@ -393,7 +548,8 @@ if [ "$ALIVE" = "1" ]; then
       message=$(format_back "$DARK_FOR" "$BACK_AT")
       log "RECOVERED $message"
       if [ "$NOTIFY" = "1" ]; then
-        if notify "$message"; then
+        if notify "$message" "$BACK_TITLE" white_check_mark; then
+          log "SENT $NOTIFY_OUTCOME"
           rm -f "$STATE_FILE"
         else
           # The outage is over and unreported, and an unreported recovery is the
@@ -401,7 +557,7 @@ if [ "$ALIVE" = "1" ]; then
           # next poll retries, and pin the moment it came back so the retry
           # reports the duration that was measured. Clearing here instead is how
           # one transient Slack failure used to eat the headline number for good.
-          log "NOTIFY-FAILED recovery message not delivered, keeping the outage open so the next poll retries"
+          log "NOTIFY-FAILED recovery message not delivered on any channel ($NOTIFY_OUTCOME), keeping the outage open so the next poll retries"
           state_put "$DOWN_SINCE" 1 "$BACK_AT" \
             || cannot_look "it measured a ${DARK_FOR}s outage, could not deliver it, and could not write $STATE_FILE to retry"
         fi
@@ -411,7 +567,17 @@ if [ "$ALIVE" = "1" ]; then
     else
       # Down for less than the threshold and back again. A restart, not an
       # outage. It belongs in the log and nowhere else.
-      log "BLIP plane was unreachable for $(fmt_duration "$DARK_FOR") and recovered before the $(fmt_duration "$DARK_AFTER_SECONDS") threshold"
+      #
+      # This line used to claim it "recovered before the 15m threshold", and on
+      # 2026-10-23T20:10:01 it printed "unreachable for 15m and recovered before
+      # the 15m threshold", which cannot be true as a sentence. Neither number
+      # was wrong. They are measured at different moments: the page is decided
+      # at a *failing* poll, and this duration runs to the recovery, which is up
+      # to one cron interval later. The 19:55:01 poll started the clock, 20:05
+      # saw 10m and held, 20:10:01 found it back, so the outage really did last
+      # 15m and really was never paged. What it beat was the next failing poll,
+      # not the threshold, and that is what the line now says.
+      log "BLIP plane was unreachable for $(fmt_duration "$DARK_FOR") and answered again before any poll caught it past the $(fmt_duration "$DARK_AFTER_SECONDS") threshold, so nobody was paged"
       rm -f "$STATE_FILE"
     fi
   else
@@ -449,16 +615,17 @@ fi
 message=$(format_dark "$ELAPSED" "$DOWN_SINCE")
 log "DARK $message"
 if [ "$NOTIFY" = "1" ]; then
-  if notify "$message"; then
-    # Written only on a delivered DM, so a Slack outage retries in five minutes
-    # instead of silently spending the one page this outage was owed. If that
-    # write fails the page was still delivered, so the only cost is a repeat on
-    # the next poll. Logged rather than escalated, because repeating a true page
-    # is the harmless direction of this failure.
+  if notify "$message" "$DARK_TITLE" rotating_light; then
+    log "SENT $NOTIFY_OUTCOME"
+    # Written only on a delivered page, so a notifier outage retries in five
+    # minutes instead of silently spending the one page this outage was owed. If
+    # that write fails the page was still delivered, so the only cost is a repeat
+    # on the next poll. Logged rather than escalated, because repeating a true
+    # page is the harmless direction of this failure.
     state_put "$DOWN_SINCE" 1 \
       || log "STATE-WRITE-FAILED page delivered but $STATE_FILE could not record it, so it will repeat next poll"
   else
-    log "NOTIFY-FAILED dark message not delivered, will retry next cycle"
+    log "NOTIFY-FAILED dark message not delivered on any channel ($NOTIFY_OUTCOME), will retry next cycle"
   fi
 fi
 # Without --notify the state file is left alone on purpose: running this by hand

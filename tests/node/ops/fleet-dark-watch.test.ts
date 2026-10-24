@@ -68,6 +68,12 @@ interface PollOptions {
   tokenFile?: string;
   /** Read the log from here instead of `dir`, when a fallback moved it. */
   logDir?: string;
+  /** Point the DND channel at the fake ntfy below. Base URL, no topic. */
+  ntfyUrl?: string;
+  /** Configure the DND channel. Unset means the channel is not configured. */
+  ntfyTopic?: string;
+  /** Where the topic is read from when it is not in the environment. */
+  ntfyTopicFile?: string;
 }
 
 /**
@@ -82,6 +88,15 @@ async function poll(dir: string, options: PollOptions): Promise<Result> {
     FLEET_DARK_WATCH_HOST: "127.0.0.1",
     FLEET_DARK_WATCH_NOW: String(options.now),
     TZ: "UTC",
+    // Neutralised rather than inherited. ntfy.sh is a public server and a test
+    // run must not be able to publish to a real topic, whatever is in the
+    // ambient environment: the topic is empty unless a test sets one, the file
+    // it would fall back to is a path that does not exist, and the base URL is
+    // a port nothing listens on. A test that wants the channel opts in.
+    FLEET_DARK_WATCH_NTFY_TOPIC: options.ntfyTopic ?? "",
+    FLEET_DARK_WATCH_NTFY_TOPIC_FILE:
+      options.ntfyTopicFile ?? "/proc/nonexistent/fleet-dark-watch-ntfy-topic",
+    FLEET_DARK_WATCH_NTFY_URL: options.ntfyUrl ?? "http://127.0.0.1:1",
   };
   if (options.fallbackDir !== undefined) {
     env.FLEET_DARK_WATCH_FALLBACK_DIR = options.fallbackDir;
@@ -381,6 +396,67 @@ function fakeSlack() {
   };
 }
 
+/**
+ * A stand-in ntfy. Records the path, headers and raw body of every publish, so
+ * the assertions are on the bytes a real ntfy would receive: the topic it was
+ * posted to, the priority that decides whether iOS treats it as a Critical
+ * Alert, and the body, which is sent raw and so has no escaping to get wrong.
+ */
+function fakeNtfy() {
+  const received: { topic: string; title: string; priority: string; tags: string; body: string }[] =
+    [];
+  /** 200 is a publish ntfy accepted. Anything else is a rejected one. */
+  let status = 200;
+  const srv = createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      received.push({
+        topic: (req.url ?? "").replace(/^\//, ""),
+        title: String(req.headers.title ?? ""),
+        priority: String(req.headers.priority ?? ""),
+        tags: String(req.headers.tags ?? ""),
+        body,
+      });
+      if (status === 200) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end('{"id":"nPCjvZ2Qkfmc","time":1792429138,"event":"message"}');
+        return;
+      }
+      // A gateway error page that quotes the request URI, which is what a
+      // proxy in front of ntfy actually returns and the realistic way the
+      // topic gets into an error string. The redaction has to survive it.
+      res.writeHead(502, { "content-type": "text/html" });
+      res.end(`<html><body>502 Bad Gateway: POST ${req.url} upstream failed</body></html>`);
+    });
+  });
+  return {
+    received,
+    reject() {
+      status = 502;
+    },
+    accept() {
+      status = 200;
+    },
+    async listen() {
+      await new Promise<void>((resolve) => srv.listen(0, "127.0.0.1", resolve));
+      const address = srv.address();
+      if (address === null || typeof address === "string") throw new Error("no port");
+      return `http://127.0.0.1:${address.port}`;
+    },
+    async close() {
+      await new Promise<void>((resolve, reject) =>
+        srv.close((error) => (error ? reject(error) : resolve()))
+      );
+    },
+  };
+}
+
+/** Long and random, the way the real one is. The topic is the credential. */
+const TOPIC = "fleet-dark-7xk2m9qp4vtw8nzr3hjd6fcb";
+
 /** A directory that exists but refuses writes. ENOSPC looks like this too. */
 async function readOnlyDir(): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), "fleet-dark-watch-ro-"));
@@ -668,5 +744,436 @@ describe("review nits (LAC-4875 loop 2)", () => {
     expect(depGuard).toContain("top_of_hour");
     // And stderr is never gated, so a by-hand run always says it.
     expect(depGuard).toContain('is not on PATH\\n\' "$dep" >&2');
+  });
+});
+
+describe("a channel that survives Do Not Disturb (LAC-5366)", () => {
+  // The switch worked. Eight pages in five days, 22h25m of real dark time,
+  // every window caught. Two of those windows then ran 8h40m and 10h05m,
+  // 18h45m of the 22h25m, because the page landed in Slack at 03:05 and 00:30
+  // and Slack suppresses push during Do Not Disturb. Recovery both times was a
+  // human plugging the laptop in. Right page, sleeping channel, ten-second fix.
+
+  it("pages both channels on DARK, with the priority that beats DND", async () => {
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+
+    const result = await poll(dir, {
+      now: T0 + 15 * 60,
+      url: DEAD_URL,
+      notify: true,
+      slackApi,
+      ntfyUrl,
+      ntfyTopic: TOPIC,
+    });
+
+    expect(ntfy.received).toHaveLength(1);
+    expect(ntfy.received[0]?.topic).toBe(TOPIC);
+    // The lock-screen glance, before the phone is even picked up.
+    expect(ntfy.received[0]?.title).toBe("Fleet is dark");
+    // 5 is ntfy's max, and the one value the iOS app maps to a Critical Alert.
+    // Anything lower and the whole change is decorative.
+    expect(ntfy.received[0]?.priority).toBe("5");
+    expect(ntfy.received[0]?.tags).toBe("rotating_light");
+    // Byte-identical to the Slack DM. A pager that disagrees with the log is
+    // worse than either channel alone, and the body is sent raw, so this also
+    // proves there is no escaping layer left to get wrong.
+    expect(ntfy.received[0]?.body).toBe(slack.received[0]?.text);
+    expect(ntfy.received[0]?.body).toContain(
+      "Fleet is dark. The control plane on zero stopped answering 15m ago"
+    );
+    expect(result.log).toContain("SENT slack=ok ntfy=ok");
+    expect(result.state).toEqual({ down_since: String(T0), paged: "1" });
+
+    await slack.close();
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("pages both channels on RECOVERED, with the measured duration", async () => {
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    const darkAt = Math.floor(new Date("2026-10-19T03:36:52Z").getTime() / 1000);
+    const backAt = Math.floor(new Date("2026-10-19T15:18:01Z").getTime() / 1000);
+    await writeFile(path.join(dir, "state"), `down_since=${darkAt}\npaged=1\n`);
+
+    const result = await poll(dir, {
+      now: backAt + 120,
+      notify: true,
+      slackApi,
+      ntfyUrl,
+      ntfyTopic: TOPIC,
+    });
+
+    expect(ntfy.received).toHaveLength(1);
+    expect(ntfy.received[0]?.title).toBe("Fleet is back");
+    expect(ntfy.received[0]?.tags).toBe("white_check_mark");
+    expect(ntfy.received[0]?.body).toContain("after 11h41m dark");
+    expect(ntfy.received[0]?.body).toBe(slack.received[0]?.text);
+    // Delivered on both, so the switch rearms for the next outage.
+    expect(result.state).toBeNull();
+
+    await slack.close();
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("sends nothing to the phone for STILL-DARK, UNREACHABLE or BLIP", async () => {
+    // The whole reason a Critical Alert channel is affordable. Two pushes per
+    // outage. A phone that buzzes through DND every five minutes for ten hours
+    // gets the app's notifications turned off, and then this change has made
+    // things worse than Slack alone.
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    const channel = { notify: true, slackApi, ntfyUrl, ntfyTopic: TOPIC };
+
+    // First failure: the clock starts, nobody is told.
+    await poll(dir, { now: T0, url: DEAD_URL, ...channel });
+    // Under the threshold.
+    await poll(dir, { now: T0 + 10 * 60, url: DEAD_URL, ...channel });
+    // Already paged, ten hours in. This is the one that would mute the app.
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=1\n`);
+    const stillDark = await poll(dir, { now: T0 + 10 * 3600, url: DEAD_URL, ...channel });
+    expect(stillDark.log).toContain("STILL-DARK");
+    // A blip: down and back inside the threshold, never paged.
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+    const blip = await poll(dir, { now: T0 + 6 * 60, ...channel });
+    expect(blip.log).toContain("BLIP");
+
+    expect(ntfy.received).toHaveLength(0);
+    expect(slack.received).toHaveLength(0);
+
+    await slack.close();
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("does not touch the phone on a dry run", async () => {
+    const dir = await scratch();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+
+    const result = await poll(dir, { now: T0 + 15 * 60, url: DEAD_URL, ntfyUrl, ntfyTopic: TOPIC });
+
+    expect(result.stdout).toContain("Fleet is dark");
+    expect(ntfy.received).toHaveLength(0);
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+});
+
+describe("one channel down is still a delivered page (LAC-5366)", () => {
+  // The callers read `notify`'s return value to decide whether the page has
+  // been spent. At least one channel accepting is the only workable rule.
+  // Requiring both would re-buzz the phone every five minutes for the whole
+  // outage whenever Slack is the broken half, which is the muted-channel
+  // failure this file keeps trying not to cause. Requiring neither would mark
+  // a page delivered that nobody received.
+
+  it("counts the page as delivered when only the phone got it", async () => {
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    slack.reject();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+
+    const result = await poll(dir, {
+      now: T0 + 15 * 60,
+      url: DEAD_URL,
+      notify: true,
+      slackApi,
+      ntfyUrl,
+      ntfyTopic: TOPIC,
+    });
+
+    expect(ntfy.received).toHaveLength(1);
+    // Recorded, so the phone is not buzzed again five minutes from now.
+    expect(result.state).toEqual({ down_since: String(T0), paged: "1" });
+    // And the log is the only place the half-failure is visible, because the
+    // delivered half handed the caller a success and the cron line throws
+    // stderr away.
+    expect(result.log).toContain("SENT slack=failed ntfy=ok");
+
+    await slack.close();
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("counts the page as delivered when only Slack got it", async () => {
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    ntfy.reject();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+
+    const result = await poll(dir, {
+      now: T0 + 15 * 60,
+      url: DEAD_URL,
+      notify: true,
+      slackApi,
+      ntfyUrl,
+      ntfyTopic: TOPIC,
+    });
+
+    expect(slack.received).toHaveLength(1);
+    expect(result.state).toEqual({ down_since: String(T0), paged: "1" });
+    expect(result.log).toContain("SENT slack=ok ntfy=failed");
+
+    await slack.close();
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("retries when neither channel took it, rather than spending the page", async () => {
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    slack.reject();
+    ntfy.reject();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+    const channel = { url: DEAD_URL, notify: true, slackApi, ntfyUrl, ntfyTopic: TOPIC };
+
+    const failed = await poll(dir, { now: T0 + 15 * 60, ...channel });
+    expect(failed.log).toContain("not delivered on any channel (slack=failed ntfy=failed)");
+    // Not recorded, so the outage is still owed its page.
+    expect(failed.state).toEqual({ down_since: String(T0), paged: "0" });
+
+    slack.accept();
+    ntfy.accept();
+    const retried = await poll(dir, { now: T0 + 20 * 60, ...channel });
+    // Two attempts each: the fakes record what they were sent before deciding
+    // to reject it, so the first, refused page is in there too. The page the
+    // outage was owed is the second one, and this time it stuck.
+    expect(slack.received).toHaveLength(2);
+    expect(ntfy.received).toHaveLength(2);
+    expect(ntfy.received.at(-1)?.body).toContain("stopped answering 20m ago");
+    expect(retried.state).toEqual({ down_since: String(T0), paged: "1" });
+
+    await slack.close();
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("pages Slack and says it is degraded when no topic is configured", async () => {
+    // The failure this channel could have had: silently off, discovered six
+    // hours into the next overnight outage. Reported the same way a fallback
+    // state dir is, on the line the healthy path already writes every poll.
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+
+    // Healthy first, with no state on disk: the degraded note rides on the OK
+    // line, which is the line this script writes 288 times a day, so a channel
+    // that is quietly off is visible without waiting for an outage.
+    const healthy = await poll(dir, { now: T0 });
+    expect(healthy.log).toContain("degraded: no ntfy topic in");
+    expect(healthy.log).toContain("will not survive Do Not Disturb");
+
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+    const paged = await poll(dir, { now: T0 + 15 * 60, url: DEAD_URL, notify: true, slackApi });
+    // Slack is still a channel, so the page still goes out and still counts.
+    expect(slack.received).toHaveLength(1);
+    expect(paged.state).toEqual({ down_since: String(T0), paged: "1" });
+    expect(paged.log).toContain("SENT slack=ok ntfy=failed");
+
+    await slack.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("reads the topic from a file so the cron line can stay clean", async () => {
+    // Same arrangement as the Slack token, and for the same reason: Unraid
+    // regenerates root's crontab onto /boot, which is FAT32 and carries no
+    // permission bits at all, so a secret inlined there is readable by anything
+    // that can see the flash.
+    const dir = await scratch();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    const topicFile = path.join(dir, "ntfy-topic");
+    await writeFile(topicFile, `${TOPIC}\n`, { mode: 0o600 });
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+
+    const result = await poll(dir, {
+      now: T0 + 15 * 60,
+      url: DEAD_URL,
+      notify: true,
+      slackApi,
+      ntfyUrl,
+      ntfyTopicFile: topicFile,
+    });
+
+    expect(ntfy.received).toHaveLength(1);
+    // Trailing newline stripped, or the publish would 404 on a topic that has
+    // one character too many.
+    expect(ntfy.received[0]?.topic).toBe(TOPIC);
+    expect(result.log).toContain("SENT slack=ok ntfy=ok");
+
+    await slack.close();
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+});
+
+describe("the topic is a credential (LAC-5366)", () => {
+  // A public ntfy topic is world-readable and world-writable by anyone who
+  // knows the name, so the name is the secret. It lives in a 600 file and it
+  // must not leak into the log, which is world-readable on the flash, or into
+  // /tmp/fleet-dark-watch.err, which the cron line appends stderr to forever.
+
+  it("keeps the topic out of the log on a delivered page", async () => {
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+
+    const result = await poll(dir, {
+      now: T0 + 15 * 60,
+      url: DEAD_URL,
+      notify: true,
+      slackApi,
+      ntfyUrl,
+      ntfyTopic: TOPIC,
+    });
+
+    expect(ntfy.received).toHaveLength(1);
+    expect(result.log).not.toContain(TOPIC);
+    expect(result.stdout).not.toContain(TOPIC);
+    expect(result.stderr).not.toContain(TOPIC);
+
+    await slack.close();
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("keeps the topic out of stderr when ntfy rejects the publish", async () => {
+    // The branch that actually leaks. curl puts the URL it failed on into
+    // several of its own error strings, and the URL is the secret, so the
+    // failure path is the one that has to be scrubbed.
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    ntfy.reject();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+
+    const result = await poll(dir, {
+      now: T0 + 15 * 60,
+      url: DEAD_URL,
+      notify: true,
+      slackApi,
+      ntfyUrl,
+      ntfyTopic: TOPIC,
+    });
+
+    expect(result.stderr).toContain("ntfy rejected the message");
+    expect(result.stderr).toContain("<topic>");
+    expect(result.stderr).not.toContain(TOPIC);
+    expect(result.log).not.toContain(TOPIC);
+
+    await slack.close();
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("keeps the topic out of stderr when the whole host is unreachable", async () => {
+    // A dead port is curl exit 7, and its message is the one that carries a
+    // host and port. Belt and braces on the redaction, since this is the shape
+    // the real failure will take if ntfy.sh ever goes down.
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+
+    const result = await poll(dir, {
+      now: T0 + 15 * 60,
+      url: DEAD_URL,
+      notify: true,
+      slackApi,
+      // The harness default is a port nothing listens on.
+      ntfyTopic: TOPIC,
+    });
+
+    expect(result.stderr).toContain("ntfy rejected the message");
+    expect(result.stderr).not.toContain(TOPIC);
+    expect(result.log).not.toContain(TOPIC);
+
+    await slack.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("sends the message body on stdin, so no message can open a file", async () => {
+    // `--data-binary "$text"` reads a *file* when its argument starts with
+    // `@`, and a pager message is not a thing that should be able to open
+    // files. `@-` takes the body from stdin instead, which also leaves the
+    // payload with no escaping layer at all.
+    const script = await readFile(SCRIPT, "utf8");
+    const body = script.slice(script.indexOf("notify_ntfy() {"), script.indexOf("# Both channels"));
+    expect(body).toContain("--data-binary @-");
+    expect(body).not.toMatch(/--data(-binary)? "\$text"/);
+  });
+
+  it("builds both notifiers without jq, because jq is one of the missing things it reports", async () => {
+    // Widened for the second channel. jq is required to read the health body
+    // and must not be required to raise the alarm: "jq is missing" is one of
+    // the things this script has to be able to say, and a notifier that needs
+    // the missing tool to report the missing tool reports nothing.
+    const script = await readFile(SCRIPT, "utf8");
+    const notifiers = script.slice(
+      script.indexOf("notify_slack() {"),
+      script.indexOf("cannot_look()")
+    );
+    expect(notifiers).not.toContain("jq");
+  });
+});
+
+describe("the BLIP line said something impossible (LAC-5366)", () => {
+  // Shipped: "BLIP plane was unreachable for 15m and recovered before the 15m
+  // threshold" (2026-10-23T20:10:01). Fifteen minutes is not before fifteen
+  // minutes. Cosmetic, except it is the line a person reads at 3am.
+  //
+  // Neither number was wrong. They are measured at different moments. The page
+  // is decided at a *failing* poll; this duration runs to the recovery, which
+  // is up to one cron interval later. So a 15m outage that comes back on the
+  // next poll genuinely was dark for 15m and genuinely was never paged. What
+  // it beat was the next failing poll, not the threshold.
+
+  it("does not claim a 15m outage recovered before the 15m threshold", async () => {
+    const dir = await scratch();
+    // The real sequence: clock started at 19:55:01, 20:05 saw 10m and held,
+    // 20:10:01 found it back. Exactly 900 seconds, never paged.
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+    const result = await poll(dir, { now: T0 + 15 * 60 });
+
+    expect(result.code).toBe(0);
+    expect(result.log).toContain("BLIP plane was unreachable for 15m");
+    expect(result.log).not.toContain("recovered before the 15m threshold");
+    expect(result.log).toContain("before any poll caught it past the 15m threshold");
+    expect(result.log).toContain("so nobody was paged");
+    // Still only a log line. A recovery message for a blip teaches Lacy to
+    // ignore the next real one.
+    expect(result.stdout).not.toContain("Fleet is back");
+    expect(result.state).toBeNull();
+    await rm(dir, { recursive: true, force: true });
   });
 });
