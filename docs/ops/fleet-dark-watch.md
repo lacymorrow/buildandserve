@@ -206,6 +206,31 @@ Do Not Disturb:
 
 Step 3 is the one that matters. Without it this is a quieter Slack.
 
+## The Slack token is shared, so rotating it is a fleet operation
+
+Worth knowing before anyone treats `slack-token` here as local. `auth.test` on it
+returns bot `clawdbot` (`B0A7KQNB6SH`, user `U0A7P7VKM18`) in the `lacymorrow`
+workspace, and that same bot token is also:
+
+- in `~/.openclaw/openclaw.json` on zero, plus roughly ten `.bak*` copies
+  alongside it
+- referenced by `com.buildandserve.fleet-power-watch.plist` and
+  `com.buildandserve.store-watch-freshness.plist`
+
+So rotating it is **not** a one-line change to this watch. Minting a new bot
+token needs api.slack.com app admin, which is a browser login and therefore
+Lacy's to do, and every copy above has to be updated in the same pass or the
+sibling watches go silent, which is the exact failure mode this file exists to
+prevent. Order matters: mint the new token, write it everywhere, prove each
+consumer still posts, and only then revoke the old one. Revoking first takes
+every fleet notification down at once.
+
+Tracked separately rather than bundled into a feature PR, for that reason.
+
+The ntfy topic has none of this coupling: it is used by this script alone, it is
+generated on the host, and rotating it is two commands plus re-subscribing the
+phone.
+
 ## Run it by hand
 
 ```bash
