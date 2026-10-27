@@ -264,7 +264,7 @@ export const siteConfig: SiteConfig = {
     fullName: "Build And Serve",
     role: "Web and AI Development Agency",
     avatar: "/logo.png",
-    location: "San Francisco, CA",
+    location: "Charlotte, NC",
     bio: "We build websites and AI systems for companies, from local businesses to global enterprises.",
   },
 
