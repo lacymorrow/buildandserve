@@ -7,6 +7,7 @@
 #
 #   bootstrap                  swap, /data dirs, LE cert, renewal hook, pg_hba, container
 #   add-project <name>         one role + one database + one hostssl line, then reload
+#   add-preview <name>         the same for <name>_preview, the preview-deploy pair
 #   cert-deploy                install the current LE cert and reload postgres
 #   cert-check                 expiry, hostname and served-vs-disk drift. Silent when healthy
 #   verify                     report what is actually running
@@ -39,6 +40,18 @@ CERT_WARN_DAYS=${CERT_WARN_DAYS:-21}
 # uid/gid of the postgres user inside postgres:17-alpine
 PG_UID=70
 PG_GID=70
+# Per-role connection limits, decided on LAC-5969 after one warm Vercel instance
+# held all 10 connections of a project role, idle, and nothing else could connect
+# at all. A capped app pool is 3 (postgres-js) + 3 (node-postgres) per warm
+# instance, so 25 is roughly four warm instances with headroom. Preview deploys
+# are many and each one matters less: 5 lets a preview wedge itself without
+# reaching production.
+#
+# Eleven roles at these numbers overcommit max_connections=100 on purpose. A role
+# limit is a blast-radius cap, not a reservation; splitting 97 usable slots evenly
+# across eleven roles is 7 each, which wedges every app on the box instead of one.
+PROD_CONNLIMIT=${PROD_CONNLIMIT:-25}
+PREVIEW_CONNLIMIT=${PREVIEW_CONNLIMIT:-5}
 
 log() { printf '%s %s\n' "$(date -u +%H:%M:%SZ)" "$*"; }
 
@@ -356,11 +369,31 @@ ensure_container() {
 
 psql_super() { docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres "$@"; }
 
+# Raise-only, on purpose. Someone lifts a limit by hand when an app is wedged in
+# production; a re-run of this script must not quietly put it back and wedge the
+# app again. Lowering one is a deliberate act with the command in the runbook,
+# after that app's own pool is capped.
+set_conn_limit() {
+	local proj="$1" want="$2" have
+	have=$(psql_super -tAc "select rolconnlimit from pg_roles where rolname='$proj'")
+	if [[ "$have" == "$want" ]]; then
+		log "$proj: connection limit $have"
+	elif [[ "$have" == "-1" ]]; then
+		psql_super -q -c "ALTER ROLE \"$proj\" CONNECTION LIMIT $want"
+		log "$proj: connection limit unlimited -> $want"
+	elif ((have < want)); then
+		psql_super -q -c "ALTER ROLE \"$proj\" CONNECTION LIMIT $want"
+		log "$proj: connection limit $have -> $want"
+	else
+		log "$proj: connection limit $have is above the policy $want, left alone"
+	fi
+}
+
 # One role, one database, never shared. No SUPERUSER, CREATEDB or CREATEROLE.
-# CONNECTION LIMIT 10 is the part that matters on a shared box: without it one
+# The connection limit is the part that matters on a shared box: without it one
 # runaway app exhausts max_connections and takes every other project down.
 add_project() {
-	local proj="$1"
+	local proj="$1" connlimit="${2:-$PROD_CONNLIMIT}"
 	if [[ ! "$proj" =~ ^[a-z][a-z0-9_]{1,30}$ ]]; then
 		echo "project name must be lowercase [a-z][a-z0-9_]: got '$proj'" >&2
 		exit 1
@@ -384,7 +417,7 @@ add_project() {
 		log "$proj: role exists, leaving its password alone"
 	else
 		# Password travels on stdin, not argv, so it never lands in ps output.
-		printf "CREATE ROLE %s LOGIN PASSWORD '%s' CONNECTION LIMIT 10;\n" "\"$proj\"" "$pw" | psql_super -q
+		printf "CREATE ROLE %s LOGIN PASSWORD '%s' CONNECTION LIMIT %s;\n" "\"$proj\"" "$pw" "$connlimit" | psql_super -q
 		log "$proj: role created"
 	fi
 
@@ -395,9 +428,13 @@ add_project() {
 		log "$proj: database created"
 	fi
 
+	# Postgres grants CONNECT to PUBLIC on every new database, so without this
+	# revoke any project's credential can open any other project's database and
+	# read its table names. Rows stay private, the schema does not.
 	psql_super -q -c "REVOKE CONNECT ON DATABASE \"$proj\" FROM PUBLIC"
-	psql_super -q -c "ALTER ROLE \"$proj\" CONNECTION LIMIT 10"
+	psql_super -q -c "GRANT CONNECT ON DATABASE \"$proj\" TO \"$proj\""
 	psql_super -q -c "ALTER ROLE \"$proj\" NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
+	set_conn_limit "$proj" "$connlimit"
 
 	if grep -qE "^hostssl[[:space:]]+${proj}[[:space:]]+${proj}[[:space:]]" "$HBA"; then
 		log "$proj: hba line present"
@@ -452,7 +489,18 @@ bootstrap)
 	deploy_cert
 	;;
 add-project)
-	add_project "${2:?project name required}"
+	add_project "${2:?project name required}" "$PROD_CONNLIMIT"
+	;;
+add-preview)
+	# Every project on this box gets two databases, production and preview, with
+	# separate credentials: a preview deploy running a migration must not be able
+	# to reach production data.
+	preview_proj="${2:?project name required}"
+	if [[ "$preview_proj" == *_preview ]]; then
+		echo "pass the project name, not the preview name: add-preview ${preview_proj%_preview}" >&2
+		exit 1
+	fi
+	add_project "${preview_proj}_preview" "$PREVIEW_CONNLIMIT"
 	;;
 cert-deploy)
 	deploy_cert
@@ -464,7 +512,7 @@ verify)
 	verify
 	;;
 *)
-	echo "usage: $0 {bootstrap|add-project <name>|cert-deploy|cert-check|verify}" >&2
+	echo "usage: $0 {bootstrap|add-project <name>|add-preview <name>|cert-deploy|cert-check|verify}" >&2
 	exit 2
 	;;
 esac
