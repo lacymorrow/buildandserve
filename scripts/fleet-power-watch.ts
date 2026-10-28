@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 /**
- * Tells Lacy before the fleet goes dark (LAC-4574).
+ * Tells Lacy before the fleet goes dark (LAC-4574), on the channel that can
+ * still wake him (LAC-6137).
  *
  * Every agent run, every routine and every client-facing watch in this company
  * executes on one laptop. On 2026-10-16 that laptop slept at 1% battery:
@@ -24,8 +25,20 @@
  *    then nothing until the Mac is back on AC. A monitor that repeats itself
  *    every five minutes for an hour is a monitor nobody reads.
  *
+ * The second warning also goes to ntfy at priority 5, an iOS Critical Alert
+ * (LAC-6137). Slack alone was measured insufficient: on 2026-10-28 this watch
+ * DM'd at 11:27 (17%) and 11:52 (8%), both delivered, neither acted on, the Mac
+ * hibernated at 12:14, and the fleet lost 3h32m. The dark watch's Critical
+ * Alert fired at 12:30, sixteen minutes after a cable would still have helped.
+ * One buzz at 8% costs ten seconds; the same buzz at 12:30 costs three hours.
+ *
+ * Not the "louder battery warning" LAC-4874 rejected. That rejected repeating
+ * an ignored Slack message, and predates LAC-5366 building a channel that
+ * survives Do Not Disturb. The channel is the new fact.
+ *
  * Usage:
  *   bun scripts/fleet-power-watch.ts [--notify] [--state <path>]
+ *   bun scripts/fleet-power-watch.ts --self-test
  *
  * Exit codes: 0 = power is fine, 1 = running low, 2 = could not read the power
  * state. Silence means healthy, same contract as the store watch, its freshness
@@ -53,6 +66,24 @@ export const URGENT_PERCENT = 10;
 
 /** Checked low to high so the most urgent unsent warning is the one that goes. */
 const TIERS = [URGENT_PERCENT, WARN_PERCENT];
+
+export type Channel = "slack" | "ntfy";
+
+/**
+ * Which channels a tier is worth waking someone over.
+ *
+ * 20% is a heads-up: most of an hour of runway, where plugging in is a decision
+ * rather than a scramble. Spending a Critical Alert on that is how the Critical
+ * Alert gets switched off, the failure LAC-5366 exists to prevent.
+ *
+ * Below 10% the runway is fifteen to twenty-five minutes and missing it costs
+ * hours, so the phone buzzes through Do Not Disturb. AC is the only rearm, so
+ * that is at most one buzz per discharge, and a page that prevents the outage
+ * replaces the dark watch's two.
+ */
+export function channelsFor(tier: number): Channel[] {
+  return tier <= URGENT_PERCENT ? ["slack", "ntfy"] : ["slack"];
+}
 
 const DEFAULT_STATE_PATH = path.join(
   process.env.HOME ?? ".",
@@ -114,7 +145,12 @@ export interface PowerState {
 }
 
 export interface Decision {
-  alert: boolean;
+  /**
+   * The most urgent threshold crossed but not yet sent, or null for "say
+   * nothing". A number rather than a boolean because the number picks the
+   * channel: see `channelsFor`.
+   */
+  tier: number | null;
   /** Thresholds already spent on this discharge. Empty whenever on AC. */
   nextAlerted: number[];
 }
@@ -159,13 +195,16 @@ export function parsePmset(output: string): PowerState | null {
  * mid-discharge) spends both and sends one message, not two.
  */
 export function decide(state: PowerState, alerted: number[]): Decision {
-  if (state.onAC || !state.hasBattery) return { alert: false, nextAlerted: [] };
+  if (state.onAC || !state.hasBattery) return { tier: null, nextAlerted: [] };
 
   const crossed = TIERS.filter((tier) => state.percent < tier);
   const unspent = crossed.filter((tier) => !alerted.includes(tier));
   const nextAlerted = [...new Set([...alerted, ...crossed])].sort((a, b) => b - a);
 
-  return { alert: unspent.length > 0, nextAlerted };
+  // TIERS is ordered most-urgent-first, so the first unspent entry is the one
+  // that decides the channel. A Mac first seen at 6% has both tiers unspent and
+  // gets one message at the urgent weight, not two messages a second apart.
+  return { tier: unspent[0] ?? null, nextAlerted };
 }
 
 /** pmset's estimate in the units a person would say it in. */
@@ -240,8 +279,171 @@ async function slackDm(text: string): Promise<string | null> {
   }
 }
 
+// --- the channel that survives Do Not Disturb (LAC-6137) -------------------
+//
+// The same topic and the same priority `fleet-dark-watch.sh` pages on, by
+// design: one subscription on Lacy's phone, one Critical Alert setting to keep
+// switched on, and one thing to re-test. Two topics would be two chances for
+// the pre-mortem to be the one he forgot to allow through Do Not Disturb.
+//
+// Sharing it does couple the two watches, and the dark watch's runbook used to
+// say rotating the topic was local to it. That is no longer true and is
+// corrected there: a rotation is now two hosts plus the phone.
+const NTFY_BASE_URL = process.env.POWER_WATCH_NTFY_URL ?? "https://ntfy.sh";
+
+/**
+ * 5 is ntfy's maximum, and the only value its iOS app maps to a Critical Alert
+ * and its Android app to a Do Not Disturb bypass. Anything lower makes this a
+ * quieter Slack, which is the thing already measured as not working.
+ */
+const NTFY_PRIORITY = process.env.POWER_WATCH_NTFY_PRIORITY ?? "5";
+
+/**
+ * The topic IS the credential: a public ntfy topic is world-readable and
+ * world-writable by whoever knows the name, and it travels in the URL. Hence a
+ * 0600 file rather than this repo or the plist, and hence `redactTopic` on
+ * everything printed about ntfy, because fetch puts the URL it failed on into
+ * its own error text.
+ */
+const DEFAULT_NTFY_TOPIC_FILE = path.join(process.env.HOME ?? ".", ".paperclip", "ntfy-topic");
+
+/**
+ * A no-op while the topic is unset. An empty needle would otherwise splice the
+ * placeholder between every character of the message.
+ */
+export function redactTopic(text: string, topic: string): string {
+  return topic ? text.split(topic).join("<topic>") : text;
+}
+
+async function resolveNtfyTopic(): Promise<string> {
+  const inline = process.env.POWER_WATCH_NTFY_TOPIC;
+  if (inline) return inline.trim();
+  const file = process.env.POWER_WATCH_NTFY_TOPIC_FILE ?? DEFAULT_NTFY_TOPIC_FILE;
+  return (await readFile(file, "utf8").catch(() => "")).trim();
+}
+
+/**
+ * The lock-screen glance, which is all Lacy reads before picking the phone up.
+ *
+ * The action, then the number. The dark watch's titles say `Fleet is dark` and
+ * `Fleet is back`; this one must not be confusable with either, because those
+ * two mean the hours are already lost and this one means they are not yet. The
+ * number rides along so one glance answers "how long have I got".
+ */
+export function ntfyTitle(state: PowerState): string {
+  return `Plug the Mac in (${state.percent}%)`;
+}
+
+/**
+ * Push one line to ntfy at Critical Alert priority. Returns the error rather
+ * than throwing, same contract as `slackDm`.
+ *
+ * A header value cannot carry a newline: either half of one ends the header
+ * early and the rest becomes a forged header. Flattened for that reason, even
+ * though today's titles are generated.
+ */
+async function ntfyPush(text: string, title: string): Promise<string | null> {
+  const topic = await resolveNtfyTopic();
+  if (!topic) {
+    return `no ntfy topic: set POWER_WATCH_NTFY_TOPIC or put one in ${DEFAULT_NTFY_TOPIC_FILE}`;
+  }
+  const flatten = (value: string) => value.replace(/[\u0000-\u001f\u007f]/g, " ");
+  try {
+    const res = await fetch(`${NTFY_BASE_URL}/${topic}`, {
+      method: "POST",
+      headers: {
+        Title: flatten(title),
+        Priority: flatten(NTFY_PRIORITY),
+        Tags: "electric_plug",
+      },
+      body: text,
+    });
+    if (res.ok) return null;
+    return redactTopic(`ntfy rejected the message: http=${res.status}`, topic);
+  } catch (error) {
+    return redactTopic(`ntfy push failed: ${(error as Error).message}`, topic);
+  }
+}
+
+export interface NotifyResult {
+  /** True when at least one channel accepted it. See the comment below. */
+  delivered: boolean;
+  /** `slack=ok ntfy=failed`, for the one log line that shows a half-delivery. */
+  summary: string;
+  errors: string[];
+}
+
+/** Returns the failure, or null when the channel accepted the message. */
+export type Sender = (text: string, title: string) => Promise<string | null>;
+
+const SENDERS: Record<Channel, Sender> = { slack: slackDm, ntfy: ntfyPush };
+
+/**
+ * Every channel the tier is worth, one message, one event.
+ *
+ * Delivered means **at least one** channel accepted it, and that spends the
+ * tier. The dark watch settled this first: requiring every channel re-pages the
+ * phone every five minutes for the whole discharge whenever Slack is the broken
+ * half, the exact muted-channel failure this file exists to avoid causing.
+ * Requiring none records a warning as sent that nobody received.
+ *
+ * The cost is small and visible: Slack down plus ntfy up means that tier's
+ * Slack copy never arrives. The phone buzzed, which is the half that matters,
+ * and `SENT slack=failed ntfy=ok` in the log says so.
+ *
+ * `senders` is injected so this rule can be tested for what it is — the thing
+ * standing between one buzz and a buzz every five minutes for three hours —
+ * without a network or a real phone.
+ */
+export async function notify(
+  text: string,
+  title: string,
+  channels: Channel[],
+  senders: Record<Channel, Sender> = SENDERS
+): Promise<NotifyResult> {
+  const errors: string[] = [];
+  const parts: string[] = [];
+  for (const channel of channels) {
+    const failure = await senders[channel](text, title);
+    if (failure) errors.push(failure);
+    parts.push(`${channel}=${failure ? "failed" : "ok"}`);
+  }
+  return {
+    delivered: parts.some((part) => part.endsWith("=ok")),
+    summary: parts.join(" "),
+    errors,
+  };
+}
+
+/**
+ * Prove the pager still reaches the phone, without waiting for a discharge.
+ *
+ * A successful publish means ntfy.sh accepted the message, not that iOS
+ * delivered it or that Critical Alerts are still on, and nothing here can prove
+ * those. The only way to find out is to send a real one and ask whether it
+ * buzzed, which is the last gate on LAC-6137. Worth re-running after an iOS
+ * update or a phone change.
+ *
+ * Says it is a test in its own first words, so a stray self-test can never be
+ * mistaken for the outage it is practising for.
+ */
+const SELF_TEST_TITLE = "Power watch self-test";
+const SELF_TEST_TEXT =
+  "Fleet power watch self-test from zero. Nothing is wrong and nothing is down. " +
+  "This is the Critical Alert you get at 10% battery, while plugging in still " +
+  "costs ten seconds instead of three hours. If this did not buzz through Do Not " +
+  "Disturb, the pager is off and the next outage goes unnoticed.";
+
 async function main() {
   const argv = process.argv.slice(2);
+
+  if (argv.includes("--self-test")) {
+    const result = await notify(SELF_TEST_TEXT, SELF_TEST_TITLE, ["slack", "ntfy"]);
+    say(`SELF-TEST ${result.summary}`);
+    for (const error of result.errors) fail(error);
+    process.exit(result.delivered ? 0 : 2);
+  }
+
   const i = argv.indexOf("--state");
   const stateArg = i >= 0 ? argv[i + 1] : undefined;
   const statePath = stateArg ? path.resolve(stateArg) : DEFAULT_STATE_PATH;
@@ -279,12 +481,16 @@ async function main() {
   // does not.
   say(formatAlert(state));
 
-  if (decision.alert && argv.includes("--notify")) {
-    const failure = await slackDm(formatAlert(state));
-    if (failure) fail(failure);
-    // Written only on a delivered DM, so a Slack outage retries in five minutes
-    // instead of silently spending the one warning this discharge was owed.
-    else await writeAlerted(statePath, decision.nextAlerted);
+  if (decision.tier !== null && argv.includes("--notify")) {
+    const result = await notify(formatAlert(state), ntfyTitle(state), channelsFor(decision.tier));
+    // The one line that shows a half-delivered warning. Without it the working
+    // channel looks like the only channel and a dead pager stays invisible.
+    say(`SENT at ${decision.tier}% ${result.summary}`);
+    for (const error of result.errors) fail(error);
+    // Written only on a delivered warning, so an outage in the notifier retries
+    // in five minutes instead of silently spending the one warning this
+    // discharge was owed.
+    if (result.delivered) await writeAlerted(statePath, decision.nextAlerted);
   }
 
   process.exit(1);
