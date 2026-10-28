@@ -807,9 +807,11 @@ thing that would stop anyone believing it the second time.
 | `SSL_CERT_FILE=/dev/null`, i.e. no roots | filed as this host's trust store, not as the box               |
 
 The `projects-db-public` card classifies all seven, because they have different
-owners and nobody reading one card at 2am should have to rediscover which. The
-`:26433` row was measured before LAC-6076; PgBouncer listens there now, and the
-dial still times out only because the Hetzner firewall does not open that port.
+owners and nobody reading one card at 2am should have to rediscover which.
+`fleet-health/test/lac6096-projects-db-public-test.sh` is the harness; the
+messages in it are these measured ones and not invented. The `:26433` row was
+measured before LAC-6076; PgBouncer listens there now, and the dial still times
+out only because the Hetzner firewall does not open that port.
 
 #### This card does not cover the pooled port
 
@@ -821,9 +823,7 @@ It cannot be widened by changing a port number either. PgBouncer terminates TLS,
 so `clientcert=verify-full` does not reach through it and the pooled path is
 cert-only with a different TLS stack, a different CA setting and a different set
 of failure strings (see "PgBouncer terminates TLS" below). A sixth arm is a
-ticket, not an edit, and it is owed before `:26433` opens rather than after.
-`fleet-health/test/lac6096-projects-db-public-test.sh` is the harness; the
-messages in it are these measured ones and not invented.
+ticket, not an edit: LAC-6132, owed before `:26433` opens rather than after.
 
 #### Expiry
 
