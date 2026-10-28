@@ -3,11 +3,13 @@
 Self-hosted Postgres for project databases, so projects stop burning Neon compute
 hours. Built by LAC-5979 under LAC-5969, certificate verification added by
 LAC-6054, taken off the public port for everything but Vercel by LAC-6059,
-client-certificate auth added by LAC-6060.
+client-certificate auth added by LAC-6060, a transaction pooler put in front of
+it by LAC-6076.
 
 |           |                                                                                        |
 | --------- | -------------------------------------------------------------------------------------- |
 | Host      | `projects-db.cloud0.dev:26432` → `128.140.50.130` (bas box, Hetzner cx33, Falkenstein) |
+| Pooled    | `projects-db.cloud0.dev:26433`, PgBouncer, transaction mode (LAC-6076)                 |
 | Container | `projects-db`, `postgres:17-alpine`, `--restart unless-stopped`, 1 GB cap              |
 | Data      | `/data/projects-db/data` (bind mount, plain directory on `/`)                          |
 | Config    | `/data/projects-db/conf` → `/pgconf:ro` (cert, key, `pg_hba.conf`)                     |
@@ -15,6 +17,7 @@ client-certificate auth added by LAC-6060.
 | Cert      | Let's Encrypt on `projects-db.cloud0.dev`, renewed by `certbot.timer`                  |
 | Client CA | private, `/data/projects-db/ca`, 10-year root, `CN` = role name (LAC-6060)             |
 | Script    | `scripts/bas-projects-db.sh`, installed at `/usr/local/sbin/bas-projects-db.sh`        |
+| Pooler    | `scripts/bas-pgbouncer.sh`, installed at `/usr/local/sbin/bas-pgbouncer.sh`            |
 | Watch     | `scripts/bas-projects-db-watch.sh` on zero, hourly, silent when healthy                |
 | Checks    | served cert, client-cert expiry, auth failures from off-tailnet, secret file modes     |
 | Secrets   | zero, `~/.paperclip/secrets/<project>-db.env`, mode 600                                |
@@ -100,6 +103,11 @@ postgresql://<role>:<pw>@projects-db.cloud0.dev:26432/<db>?sslmode=verify-full
 
 That string is what the secret files hold and what every app uses. No per-driver
 spelling, no code change, nothing to remember.
+
+A project moved onto the pooler is the one exception: it carries a second URL on
+port 26433 for the app and keeps this one as `DATABASE_URL_UNPOOLED` for
+migrations. See "The pooled port, and what it costs". Nothing about the spelling
+changes, only the port.
 
 `verify-full` means the client checks that the server's certificate chains to a
 trusted root **and** that it names the host being connected to. Without it, TLS
@@ -1336,6 +1344,247 @@ curl -X POST -H "Authorization: Bearer $(cat ~/.paperclip/secrets/hetzner-cloud-
   -H 'Content-Type: application/json' -d '{"delete":false,"rebuild":false}' \
   https://api.hetzner.cloud/v1/servers/169986608/actions/change_protection
 ```
+
+## The pooled port, and what it costs
+
+LAC-6076. `projects-db.cloud0.dev:26433` is PgBouncer in transaction pooling
+mode. It exists so the number of *server* connections stops depending on how
+many instances Vercel happens to warm.
+
+|            |                                                                                 |
+| ---------- | ------------------------------------------------------------------------------- |
+| Pooled     | `projects-db.cloud0.dev:26433` → `DATABASE_URL`, the app                        |
+| Direct     | `projects-db.cloud0.dev:26432` → `DATABASE_URL_UNPOOLED`, migrations and ops    |
+| Container  | `projects-db-pooler`, `edoburu/pgbouncer` pinned by digest, PgBouncer 1.26.1    |
+| Network    | `projects-db-pool`, private bridge, Postgres pinned at `172.31.0.2`             |
+| Auth       | client certificate only: chain against the private CA, `CN` bound to the role   |
+| Script     | `scripts/bas-pgbouncer.sh`, installed at `/usr/local/sbin/bas-pgbouncer.sh`     |
+| Secrets    | `/data/pgbouncer/secret/userlist.txt`, **plaintext role passwords**, `600 70:70` |
+| Firewall   | `tcp/26433` is **not** open at the Hetzner firewall yet (see "Opening the port") |
+
+Measured on 2026-10-28 against `gracefully_imagined_preview`, 12 concurrent
+clients each running a short-transaction loop, identical traffic both ways:
+
+| Same 12 clients        | Direct `:26432`               | Pooled `:26433`      |
+| ---------------------- | ----------------------------- | -------------------- |
+| clients served         | 4 of 12                       | **12 of 12**         |
+| the other 8            | `too many connections for role` | queued, then served |
+| `pg_stat_activity`     | 5, all **idle**               | **3, all active**    |
+
+That is the whole ticket in one table. The direct port does not run out of
+capacity, it runs out of *slots held idle by instances that are not using them*.
+
+### PgBouncer terminates TLS, and that nearly removed LAC-6060 silently
+
+This is the part to read before changing any TLS or auth setting.
+
+Postgres never sees the app's client certificate through the pooler, so
+`clientcert=verify-full` does not reach through it. **Two** PgBouncer settings
+replace it and both are required:
+
+```ini
+client_tls_sslmode = verify-full   # proves the cert chains to the private CA
+auth_type = hba                    # + method `cert` per line: binds CN to the role
+```
+
+The ticket proposed `client_tls_sslmode=verify-full` plus `client_tls_ca_file`
+and called that sufficient. **It is not, and the gap is invisible.** PgBouncer's
+`verify-full` is documented as "Same as verify-ca": it checks the chain and never
+looks at the common name. On its own it accepts *any* certificate this CA ever
+issued for *any* role, so a `shipkit_www` certificate would open `keepsake`.
+Only the `cert` method in `auth_hba_file` takes the user name from the CN.
+
+The reverse is also true: a `cert` line without `client_tls_sslmode` at
+`verify-ca` or above accepts any self-signed certificate claiming any CN,
+because at `require` and below "if the client presents a client certificate, it
+is not validated".
+
+There is no PgBouncer configuration that reproduces Postgres's
+`scram-sha-256 clientcert=verify-full`, which demands a certificate **and** a
+password. `clientcert=` is not a PgBouncer setting, and its HBA parser rejects
+any option it does not handle outright (`unsupported parameters`, `src/hba.c`).
+So the pooled path is cert-only, single-factor, by necessity rather than choice.
+
+Measured 2026-10-28 from zero over the tailnet, all four:
+
+| Attempt at `:26433`                                   | Result                                       |
+| ----------------------------------------------------- | -------------------------------------------- |
+| `gracefully_imagined_preview` cert, matching role      | connects, `inet_server_port` = 5432          |
+| no client certificate at all                           | `SSL error: tlsv13 alert certificate required` |
+| `keepsake` cert presented for the preview role         | `FATAL: certificate authentication failed`   |
+| preview cert asking for the `keepsake` database        | `FATAL: no authentication method is found`   |
+
+The second one is refused during the TLS handshake, before a password is ever
+read. The third is the LAC-6060 guarantee surviving the hop.
+
+**What is genuinely weaker than the direct port.** A leaked certificate *and*
+private key, with no password, now opens that database; on `:26432` it would
+still be refused. The threat LAC-6060 was built for still fails closed, because
+that one (LAC-6032) is a leaked *password*, and a password alone opens nothing
+on either port. In practice both halves live in the same Vercel environment and
+leak together, which is why this was judged an acceptable trade rather than a
+free one.
+
+### The pooler holds plaintext passwords, which is new
+
+`/data/pgbouncer/secret/userlist.txt`, mode `600`, owner `70:70`, in a `700`
+directory, outside every mount Postgres can see.
+
+It cannot be avoided. PgBouncer still has to open the server connection itself,
+and it can only reuse a stored SCRAM secret for that if the *client* also
+authenticated with SCRAM. With client auth set to `cert`, it cannot, so a
+plaintext password is the only thing that works.
+
+The marginal exposure is smaller than it first reads: root on this box already
+reaches every database with no password at all through the `local all all trust`
+line, by way of `docker exec`. What this file adds is a credential that works
+*from somewhere else*. Treat it as equivalent to the whole box.
+
+The pooler holds **one** certificate globally, so it could never satisfy
+`clientcert=verify-full` for more than a single role no matter how it were
+configured. That is why `pg_hba.conf` gets a pooler line ahead of the
+internet-facing one:
+
+```
+hostssl p p 172.31.0.0/24   scram-sha-256                        <- the pooler
+hostssl p p 100.64.0.0/10   scram-sha-256                        <- ops
+hostssl p p all             scram-sha-256 clientcert=verify-full <- the internet
+```
+
+`172.31.0.0/24` is a private Docker bridge with no route in from anywhere, so
+that line is reachable only by a container this box's root attached to it.
+
+### What breaks in transaction mode
+
+A server connection goes back to the pool when the **transaction** ends, so
+anything that outlives a transaction is gone. Put it on `:26432`:
+
+- **drizzle migrations.** `drizzle-kit` takes an advisory lock to serialise
+  concurrent migrators. An advisory lock is session state, so under transaction
+  pooling it can be taken on one server connection and released from another, or
+  never actually held while every individual run still reports success.
+- **`LISTEN` / `NOTIFY`.** The listener is attached to a server connection that
+  is handed to someone else between statements.
+- **advisory locks** generally, for the same reason.
+- **`SET` meant to outlive a statement**, including `SET ROLE`.
+- **SQL-level `PREPARE` / `EXECUTE` / `DEALLOCATE`.** PgBouncer tracks
+  *protocol-level* prepared statements and explicitly does not track these.
+
+`search_path` is deliberately **not** in `ignore_startup_parameters`. A silently
+dropped `search_path` under transaction pooling means queries landing in the
+wrong schema on a connection that looks healthy; failing loudly with
+"unsupported startup parameter" is the better outcome. Add to that list one
+parameter at a time, after deciding what it does when a connection is reused.
+This repo is safe either way: `DB_PREFIX` is a table-name prefix, not a schema.
+
+### `prepare: false`, and why the usual reason for it is out of date
+
+The repo side is `src/server/db/pooling.ts`, with tests at
+`tests/unit/server/db/pooling.test.ts`. It detects a pooled URL and spreads
+`prepare: false` into the postgres-js options; `drizzle.config.ts` takes
+`migrationDatabaseUrl()` so migrations go to the direct port on their own.
+
+The reason normally given is that transaction pooling and named prepared
+statements cannot coexist. **That has not been true since PgBouncer 1.21.**
+`max_prepared_statements` defaults to 200, and the pooler transparently
+re-prepares a statement on whichever server connection the next transaction
+lands on. Measured against this pooler: 24 concurrent queries succeed with and
+without the option, and so does a statement whose result type changes under it.
+
+It stays on anyway, because it removes any dependence on PgBouncer inspecting
+and rewriting our queries, which is where its own documented failure modes live:
+`cached plan must not change result type`, and needing a console `RECONNECT`
+after a schema migration. A serverless connection is too short-lived to amortise
+a cached plan, so this gives up almost nothing. It is reversible.
+
+**Node's `pg` needs no equivalent.** It sends unnamed statements unless a query
+is given a `name`, so there is nothing to turn off. Payload's pool is dangerous
+here for the other reason entirely: it defaults to `max: 10` and must be capped.
+
+### Two traps worth more than the rest of this section
+
+**`sslrootcert=system` in a `DATABASE_URL` makes `drizzle-kit` silently apply
+nothing.** Measured twice from the same starting state: with it in the URL the
+migration does not run, no table is created, and **no error is printed**;
+without it the same migration applies. `pg` does not understand the libpq
+spelling and drizzle-kit swallows the connection failure. The secret files tell
+you to pass `sslrootcert=system` to `psql`, where it is required and correct.
+Never copy it into a URL a Node driver will read.
+
+**`pg` and postgres-js ignore `PGHOSTADDR`.** A measurement aimed at the tailnet
+with that variable set goes to the public IP instead and times out on a
+firewalled port, which reads exactly like a broken pooler. Pin the name with
+`ssl: { servername: "projects-db.cloud0.dev" }` and put the tailnet host in the
+URL, or use `psql`, which does honour it.
+
+### Opening the port
+
+`tcp/26433` is **closed at the Hetzner firewall** (`bas-automation`, id
+11789519). Everything above was measured over the tailnet. Vercel egress has no
+fixed IP range, so cutting an app over means opening it to `0.0.0.0/0`, which is
+the same decision LAC-6056 already made for `:26432` — and it is left for the
+security gate rather than taken in advance, because an open port is the one part
+of this that cannot be rolled back by editing a file.
+
+### Rolling one project over
+
+Preview first, never production first, one at a time.
+
+```bash
+PROJ=gracefully_imagined_preview
+# 1. The pooler needs the role's password to open server connections.
+#    Read from stdin; never an argument.
+grep '^DATABASE_URL=' ~/.paperclip/secrets/${PROJ//_/-}-db.env \
+  | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|' \
+  | ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-pgbouncer.sh add-project $PROJ"
+
+# 2. If the project is already at clientcert=verify-full, re-run this once. It
+#    rewrites the hba trio and adds the pooler line, which a project flipped
+#    before LAC-6076 does not have.
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projects-db.sh require-client-cert $PROJ"
+
+# 3. In Vercel: DATABASE_URL to port 26433, DATABASE_URL_UNPOOLED to 26432.
+#    Keep the client cert variables exactly as they are.
+# 4. Redeploy and check the app AND the CMS route, then:
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-pgbouncer.sh pools"
+```
+
+`add-project` refuses a pool larger than the role's `CONNECTION LIMIT`, which is
+the trap that otherwise bites later: a pool of 10 against a preview role limited
+to 5 does not fail at configuration time, it fails as the pooler trying to open a
+connection the role is not allowed to have. Production gets `pool_size=10
+reserve_pool=5` against a limit of 25; preview gets `3` and `2` against 5.
+
+**The rollback lever.** Point `DATABASE_URL` back at `:26432` and redeploy; the
+direct port was never changed. To take the project off the pooler entirely:
+
+```bash
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-pgbouncer.sh drop-project $PROJ"
+```
+
+### Looking at it
+
+```bash
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-pgbouncer.sh verify"
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-pgbouncer.sh pools"
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-pgbouncer.sh console 'SHOW SERVERS'"
+```
+
+In `SHOW POOLS`, `cl_active` and `cl_waiting` are app connections and are
+expected to exceed `sv_active`; that gap is the point. A persistently high
+`maxwait` means `pool_size` is below real concurrency, which is a tuning
+problem, not a pooling one. The admin console is a unix socket in a `700`
+directory reached through a throwaway `psql` container, so it is root-on-the-box
+only and there is no pooler admin credential stored anywhere.
+
+### Still to do on the pooler
+
+Nothing watches it. `scripts/bas-projects-db-watch.sh` runs hourly from zero and
+checks certificates and auth failures on `:26432`; it does not know `:26433`
+exists. A pooler that has stopped answering looks exactly like a dead site, and
+the certbot deploy hook reloads Postgres but **does not reload the pooler**, so
+PgBouncer keeps serving the old certificate until something restarts it. Both
+belong with LAC-5980, and the second one is the more urgent of the two.
 
 ## Not done yet
 
