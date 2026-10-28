@@ -561,11 +561,11 @@ creates role and database `gracefully_imagined_preview`.
 
 ## Connection limits
 
-| Role          | Limit | Why                                                      |
-| ------------- | ----- | -------------------------------------------------------- |
-| production    | 25    | about four warm Vercel instances with a capped app pool   |
-| preview       | 5     | a preview can wedge itself without reaching production    |
-| `max_connections` | 100 | 97 usable, 3 reserved for the superuser                 |
+| Role              | Limit | Why                                                     |
+| ----------------- | ----- | ------------------------------------------------------- |
+| production        | 25    | about four warm Vercel instances with a capped app pool |
+| preview           | 5     | a preview can wedge itself without reaching production  |
+| `max_connections` | 100   | 97 usable, 3 reserved for the superuser                 |
 
 Decided on LAC-5969 on 2026-10-28, after one warm Vercel instance held all 10
 connections of `gracefully_imagined`, idle, and nothing else could connect at
