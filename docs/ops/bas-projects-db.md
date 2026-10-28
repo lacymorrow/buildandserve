@@ -548,7 +548,7 @@ so each project gets a second role and database with its own credential:
 
 ```bash
 PW=$(openssl rand -hex 24)
-printf '%s\n' "$PW" | ssh root@128.140.50.130 "/usr/local/sbin/bas-projects-db.sh add-preview $PROJ"
+printf '%s\n' "$PW" | ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projects-db.sh add-preview $PROJ"
 
 umask 077
 cat > ~/.paperclip/secrets/${PROJ//_/-}-preview-db.env <<EOF
@@ -589,7 +589,7 @@ of the script must not quietly put it back. Lower one deliberately, after that
 app's pool cap is deployed:
 
 ```bash
-ssh root@128.140.50.130 docker exec -i projects-db \
+ssh root@bas.hyrax-boga.ts.net docker exec -i projects-db \
   psql -U postgres -c 'ALTER ROLE gracefully_imagined CONNECTION LIMIT 25'
 ```
 
