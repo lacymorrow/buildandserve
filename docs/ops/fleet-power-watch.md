@@ -3,8 +3,10 @@
 One job: tell Lacy before the laptop sleeps and takes the whole fleet with it.
 
 `scripts/fleet-power-watch.ts`, run by launchd every 5 minutes, reads
-`pmset -g batt` and Slack-DMs one line when the Mac is on battery and getting
-low. Once below 20%, once below 10%, nothing more until it is back on AC.
+`pmset -g batt` and sends one line when the Mac is on battery and getting low.
+Once below 20%, once below 10%, nothing more until it is back on AC. The 20%
+heads-up is a Slack DM. The 10% warning is a Slack DM **and** a Critical Alert
+on Lacy's phone, because a Slack DM alone was measured insufficient (LAC-6137).
 
 ## Why it exists (LAC-4574)
 
@@ -48,16 +50,64 @@ is normal for a minute or two after unplugging.
 | Battery | On battery | Sent                                |
 | ------- | ---------- | ----------------------------------- |
 | 21%     | yes        | nothing                             |
-| 18%     | yes        | first DM                            |
+| 18%     | yes        | Slack                               |
 | 14%     | yes        | nothing                             |
-| 8%      | yes        | second DM                           |
+| 8%      | yes        | Slack + phone                       |
 | 3%      | yes        | nothing                             |
 | any     | plugged in | nothing, and the two warnings rearm |
 
 AC is the only thing that rearms it, so a long discharge produces two messages
 rather than twenty. Crossing both thresholds between two checks (the Mac was
 asleep, or this was installed mid-discharge) spends both and sends one message,
-not two.
+at the urgent weight: a Mac first seen at 6% pages the phone rather than quietly
+DMing Slack.
+
+A warning counts as spent when **at least one** channel accepted it. Requiring
+both would re-page the phone every five minutes for the whole discharge whenever
+Slack is the broken half, which is how a Critical Alert gets switched off.
+Requiring neither would record a warning nobody received. The cost is visible in
+the log: `SENT at 10% slack=failed ntfy=ok` says that tier's Slack copy never
+arrived and the phone buzzed anyway.
+
+## Why the second warning goes to the phone (LAC-6137)
+
+On 2026-10-28 this watch DM'd at 11:27 (17%) and 11:52 (8%). Both were
+delivered, neither was acted on, the Mac hibernated at 12:14 at 1%, and the
+fleet lost 3h32m. The dark watch's Critical Alert fired at 12:30, sixteen
+minutes after a cable would still have helped. One buzz at 8% costs ten seconds;
+the same buzz at 12:30 costs three hours.
+
+This is not the "louder battery warning" LAC-4874 rejected. That rejected
+repeating an ignored Slack message, and it predates
+[the dark watch](./fleet-dark-watch.md) building a channel that survives Do Not
+Disturb. The channel is the new fact.
+
+The phone leg is ntfy at priority 5, the only value its iOS app maps to a
+Critical Alert, on the **same topic and priority the dark watch pages on**. One
+subscription on the phone, one Critical Alert setting to keep switched on, one
+thing to re-test. Two topics would be two chances for the pre-mortem to be the
+one he forgot to allow through Do Not Disturb.
+
+The topic is the credential: a public ntfy topic is world-readable and
+world-writable by whoever knows the name, and it travels in the URL. It lives in
+`~/.paperclip/ntfy-topic` at 0600, never in this repo and never in the plist,
+and everything this script prints about ntfy is scrubbed first, because `fetch`
+puts the URL it failed on into its own error text. Rotating it is now a
+two-host operation: see
+[the dark watch runbook](./fleet-dark-watch.md#the-slack-token-is-shared-so-rotating-it-is-a-fleet-operation).
+
+No topic means the phone leg is simply off and Slack still works. That is the
+right failure direction, but it is silent, so it is worth re-proving:
+
+```bash
+bun scripts/fleet-power-watch.ts --self-test
+```
+
+That sends a real message on both channels, labelled as a test in its own first
+words. A `slack=ok ntfy=ok` proves ntfy.sh accepted it, **not** that iOS
+delivered it or that Critical Alerts are still on. The only way to learn that is
+to ask whether the phone buzzed, which is the last gate on LAC-6137. Worth
+re-running after an iOS update or a phone change.
 
 A machine with no battery reports as permanently fine, so the same file is safe
 on the Hetzner box (LAC-4279).
@@ -65,9 +115,10 @@ on the Hetzner box (LAC-4279).
 ## Run it by hand
 
 ```bash
-bun scripts/fleet-power-watch.ts                    # print, do not DM
-bun scripts/fleet-power-watch.ts --notify            # print and DM
+bun scripts/fleet-power-watch.ts                     # print, send nothing
+bun scripts/fleet-power-watch.ts --notify            # print and send for real
 bun scripts/fleet-power-watch.ts --state /tmp/p.json # scratch state
+bun scripts/fleet-power-watch.ts --self-test         # prove both channels now
 ```
 
 Exit codes: `0` power is fine, `1` running low, `2` could not read the power
@@ -76,7 +127,12 @@ warning. Silence on AC is the designed output, same contract as
 [the store watch](./doug-store-watch.md), its freshness check and
 [the stranded-work watch](./paperclip-stranded-watch.md).
 
-Needs `POWER_WATCH_SLACK_TOKEN` and `POWER_WATCH_SLACK_CHANNEL` to DM.
+Needs `POWER_WATCH_SLACK_TOKEN` and `POWER_WATCH_SLACK_CHANNEL` to DM. The phone
+leg needs a topic in `~/.paperclip/ntfy-topic`, which the dark watch already
+puts there; `POWER_WATCH_NTFY_TOPIC`, `POWER_WATCH_NTFY_TOPIC_FILE`,
+`POWER_WATCH_NTFY_URL` and `POWER_WATCH_NTFY_PRIORITY` override it, for a
+self-hosted ntfy or a rotation. The plist sets none of them: the defaults are
+the production values, so adding the phone leg needed no plist change.
 
 ## Schedule
 
@@ -144,8 +200,10 @@ and its plist go.
   closed on AC, a reboot, Wi-Fi dropping. Those are invisible to this file, and
   are now caught after the fact by [the fleet dark watch](./fleet-dark-watch.md),
   which runs on `library` and so survives the Mac dying.
-- It is a pre-mortem, and it only works if someone acts on it. This log holds
-  four discharge cycles down to 2-7%, every one a delivered DM and every one
-  ignored (LAC-4874). The dark watch is the half that does not depend on that.
+- It is a pre-mortem, and it only works if someone acts on it. Slack alone did
+  not get acted on: seven discharge cycles down to 1-7%, every warning
+  delivered and every one ignored (LAC-4874, then LAC-6137's 3h32m). The 10%
+  Critical Alert is the answer to that, and it still assumes the phone is on,
+  charged and in reach. The dark watch is the half that depends on none of it.
 - `pmset`'s time estimate is its own guess and swings under changing load. The
   percentage is the number to trust.
