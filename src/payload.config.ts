@@ -14,6 +14,7 @@ import sharp from "sharp";
 
 import { RESEND_FROM_EMAIL } from "@/config/constants";
 import { buildTimeFeatures } from "@/config/features-config";
+import { nodePostgresConnection } from "@/server/db/client-tls";
 import { siteConfig } from "./config/site-config";
 // Import components using path strings for Payload 3.0
 // We'll use component paths instead of direct imports
@@ -87,9 +88,12 @@ const config = {
   // This allows us to use the same database for Payload and the application, payload will use a different schema.
   db: postgresAdapter({
     schemaName: dbSchemaName,
-    pool: {
-      connectionString: process.env.DATABASE_URL,
-    },
+    // Payload's adapter is `pg`, and `pg` needs the client certificate handed
+    // to it differently from postgres-js (LAC-6060). Wiring it here rather than
+    // only in the Drizzle client matters: both read the same DATABASE_URL, so a
+    // database that requires a client certificate would otherwise serve the app
+    // and lose the CMS. See src/server/db/client-tls.ts.
+    pool: nodePostgresConnection(process.env.DATABASE_URL),
     beforeSchemaInit: [
       ({ schema, adapter }: { schema: any; adapter: any }) => {
         /*

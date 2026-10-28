@@ -420,6 +420,27 @@ const client = postgres(env.DATABASE_URL, {
 });
 ```
 
+**Every Postgres client in the repo, not just the Drizzle one.** A Shipkit
+downstream has two: the postgres-js client above and Payload's `pg` pool in
+`src/payload.config.ts`. They read the same `DATABASE_URL`, so wiring one and
+not the other means the app serves and the CMS is gone, on a database that is
+working fine. Payload's pool takes the `pg` form:
+
+```ts
+import { nodePostgresConnection } from "@/server/db/client-tls";
+
+db: postgresAdapter({
+  pool: nodePostgresConnection(process.env.DATABASE_URL),
+}),
+```
+
+`nodePostgresConnection` exists rather than composing `withoutSslMode` and
+`databaseClientCertificate` at the call site, because the safe order is not the
+obvious one: stripping `sslmode` on a database with no client certificate is a
+silent TLS **downgrade**, since `pg` with neither `sslmode` nor an `ssl` object
+does not negotiate TLS at all. The strip and the certificate happen together or
+not at all. Test the CMS route when flipping a project, not only the app.
+
 ### Three driver traps, all of them measured
 
 **Spread the options, never write `ssl: maybeUndefined`.** postgres-js resolves
@@ -482,6 +503,30 @@ expired CRL locks every certificate client out at once, which is the exact
 failure this design is built to avoid, re-introduced with a short fuse. Not
 worth it for a lever that is slower than the one we already have.
 
+#### What to do if a client key leaks
+
+The blast radius of one leaked client key is **one database**, because `CN` must
+equal the role name: a `keepsake` key is useless against `shipkit_www` whatever
+password comes with it. And on its own it is useless against `keepsake` too,
+because the password is still required.
+
+In order:
+
+1. **Rotate that role's password.** This is the lever. It is immediate, it is
+   one command, and it invalidates the leaked pair whether or not the
+   certificate is still technically valid. Update the project's `DATABASE_URL`
+   in Vercel and in `~/.paperclip/secrets/<project>-db.env`.
+2. **Mint a fresh certificate** for the role and deploy it, so the leaked one
+   stops being the one in use: `client-cert <role>`.
+3. Only if the **CA key** leaked, not a client key, replace the CA. Delete
+   `/data/projects-db/ca/ca.crt` and `ca.key`, run `ca-init`, reissue every
+   certificate and update every flipped project. That is a flag day for every
+   project requiring a certificate, which is the honest cost of having no CRL
+   and the reason the CA key is `600` in a `700` directory outside the
+   container's bind mount.
+
+Step 1 alone closes the hole. Steps 2 and 3 are hygiene.
+
 ### Expiry
 
 Ten years, and the date is 2036-10-25 for everything issued so far. A client
@@ -523,8 +568,36 @@ once a CA is present, but whether a missing one is fatal is decided per
 
 A reload that cannot read the CA keeps the **old** TLS context and writes
 `SSL configuration was not reloaded`, exactly like the server-certificate
-reload, so `show ssl_ca_file` is not proof. `ca-init` greps the container log
-for that line and fails loudly.
+reload, so `show ssl_ca_file` is not proof. `ca-init` checks three things and
+**puts `ssl_ca_file` back** if any of them fail, because a rejected path left
+in `postgresql.auto.conf` is the very container-will-not-start failure this
+design exists to avoid:
+
+1. the postmaster logged the change at all, so the SIGHUP was acted on
+2. it did not also log `SSL configuration was not reloaded`
+3. the server really advertises a client CA to a connecting client
+
+Point 1 is not ceremony. `pg_reload_conf()` returns when the SIGHUP is **sent**,
+not when the postmaster has acted on it, so reading the log straight afterwards
+is a race that fails open. Measured 2026-10-28 while writing this: the grep ran,
+found nothing, reported success, and Postgres wrote the refusal six
+milliseconds later, leaving `ssl_ca_file` pointing at a file that did not exist.
+`ca-init` now waits for `parameter "ssl_ca_file" changed to …` before it reads
+anything.
+
+Point 3 is a direct functional read rather than a log line, the same way
+`cert-deploy` reads the served certificate back:
+
+```bash
+printf 'Q\n' | openssl s_client -starttls postgres -connect 127.0.0.1:26432 \
+  -servername projects-db.cloud0.dev 2>/dev/null | grep -A2 'Acceptable client certificate CA names'
+# CN = projects-db client CA
+```
+
+Rollback was exercised on the live box by pointing `ssl_ca_file` at a path that
+does not exist: the reload was refused, `ca-init` reverted to
+`/pgconf/clients-ca.crt`, and `keepsake` kept authenticating with its
+certificate throughout.
 
 ### Measured 2026-10-28 from zero, against the live box
 

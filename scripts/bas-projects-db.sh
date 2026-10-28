@@ -54,9 +54,11 @@ CA="$ROOT/ca"
 CA_KEY="$CA/ca.key"
 CA_CRT="$CA/ca.crt"
 CA_ISSUED="$CA/issued"
-# What the container sees, read-only, via the /pgconf mount.
+# What the container sees, read-only, via the /pgconf mount. Overridable only so
+# the revert path below can be exercised against a path that does not exist;
+# nothing in normal operation sets it.
 CLIENT_CA_SERVED="$CONF/clients-ca.crt"
-CLIENT_CA_IN_CONTAINER=/pgconf/clients-ca.crt
+CLIENT_CA_IN_CONTAINER=${CLIENT_CA_IN_CONTAINER:-/pgconf/clients-ca.crt}
 # 10 years for both. A client-cert expiry is a simultaneous outage for every
 # project on the box, which is the one failure this design must not add, so the
 # fuse is long and the expiry is watched rather than remembered.
@@ -550,30 +552,105 @@ ensure_ca() {
 # one once a CA is loaded, but whether a missing one is fatal is decided per
 # pg_hba line by `clientcert`. Projects without that keyword keep connecting
 # exactly as before, which is what makes a one-project-at-a-time rollout possible.
-ensure_ssl_ca_file() {
-	local have
-	have=$(psql_super -tAc "show ssl_ca_file")
-	if [[ "$have" == "$CLIENT_CA_IN_CONTAINER" ]]; then
-		log "ca: ssl_ca_file already $have"
+# The client-CA names the server advertises in the TLS handshake. Postgres only
+# advertises a CA it actually loaded, so this is the authoritative read of
+# whether ssl_ca_file took.
+#
+# It replaces a grep of the container log, and the reason is measured rather
+# than stylistic. `pg_reload_conf()` returns when SIGHUP is sent, not when the
+# postmaster has acted on it, so a log read straight afterwards races the
+# reload: on 2026-10-28 the grep ran, found nothing, reported success, and
+# Postgres wrote `SSL configuration was not reloaded` 6ms later. A handshake
+# cannot be raced that way, because there is nothing to serve until the context
+# is built. Same principle as `deploy_cert` reading the served certificate back
+# instead of trusting the reload's exit code.
+advertised_client_cas() {
+	printf 'Q\n' | openssl s_client -starttls postgres \
+		-connect "127.0.0.1:$HOST_PORT" -servername "$DB_HOST" 2>/dev/null |
+		awk '/Acceptable client certificate CA names/ {f = 1; next}
+		     /^(Requested|Shared|---)/ {f = 0}
+		     f'
+}
+
+ca_is_live() {
+	local cn
+	[[ -r "$CA_CRT" ]] || return 1
+	cn=$(openssl x509 -in "$CA_CRT" -noout -subject | sed -n 's/.*CN *= *//p')
+	[[ -n "$cn" ]] || return 1
+	advertised_client_cas | grep -qF "$cn"
+}
+
+# Put ssl_ca_file back and reload, so a rejected path never survives in
+# postgresql.auto.conf. That is the exact failure the ALTER SYSTEM choice exists
+# to avoid: the running server keeps its old TLS context and looks healthy, and
+# the next restart reads a CA it cannot load and does not come up. Raised in the
+# LAC-6062 review.
+revert_ssl_ca_file() {
+	local previous="$1" reason="$2"
+	echo "ca: $reason; reverting ssl_ca_file" >&2
+	if [[ -z "$previous" ]]; then
+		psql_super -q -c "ALTER SYSTEM RESET ssl_ca_file"
 	else
-		psql_super -q -c "ALTER SYSTEM SET ssl_ca_file = '$CLIENT_CA_IN_CONTAINER'"
-		psql_super -q -c "SELECT pg_reload_conf()" >/dev/null
-		log "ca: ssl_ca_file '$have' -> '$CLIENT_CA_IN_CONTAINER'"
+		psql_super -q -c "ALTER SYSTEM SET ssl_ca_file = '$previous'"
+	fi
+	psql_super -q -c "SELECT pg_reload_conf()" >/dev/null
+	echo "ca: ssl_ca_file reverted to '${previous:-unset}', so the container will still start" >&2
+	docker logs --tail 20 "$CONTAINER" >&2 || true
+	exit 1
+}
+
+ensure_ssl_ca_file() {
+	local previous since marker waited seen
+	previous=$(psql_super -tAc "show ssl_ca_file")
+	if [[ "$previous" == "$CLIENT_CA_IN_CONTAINER" ]] && ca_is_live; then
+		log "ca: ssl_ca_file already $previous, and the server is advertising it"
+		return 0
 	fi
 
-	# A reload that cannot read the CA keeps the OLD TLS context and only writes
-	# a log line, exactly like the server-cert reload. `show` would report the
-	# new value either way, so `show` is not proof. The log line is.
-	if docker logs --since 30s "$CONTAINER" 2>&1 | grep -q 'SSL configuration was not reloaded'; then
-		echo "ca: postgres refused the new SSL configuration; it is still serving the old one" >&2
-		docker logs --tail 20 "$CONTAINER" >&2 || true
-		exit 1
+	# RFC3339 with an explicit Z: a bare timestamp is read in the docker
+	# daemon's local zone, which is not necessarily UTC. Two seconds of slack
+	# so a sub-second boundary cannot drop the lines we are about to wait for.
+	since=$(date -u -d '2 seconds ago' +%Y-%m-%dT%H:%M:%SZ)
+	psql_super -q -c "ALTER SYSTEM SET ssl_ca_file = '$CLIENT_CA_IN_CONTAINER'"
+	psql_super -q -c "SELECT pg_reload_conf()" >/dev/null
+	log "ca: ssl_ca_file '${previous:-unset}' -> '$CLIENT_CA_IN_CONTAINER', waiting for the reload to land"
+
+	# `pg_reload_conf()` returns when SIGHUP is sent, not when the postmaster
+	# has acted on it. Reading the log straight afterwards is a race, and it is
+	# a race that fails open: measured on 2026-10-28, the grep ran, found
+	# nothing, reported success, and Postgres wrote
+	# `SSL configuration was not reloaded` six milliseconds later. So wait for
+	# the line the postmaster always writes on a change, success or failure.
+	marker="parameter \"ssl_ca_file\" changed to \"$CLIENT_CA_IN_CONTAINER\""
+	waited=0
+	seen=0
+	while ((waited < 50)); do
+		if docker logs --since "$since" "$CONTAINER" 2>&1 | grep -qF "$marker"; then
+			seen=1
+			break
+		fi
+		sleep 0.2
+		waited=$((waited + 1))
+	done
+	if ((seen == 0)); then
+		revert_ssl_ca_file "$previous" "postgres never acted on the reload within 10s"
 	fi
-	have=$(psql_super -tAc "show ssl_ca_file")
-	if [[ "$have" != "$CLIENT_CA_IN_CONTAINER" ]]; then
-		echo "ca: ssl_ca_file is '$have', expected '$CLIENT_CA_IN_CONTAINER'" >&2
-		exit 1
+
+	# The refusal, when there is one, lands in the same reload pass a few
+	# milliseconds after the marker. One second of grace is several orders of
+	# magnitude more than that.
+	sleep 1
+	if docker logs --since "$since" "$CONTAINER" 2>&1 | grep -q 'SSL configuration was not reloaded'; then
+		revert_ssl_ca_file "$previous" "postgres refused the new SSL configuration"
 	fi
+
+	# Belt and braces, and not redundant: the log says the reload was accepted,
+	# this says the server is really offering a client CA to connecting clients.
+	# A server advertising nothing refuses every client certificate there is.
+	if ! ca_is_live; then
+		revert_ssl_ca_file "$previous" "the reload was accepted but the server advertises no client CA"
+	fi
+	log "ca: reload accepted and the server is advertising the client CA"
 }
 
 # One cert per role, CN = role name, printed once and not kept.
@@ -814,6 +891,10 @@ client_cert_check() {
 		live=$(psql_super -tAc "show ssl_ca_file" 2>/dev/null) || live=""
 		if [[ "$live" != "$CLIENT_CA_IN_CONTAINER" ]]; then
 			problems+=("ssl_ca_file is '$live' but $requiring hba line(s) require a client certificate. Fix: $SELF_PATH ca-init")
+		elif ! ca_is_live; then
+			# `show` reports the configured value whether or not the server
+			# managed to load it, so it is not proof. The handshake is.
+			problems+=("ssl_ca_file is '$live' but the server is not advertising that CA in the handshake, so every client cert is being refused. Fix: $SELF_PATH ca-init")
 		fi
 	fi
 

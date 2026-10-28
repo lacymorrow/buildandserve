@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 import {
   databaseClientCertificate,
   databaseClientTlsOptions,
+  nodePostgresConnection,
   withoutSslMode,
 } from "@/server/db/client-tls";
 
@@ -115,5 +116,51 @@ describe("withoutSslMode", () => {
 
   it("leaves a URL with no query string alone", () => {
     expect(withoutSslMode("postgresql://u:p@h:26432/d")).toBe("postgresql://u:p@h:26432/d");
+  });
+});
+
+describe("nodePostgresConnection", () => {
+  const url = "postgresql://u:p@h:26432/d?sslmode=verify-full";
+
+  it("leaves the URL alone when no certificate is configured", () => {
+    // The assertion that matters: stripping `sslmode` here would be a silent
+    // TLS downgrade, because `pg` with neither `sslmode` nor an `ssl` object
+    // does not negotiate TLS at all.
+    expect(nodePostgresConnection(url, envWith({}))).toEqual({ connectionString: url });
+  });
+
+  it("strips sslmode and attaches the certificate together, never separately", () => {
+    expect(
+      nodePostgresConnection(
+        url,
+        envWith({
+          DATABASE_CLIENT_CERT_B64: b64(CERT_PEM),
+          DATABASE_CLIENT_KEY_B64: b64(KEY_PEM),
+        })
+      )
+    ).toEqual({
+      connectionString: "postgresql://u:p@h:26432/d",
+      ssl: { cert: CERT_PEM, key: KEY_PEM },
+    });
+  });
+
+  it("passes an undefined connection string straight through", () => {
+    // payload.config.ts hands it `process.env.DATABASE_URL`, which is undefined
+    // on any deployment without a database.
+    expect(
+      nodePostgresConnection(
+        undefined,
+        envWith({
+          DATABASE_CLIENT_CERT_B64: b64(CERT_PEM),
+          DATABASE_CLIENT_KEY_B64: b64(KEY_PEM),
+        })
+      )
+    ).toEqual({ connectionString: undefined });
+  });
+
+  it("does not strip sslmode when only half a certificate is deployed", () => {
+    expect(
+      nodePostgresConnection(url, envWith({ DATABASE_CLIENT_CERT_B64: b64(CERT_PEM) }))
+    ).toEqual({ connectionString: url });
   });
 });

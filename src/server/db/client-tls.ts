@@ -75,6 +75,31 @@ export const databaseClientTlsOptions = (
 };
 
 /**
+ * The `pg` pool config for a connection string: the URL plus a client
+ * certificate when one is configured, and nothing changed when one is not.
+ *
+ * This is the entry point `pg` callers should use, rather than composing
+ * `withoutSslMode` and `databaseClientCertificate` themselves, because the
+ * safe order is not the obvious one. Stripping `sslmode` unconditionally
+ * would be a silent TLS **downgrade** on every database that has no client
+ * certificate: `pg` with neither `sslmode` nor an `ssl` object does not
+ * negotiate TLS at all. The strip is only correct in company with the `ssl`
+ * object that replaces it, so the two happen together or not at all.
+ *
+ * Used by both Postgres clients in this repo, which is the point. The Drizzle
+ * client and Payload's pool read the same `DATABASE_URL`, and a certificate
+ * wired into one but not the other means the app works and the CMS is gone.
+ */
+export const nodePostgresConnection = (
+  connectionString: string | undefined,
+  environment: NodeJS.ProcessEnv = process.env
+): { connectionString: string | undefined; ssl?: DatabaseClientCertificate } => {
+  const certificate = databaseClientCertificate(environment);
+  if (!certificate || !connectionString) return { connectionString };
+  return { connectionString: withoutSslMode(connectionString), ssl: certificate };
+};
+
+/**
  * node-postgres only: remove `sslmode` from a connection string.
  *
  * `pg` merges a parsed `connectionString` *over* the explicit config
