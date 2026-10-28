@@ -299,3 +299,104 @@ describe("the cert check keeps its own cadence", () => {
     expect(await readFile(stamp, "utf8")).not.toBe("");
   });
 });
+
+/**
+ * The client-certificate half (LAC-6060).
+ *
+ * This half shells out to the box's own `client-cert-check`, so the box is a
+ * fake `ssh` that dispatches on the command it is handed: the auth check asks
+ * for `docker logs`, this one asks for `client-cert-check`, and one fake has to
+ * answer both. `--auth-only` is not passed here, so the cert cadence runs; the
+ * public-internet half is allowed to do whatever it does and only the client
+ * findings are asserted.
+ */
+async function fakeBox({ exit, output }: { exit: number; output: string }) {
+  const file = path.join(box.bin, "ssh-box");
+  await writeFile(
+    file,
+    [
+      "#!/bin/bash",
+      "# The remote command is whichever argument mentions one of the two.",
+      'for arg in "$@"; do',
+      "  case $arg in",
+      "  *client-cert-check*)",
+      `    cat <<'OUT'`,
+      output,
+      "OUT",
+      `    exit ${exit} ;;`,
+      "  *docker*logs*)",
+      `    cat "${box.log}"; exit 0 ;;`,
+      "  esac",
+      "done",
+      "exit 0",
+    ].join("\n")
+  );
+  await chmod(file, 0o755);
+  return file;
+}
+
+async function certWatch(boxExit: number, boxOutput: string) {
+  await writeFile(box.log, "");
+  const ssh = await fakeBox({ exit: boxExit, output: boxOutput });
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    SSH_BIN: ssh,
+    BAS_SSH: "root@fake",
+    STATE_DIR: box.state,
+    CERT_EVERY_HOURS: "0",
+    // The public-internet cert half is not the subject here, and it must not
+    // reach the real box from a test. Both the name and the control name are
+    // unresolvable, so that half voids rather than reporting a false outage,
+    // which is the same rule it applies to a DNS-blind laptop.
+    DB_HOST: "projects-db.invalid.test",
+    CONTROL_NAME: "control.invalid.test",
+    SLACK_API_URL: `${origin}/slack`,
+    SLACK_TOKEN_FILE: path.join(box.dir, "no-such-token-file"),
+    TZ: "UTC",
+  };
+  let code = 0;
+  let stdout = "";
+  try {
+    stdout = (await run("bash", [SCRIPT], { env })).stdout;
+  } catch (error) {
+    const failure = error as { code?: number; stdout?: string };
+    code = failure.code ?? 1;
+    stdout = failure.stdout ?? "";
+  }
+  return { code, stdout };
+}
+
+describe("client-certificate expiry", () => {
+  it("reports every finding the box printed, and exits 1", async () => {
+    const result = await certWatch(
+      1,
+      [
+        "projects-db client-certificate problem:",
+        "  - client CA expires in 12d; every project that requires a client cert goes down together on that date",
+        "  - client cert for keepsake expires in 30d; reissue with '/usr/local/sbin/bas-projects-db.sh client-cert keepsake' and update that project's Vercel env",
+      ].join("\n")
+    );
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("client CA expires in 12d");
+    expect(result.stdout).toContain("client cert for keepsake expires in 30d");
+  });
+
+  it("stays silent about client certs when the box is clean", async () => {
+    const result = await certWatch(0, "");
+    expect(result.stdout).not.toContain("client");
+  });
+
+  it("voids rather than pages when the box cannot be reached", async () => {
+    // Exit 255 is ssh itself. A watch that read that as "the CA is gone" would
+    // page on every closed laptop lid.
+    const result = await certWatch(255, "ssh: connect to host bas port 22: Operation timed out");
+    expect(result.code).toBe(3);
+    expect(result.stdout).toContain("could not run client-cert-check");
+  });
+
+  it("voids rather than pages when the box has an older script without the command", async () => {
+    const result = await certWatch(2, "usage: /usr/local/sbin/bas-projects-db.sh {bootstrap|...}");
+    expect(result.code).toBe(3);
+    expect(result.stdout).toContain("could not run client-cert-check");
+  });
+});

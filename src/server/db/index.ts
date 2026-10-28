@@ -5,6 +5,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { env } from "@/env";
+import { databaseClientTlsOptions } from "./client-tls";
 import * as schema from "./schema";
 
 // Configure postgres with proper options for production workloads
@@ -30,6 +31,11 @@ const client = env.DATABASE_URL
         undefined: null, // Transform undefined values to null
         ...({} as Record<string, never>), // Empty transform object
       },
+      // A client certificate when one is configured, nothing at all when it is
+      // not (LAC-6060). Spread rather than `ssl: ...` on purpose: postgres-js
+      // treats an explicit `ssl: undefined` as a value and it beats the URL's
+      // `sslmode=verify-full`, which turns TLS off entirely. See client-tls.ts.
+      ...databaseClientTlsOptions(),
     })
   : undefined;
 
