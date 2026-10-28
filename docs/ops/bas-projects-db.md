@@ -581,18 +581,91 @@ Every `.bak` is another copy of a live credential and another thing to rotate.
 Prune them once the cutover they were taken for is confirmed; LAC-5969 still
 owns the rotation procedure and there is not one yet.
 
-`add-project` creates the role with `CONNECTION LIMIT 10` and no `SUPERUSER`,
-`CREATEDB` or `CREATEROLE`, creates the database owned by that role, revokes
-`CONNECT` from `PUBLIC`, appends the `hostssl` line, and reloads the config. It
-is idempotent and will not reset the password of a role that already exists.
+`add-project` creates the role with no `SUPERUSER`, `CREATEDB` or `CREATEROLE`,
+creates the database owned by that role, revokes `CONNECT` from `PUBLIC` and
+grants it back to the owner alone, appends the `hostssl` line, and reloads the
+config. It is idempotent and will not reset the password of a role that already
+exists.
 
-The connection limit is the part that matters on a shared box. `max_connections`
-is 100; without a per-role cap one runaway app exhausts it and takes every other
-project down.
+The revoke is not decoration. Postgres grants `CONNECT` to `PUBLIC` on every new
+database, so without it one project's credential opens every other project's
+database on this box and reads its table names. Rows and columns stay private,
+the schema does not.
 
 Role and database names use underscores even when the project name has a hyphen,
 so nothing ever needs SQL quoting: project `shipkit-www` is role and database
 `shipkit_www`, and its secret file keeps the hyphenated name.
+
+## Every project gets a preview pair
+
+A preview deploy running a migration must not be able to reach production data,
+so each project gets a second role and database with its own credential:
+
+```bash
+PW=$(openssl rand -hex 24)
+printf '%s\n' "$PW" | ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projects-db.sh add-preview $PROJ"
+
+umask 077
+cat > ~/.paperclip/secrets/${PROJ//_/-}-preview-db.env <<EOF
+DATABASE_URL=postgresql://${PROJ}_preview:$PW@projects-db.cloud0.dev:26432/${PROJ}_preview?sslmode=verify-full
+EOF
+```
+
+Pass the project name, not the preview name: `add-preview gracefully_imagined`
+creates role and database `gracefully_imagined_preview`.
+
+## Connection limits
+
+| Role              | Limit | Why                                                     |
+| ----------------- | ----- | ------------------------------------------------------- |
+| production        | 25    | about four warm Vercel instances with a capped app pool |
+| preview           | 5     | a preview can wedge itself without reaching production  |
+| `max_connections` | 100   | 97 usable, 3 reserved for the superuser                 |
+
+Decided on LAC-5969 on 2026-10-28, after one warm Vercel instance held all 10
+connections of `gracefully_imagined`, idle, and nothing else could connect at
+all, `psql` from a laptop included.
+
+Eleven roles at these numbers overcommit `max_connections`. That is deliberate: a
+role limit is a blast-radius cap, not a reservation. Splitting 97 slots evenly
+across eleven roles is 7 each, which wedges every app on the box instead of one.
+What overcommit costs is early warning, so LAC-5980's watcher alerts when total
+`pg_stat_activity` passes 60 and when any role passes 80% of its own limit.
+
+**Every app that connects here caps its own pool.** node-postgres defaults to a
+pool of 10 and a frozen serverless instance never returns a connection, so an
+uncapped app takes its whole limit and holds it. Payload needs `max: 3`,
+`idleTimeoutMillis: 10_000`, `allowExitOnIdle: true`; `gracefully-imagined#26` is
+the worked example.
+
+`add-project` raises a limit toward the policy number and never lowers one. An
+operator lifts a limit by hand when an app is wedged in production, and a re-run
+of the script must not quietly put it back. Lower one deliberately, after that
+app's pool cap is deployed:
+
+```bash
+ssh root@bas.hyrax-boga.ts.net docker exec -i projects-db \
+  psql -U postgres -c 'ALTER ROLE gracefully_imagined CONNECTION LIMIT 25'
+```
+
+Two roles sit above policy today for exactly that reason: `gracefully_imagined`
+at 30 and `gracefully_imagined_preview` at 10, both holdovers from the cutover on
+2026-10-28. They come down to 25 and 5 once `gracefully-imagined#26` is deployed,
+not before.
+
+## Dump and restore with pg_dump 17
+
+Pin the dump tool to the server's major version. The libpq keg on zero is 18.6,
+which is the wrong direction for a PG17 target, and a newer `pg_dump` is not
+guaranteed to restore into an older server. Use the image this container runs:
+
+```bash
+docker run --rm postgres:17-alpine pg_dump "$DATABASE_URL" > dump.sql
+```
+
+That is `pg_dump 17.11`, the same version Neon serves, and it carried a 50-table
+schema with 17 enums with no errors. `plpgsql` is the only extension these
+databases use.
 
 ## Editing the script
 
@@ -641,6 +714,18 @@ it got one, and this box carries the BAS client control plane.
 
 Never run `docker system prune` here. It would take out chatwoot and the
 Paperclip Postgres cluster alongside this container.
+
+The server itself carries Hetzner delete and rebuild protection (set 2026-10-28
+on LAC-5979). There are no off-box backups yet, so the automation token that can
+open a firewall rule must not also be able to destroy the only copy of this data.
+Rebuilding the server, as opposed to the container, means turning protection off
+first and back on after:
+
+```bash
+curl -X POST -H "Authorization: Bearer $(cat ~/.paperclip/secrets/hetzner-cloud-token)" \
+  -H 'Content-Type: application/json' -d '{"delete":false,"rebuild":false}' \
+  https://api.hetzner.cloud/v1/servers/169986608/actions/change_protection
+```
 
 ## Not done yet
 
