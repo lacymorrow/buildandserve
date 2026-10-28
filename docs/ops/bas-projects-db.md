@@ -298,8 +298,9 @@ that reaching those slots needs no credential at all:
 > Postgres reserves the backend slot at fork and checks the role's `CONNECTION
 > LIMIT` only after authentication succeeds.
 
-So the `CONNECTION LIMIT 10` on every project role, which this box does have,
-stops a runaway app and stops nothing else. One internet host that opens 97 TCP
+So the per-role `CONNECTION LIMIT` every project role carries (see "Connection
+limits" below for the current values) stops a runaway app and stops nothing
+else. One internet host that opens 97 TCP
 sessions and never finishes a SCRAM exchange takes all five project databases
 down for as long as it keeps doing it, authenticates as nobody, and leaves no log
 line naming anyone. Measured before the fix: `authentication_timeout` was 60s, so
@@ -608,8 +609,13 @@ printf '%s\n' "$PW" | ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projec
 umask 077
 cat > ~/.paperclip/secrets/${PROJ//_/-}-preview-db.env <<EOF
 DATABASE_URL=postgresql://${PROJ}_preview:$PW@projects-db.cloud0.dev:26432/${PROJ}_preview?sslmode=verify-full
+OPS_DATABASE_URL=postgresql://${PROJ}_preview:$PW@bas.hyrax-boga.ts.net:26432/${PROJ}_preview?sslmode=require
 EOF
 ```
+
+Both URLs here too, for the same reason as the production pair. A preview
+database is the one people reach for when they want to test a migration by
+hand, which is exactly the ops traffic that belongs on the tailnet.
 
 Pass the project name, not the preview name: `add-preview gracefully_imagined`
 creates role and database `gracefully_imagined_preview`.
