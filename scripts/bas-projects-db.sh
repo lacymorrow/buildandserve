@@ -73,6 +73,10 @@ CLIENT_WARN_DAYS=${CLIENT_WARN_DAYS:-180}
 # both ends. That path stays password-only so a botched client-cert rollout
 # cannot lock ops out of the recovery path as well as the apps.
 TAILNET_CIDR=${TAILNET_CIDR:-100.64.0.0/10}
+# The PgBouncer container's Docker network (LAC-6076). Private to this box: it is
+# a user-defined bridge with no route in from anywhere, so a line scoped to it is
+# reachable only by a container this box's root attached to that network.
+POOLER_CIDR=${POOLER_CIDR:-172.31.0.0/24}
 # uid/gid of the postgres user inside postgres:17-alpine
 PG_UID=70
 PG_GID=70
@@ -735,14 +739,24 @@ reload_hba_checked() {
 # a project that is down, so this is always a second, deliberate step after the
 # certificate is in the app's environment.
 #
-# Two lines, tailnet first:
+# Three lines, narrowest first:
 #
-#   hostssl p p 100.64.0.0/10 scram-sha-256                        <- ops
-#   hostssl p p all           scram-sha-256 clientcert=verify-full <- the internet
+#   hostssl p p 172.31.0.0/24   scram-sha-256                        <- the pooler
+#   hostssl p p 100.64.0.0/10   scram-sha-256                        <- ops
+#   hostssl p p all             scram-sha-256 clientcert=verify-full <- the internet
 #
 # pg_hba is first-match-wins and does not fall through on a failed auth, so an
-# ops connection from the tailnet never reaches the second line and never needs
+# ops connection from the tailnet never reaches the last line and never needs
 # a certificate. That is what keeps a bad rollout from locking ops out too.
+#
+# The pooler line is LAC-6076 and it has to come first for a different reason.
+# PgBouncer terminates TLS, so it cannot forward an app's client certificate, and
+# it holds one certificate globally rather than one per role -- so it could never
+# satisfy `clientcert=verify-full` for more than a single role no matter how it
+# were configured. Without this line a project flipped to cert-required is
+# unreachable through the pooler. The certificate is still demanded, one hop
+# earlier: `bas-pgbouncer.sh` checks the chain against this same private CA and
+# binds the CN to the role before it ever opens a server connection.
 #
 # The issue proposed `hostssl all all 100.64.0.0/10` for the tailnet line. This
 # keeps it per-project instead: the wildcard form would mean a leaked keepsake
@@ -791,9 +805,10 @@ write_hba_pair() {
 	local proj="$1" mode="$2" backup="$HBA.bak" tmp="$HBA.new"
 	cp -p "$HBA" "$backup"
 
-	awk -v p="$proj" -v mode="$mode" -v tailnet="$TAILNET_CIDR" '
+	awk -v p="$proj" -v mode="$mode" -v tailnet="$TAILNET_CIDR" -v pooler="$POOLER_CIDR" '
 		function emit() {
 			if (mode == "cert") {
+				printf "hostssl %-20s %-20s %-14s %s\n", p, p, pooler, "scram-sha-256"
 				printf "hostssl %-20s %-20s %-14s %s\n", p, p, tailnet, "scram-sha-256"
 				printf "hostssl %-20s %-20s %-14s %s\n", p, p, "all", "scram-sha-256 clientcert=verify-full"
 			} else {
