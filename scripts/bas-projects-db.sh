@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# projects-db on the bas box (128.140.50.130): TLS-only Postgres 17, port 26432.
+# projects-db on the bas box: TLS-only Postgres 17 on projects-db.cloud0.dev:26432
+# (128.140.50.130). Clients verify the server cert, so they connect to the name.
 #
 # Runs ON the bas box as root. Idempotent: every step checks before it acts, so
 # re-running it after a partial failure is safe.
 #
-#   bootstrap                  swap, /data dirs, self-signed cert, pg_hba, container
+#   bootstrap                  swap, /data dirs, LE cert, renewal hook, pg_hba, container
 #   add-project <name>         one role + one database + one hostssl line, then reload
+#   cert-deploy                install the current LE cert and reload postgres
+#   cert-check                 expiry, hostname and served-vs-disk drift. Silent when healthy
 #   verify                     report what is actually running
 #
 # The superuser password is read from stdin on bootstrap (never an argument, so it
@@ -20,11 +23,19 @@ set -euo pipefail
 CONTAINER=projects-db
 IMAGE=postgres:17-alpine
 HOST_PORT=26432
-ROOT=/data/projects-db
+# Overridable so cert-check can be exercised against a scratch directory without
+# touching the live cert. Nothing in normal operation sets these.
+ROOT=${ROOT:-/data/projects-db}
 CONF="$ROOT/conf"
 DATA="$ROOT/data"
 HBA="$CONF/pg_hba.conf"
-PUBLIC_IP=128.140.50.130
+DB_HOST=${DB_HOST:-projects-db.cloud0.dev}
+LE_LIVE="/etc/letsencrypt/live/$DB_HOST"
+DEPLOY_HOOK=/etc/letsencrypt/renewal-hooks/deploy/projects-db.sh
+SELF_PATH=/usr/local/sbin/bas-projects-db.sh
+# certbot renews at 30 days remaining and its timer runs twice a day, so a cert
+# with less than this left has already missed dozens of renewal attempts.
+CERT_WARN_DAYS=${CERT_WARN_DAYS:-21}
 # uid/gid of the postgres user inside postgres:17-alpine
 PG_UID=70
 PG_GID=70
@@ -71,22 +82,180 @@ ensure_dirs() {
 	log "dirs: $DATA and $CONF exist"
 }
 
-# Self-signed, 10 years. Clients connect with sslmode=require, which encrypts but
-# does not verify the chain; see docs/ops/bas-projects-db.md for the per-driver
-# table, because node-postgres and prisma each need a different spelling of that.
-ensure_cert() {
-	if [[ -f "$CONF/server.crt" && -f "$CONF/server.key" ]]; then
-		log "cert: already present, expires $(openssl x509 -in "$CONF/server.crt" -noout -enddate | cut -d= -f2)"
+# Let's Encrypt via certbot, HTTP-01 standalone. Clients connect with
+# sslmode=verify-full, one string for every driver; see docs/ops/bas-projects-db.md.
+#
+# The cert must name $DB_HOST and clients must connect to that name, not to the
+# IP. postgres-js sets `servername: net.isIP(socket.host) ? undefined : socket.host`
+# (src/connection.js:277), so against a bare IP it sends no SNI and verify-full
+# can never pass, whoever issued the cert.
+#
+# certbot from apt, not snap: apt ships certbot.timer, which is what drives
+# renewal here. No renewal cron of our own to drift out of sync.
+ensure_certbot() {
+	if command -v certbot >/dev/null; then
+		log "certbot: $(certbot --version 2>&1)"
 	else
-		log "cert: generating self-signed cert for $PUBLIC_IP"
-		openssl req -new -x509 -days 3650 -nodes \
-			-out "$CONF/server.crt" -keyout "$CONF/server.key" \
-			-subj "/CN=projects-db.bas" \
-			-addext "subjectAltName=IP:$PUBLIC_IP,DNS:projects-db.bas" 2>/dev/null
+		log "certbot: installing from apt"
+		DEBIAN_FRONTEND=noninteractive apt-get install -y -q certbot >/dev/null
 	fi
-	chmod 600 "$CONF/server.key"
-	chmod 644 "$CONF/server.crt"
-	chown "$PG_UID:$PG_GID" "$CONF/server.crt" "$CONF/server.key"
+	systemctl enable --now certbot.timer >/dev/null 2>&1 || true
+	log "certbot: timer is $(systemctl is-enabled certbot.timer 2>/dev/null || echo unknown)"
+}
+
+# HTTP-01 needs tcp/80 reachable from the internet at $DB_HOST: one rule on
+# Hetzner firewall 11789519. Nothing listens on 80 between renewals, certbot
+# binds it for the seconds a challenge takes. DNS-01 was the alternative and was
+# rejected: it would put a Cloudflare DNS-edit token on an internet-exposed box,
+# a worse trade than an open port with no service behind it.
+#
+# No account email, on purpose. admin@buildandserve.com is a Cloudflare routing
+# address with no mailbox, so LE expiry warnings would go nowhere; `cert-check`
+# below is the alarm that actually reaches a person.
+ensure_le_cert() {
+	if [[ -d "$LE_LIVE" ]]; then
+		log "cert: LE lineage present, expires $(openssl x509 -in "$LE_LIVE/cert.pem" -noout -enddate | cut -d= -f2)"
+		return
+	fi
+	log "cert: requesting LE cert for $DB_HOST (HTTP-01 standalone)"
+	# Rate limits are per name per week and a failed run burns one, so prove the
+	# plumbing against staging before spending a real issuance.
+	certbot certonly --standalone --preferred-challenges http \
+		-d "$DB_HOST" --agree-tos --register-unsafely-without-email \
+		--non-interactive --dry-run
+	certbot certonly --standalone --preferred-challenges http \
+		-d "$DB_HOST" --agree-tos --register-unsafely-without-email \
+		--non-interactive
+}
+
+# The hook is a two-line shim onto `cert-deploy` so the logic has one home: this
+# script. Editing the script changes renewal behaviour without touching the hook.
+ensure_deploy_hook() {
+	mkdir -p "$(dirname "$DEPLOY_HOOK")"
+	cat >"$DEPLOY_HOOK" <<HOOKEOF
+#!/usr/bin/env bash
+# Installed by bas-projects-db.sh. Do not edit here; edit the script.
+exec $SELF_PATH cert-deploy
+HOOKEOF
+	chmod 755 "$DEPLOY_HOOK"
+	log "hook: $DEPLOY_HOOK installed"
+}
+
+disk_fingerprint() {
+	openssl x509 -in "$CONF/server.crt" -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2
+}
+
+# What the server actually serves, read the way a client sees it. Postgres
+# negotiates TLS in its own protocol rather than on connect, hence -starttls.
+served_pem() {
+	openssl s_client -starttls postgres -connect "127.0.0.1:$HOST_PORT" \
+		-servername "$DB_HOST" </dev/null 2>/dev/null |
+		sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p'
+}
+
+served_fingerprint() {
+	served_pem | openssl x509 -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2
+}
+
+# Runs as the certbot deploy hook and by hand. Copy first, reload second: if the
+# reload fails the new files are already in place, so any later reload picks them
+# up, and `cert-check` catches the gap meanwhile.
+deploy_cert() {
+	# certbot runs deploy hooks for every lineage it renews, not just ours.
+	if [[ -n "${RENEWED_LINEAGE:-}" && "$RENEWED_LINEAGE" != "$LE_LIVE" ]]; then
+		log "cert: hook fired for $RENEWED_LINEAGE, not ours, nothing to do"
+		return 0
+	fi
+	if [[ ! -r "$LE_LIVE/fullchain.pem" ]]; then
+		echo "no cert at $LE_LIVE; run bootstrap" >&2
+		exit 1
+	fi
+
+	# fullchain, not cert: without the intermediate, verify-full fails on any
+	# client that does not already happen to have it cached.
+	#
+	# Write beside the target and rename, so a reload that lands mid-copy never
+	# reads a half-written key. install(1) alone truncates in place.
+	install -o "$PG_UID" -g "$PG_GID" -m 644 "$LE_LIVE/fullchain.pem" "$CONF/.server.crt.new"
+	install -o "$PG_UID" -g "$PG_GID" -m 600 "$LE_LIVE/privkey.pem" "$CONF/.server.key.new"
+	mv -f "$CONF/.server.crt.new" "$CONF/server.crt"
+	mv -f "$CONF/.server.key.new" "$CONF/server.key"
+	log "cert: installed into $CONF, expires $(openssl x509 -in "$CONF/server.crt" -noout -enddate | cut -d= -f2)"
+
+	if [[ "$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null)" != "running" ]]; then
+		log "cert: $CONTAINER is not running, skipping reload; it reads the new files on next start"
+		return 0
+	fi
+	docker exec "$CONTAINER" psql -q -U postgres -c "SELECT pg_reload_conf()" >/dev/null
+	log "cert: pg_reload_conf() issued"
+
+	# A reload with an unreadable or malformed key keeps the OLD TLS context and
+	# only writes a log line, so a zero exit from the reload is not proof. Read
+	# the served cert back and compare.
+	local served disk
+	# A failing openssl pipeline must not abort the script through set -e before
+	# the comparison below can report what went wrong.
+	served=$(served_fingerprint) || served=""
+	disk=$(disk_fingerprint) || disk=""
+	if [[ -n "$served" && "$served" == "$disk" ]]; then
+		log "cert: server is serving the new cert"
+	else
+		echo "cert: reload did not take. serving '$served', on disk '$disk'" >&2
+		docker logs --tail 20 "$CONTAINER" >&2 || true
+		exit 1
+	fi
+}
+
+# Daily check. A 90-day cert plus sslmode=verify-full turns a silently failed
+# renewal into a simultaneous hard outage for every project on this box, so this
+# covers the three separate ways it goes wrong:
+#   1. the cert is near expiry, so renewal is not running at all
+#   2. the server serves a different cert than the one on disk, so a renewal
+#      landed but the reload never took. certbot does not retry a hook once the
+#      cert itself is fresh, so nothing else catches this
+#   3. the served cert does not name $DB_HOST, so verify-full would reject it
+# Exit 0 healthy and silent, 1 with the reason on stdout. Silence means healthy.
+cert_check() {
+	local problems=() served days end
+	served=$(served_pem) || served=""
+
+	if [[ -z "$served" ]]; then
+		echo "projects-db: no TLS cert served on $DB_HOST:$HOST_PORT (is the container up?)"
+		return 1
+	fi
+
+	end=$(printf '%s\n' "$served" | openssl x509 -noout -enddate | cut -d= -f2) || end=""
+	local end_epoch=""
+	[[ -n "$end" ]] && end_epoch=$(date -u -d "$end" +%s 2>/dev/null)
+	if [[ -z "$end_epoch" ]]; then
+		echo "projects-db: served something that is not a parseable certificate on $DB_HOST:$HOST_PORT"
+		return 1
+	fi
+	days=$(((end_epoch - $(date -u +%s)) / 86400))
+
+	if ((days < CERT_WARN_DAYS)); then
+		problems+=("served cert expires in ${days}d ($end); certbot renews at 30d, so renewal has been failing")
+	fi
+	if ! printf '%s\n' "$served" | openssl x509 -noout -ext subjectAltName 2>/dev/null | grep -q "DNS:$DB_HOST"; then
+		problems+=("served cert does not name $DB_HOST; every verify-full client will reject it")
+	fi
+	local sf df
+	sf=$(printf '%s\n' "$served" | openssl x509 -noout -fingerprint -sha256 | cut -d= -f2) || sf=""
+	df=$(disk_fingerprint) || df=""
+	if [[ -z "$df" ]]; then
+		# The running server holds its cert in memory, so it keeps serving and
+		# nothing looks wrong until the next restart, which then fails to start.
+		problems+=("$CONF/server.crt is missing or unreadable; the container is serving from memory and will not start again. Fix: $SELF_PATH cert-deploy")
+	elif [[ "$sf" != "$df" ]]; then
+		problems+=("server serves $sf but $CONF/server.crt is $df; a renewal landed without a reload. Fix: $SELF_PATH cert-deploy")
+	fi
+
+	if (( ${#problems[@]} == 0 )); then
+		return 0
+	fi
+	printf 'projects-db cert problem on %s:\n' "$DB_HOST"
+	printf '  - %s\n' "${problems[@]}"
+	return 1
 }
 
 # Deliberately tighter than the umami-db copy this container is modelled on.
@@ -241,6 +410,10 @@ verify() {
 	echo "== conf perms"
 	ls -la "$CONF"
 	echo
+	echo "== served cert"
+	served_pem | openssl x509 -noout -subject -issuer -enddate -ext subjectAltName 2>/dev/null || echo "none served"
+	if cert_check; then echo "cert-check: ok"; fi
+	echo
 	echo "== container"
 	docker ps --filter "name=$CONTAINER" --format '{{.Names}}  {{.Image}}  {{.Status}}  {{.Ports}}'
 	echo
@@ -258,18 +431,30 @@ case "${1:-}" in
 bootstrap)
 	ensure_swap
 	ensure_dirs
-	ensure_cert
+	ensure_certbot
+	ensure_le_cert
+	ensure_deploy_hook
+	deploy_cert
 	ensure_hba
 	ensure_container
+	# deploy_cert before the container exists only writes the files; reload once
+	# it is up so the first boot and a rebuild end in the same place.
+	deploy_cert
 	;;
 add-project)
 	add_project "${2:?project name required}"
+	;;
+cert-deploy)
+	deploy_cert
+	;;
+cert-check)
+	cert_check
 	;;
 verify)
 	verify
 	;;
 *)
-	echo "usage: $0 {bootstrap|add-project <name>|verify}" >&2
+	echo "usage: $0 {bootstrap|add-project <name>|cert-deploy|cert-check|verify}" >&2
 	exit 2
 	;;
 esac

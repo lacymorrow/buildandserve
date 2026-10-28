@@ -14,11 +14,18 @@ const client = env.DATABASE_URL
       connect_timeout: 30, // Longer timeout for heavy operations
       idle_timeout: 30, // Longer idle timeout
       max_lifetime: 60 * 30, // 30 minutes max lifetime
-      ...(process.env.NODE_ENV === "development"
-        ? {
-            ssl: { rejectUnauthorized: false }, // Needed for some Neon connections
-          }
-        : {}),
+      // TLS comes from the connection string and nowhere else. There used to be
+      // an `ssl: { rejectUnauthorized: false }` here for development, which was
+      // the worst place to have it: development is a laptop on whatever network
+      // it is on, reaching the database across the public internet, which is the
+      // on-path attack this is supposed to stop (LAC-6054). It also forced TLS on
+      // with verification off for every dev connection, including ones whose URL
+      // never asked for TLS. Neon never needed it either; their certs are
+      // publicly trusted.
+      //
+      // projects-db URLs carry `?sslmode=verify-full`. If a local database
+      // serves a certificate nothing trusts, fix the URL for that database
+      // rather than turning verification off for all of them.
       transform: {
         undefined: null, // Transform undefined values to null
         ...({} as Record<string, never>), // Empty transform object
