@@ -385,6 +385,60 @@ tests both sides.
 | 80 connects at 311/s, public name, concurrency lifted | 21 established, 59 reset (`hashlimit` counter 59)   |
 | `pg_dump` of `gracefully_imagined` over the tailnet  | 419 objects, 155K, server saw client `100.86.145.8`, TLSv1.3 |
 
+### Is 20 concurrent per source enough? Measured 2026-10-28
+
+The LAC-6061 security read passed this but flagged one unknown: 20 concurrent
+per source address is untested against real Vercel egress, which may be shared
+NAT. Measured two hours after the rules went in, on a normal weekday hour:
+
+| | |
+| --- | --- |
+| `connection received` in one hour | 195 |
+| of those, authorized | 150 |
+| `FATAL` (auth failures) | 11 |
+| busiest real client, concurrent backends | 1 |
+| `connlimit` rejects since install | 0 |
+| `hashlimit` rejects since install | 0 |
+
+Vercel arrives from several AWS addresses (`98.83.39.124`, `54.81.38.44`) at one
+or two connections each, nowhere near the cap. Neither limit has turned away a
+single legitimate connection.
+
+That is a reassuring number and a weak one: only `gracefully_imagined` is live
+on this box today. The cap is not proven until keepsake and shipkit-www cut over
+and a cold start opens a pool from one egress IP. **The counter is the test.**
+Check it after each cutover, and raise `CONCURRENT` if real clients are being
+reset:
+
+```bash
+ssh root@bas.hyrax-boga.ts.net /usr/local/sbin/bas-projects-db-ratelimit.sh show
+```
+
+### The port is being scanned right now, and the watch will never tell you
+
+Of those 195 connections, roughly 20 an hour were internet scanners:
+
+```
+[1425] LOG:  connection received: host=172.104.209.135 port=38128
+[1425] LOG:  could not accept SSL connection: no application protocol
+```
+
+They complete a TCP connect, fail ALPN, and vanish. They never send a startup
+packet, so they produce **no `FATAL` at all** and the auth-failure check above
+cannot see them by design. Do not read a silent watch as "nothing is touching
+the port".
+
+This is the attack the connection limits exist for, not the password guessing.
+A scanner that held its sockets open instead of dropping them is the 97-slot
+exhaustion from the top of this runbook, and what bounds it is
+`authentication_timeout=10s` and the concurrency cap, neither of which needs
+anyone to be alerted. To see the scanners:
+
+```bash
+ssh root@bas.hyrax-boga.ts.net \
+  'docker logs --since 1h projects-db 2>&1 | grep "could not accept SSL connection"'
+```
+
 ## Authentication-failure alerting
 
 `log_connections` was on from the day the box was built and nothing read it.
