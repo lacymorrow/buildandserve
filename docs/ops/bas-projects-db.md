@@ -236,17 +236,36 @@ apart, and it is a stamp rather than a fixed hour of the day on purpose: this
 runs on a laptop that sleeps, and a fixed hour is a cert check silently skipped
 on every day the lid was shut at the wrong moment. `--cert-now` forces it.
 
-Install the schedule (after this branch is on `main`, because a launchd job must
-not point at a script that only exists on a branch):
+Install the schedule. The job runs an installed copy of the script under
+`~/.paperclip/scripts`, not the one in this repo: `~/repo/buildandserve` is the
+shared working tree for every agent in the fleet and is routinely parked on a
+feature branch, so a job pointing into the repo dies whenever the checkout is on
+a branch that predates the script. Copy from `origin/main` rather than from the
+working tree, for the same reason:
 
 ```bash
+git -C ~/repo/buildandserve show origin/main:scripts/bas-projects-db-watch.sh \
+  > ~/.paperclip/scripts/bas-projects-db-watch.sh
+chmod 755 ~/.paperclip/scripts/bas-projects-db-watch.sh
 cp docs/ops/bas-projects-db-watch.plist ~/Library/LaunchAgents/com.buildandserve.projects-db-watch.plist
 launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.buildandserve.projects-db-watch.plist
+launchctl kickstart -p gui/$UID/com.buildandserve.projects-db-watch
 launchctl print gui/$UID/com.buildandserve.projects-db-watch | grep -E 'runs|last exit'
 ```
 
-Verify by the `launchctl print` run count and exit code, never by the log tail:
-the log is empty when everything is fine.
+`RunAtLoad` is false and the schedule is hourly on the hour, so without the
+`kickstart` the install reports `runs = 0` and proves nothing. Verify by the
+`launchctl print` run count and exit code, never by the log tail: the log is
+empty when everything is fine.
+
+The installed copy can drift from `main`. Check it the same way the box's own
+copy of `scripts/bas-projects-db.sh` is checked, and re-run the install if these
+two lines differ:
+
+```bash
+md5 -q ~/.paperclip/scripts/bas-projects-db-watch.sh
+git -C ~/repo/buildandserve show origin/main:scripts/bas-projects-db-watch.sh | md5 -q
+```
 
 ## Ops runs over the tailnet
 
