@@ -21,7 +21,7 @@ const SCRIPT = path.resolve(__dirname, "../../../scripts/bas-projects-db-watch.s
  * input to the check, so handing it a log directly tests the thing itself
  * rather than a mock of it.
  */
-let box: { dir: string; bin: string; state: string; log: string };
+let box: { dir: string; bin: string; state: string; secrets: string; log: string };
 let server: Server;
 let origin: string;
 let slackPosts: string[];
@@ -54,10 +54,12 @@ beforeEach(async () => {
     dir,
     bin: path.join(dir, "bin"),
     state: path.join(dir, "state"),
+    secrets: path.join(dir, "secrets"),
     log: path.join(dir, "container.log"),
   };
   await mkdir(box.bin, { recursive: true });
   await mkdir(box.state, { recursive: true });
+  await mkdir(box.secrets, { recursive: true });
   slackPosts = [];
 });
 
@@ -120,6 +122,9 @@ async function watch(options: Options) {
     SSH_BIN: ssh,
     BAS_SSH: "root@fake",
     STATE_DIR: box.state,
+    // Never $HOME/.paperclip/secrets. A test that read the real directory
+    // would pass or fail based on this laptop rather than on the code.
+    SECRETS_DIR: box.secrets,
     AUTH_FAIL_THRESHOLD: String(options.threshold ?? 20),
     SLACK_API_URL: `${origin}/slack`,
     PROJECTS_DB_SLACK_TOKEN: "xoxb-test-token",
@@ -286,6 +291,7 @@ describe("the cert check keeps its own cadence", () => {
         SSH_BIN: ssh,
         BAS_SSH: "root@fake",
         STATE_DIR: box.state,
+        SECRETS_DIR: box.secrets,
         CERT_STAMP: stamp,
         AUTH_FAIL_THRESHOLD: "20",
         // Unreachable, so a cert probe that did run would be visible as a failure.
@@ -297,5 +303,71 @@ describe("the cert check keeps its own cadence", () => {
     });
     expect(out.stdout).toBe("");
     expect(await readFile(stamp, "utf8")).not.toBe("");
+  });
+});
+
+describe("secret file modes", () => {
+  /** Writes a secret file at an explicit mode and returns its path. */
+  async function secret(name: string, mode: number) {
+    const file = path.join(box.secrets, name);
+    await writeFile(file, "DATABASE_URL=postgresql://u:pw@projects-db.cloud0.dev:26432/d\n");
+    await chmod(file, mode);
+    return file;
+  }
+
+  const quiet = [received(1, "3.86.77.141"), authorized(1)];
+
+  it("is silent when every credential file is 600", async () => {
+    await secret("keepsake-db.env", 0o600);
+    await secret("shipkit-www-db.env", 0o600);
+    const result = await watch({ lines: quiet });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe("");
+  });
+
+  it("catches the backup copy left world-readable, which is the real regression", async () => {
+    // LAC-6059 chmod'd the file it rewrote and not the .bak it made first.
+    // The agent shell's umask is 022, so the copy landed at 644.
+    await secret("keepsake-db.env", 0o600);
+    await secret("keepsake-db.env.bak-LAC-6059-20261028", 0o644);
+    const result = await watch({ lines: quiet });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("keepsake-db.env.bak-LAC-6059-20261028 is 644");
+    expect(result.stdout).toContain("chmod 600");
+  });
+
+  it("counts every offender, not just the first", async () => {
+    await secret("keepsake-db.env.bak-a", 0o644);
+    await secret("shipkit-www-db.env.bak-b", 0o640);
+    await secret("gracefully-imagined-db.env", 0o600);
+    const result = await watch({ lines: quiet });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("2 projects-db credential file(s)");
+    expect(result.stdout).toContain("is 644");
+    expect(result.stdout).toContain("is 640");
+    expect(result.stdout).not.toContain("gracefully-imagined-db.env is");
+  });
+
+  it("leaves other people's secrets alone, because fixing those is someone else's job", async () => {
+    const other = path.join(box.secrets, "ph-shopify-agent-totp.txt");
+    await writeFile(other, "123456\n");
+    await chmod(other, 0o644);
+    const result = await watch({ lines: quiet });
+    expect(result.code).toBe(0);
+  });
+
+  it("says nothing when there are no credential files at all", async () => {
+    const result = await watch({ lines: quiet });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe("");
+  });
+
+  it("reports a bad mode even when the tailnet is down", async () => {
+    // The mode check reads the local disk, so a void auth check must not
+    // swallow it. This is the case where both happen at once.
+    await secret("keepsake-db.env.bak-c", 0o644);
+    const result = await watch({ lines: [], sshFails: true });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("is 644");
   });
 });

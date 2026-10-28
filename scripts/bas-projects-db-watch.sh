@@ -111,6 +111,9 @@ AUTH_FAIL_THRESHOLD=${AUTH_FAIL_THRESHOLD:-20}
 # skips a day by drifting a few minutes.
 CERT_EVERY_HOURS=${CERT_EVERY_HOURS:-20}
 STATE_DIR=${STATE_DIR:-$HOME/.paperclip/state}
+# The projects-db credential files on this host. Checked for mode, not read.
+SECRETS_DIR=${SECRETS_DIR:-$HOME/.paperclip/secrets}
+SECRETS_GLOB=${SECRETS_GLOB:-*-db.env*}
 CERT_STAMP=${CERT_STAMP:-$STATE_DIR/projects-db-cert-checked-at}
 
 NOTIFY=0
@@ -346,11 +349,46 @@ check_auth() {
 	return 0
 }
 
+# ------------------------------------------------------- secret file modes
+
+# Every one of these holds a plaintext password for a live database on a port
+# that is open to 0.0.0.0/0, so the file mode is the entire protection.
+#
+# This exists because a doc line was not enough. Three separate runs edited
+# these files on 2026-10-28 (LAC-6054, LAC-6059, LAC-6060) and one of them left
+# four backup copies at 644 for about five hours. The cause is dull and will
+# recur: the agent shell's umask here is 022, so anything that creates a file
+# without an explicit mode gets 644, and chmod-ing the file you meant to write
+# does not cover the backup copy you made first.
+#
+# Nothing here reads a file or logs a name beyond its path. `*-db.env*` is
+# deliberately narrow: this is the projects-db credential family, which is what
+# this runbook owns. A sweep of every secret on this host is a different job
+# and belongs with cred-scrub, which does not check modes today.
+check_secret_modes() {
+	local f mode bad=()
+	# BSD stat first, as on zero; the GNU form is the fallback, same rule as
+	# the date parsing above.
+	for f in "$SECRETS_DIR"/$SECRETS_GLOB; do
+		[ -f "$f" ] || continue
+		mode=$(stat -f '%Lp' "$f" 2>/dev/null || stat -c '%a' "$f" 2>/dev/null)
+		[ -n "$mode" ] || continue
+		[ "$mode" = "600" ] && continue
+		bad+=("$(basename "$f") is $mode")
+	done
+
+	if [ "${#bad[@]}" -gt 0 ]; then
+		PROBLEMS+=("$(printf '%s projects-db credential file(s) are not mode 600. Each holds a plaintext password for a database reachable from the internet, so the mode is the only thing protecting it. Fix: chmod 600 %s/%s\n%s' \
+			"${#bad[@]}" "$SECRETS_DIR" "$SECRETS_GLOB" "$(printf '      %s\n' "${bad[@]}")")")
+	fi
+}
+
 # ---------------------------------------------------------------- reporting
 
 main() {
 	mkdir -p "$STATE_DIR" 2>/dev/null
 
+	check_secret_modes
 	check_auth
 
 	if cert_is_due; then

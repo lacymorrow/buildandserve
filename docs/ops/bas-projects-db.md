@@ -14,6 +14,7 @@ LAC-6054, taken off the public port for everything but Vercel by LAC-6059.
 | Cert      | Let's Encrypt on `projects-db.cloud0.dev`, renewed by `certbot.timer`           |
 | Script    | `scripts/bas-projects-db.sh`, installed at `/usr/local/sbin/bas-projects-db.sh` |
 | Watch     | `scripts/bas-projects-db-watch.sh` on zero, hourly, silent when healthy         |
+| Checks    | served cert, auth failures from off-tailnet, secret file modes                  |
 | Secrets   | zero, `~/.paperclip/secrets/<project>-db.env`, mode 600                         |
 | Ops       | over the tailnet: `bas.hyrax-boga.ts.net` = `100.117.119.81` (LAC-6059)         |
 | Limits    | `authentication_timeout` 10s, 20 concurrent and 10/s new per source address     |
@@ -422,6 +423,19 @@ The auth check reads the log over the tailnet by ssh. If the tailnet is down it
 exits 3 (void) rather than paging, because the cert check runs over the public
 internet and will say so if the box is genuinely gone.
 
+## Secret file modes
+
+The watch's third check, and the cheapest one: every `~/.paperclip/secrets/*-db.env*`
+must be mode `600`. These files hold plaintext passwords for databases on a port
+open to `0.0.0.0/0`, so the mode is the whole protection. It reads no file and
+logs no content, only the name and the mode it found.
+
+It is scoped to `*-db.env*` on purpose. A sweep of every secret on this host is
+a different job and belongs with `cred-scrub`, which does not check modes today.
+
+See "Editing a secret file, and the mode trap" for the failure that put this
+here and the `install -m 600` idiom that avoids it.
+
 ## ssh is tailnet-only
 
 `tcp/22` was `0.0.0.0/0` on firewall `11789519`, and that rule's own description
@@ -520,11 +534,52 @@ printf '%s\n' "$PW" | ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projec
 umask 077
 cat > ~/.paperclip/secrets/${PROJ//_/-}-db.env <<EOF
 DATABASE_URL=postgresql://$PROJ:$PW@projects-db.cloud0.dev:26432/$PROJ?sslmode=verify-full
+OPS_DATABASE_URL=postgresql://$PROJ:$PW@bas.hyrax-boga.ts.net:26432/$PROJ?sslmode=require
 EOF
 ```
 
-The hostname and `verify-full` are not optional and there is no per-driver
-variant to choose; see "One URL, every driver" above before changing either.
+Both URLs, every time. A file with only `DATABASE_URL` means the next person to
+run a dump reaches for the public port, which is the thing LAC-6059 took ops
+off. See "Ops runs over the tailnet" for why the ops one is `require`.
+
+The hostname and `verify-full` are not optional on the app URL and there is no
+per-driver variant to choose; see "One URL, every driver" above before changing
+either.
+
+### Editing a secret file, and the mode trap
+
+`umask 077` above is load-bearing, and it only covers the file that line
+creates. The failure that actually happened, on 2026-10-28:
+
+> A run rewrote four `*-db.env` files to add the ops URL. It made a `.bak` copy
+> of each first, then `chmod 600`-ed the file it had rewritten. The backups kept
+> the umask default and sat at `644` for about five hours. Each one held a
+> working password for a live database on a port open to `0.0.0.0/0`.
+
+The agent shell's umask on zero is `022`, so anything that creates a file
+without an explicit mode is world-readable. `chmod`-ing the file you meant to
+write does not cover the copy you made of it. Use `install`, which sets the mode
+as it creates:
+
+```bash
+install -m 600 the-file.env the-file.env.bak-LAC-NNNN-$(date +%Y%m%d)
+```
+
+After touching anything in that directory, check the whole family rather than
+the file you were thinking about:
+
+```bash
+find ~/.paperclip/secrets -maxdepth 1 -type f ! -perm 600
+```
+
+Silence is correct. `scripts/bas-projects-db-watch.sh` now runs that check
+hourly over `*-db.env*` and pages if it finds one, because the doc line you are
+reading was not enough on its own: three separate runs edited these files on the
+same day and one got it wrong.
+
+Every `.bak` is another copy of a live credential and another thing to rotate.
+Prune them once the cutover they were taken for is confirmed; LAC-5969 still
+owns the rotation procedure and there is not one yet.
 
 `add-project` creates the role with `CONNECTION LIMIT 10` and no `SUPERUSER`,
 `CREATEDB` or `CREATEROLE`, creates the database owned by that role, revokes
