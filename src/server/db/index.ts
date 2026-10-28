@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { env } from "@/env";
 import { databaseClientTlsOptions } from "./client-tls";
+import { databasePoolingOptions } from "./pooling";
 import * as schema from "./schema";
 
 // Configure postgres with proper options for production workloads
@@ -36,6 +37,12 @@ const client = env.DATABASE_URL
       // treats an explicit `ssl: undefined` as a value and it beats the URL's
       // `sslmode=verify-full`, which turns TLS off entirely. See client-tls.ts.
       ...databaseClientTlsOptions(),
+      // `prepare: false` when this URL goes through PgBouncer (LAC-6076), so
+      // nothing here depends on the pooler inspecting and rewriting our queries.
+      // Detected from the URL rather than asked for, because the failures it
+      // avoids are intermittent and load-dependent. pooling.ts has the measured
+      // reasoning, including why the usual justification for this is out of date.
+      ...databasePoolingOptions(env.DATABASE_URL),
     })
   : undefined;
 
