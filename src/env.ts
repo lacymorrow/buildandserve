@@ -18,6 +18,11 @@ const serverSchema = {
   // ======== Database ========
   DATABASE_URL: z.string().url().optional(),
   DB_PREFIX: z.string().default("db"),
+  // Client certificate for projects-db, base64-encoded PEM (LAC-6060). Both or
+  // neither; one alone is a half-finished deployment and is ignored. Base64
+  // because a multi-line PEM does not survive a Vercel environment variable.
+  DATABASE_CLIENT_CERT_B64: z.string().optional(),
+  DATABASE_CLIENT_KEY_B64: z.string().optional(),
 
   // ======== Content Management ========
   // Payload CMS

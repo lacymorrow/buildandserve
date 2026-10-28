@@ -51,6 +51,24 @@
 # uncapped container log filling a 75 GB disk is its own outage, and it would
 # be caused by the very brute-force burst this is here to report.
 #
+# ## Check 3: the private client CA and the certs it issued (LAC-6060)
+#
+# Projects that require a client certificate fail together, on one date, when
+# the CA or an issued cert expires. That is the same class of fault as a failed
+# Let's Encrypt renewal and it shares this job rather than getting its own.
+#
+# The certs are 10-year, so this is not a monthly worry; it is a worry about a
+# date nobody will be around to remember, which is exactly the kind a watch is
+# for. The warning threshold is half a year, because reissuing means editing
+# five Vercel projects by hand and that is scheduled work, not an incident.
+#
+# It also catches the live fault with a short fuse: ssl_ca_file pointing at a
+# file that is gone. The running server holds the CA in memory and keeps
+# working, so nothing looks wrong until the next restart, which then fails.
+#
+# This half reads the box over ssh, like the auth check and for the same
+# reason: the CA is a file on the box, not something a client can see.
+#
 # ## Cadence
 #
 # Hourly, because an auth-failure threshold measured per hour is worth nothing
@@ -100,6 +118,8 @@ BAS_SSH=${BAS_SSH:-root@bas.hyrax-boga.ts.net}
 # from. Same reason the tailscale watchdog takes TS_WATCHDOG_DIG.
 SSH_BIN=${SSH_BIN:-ssh}
 CONTAINER=${CONTAINER:-projects-db}
+# Where bootstrap installs the box-side script. Overridable for the tests.
+BOX_SCRIPT=${BOX_SCRIPT:-/usr/local/sbin/bas-projects-db.sh}
 AUTH_WINDOW=${AUTH_WINDOW:-60m}
 # Failures per hour from outside the tailnet before this is worth waking anyone.
 # Legitimate traffic produces zero: every caller holds a password that works, so
@@ -349,6 +369,39 @@ check_auth() {
 	return 0
 }
 
+# -------------------------------------------------------- client-cert check
+
+# Runs the box's own `client-cert-check`, rather than reimplementing it here.
+# The box is where the CA lives and the thresholds already have one home in
+# scripts/bas-projects-db.sh; a second copy on this laptop would drift.
+#
+# Exit 0 clean, exit 1 with findings on stdout, anything else is ssh or a box
+# that does not have the command yet, which proves nothing and must void.
+check_client_certs() {
+	local out rc
+	out=$("$SSH_BIN" -o BatchMode=yes -o ConnectTimeout=10 "$BAS_SSH" \
+		"$BOX_SCRIPT client-cert-check" 2>&1)
+	rc=$?
+
+	if [ "$rc" -eq 0 ]; then
+		return 0
+	fi
+
+	if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q 'client-certificate problem'; then
+		while IFS= read -r line; do
+			case "$line" in
+			'  - '*) PROBLEMS+=("${line#  - }") ;;
+			esac
+		done <<-FINDINGS
+			$out
+		FINDINGS
+		return 0
+	fi
+
+	VOIDS+=("client certs: could not run client-cert-check on $BAS_SSH (exit $rc), so nothing was proven about client-certificate expiry: $(printf '%s\n' "$out" | head -n1)")
+	return 1
+}
+
 # ------------------------------------------------------- secret file modes
 
 # Every one of these holds a plaintext password for a live database on a port
@@ -392,9 +445,17 @@ main() {
 	check_auth
 
 	if cert_is_due; then
-		# Stamp only on a check that proved something. A void must not buy the
-		# cert another CERT_EVERY_HOURS of silence.
-		check_cert && date -u +%s >"$CERT_STAMP" 2>/dev/null
+		# Stamp only on a run where both halves proved something. A void must
+		# not buy the cert another CERT_EVERY_HOURS of silence, and the two
+		# halves fail independently: the server cert is read over the public
+		# internet, the client CA over the tailnet.
+		# Both, never short-circuited: they fail independently and for
+		# unrelated reasons, so a DNS-blind laptop must not also silently skip
+		# the client-cert half, which needs no DNS at all.
+		local proved=0
+		check_cert || proved=1
+		check_client_certs || proved=1
+		[ "$proved" -eq 0 ] && date -u +%s >"$CERT_STAMP" 2>/dev/null
 	fi
 
 	if [ "${#PROBLEMS[@]}" -gt 0 ]; then

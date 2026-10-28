@@ -5,11 +5,16 @@
 # Runs ON the bas box as root. Idempotent: every step checks before it acts, so
 # re-running it after a partial failure is safe.
 #
-#   bootstrap                  swap, /data dirs, LE cert, renewal hook, pg_hba, container
+#   bootstrap                  swap, /data dirs, LE cert, renewal hook, pg_hba, container, client CA
 #   add-project <name>         one role + one database + one hostssl line, then reload
 #   add-preview <name>         the same for <name>_preview, the preview-deploy pair
 #   cert-deploy                install the current LE cert and reload postgres
-#   cert-check                 expiry, hostname and served-vs-disk drift. Silent when healthy
+#   cert-check                 expiry, hostname, served-vs-disk drift, client CA. Silent when healthy
+#   client-cert-check          the client-CA half of cert-check on its own, for the watch
+#   ca-init                    create the private client CA and point ssl_ca_file at it
+#   client-cert <role>         mint a 10-year client cert, CN=<role>, print it base64 for Vercel
+#   require-client-cert <role> that role needs a client cert from off-tailnet. Reversible
+#   relax-client-cert <role>   put that role back to password-only. The rollback lever
 #   verify                     report what is actually running
 #
 # The superuser password is read from stdin on bootstrap (never an argument, so it
@@ -37,6 +42,37 @@ SELF_PATH=/usr/local/sbin/bas-projects-db.sh
 # certbot renews at 30 days remaining and its timer runs twice a day, so a cert
 # with less than this left has already missed dozens of renewal attempts.
 CERT_WARN_DAYS=${CERT_WARN_DAYS:-21}
+# The private client CA (LAC-6060). Nothing to do with the Let's Encrypt server
+# cert: that one authenticates the box to clients, this one authenticates clients
+# to the box. They are separate chains on purpose, because they answer separate
+# questions and have separate blast radii.
+#
+# The CA private key lives OUTSIDE $CONF. $CONF is bind-mounted into the
+# container, so a key in there would be reachable from inside Postgres; the only
+# thing the server needs is the public certificate, which is copied in.
+CA="$ROOT/ca"
+CA_KEY="$CA/ca.key"
+CA_CRT="$CA/ca.crt"
+CA_ISSUED="$CA/issued"
+# What the container sees, read-only, via the /pgconf mount. Overridable only so
+# the revert path below can be exercised against a path that does not exist;
+# nothing in normal operation sets it.
+CLIENT_CA_SERVED="$CONF/clients-ca.crt"
+CLIENT_CA_IN_CONTAINER=${CLIENT_CA_IN_CONTAINER:-/pgconf/clients-ca.crt}
+# 10 years for both. A client-cert expiry is a simultaneous outage for every
+# project on the box, which is the one failure this design must not add, so the
+# fuse is long and the expiry is watched rather than remembered.
+CA_DAYS=${CA_DAYS:-3650}
+CLIENT_DAYS=${CLIENT_DAYS:-3650}
+# Warn early enough that reissuing is a scheduled job and not an incident. A
+# client cert is reissued by hand into five Vercel projects, so a month is not
+# enough runway; half a year is.
+CA_WARN_DAYS=${CA_WARN_DAYS:-180}
+CLIENT_WARN_DAYS=${CLIENT_WARN_DAYS:-180}
+# Ops reaches the box over the tailnet, where WireGuard has already authenticated
+# both ends. That path stays password-only so a botched client-cert rollout
+# cannot lock ops out of the recovery path as well as the apps.
+TAILNET_CIDR=${TAILNET_CIDR:-100.64.0.0/10}
 # uid/gid of the postgres user inside postgres:17-alpine
 PG_UID=70
 PG_GID=70
@@ -263,12 +299,17 @@ cert_check() {
 		problems+=("server serves $sf but $CONF/server.crt is $df; a renewal landed without a reload. Fix: $SELF_PATH cert-deploy")
 	fi
 
-	if (( ${#problems[@]} == 0 )); then
-		return 0
+	local rc=0
+	if (( ${#problems[@]} > 0 )); then
+		printf 'projects-db cert problem on %s:\n' "$DB_HOST"
+		printf '  - %s\n' "${problems[@]}"
+		rc=1
 	fi
-	printf 'projects-db cert problem on %s:\n' "$DB_HOST"
-	printf '  - %s\n' "${problems[@]}"
-	return 1
+	# LAC-6060. A client-cert expiry is the same class of fault as a server-cert
+	# expiry, with the same blast radius, so it belongs in the check people
+	# already run rather than in a second one they do not.
+	client_cert_check || rc=1
+	return $rc
 }
 
 # Deliberately tighter than the umami-db copy this container is modelled on.
@@ -449,6 +490,422 @@ add_project() {
 	log "$proj: hba reloaded"
 }
 
+# ---------------------------------------------------------------- client CA
+#
+# LAC-6060. tcp/26432 is open to 0.0.0.0/0 and LAC-6056 ruled that it stays that
+# way, because Vercel egress has no fixed IP range and a Vercel function can join
+# neither a tailnet nor a TCP tunnel. That leaves a password as the only thing
+# between the internet and five project databases, and LAC-6032 is this fleet's
+# own measured instance of a leaked credential still authenticating weeks later.
+#
+# A client certificate is the access control that is actually available here: it
+# is checked during the TLS handshake, before SCRAM starts, so a password on its
+# own stops being a path in.
+#
+# CN = the role name, and `clientcert=verify-full` makes Postgres compare the CN
+# against the Postgres user. A certificate minted for keepsake therefore cannot
+# be used to reach shipkit_www even with shipkit_www's password.
+
+# Create the CA, once. EC P-256 rather than RSA: same key type as the Let's
+# Encrypt server cert, a third of the handshake cost, and every client here
+# (OpenSSL 3, libpq 18, Node 22+) has supported it for years.
+#
+# pathlen:0 so this CA cannot sign an intermediate. There is no second tier here
+# and a CA that cannot delegate is one less thing to reason about if the key
+# ever leaks.
+ensure_ca() {
+	mkdir -p "$CA" "$CA_ISSUED"
+	chmod 700 "$CA" "$CA_ISSUED"
+
+	if [[ -f "$CA_KEY" && -f "$CA_CRT" ]]; then
+		log "ca: present, expires $(openssl x509 -in "$CA_CRT" -noout -enddate | cut -d= -f2)"
+	else
+		log "ca: creating a ${CA_DAYS}-day root"
+		(
+			umask 077
+			openssl ecparam -name prime256v1 -genkey -noout -out "$CA_KEY"
+		)
+		openssl req -x509 -new -key "$CA_KEY" -sha256 -days "$CA_DAYS" \
+			-subj "/CN=projects-db client CA" \
+			-addext "basicConstraints=critical,CA:TRUE,pathlen:0" \
+			-addext "keyUsage=critical,keyCertSign,cRLSign" \
+			-out "$CA_CRT"
+		log "ca: created, expires $(openssl x509 -in "$CA_CRT" -noout -enddate | cut -d= -f2)"
+	fi
+	chmod 600 "$CA_KEY"
+	chmod 644 "$CA_CRT"
+
+	# Only the public certificate crosses into the container.
+	install -o "$PG_UID" -g "$PG_GID" -m 644 "$CA_CRT" "$CLIENT_CA_SERVED"
+	log "ca: public cert installed at $CLIENT_CA_SERVED"
+}
+
+# `ssl_ca_file` is set with ALTER SYSTEM rather than a `-c` flag on the container
+# command, and that is a deliberate difference from every other setting here.
+#
+# A `-c ssl_ca_file=...` pointing at a file that is missing is a container that
+# will not start at all. ALTER SYSTEM writes postgresql.auto.conf, which is only
+# written after the file exists, survives a restart the same way, and is a
+# sighup setting so it costs a reload rather than a restart.
+#
+# Setting it does NOT force a client certificate on anybody. Postgres requests
+# one once a CA is loaded, but whether a missing one is fatal is decided per
+# pg_hba line by `clientcert`. Projects without that keyword keep connecting
+# exactly as before, which is what makes a one-project-at-a-time rollout possible.
+# The client-CA names the server advertises in the TLS handshake. Postgres only
+# advertises a CA it actually loaded, so this is the authoritative read of
+# whether ssl_ca_file took.
+#
+# It replaces a grep of the container log, and the reason is measured rather
+# than stylistic. `pg_reload_conf()` returns when SIGHUP is sent, not when the
+# postmaster has acted on it, so a log read straight afterwards races the
+# reload: on 2026-10-28 the grep ran, found nothing, reported success, and
+# Postgres wrote `SSL configuration was not reloaded` 6ms later. A handshake
+# cannot be raced that way, because there is nothing to serve until the context
+# is built. Same principle as `deploy_cert` reading the served certificate back
+# instead of trusting the reload's exit code.
+advertised_client_cas() {
+	printf 'Q\n' | openssl s_client -starttls postgres \
+		-connect "127.0.0.1:$HOST_PORT" -servername "$DB_HOST" 2>/dev/null |
+		awk '/Acceptable client certificate CA names/ {f = 1; next}
+		     /^(Requested|Shared|---)/ {f = 0}
+		     f'
+}
+
+ca_is_live() {
+	local cn
+	[[ -r "$CA_CRT" ]] || return 1
+	cn=$(openssl x509 -in "$CA_CRT" -noout -subject | sed -n 's/.*CN *= *//p')
+	[[ -n "$cn" ]] || return 1
+	advertised_client_cas | grep -qF "$cn"
+}
+
+# Put ssl_ca_file back and reload, so a rejected path never survives in
+# postgresql.auto.conf. That is the exact failure the ALTER SYSTEM choice exists
+# to avoid: the running server keeps its old TLS context and looks healthy, and
+# the next restart reads a CA it cannot load and does not come up. Raised in the
+# LAC-6062 review.
+revert_ssl_ca_file() {
+	local previous="$1" reason="$2"
+	echo "ca: $reason; reverting ssl_ca_file" >&2
+	if [[ -z "$previous" ]]; then
+		psql_super -q -c "ALTER SYSTEM RESET ssl_ca_file"
+	else
+		psql_super -q -c "ALTER SYSTEM SET ssl_ca_file = '$previous'"
+	fi
+	psql_super -q -c "SELECT pg_reload_conf()" >/dev/null
+	echo "ca: ssl_ca_file reverted to '${previous:-unset}', so the container will still start" >&2
+	docker logs --tail 20 "$CONTAINER" >&2 || true
+	exit 1
+}
+
+ensure_ssl_ca_file() {
+	local previous since marker waited seen
+	previous=$(psql_super -tAc "show ssl_ca_file")
+	if [[ "$previous" == "$CLIENT_CA_IN_CONTAINER" ]] && ca_is_live; then
+		log "ca: ssl_ca_file already $previous, and the server is advertising it"
+		return 0
+	fi
+
+	# RFC3339 with an explicit Z: a bare timestamp is read in the docker
+	# daemon's local zone, which is not necessarily UTC. Two seconds of slack
+	# so a sub-second boundary cannot drop the lines we are about to wait for.
+	since=$(date -u -d '2 seconds ago' +%Y-%m-%dT%H:%M:%SZ)
+	psql_super -q -c "ALTER SYSTEM SET ssl_ca_file = '$CLIENT_CA_IN_CONTAINER'"
+	psql_super -q -c "SELECT pg_reload_conf()" >/dev/null
+	log "ca: ssl_ca_file '${previous:-unset}' -> '$CLIENT_CA_IN_CONTAINER', waiting for the reload to land"
+
+	# `pg_reload_conf()` returns when SIGHUP is sent, not when the postmaster
+	# has acted on it. Reading the log straight afterwards is a race, and it is
+	# a race that fails open: measured on 2026-10-28, the grep ran, found
+	# nothing, reported success, and Postgres wrote
+	# `SSL configuration was not reloaded` six milliseconds later. So wait for
+	# the line the postmaster always writes on a change, success or failure.
+	marker="parameter \"ssl_ca_file\" changed to \"$CLIENT_CA_IN_CONTAINER\""
+	waited=0
+	seen=0
+	while ((waited < 50)); do
+		if docker logs --since "$since" "$CONTAINER" 2>&1 | grep -qF "$marker"; then
+			seen=1
+			break
+		fi
+		sleep 0.2
+		waited=$((waited + 1))
+	done
+	if ((seen == 0)); then
+		revert_ssl_ca_file "$previous" "postgres never acted on the reload within 10s"
+	fi
+
+	# The refusal, when there is one, lands in the same reload pass a few
+	# milliseconds after the marker. One second of grace is several orders of
+	# magnitude more than that.
+	sleep 1
+	if docker logs --since "$since" "$CONTAINER" 2>&1 | grep -q 'SSL configuration was not reloaded'; then
+		revert_ssl_ca_file "$previous" "postgres refused the new SSL configuration"
+	fi
+
+	# Belt and braces, and not redundant: the log says the reload was accepted,
+	# this says the server is really offering a client CA to connecting clients.
+	# A server advertising nothing refuses every client certificate there is.
+	if ! ca_is_live; then
+		revert_ssl_ca_file "$previous" "the reload was accepted but the server advertises no client CA"
+	fi
+	log "ca: reload accepted and the server is advertising the client CA"
+}
+
+# One cert per role, CN = role name, printed once and not kept.
+#
+# The private key is generated in a tmpdir and shredded before this returns. The
+# box keeps only the public certificate, under $CA_ISSUED, so expiry can be
+# watched without the box holding a credential that lets anything connect. If a
+# key is lost, mint another: it costs one command and invalidates nothing.
+client_cert() {
+	local role="$1"
+	if [[ ! "$role" =~ ^[a-z][a-z0-9_]{1,30}$ ]]; then
+		echo "role name must be lowercase [a-z][a-z0-9_]: got '$role'" >&2
+		exit 1
+	fi
+	if [[ ! -f "$CA_KEY" ]]; then
+		echo "no client CA at $CA_KEY; run $SELF_PATH ca-init" >&2
+		exit 1
+	fi
+	# CN has to match a real role or the cert is unusable the moment
+	# clientcert=verify-full is turned on, and the failure would land on the app.
+	if ! psql_super -tAc "select 1 from pg_roles where rolname='$role'" | grep -qx 1; then
+		echo "no role '$role' on this server; run $SELF_PATH add-project $role first" >&2
+		exit 1
+	fi
+
+	local tmp
+	tmp=$(mktemp -d)
+	chmod 700 "$tmp"
+	(
+		umask 077
+		openssl ecparam -name prime256v1 -genkey -noout -out "$tmp/client.key"
+	)
+	openssl req -new -key "$tmp/client.key" -subj "/CN=$role" -out "$tmp/client.csr" 2>/dev/null
+	# clientAuth only. A cert that is also good for serverAuth is a cert that
+	# could impersonate a server to anything that trusts this CA.
+	openssl x509 -req -in "$tmp/client.csr" \
+		-CA "$CA_CRT" -CAkey "$CA_KEY" -CAcreateserial \
+		-days "$CLIENT_DAYS" -sha256 \
+		-extfile <(printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=clientAuth\n') \
+		-out "$tmp/client.crt" 2>/dev/null
+
+	install -m 644 "$tmp/client.crt" "$CA_ISSUED/$role.crt"
+
+	# base64 on one line. A multi-line PEM pasted into a Vercel environment
+	# variable is the standard way this goes wrong: the dashboard keeps the
+	# newlines, the deployment does not, and the failure reads as a TLS error
+	# rather than as a mangled variable.
+	cat <<-EOM
+
+		# ---- $role, client certificate, expires $(openssl x509 -in "$tmp/client.crt" -noout -enddate | cut -d= -f2)
+		# Paste these two into the Vercel project. Base64, single line, decoded at read.
+		# There is no CA variable on purpose: the server cert is Let's Encrypt and the
+		# client verifies it against the system trust store. See docs/ops/bas-projects-db.md.
+
+		DATABASE_CLIENT_CERT_B64=$(base64 -w0 <"$tmp/client.crt")
+		DATABASE_CLIENT_KEY_B64=$(base64 -w0 <"$tmp/client.key")
+	EOM
+
+	shred -u "$tmp/client.key" 2>/dev/null || rm -f "$tmp/client.key"
+	rm -rf "$tmp"
+	log "$role: client cert issued, public copy at $CA_ISSUED/$role.crt"
+}
+
+# Reload pg_hba and prove it parsed. A pg_hba.conf with a syntax error does not
+# take: Postgres keeps the previous rules and writes a log line, so a zero exit
+# from the reload means nothing. pg_hba_file_rules re-reads the file and reports
+# per-line errors, which is the only way to see this from outside the log.
+reload_hba_checked() {
+	local bad
+	psql_super -q -c "SELECT pg_reload_conf()" >/dev/null
+	bad=$(psql_super -tAc "select count(*) from pg_hba_file_rules where error is not null")
+	if [[ "$bad" != "0" ]]; then
+		echo "hba: $bad line(s) failed to parse, the old rules are still in force:" >&2
+		psql_super -c "select line_number, error from pg_hba_file_rules where error is not null" >&2
+		return 1
+	fi
+	log "hba: reloaded, $(psql_super -tAc "select count(*) from pg_hba_file_rules") rule(s), no parse errors"
+}
+
+# Rewrite one project's hba lines to the cert-required pair. Separate from
+# add-project on purpose: a project that needs a cert before its app has one is
+# a project that is down, so this is always a second, deliberate step after the
+# certificate is in the app's environment.
+#
+# Two lines, tailnet first:
+#
+#   hostssl p p 100.64.0.0/10 scram-sha-256                        <- ops
+#   hostssl p p all           scram-sha-256 clientcert=verify-full <- the internet
+#
+# pg_hba is first-match-wins and does not fall through on a failed auth, so an
+# ops connection from the tailnet never reaches the second line and never needs
+# a certificate. That is what keeps a bad rollout from locking ops out too.
+#
+# The issue proposed `hostssl all all 100.64.0.0/10` for the tailnet line. This
+# keeps it per-project instead: the wildcard form would mean a leaked keepsake
+# password reaches the shipkit database from any device on the tailnet, Lacy's
+# phone included, which is the exact thing this file's one-line-per-project rule
+# exists to prevent. Strictly tighter, same ops ergonomics.
+require_client_cert() {
+	local proj="$1"
+	if [[ ! "$proj" =~ ^[a-z][a-z0-9_]{1,30}$ ]]; then
+		echo "project name must be lowercase [a-z][a-z0-9_]: got '$proj'" >&2
+		exit 1
+	fi
+	if [[ ! -f "$CA_ISSUED/$proj.crt" ]]; then
+		echo "no client cert issued for $proj; run $SELF_PATH client-cert $proj first" >&2
+		exit 1
+	fi
+	if ! grep -qE "^hostssl[[:space:]]+${proj}[[:space:]]+${proj}[[:space:]]" "$HBA"; then
+		echo "no hba line for $proj; run $SELF_PATH add-project $proj first" >&2
+		exit 1
+	fi
+	ensure_ssl_ca_file
+
+	write_hba_pair "$proj" cert
+}
+
+# The rollback lever. One project at a time, same as the way in. Use it when an
+# app is locked out and the certificate is not the thing you want to debug at
+# that moment; the password is unchanged, so this restores service immediately.
+relax_client_cert() {
+	local proj="$1"
+	if [[ ! "$proj" =~ ^[a-z][a-z0-9_]{1,30}$ ]]; then
+		echo "project name must be lowercase [a-z][a-z0-9_]: got '$proj'" >&2
+		exit 1
+	fi
+	if ! grep -qE "^hostssl[[:space:]]+${proj}[[:space:]]+${proj}[[:space:]]" "$HBA"; then
+		echo "no hba line for $proj" >&2
+		exit 1
+	fi
+	write_hba_pair "$proj" password
+}
+
+# Replace every hostssl line for $1 with the requested shape. Written as a full
+# rewrite rather than an append or an in-place edit so it lands in the same place
+# from any starting state, including a half-applied one.
+write_hba_pair() {
+	local proj="$1" mode="$2" backup="$HBA.bak" tmp="$HBA.new"
+	cp -p "$HBA" "$backup"
+
+	awk -v p="$proj" -v mode="$mode" -v tailnet="$TAILNET_CIDR" '
+		function emit() {
+			if (mode == "cert") {
+				printf "hostssl %-20s %-20s %-14s %s\n", p, p, tailnet, "scram-sha-256"
+				printf "hostssl %-20s %-20s %-14s %s\n", p, p, "all", "scram-sha-256 clientcert=verify-full"
+			} else {
+				printf "hostssl %-20s %-20s %-14s %s\n", p, p, "all", "scram-sha-256"
+			}
+		}
+		$1 == "hostssl" && $2 == p && $3 == p {
+			if (!done) { emit(); done = 1 }
+			next
+		}
+		{ print }
+	' "$HBA" >"$tmp"
+
+	chown "$PG_UID:$PG_GID" "$tmp"
+	chmod 644 "$tmp"
+	mv -f "$tmp" "$HBA"
+
+	if reload_hba_checked; then
+		rm -f "$backup"
+		if [[ "$mode" == "cert" ]]; then
+			log "$proj: client certificate now required from off-tailnet"
+		else
+			log "$proj: back to password-only"
+		fi
+		return 0
+	fi
+
+	# Put the file back and reload again, so a parse error is a no-op rather
+	# than a file nobody can reload until someone edits it by hand.
+	mv -f "$backup" "$HBA"
+	chown "$PG_UID:$PG_GID" "$HBA"
+	psql_super -q -c "SELECT pg_reload_conf()" >/dev/null
+	echo "$proj: hba rewrite rolled back, nothing changed" >&2
+	exit 1
+}
+
+days_left() {
+	local end end_epoch
+	end=$(openssl x509 -in "$1" -noout -enddate 2>/dev/null | cut -d= -f2) || return 1
+	[[ -n "$end" ]] || return 1
+	end_epoch=$(date -u -d "$end" +%s 2>/dev/null) || return 1
+	echo $(((end_epoch - $(date -u +%s)) / 86400))
+}
+
+# The client half of cert-check, separately callable because the watch on zero
+# reaches this over ssh while its server-cert half deliberately runs over the
+# public internet with no credentials at all.
+#
+# Three faults, all of which are a simultaneous outage for every project that
+# requires a certificate, and none of which show up anywhere else:
+#   1. the CA is running down toward expiry
+#   2. an issued client cert is running down toward expiry
+#   3. ssl_ca_file points at a file that is gone, so the next restart fails and
+#      the running server is the only thing holding the configuration up
+client_cert_check() {
+	local problems=() d
+	local requiring
+	requiring=$(grep -cE '^hostssl.*clientcert=verify-full' "$HBA" 2>/dev/null || true)
+	[[ -n "$requiring" ]] || requiring=0
+
+	if [[ ! -f "$CA_CRT" ]]; then
+		# Only a problem once something depends on it. A box that has never run
+		# ca-init is not broken, it is just not using client certs yet.
+		if ((requiring > 0)); then
+			problems+=("$requiring hba line(s) require a client certificate but the CA at $CA_CRT is gone")
+		fi
+	else
+		d=$(days_left "$CA_CRT") || d=""
+		if [[ -z "$d" ]]; then
+			problems+=("$CA_CRT is not a parseable certificate")
+		elif ((d < CA_WARN_DAYS)); then
+			problems+=("client CA expires in ${d}d; every project that requires a client cert goes down together on that date")
+		fi
+		if [[ ! -r "$CLIENT_CA_SERVED" ]]; then
+			problems+=("$CLIENT_CA_SERVED is missing, so the container cannot read the CA on its next start. Fix: $SELF_PATH ca-init")
+		elif ! cmp -s "$CA_CRT" "$CLIENT_CA_SERVED"; then
+			problems+=("$CLIENT_CA_SERVED differs from $CA_CRT. Fix: $SELF_PATH ca-init")
+		fi
+	fi
+
+	local f role
+	for f in "$CA_ISSUED"/*.crt; do
+		[[ -e "$f" ]] || break
+		role=$(basename "$f" .crt)
+		d=$(days_left "$f") || d=""
+		if [[ -z "$d" ]]; then
+			problems+=("$f is not a parseable certificate")
+		elif ((d < CLIENT_WARN_DAYS)); then
+			problems+=("client cert for $role expires in ${d}d; reissue with '$SELF_PATH client-cert $role' and update that project's Vercel env")
+		fi
+	done
+
+	if ((requiring > 0)); then
+		local live
+		live=$(psql_super -tAc "show ssl_ca_file" 2>/dev/null) || live=""
+		if [[ "$live" != "$CLIENT_CA_IN_CONTAINER" ]]; then
+			problems+=("ssl_ca_file is '$live' but $requiring hba line(s) require a client certificate. Fix: $SELF_PATH ca-init")
+		elif ! ca_is_live; then
+			# `show` reports the configured value whether or not the server
+			# managed to load it, so it is not proof. The handshake is.
+			problems+=("ssl_ca_file is '$live' but the server is not advertising that CA in the handshake, so every client cert is being refused. Fix: $SELF_PATH ca-init")
+		fi
+	fi
+
+	if ((${#problems[@]} == 0)); then
+		return 0
+	fi
+	printf 'projects-db client-certificate problem:\n'
+	printf '  - %s\n' "${problems[@]}"
+	return 1
+}
+
 verify() {
 	echo "== swap"
 	swapon --show || true
@@ -463,6 +920,22 @@ verify() {
 	echo
 	echo "== container"
 	docker ps --filter "name=$CONTAINER" --format '{{.Names}}  {{.Image}}  {{.Status}}  {{.Ports}}'
+	echo
+	echo "== client CA"
+	if [[ -f "$CA_CRT" ]]; then
+		openssl x509 -in "$CA_CRT" -noout -subject -enddate
+		echo "ssl_ca_file=$(psql_super -tAc "show ssl_ca_file")"
+		ls -la "$CA" "$CA_ISSUED"
+		for f in "$CA_ISSUED"/*.crt; do
+			[[ -e "$f" ]] || break
+			printf '%s  ' "$(basename "$f")"
+			openssl x509 -in "$f" -noout -subject -enddate | tr '\n' ' '
+			echo
+		done
+	else
+		echo "none (run ca-init)"
+	fi
+	if client_cert_check; then echo "client-cert-check: ok"; fi
 	echo
 	echo "== pg_hba.conf"
 	cat "$HBA"
@@ -487,6 +960,10 @@ bootstrap)
 	# deploy_cert before the container exists only writes the files; reload once
 	# it is up so the first boot and a rebuild end in the same place.
 	deploy_cert
+	# After the container, not before: ensure_ssl_ca_file needs a server to talk
+	# to, and a CA file that exists before the server does buys nothing.
+	ensure_ca
+	ensure_ssl_ca_file
 	;;
 add-project)
 	add_project "${2:?project name required}" "$PROD_CONNLIMIT"
@@ -508,11 +985,27 @@ cert-deploy)
 cert-check)
 	cert_check
 	;;
+client-cert-check)
+	client_cert_check
+	;;
+ca-init)
+	ensure_ca
+	ensure_ssl_ca_file
+	;;
+client-cert)
+	client_cert "${2:?role name required}"
+	;;
+require-client-cert)
+	require_client_cert "${2:?project name required}"
+	;;
+relax-client-cert)
+	relax_client_cert "${2:?project name required}"
+	;;
 verify)
 	verify
 	;;
 *)
-	echo "usage: $0 {bootstrap|add-project <name>|add-preview <name>|cert-deploy|cert-check|verify}" >&2
+	echo "usage: $0 {bootstrap|add-project <name>|add-preview <name>|cert-deploy|cert-check|client-cert-check|ca-init|client-cert <role>|require-client-cert <role>|relax-client-cert <role>|verify}" >&2
 	exit 2
 	;;
 esac

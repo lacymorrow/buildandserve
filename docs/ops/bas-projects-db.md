@@ -2,23 +2,25 @@
 
 Self-hosted Postgres for project databases, so projects stop burning Neon compute
 hours. Built by LAC-5979 under LAC-5969, certificate verification added by
-LAC-6054, taken off the public port for everything but Vercel by LAC-6059.
+LAC-6054, taken off the public port for everything but Vercel by LAC-6059,
+client-certificate auth added by LAC-6060.
 
-|           |                                                                                 |
-| --------- | ------------------------------------------------------------------------------- |
+|           |                                                                                        |
+| --------- | -------------------------------------------------------------------------------------- |
 | Host      | `projects-db.cloud0.dev:26432` → `128.140.50.130` (bas box, Hetzner cx33, Falkenstein) |
-| Container | `projects-db`, `postgres:17-alpine`, `--restart unless-stopped`, 1 GB cap       |
-| Data      | `/data/projects-db/data` (bind mount, plain directory on `/`)                   |
-| Config    | `/data/projects-db/conf` → `/pgconf:ro` (cert, key, `pg_hba.conf`)              |
-| Auth      | `scram-sha-256` over TLS, required from off-box, server cert verified            |
-| Cert      | Let's Encrypt on `projects-db.cloud0.dev`, renewed by `certbot.timer`           |
-| Script    | `scripts/bas-projects-db.sh`, installed at `/usr/local/sbin/bas-projects-db.sh` |
-| Watch     | `scripts/bas-projects-db-watch.sh` on zero, hourly, silent when healthy         |
-| Checks    | served cert, auth failures from off-tailnet, secret file modes                  |
-| Secrets   | zero, `~/.paperclip/secrets/<project>-db.env`, mode 600                         |
-| Ops       | over the tailnet: `bas.hyrax-boga.ts.net` = `100.117.119.81` (LAC-6059)         |
-| Limits    | `authentication_timeout` 10s, 20 concurrent and 10/s new per source address     |
-| ssh       | tailnet only, plus one allowlisted host (see "ssh is tailnet-only")             |
+| Container | `projects-db`, `postgres:17-alpine`, `--restart unless-stopped`, 1 GB cap              |
+| Data      | `/data/projects-db/data` (bind mount, plain directory on `/`)                          |
+| Config    | `/data/projects-db/conf` → `/pgconf:ro` (cert, key, `pg_hba.conf`)                     |
+| Auth      | `scram-sha-256` over TLS, required from off-box, server cert verified                  |
+| Cert      | Let's Encrypt on `projects-db.cloud0.dev`, renewed by `certbot.timer`                  |
+| Client CA | private, `/data/projects-db/ca`, 10-year root, `CN` = role name (LAC-6060)             |
+| Script    | `scripts/bas-projects-db.sh`, installed at `/usr/local/sbin/bas-projects-db.sh`        |
+| Watch     | `scripts/bas-projects-db-watch.sh` on zero, hourly, silent when healthy                |
+| Checks    | served cert, client-cert expiry, auth failures from off-tailnet, secret file modes     |
+| Secrets   | zero, `~/.paperclip/secrets/<project>-db.env`, mode 600                                |
+| Ops       | over the tailnet: `bas.hyrax-boga.ts.net` = `100.117.119.81` (LAC-6059)                |
+| Limits    | `authentication_timeout` 10s, 20 concurrent and 10/s new per source address            |
+| ssh       | tailnet only, plus one allowlisted host (see "ssh is tailnet-only")                    |
 
 It is deliberately a separate container from the Paperclip Postgres 16 cluster on
 `127.0.0.1:5432`. That cluster runs the BAS client control plane, and a runaway
@@ -34,10 +36,16 @@ before authentication, rather than merely discouraged.
 local   all                  all                  trust
 host    all                  all                  127.0.0.1/32 trust
 host    all                  all                  ::1/128      trust
-hostssl keepsake             keepsake             all          scram-sha-256
+hostssl keepsake             keepsake             100.64.0.0/10  scram-sha-256
+hostssl keepsake             keepsake             all            scram-sha-256 clientcert=verify-full
 hostssl shipkit_www          shipkit_www          all          scram-sha-256
 hostssl gracefully_imagined  gracefully_imagined  all          scram-sha-256
 ```
+
+The two `keepsake` lines are LAC-6060: that project requires a client
+certificate from the internet and not from the tailnet. See "Client
+certificates" below. Everything else is still password-only and keeps working
+exactly as before, which is what makes a one-project-at-a-time rollout possible.
 
 One `hostssl` line per project, never `hostssl all all all`. The `umami-db`
 container this one is modelled on uses the wildcard form; on a multi-tenant box
@@ -46,12 +54,12 @@ that means a leaked keepsake password reaches the shipkit database.
 Re-measured 2026-10-28 from zero (`107.141.224.67`) at `verify-full`, all four
 confirmed:
 
-| Attempt                                          | Result                                  |
-| ------------------------------------------------ | --------------------------------------- |
-| `keepsake` → `keepsake`, `verify-full`           | connects                                |
-| `keepsake` → `keepsake`, `sslmode=disable`       | `no pg_hba.conf entry … no encryption`  |
-| `keepsake` → `shipkit_www`, `verify-full`        | `no pg_hba.conf entry … SSL encryption` |
-| `postgres` → `postgres`, `verify-full`           | `no pg_hba.conf entry … SSL encryption` |
+| Attempt                                    | Result                                  |
+| ------------------------------------------ | --------------------------------------- |
+| `keepsake` → `keepsake`, `verify-full`     | connects                                |
+| `keepsake` → `keepsake`, `sslmode=disable` | `no pg_hba.conf entry … no encryption`  |
+| `keepsake` → `shipkit_www`, `verify-full`  | `no pg_hba.conf entry … SSL encryption` |
+| `postgres` → `postgres`, `verify-full`     | `no pg_hba.conf entry … SSL encryption` |
 
 One client-side surprise worth knowing, because it looks like a server refusal
 and is not: libpq 18 rejects `sslmode=disable` on its own, before it opens a
@@ -75,11 +83,14 @@ Certificate verification does not change that, and it is worth being precise
 about what it did buy. It authenticates the **server** to the client, which
 closes the relay attack: before LAC-6054 an on-path attacker could present any
 certificate, be accepted, and pass the SCRAM exchange through to the real server.
-It is not access control and it keeps nobody out. Client certificates are
-LAC-6060. LAC-6056 ruled that the port stays world-open for Vercel and LAC-6059
-did the rest: everything that is not a Vercel function left the port, and the
-port stopped being free to abuse. See "Ops runs over the tailnet" and "Pre-auth
-connection limits" below.
+It is not access control and it keeps nobody out. LAC-6056 ruled that the port
+stays world-open for Vercel and LAC-6059 did the rest: everything that is not a
+Vercel function left the port, and the port stopped being free to abuse. See
+"Ops runs over the tailnet" and "Pre-auth connection limits" below.
+
+The access control the port can actually have is a **client** certificate, added
+by LAC-6060 and described below. On a project that requires one, a password on
+its own stops being a way in.
 
 ## One URL, every driver
 
@@ -127,19 +138,19 @@ Verification is genuinely on, not merely requested. Each driver is checked twice
 once that the good path connects, and once that a deliberately broken path is
 refused. A check that only ever passes proves nothing.
 
-| Client                       | Case                                     | Result                                                          |
-| ---------------------------- | ---------------------------------------- | --------------------------------------------------------------- |
-| `postgres` (postgres-js) 3.4.9 | hostname, `verify-full`                 | connects                                                        |
-| `postgres` (postgres-js) 3.4.9 | hostname, a CA that did not sign it     | fails, `unable to get local issuer certificate`                 |
-| `postgres` (postgres-js) 3.4.9 | bare IP, `verify-full`                  | fails, `Host: localhost. is not in the cert's altnames`         |
-| `postgres` (postgres-js) 3.4.9 | `&sslrootcert=system` in the URL        | fails, `unrecognized configuration parameter "sslrootcert"`     |
-| `pg` (node-postgres) 8.20.0  | hostname, `verify-full`                  | connects                                                        |
-| `pg` (node-postgres) 8.20.0  | hostname, a CA that did not sign it      | fails, `unable to get local issuer certificate`                 |
-| `pg` (node-postgres) 8.20.0  | bare IP, `verify-full`                   | fails, `Host: localhost. is not in the cert's altnames`         |
-| `psql` / libpq 18.6          | `verify-full` + `sslrootcert=system`     | connects                                                        |
-| `psql` / libpq 18.6          | `verify-full`, no `sslrootcert`          | fails, `root certificate file … does not exist`                 |
-| `psql` / libpq 18.6          | `verify-full` + an empty root file       | fails, could not read certificate                               |
-| `psql` / libpq 18.6          | bare IP, `verify-full`                   | fails, `server certificate for "projects-db.cloud0.dev" … does not match host name` |
+| Client                         | Case                                 | Result                                                                              |
+| ------------------------------ | ------------------------------------ | ----------------------------------------------------------------------------------- |
+| `postgres` (postgres-js) 3.4.9 | hostname, `verify-full`              | connects                                                                            |
+| `postgres` (postgres-js) 3.4.9 | hostname, a CA that did not sign it  | fails, `unable to get local issuer certificate`                                     |
+| `postgres` (postgres-js) 3.4.9 | bare IP, `verify-full`               | fails, `Host: localhost. is not in the cert's altnames`                             |
+| `postgres` (postgres-js) 3.4.9 | `&sslrootcert=system` in the URL     | fails, `unrecognized configuration parameter "sslrootcert"`                         |
+| `pg` (node-postgres) 8.20.0    | hostname, `verify-full`              | connects                                                                            |
+| `pg` (node-postgres) 8.20.0    | hostname, a CA that did not sign it  | fails, `unable to get local issuer certificate`                                     |
+| `pg` (node-postgres) 8.20.0    | bare IP, `verify-full`               | fails, `Host: localhost. is not in the cert's altnames`                             |
+| `psql` / libpq 18.6            | `verify-full` + `sslrootcert=system` | connects                                                                            |
+| `psql` / libpq 18.6            | `verify-full`, no `sslrootcert`      | fails, `root certificate file … does not exist`                                     |
+| `psql` / libpq 18.6            | `verify-full` + an empty root file   | fails, could not read certificate                                                   |
+| `psql` / libpq 18.6            | bare IP, `verify-full`               | fails, `server certificate for "projects-db.cloud0.dev" … does not match host name` |
 
 The two "a CA that did not sign it" rows are the ones that matter. They prove the
 Node drivers check the chain, rather than checking the hostname and trusting
@@ -150,16 +161,16 @@ All three project roles connect with their stored URL verbatim, `ssl=true` in
 
 ## The certificate
 
-|            |                                                                        |
-| ---------- | ---------------------------------------------------------------------- |
-| Name       | `projects-db.cloud0.dev` (Cloudflare zone `cloud0.dev`, DNS-only, A → `128.140.50.130`) |
-| Issuer     | Let's Encrypt, ECDSA P-256, 90 days                                    |
-| Issued     | 2026-10-28, expires 2027-01-26                                         |
-| Lineage    | `/etc/letsencrypt/live/projects-db.cloud0.dev`                         |
-| Served as  | `/data/projects-db/conf/server.crt` (fullchain, `644`) and `server.key` (`600`), both `70:70` |
-| Challenge  | HTTP-01 standalone, `tcp/80` on Hetzner firewall `11789519`            |
-| Renewal    | `certbot.timer` (apt, twice daily) → deploy hook → `pg_reload_conf()`  |
-| Watch      | `scripts/bas-projects-db-watch.sh`, at most once every 20h          |
+|           |                                                                                               |
+| --------- | --------------------------------------------------------------------------------------------- |
+| Name      | `projects-db.cloud0.dev` (Cloudflare zone `cloud0.dev`, DNS-only, A → `128.140.50.130`)       |
+| Issuer    | Let's Encrypt, ECDSA P-256, 90 days                                                           |
+| Issued    | 2026-10-28, expires 2027-01-26                                                                |
+| Lineage   | `/etc/letsencrypt/live/projects-db.cloud0.dev`                                                |
+| Served as | `/data/projects-db/conf/server.crt` (fullchain, `644`) and `server.key` (`600`), both `70:70` |
+| Challenge | HTTP-01 standalone, `tcp/80` on Hetzner firewall `11789519`                                   |
+| Renewal   | `certbot.timer` (apt, twice daily) → deploy hook → `pg_reload_conf()`                         |
+| Watch     | `scripts/bas-projects-db-watch.sh`, at most once every 20h                                    |
 
 The hostname is mandatory rather than cosmetic: see the SNI note above. It lives
 in `cloud0.dev` and not `buildandserve.com` deliberately, because DNS edit rights
@@ -245,10 +256,10 @@ to be on that port, so LAC-6059 took everything else off it.
 
 Each secret file therefore carries two URLs, not one:
 
-| Variable           | Host                     | Mode          | Who uses it                           |
-| ------------------ | ------------------------ | ------------- | ------------------------------------- |
-| `DATABASE_URL`     | `projects-db.cloud0.dev` | `verify-full` | the app, from Vercel                  |
-| `OPS_DATABASE_URL` | `bas.hyrax-boga.ts.net`  | `require`     | dumps, restores, migrations, `psql`   |
+| Variable           | Host                     | Mode          | Who uses it                         |
+| ------------------ | ------------------------ | ------------- | ----------------------------------- |
+| `DATABASE_URL`     | `projects-db.cloud0.dev` | `verify-full` | the app, from Vercel                |
+| `OPS_DATABASE_URL` | `bas.hyrax-boga.ts.net`  | `require`     | dumps, restores, migrations, `psql` |
 
 ```bash
 set -a; . ~/.paperclip/secrets/keepsake-db.env; set +a
@@ -289,6 +300,351 @@ reached through the container:
 ssh root@bas.hyrax-boga.ts.net docker exec -it projects-db psql -U postgres
 ```
 
+## Client certificates
+
+`tcp/26432` is open to `0.0.0.0/0` and LAC-6056 ruled that it stays that way:
+Vercel egress has no fixed IP range, Static IPs are $100/month per project on a
+shared pool, and a Vercel function can join neither a tailnet nor a TCP tunnel.
+That left a password as the only thing between the internet and five project
+databases. LAC-6032 is this fleet's own measured instance of what that costs: a
+leaked credential still authenticating weeks later.
+
+A client certificate is the access control that is actually available here.
+Postgres checks it before SCRAM runs, so both halves are required and a leaked
+password on its own is no longer a way in.
+
+|         |                                                                            |
+| ------- | -------------------------------------------------------------------------- |
+| Root    | `/data/projects-db/ca/ca.crt`, EC P-256, 10 years, `pathlen:0`             |
+| Key     | `/data/projects-db/ca/ca.key`, `600`, in a `700` directory                 |
+| Issued  | `/data/projects-db/ca/issued/<role>.crt`, public copies only               |
+| Served  | `/data/projects-db/conf/clients-ca.crt` → `/pgconf` in the container       |
+| Subject | `CN=<role>`, matched against the Postgres user by `clientcert=verify-full` |
+| Expiry  | 2036-10-25 for the CA and every cert issued so far                         |
+
+Nothing about this touches the Let's Encrypt chain from LAC-6054. That one
+authenticates the box to clients; this one authenticates clients to the box.
+Two chains, two questions, two blast radii.
+
+**The CA private key never enters the container.** `/data/projects-db/conf` is
+bind-mounted into Postgres as `/pgconf`, so a key kept there would be reachable
+from inside the server. The CA lives one directory up, outside the mount, and
+only the public certificate is copied in.
+
+**`CN` is the role name, and that is the point.** `clientcert=verify-full`
+compares the certificate's common name against the Postgres user. A certificate
+minted for `keepsake` cannot open `shipkit_www` even by someone holding the
+`shipkit_www` password. Measured below.
+
+### The two pg_hba lines, tailnet first
+
+```
+hostssl keepsake  keepsake  100.64.0.0/10  scram-sha-256
+hostssl keepsake  keepsake  all            scram-sha-256 clientcert=verify-full
+```
+
+`pg_hba.conf` is first-match-wins and does **not** fall through on a failed
+authentication, so a connection from the tailnet matches line one and never
+reaches line two. Ops keeps the password-only path it has always had. That
+ordering is load-bearing: without it, a botched client-cert rollout would lock
+ops out of the recovery path at the same moment it locks out the apps.
+
+LAC-6060 proposed `hostssl all all 100.64.0.0/10` for the tailnet line. This is
+the per-project form instead, which is strictly tighter and costs nothing: the
+wildcard would mean a leaked `keepsake` password reaches the `shipkit` database
+from any device on the tailnet, Lacy's phone included, which is the exact thing
+the one-line-per-project rule in this file exists to prevent.
+
+### Turning it on for one project
+
+One project at a time, in this order, because getting it backwards is an outage:
+
+```bash
+PROJ=keepsake
+# 1. Mint the certificate. Printed once; the box keeps only the public half.
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projects-db.sh client-cert $PROJ"
+# 2. Put the two variables in the Vercel project and redeploy.
+# 3. Prove the app is live on them, then and only then:
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projects-db.sh require-client-cert $PROJ"
+```
+
+`ca-init` is idempotent and runs inside `bootstrap`; `require-client-cert` calls
+it too, so there is no separate CA step to forget.
+
+**The rollback lever**, when an app is locked out and the certificate is not what
+you want to be debugging at that moment. The password is untouched, so this
+restores service in the time it takes to reload:
+
+```bash
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projects-db.sh relax-client-cert $PROJ"
+```
+
+Both directions rewrite the project's lines, check `pg_hba_file_rules` for parse
+errors after the reload, and put the old file back if any line failed to parse.
+A `pg_hba.conf` that does not parse keeps the **previous** rules in force and
+only writes a log line, so a zero exit from the reload is not proof, the same
+trap the certificate reload has.
+
+### The repo side: two environment variables and one diff
+
+Neither `postgres` nor `pg` reads a client certificate out of the URL string,
+which is why this reverses LAC-6054's "no app code change in any of the five
+repos". The cost is one small diff each.
+
+```
+DATABASE_CLIENT_CERT_B64=<base64 of the PEM>
+DATABASE_CLIENT_KEY_B64=<base64 of the PEM>
+```
+
+Base64 and decoded at read. A multi-line PEM pasted straight into a Vercel
+environment variable is the standard way this breaks: the dashboard keeps the
+newlines, the build does not, and the failure reads as an opaque TLS error.
+`client-cert` prints both variables already encoded and on one line.
+
+**There is no CA variable, on purpose.** The server certificate is Let's
+Encrypt and the client verifies it against the system trust store. Passing our
+private CA as `ssl.ca` would _replace_ that store rather than add to it, and
+every connection would fail with `unable to get local issuer certificate`.
+Measured, not assumed.
+
+The shared helper is `src/server/db/client-tls.ts` in this repo, with unit tests
+at `tests/unit/server/db/client-tls.test.ts`. Copy the file; the diff at the
+call site is one line:
+
+```ts
+import { databaseClientTlsOptions } from "./client-tls";
+
+const client = postgres(env.DATABASE_URL, {
+  max: 3,
+  // …
+  ...databaseClientTlsOptions(),
+});
+```
+
+**Every Postgres client in the repo, not just the Drizzle one.** A Shipkit
+downstream has two: the postgres-js client above and Payload's `pg` pool in
+`src/payload.config.ts`. They read the same `DATABASE_URL`, so wiring one and
+not the other means the app serves and the CMS is gone, on a database that is
+working fine. Payload's pool takes the `pg` form:
+
+```ts
+import { nodePostgresConnection } from "@/server/db/client-tls";
+
+db: postgresAdapter({
+  pool: nodePostgresConnection(process.env.DATABASE_URL),
+}),
+```
+
+`nodePostgresConnection` exists rather than composing `withoutSslMode` and
+`databaseClientCertificate` at the call site, because the safe order is not the
+obvious one: stripping `sslmode` on a database with no client certificate is a
+silent TLS **downgrade**, since `pg` with neither `sslmode` nor an `ssl` object
+does not negotiate TLS at all. The strip and the certificate happen together or
+not at all. Test the CMS route when flipping a project, not only the app.
+
+### Three driver traps, all of them measured
+
+**Spread the options, never write `ssl: maybeUndefined`.** postgres-js resolves
+options with `k in o`, so an explicit `ssl: undefined` counts as _set_ and beats
+the `sslmode=verify-full` in the URL. TLS then goes off entirely and the server
+answers `no pg_hba.conf entry … no encryption`, which reads like a server
+problem and is not. `databaseClientTlsOptions()` returns `{}` rather than
+`{ ssl: undefined }` for exactly this reason.
+
+**`pg` needs `sslmode` removed from the URL.** `ConnectionParameters` merges the
+parsed connection string _over_ the explicit config
+(`config = Object.assign({}, config, parse(config.connectionString))`), so
+`sslmode=verify-full` silently discards an `ssl: { cert, key }` passed next to
+it. The certificate is never sent and the server answers `connection requires a
+valid client certificate`, which also points at the server rather than at the
+driver. Use `withoutSslMode(url)` from the same helper. Nothing is lost: with an
+`ssl` object, Node verifies the chain and the hostname by default, and both
+halves were re-checked by breaking them on purpose (table below). postgres-js
+does not need this; it resolves the explicit option first.
+
+**A `CN` mismatch is reported to the client as a password failure.** The server
+log has the real reason on the line above:
+
+```
+LOG:  certificate validation (clientcert=verify-full) failed for user "keepsake": CN mismatch
+FATAL:  password authentication failed for user "keepsake"
+```
+
+An operator holding the wrong certificate will otherwise spend the afternoon on
+the password. It also means a `CN` mismatch is counted by the authentication
+failure watch as a password failure, which is the right outcome: both are worth
+a page.
+
+### `psql`
+
+Two more command-line flags next to the `sslrootcert=system` this already
+needed. They are file paths, so the stored URL does not change:
+
+```bash
+export PGSSLROOTCERT=system
+psql "$DATABASE_URL&sslcert=$PWD/keepsake.crt&sslkey=$PWD/keepsake.key" -c 'select 1'
+```
+
+Decode the two variables from `~/.paperclip/secrets/<project>-db.env` to get
+those files. libpq requires the key to be `600` or it refuses to use it.
+
+### Revocation, and why there is no CRL
+
+There is no certificate revocation list here, and that is a decision rather than
+an omission.
+
+A client certificate is one of two factors: holding it proves nothing without
+the role's password. The case that would need a CRL is a leaked certificate
+**and** a leaked password, which is already a full compromise of that database,
+and the lever for that is rotating the password. Rotation is immediate, needs
+one command, and does not add anything new that can expire.
+
+A CRL would. `ssl_crl_file` makes OpenSSL check the list's own validity, so an
+expired CRL locks every certificate client out at once, which is the exact
+failure this design is built to avoid, re-introduced with a short fuse. Not
+worth it for a lever that is slower than the one we already have.
+
+#### What to do if a client key leaks
+
+The blast radius of one leaked client key is **one database**, because `CN` must
+equal the role name: a `keepsake` key is useless against `shipkit_www` whatever
+password comes with it. And on its own it is useless against `keepsake` too,
+because the password is still required.
+
+In order:
+
+1. **Rotate that role's password.** This is the lever. It is immediate, it is
+   one command, and it invalidates the leaked pair whether or not the
+   certificate is still technically valid. Update the project's `DATABASE_URL`
+   in Vercel and in `~/.paperclip/secrets/<project>-db.env`.
+2. **Mint a fresh certificate** for the role and deploy it, so the leaked one
+   stops being the one in use: `client-cert <role>`.
+3. Only if the **CA key** leaked, not a client key, replace the CA. Delete
+   `/data/projects-db/ca/ca.crt` and `ca.key`, run `ca-init`, reissue every
+   certificate and update every flipped project. That is a flag day for every
+   project requiring a certificate, which is the honest cost of having no CRL
+   and the reason the CA key is `600` in a `700` directory outside the
+   container's bind mount.
+
+Step 1 alone closes the hole. Steps 2 and 3 are hygiene.
+
+### Expiry
+
+Ten years, and the date is 2036-10-25 for everything issued so far. A client
+certificate expiry is a simultaneous outage for every project that requires one,
+so it is watched rather than remembered, in the same check as the server cert
+(LAC-5980):
+
+```bash
+ssh root@bas.hyrax-boga.ts.net /usr/local/sbin/bas-projects-db.sh cert-check         # both halves
+ssh root@bas.hyrax-boga.ts.net /usr/local/sbin/bas-projects-db.sh client-cert-check  # the client half alone
+scripts/bas-projects-db-watch.sh --cert-now                                          # from zero, both
+```
+
+The watch on zero runs the box's own `client-cert-check` over ssh rather than
+reimplementing the thresholds, so there is one copy of them. It warns at 180
+days for both the CA and any issued certificate, because reissuing means editing
+Vercel projects by hand and that is scheduled work, not an incident. If the box
+cannot be reached the run **voids** (exit 3) instead of paging, the same ruling
+LAC-5278 made for the store watch.
+
+It also covers the one client-certificate fault with a short fuse:
+`ssl_ca_file` pointing at a file that is gone. The running server holds the CA
+in memory and keeps working, so nothing looks wrong until the next restart,
+which then fails to start.
+
+### `ssl_ca_file` is set with ALTER SYSTEM, not a container flag
+
+Every other Postgres setting here is a `-c` flag on the `docker run` command.
+This one is not, and the difference is deliberate: a `-c ssl_ca_file=…` pointing
+at a file that is missing is a container that **will not start at all**. ALTER
+SYSTEM writes `postgresql.auto.conf`, which is only written once the file
+exists, survives a restart the same way, and is a `sighup` setting, so it costs
+a reload rather than a restart.
+
+Loading a CA does not require a certificate from anybody. Postgres asks for one
+once a CA is present, but whether a missing one is fatal is decided per
+`pg_hba.conf` line by the `clientcert` keyword. Confirmed on the live box:
+`gracefully_imagined` kept serving throughout.
+
+A reload that cannot read the CA keeps the **old** TLS context and writes
+`SSL configuration was not reloaded`, exactly like the server-certificate
+reload, so `show ssl_ca_file` is not proof. `ca-init` checks three things and
+**puts `ssl_ca_file` back** if any of them fail, because a rejected path left
+in `postgresql.auto.conf` is the very container-will-not-start failure this
+design exists to avoid:
+
+1. the postmaster logged the change at all, so the SIGHUP was acted on
+2. it did not also log `SSL configuration was not reloaded`
+3. the server really advertises a client CA to a connecting client
+
+Point 1 is not ceremony. `pg_reload_conf()` returns when the SIGHUP is **sent**,
+not when the postmaster has acted on it, so reading the log straight afterwards
+is a race that fails open. Measured 2026-10-28 while writing this: the grep ran,
+found nothing, reported success, and Postgres wrote the refusal six
+milliseconds later, leaving `ssl_ca_file` pointing at a file that did not exist.
+`ca-init` now waits for `parameter "ssl_ca_file" changed to …` before it reads
+anything.
+
+Point 3 is a direct functional read rather than a log line, the same way
+`cert-deploy` reads the served certificate back:
+
+```bash
+printf 'Q\n' | openssl s_client -starttls postgres -connect 127.0.0.1:26432 \
+  -servername projects-db.cloud0.dev 2>/dev/null | grep -A2 'Acceptable client certificate CA names'
+# CN = projects-db client CA
+```
+
+Rollback was exercised on the live box by pointing `ssl_ca_file` at a path that
+does not exist: the reload was refused, `ca-init` reverted to
+`/pgconf/clients-ca.crt`, and `keepsake` kept authenticating with its
+certificate throughout.
+
+### Measured 2026-10-28 from zero, against the live box
+
+`keepsake` is the landed project. It is a real project role with no live app
+yet, so it is the one place this can be proven end to end at zero risk.
+
+| Client                           | Case                                                   | Result                                                     |
+| -------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------- |
+| `psql` / libpq 18.6              | `sslcert` + `sslkey`, `verify-full`                    | connects, `client_dn=/CN=keepsake`                         |
+| `psql` / libpq 18.6              | no client certificate                                  | `FATAL: connection requires a valid client certificate`    |
+| `psql` / libpq 18.6              | no certificate **and** a wrong password                | same certificate error, so the cert gate runs before SCRAM |
+| `psql` / libpq 18.6              | correct certificate, wrong password                    | `password authentication failed`, so SCRAM still runs      |
+| `psql` / libpq 18.6              | `shipkit_www` certificate, correct `keepsake` password | refused; server log says `CN mismatch`                     |
+| `psql` / libpq 18.6              | tailnet URL, no client certificate                     | connects, `client_addr=100.86.145.8`                       |
+| `postgres` (postgres-js) 3.4.9   | `ssl: { cert, key }`                                   | connects, `client_dn=/CN=keepsake`                         |
+| `postgres` (postgres-js) 3.4.9   | no `ssl` option, URL `sslmode=verify-full`             | refused, requires a valid client certificate               |
+| `postgres` (postgres-js) 3.4.9   | `ssl: { ca: privateCA, cert, key }`                    | fails, `unable to get local issuer certificate`            |
+| `postgres` (postgres-js) 3.4.9   | `ssl: undefined` spread in                             | fails, `no pg_hba.conf entry … no encryption`              |
+| `pg` (node-postgres) 8.20.0      | `ssl: { cert, key }`, `sslmode` left in the URL        | refused; the URL clobbered the cert                        |
+| `pg` (node-postgres) 8.20.0      | `ssl: { cert, key }`, `sslmode` stripped               | connects, `client_dn=/CN=keepsake`                         |
+| `pg` (node-postgres) 8.20.0      | stripped, plus a CA that did not sign the server       | fails, `unable to get local issuer certificate`            |
+| `pg` (node-postgres) 8.20.0      | stripped, against the bare IP                          | fails, `Hostname/IP does not match certificate's altnames` |
+| `gracefully_imagined` (live app) | password only, unchanged, throughout                   | connects                                                   |
+
+The last row is the one that makes a staged rollout real: turning the CA on and
+flipping one project changed nothing for the project that was still serving
+traffic.
+
+Both drivers were also re-run through this repo's own helper rather than a
+hand-rolled config, and both reported `client_dn=/CN=keepsake`.
+
+### Rollout state
+
+| Role                          | Certificate | `clientcert=verify-full` | Who finishes it                   |
+| ----------------------------- | ----------- | ------------------------ | --------------------------------- |
+| `keepsake`                    | issued      | **on**                   | LAC-5981 carries the env vars     |
+| `shipkit_www`                 | issued      | off                      | LAC-5982                          |
+| `gracefully_imagined`         | issued      | off                      | LAC-5984                          |
+| `gracefully_imagined_preview` | issued      | off                      | LAC-5984                          |
+| `ai_profile_pic`              | not yet     | off                      | LAC-6045, role does not exist yet |
+
+Every issued certificate is in that project's
+`~/.paperclip/secrets/<project>-db.env` on zero, mode `600`, next to the URLs.
+A project is flipped by whoever lands its move, after its app is live on the
+certificate, with the one command above.
+
 ## Pre-auth connection limits
 
 `max_connections` is 100 and `superuser_reserved_connections` is 3, so there are
@@ -296,7 +652,7 @@ ssh root@bas.hyrax-boga.ts.net docker exec -it projects-db psql -U postgres
 that reaching those slots needs no credential at all:
 
 > Postgres reserves the backend slot at fork and checks the role's `CONNECTION
-> LIMIT` only after authentication succeeds.
+LIMIT` only after authentication succeeds.
 
 So the per-role `CONNECTION LIMIT` every project role carries (see "Connection
 limits" below for the current values) stops a runaway app and stops nothing
@@ -308,11 +664,11 @@ line naming anyone. Measured before the fix: `authentication_timeout` was 60s, s
 
 Two levers, both applied:
 
-| Lever                                 | Before | After                              |
-| ------------------------------------- | ------ | ---------------------------------- |
-| `authentication_timeout`              | 60s    | 10s                                |
-| concurrent sessions per source address | none   | 20, `REJECT` with a TCP reset      |
-| new connections per source address     | none   | 10/s, burst 20, `REJECT`           |
+| Lever                                  | Before | After                         |
+| -------------------------------------- | ------ | ----------------------------- |
+| `authentication_timeout`               | 60s    | 10s                           |
+| concurrent sessions per source address | none   | 20, `REJECT` with a TCP reset |
+| new connections per source address     | none   | 10/s, burst 20, `REJECT`      |
 
 `authentication_timeout` is a `-c` flag on the container command, so it survives
 a restart but not a `docker run` built from an older copy of
@@ -377,13 +733,13 @@ zero reaches `projects-db.cloud0.dev` over the public internet as
 `107.141.224.67` and reaches `100.117.119.81` over the tailnet, so one machine
 tests both sides.
 
-| Case                                                | Result                                               |
-| --------------------------------------------------- | ---------------------------------------------------- |
-| one app connection, `verify-full`, public name       | connects                                             |
-| 40 concurrent sockets, public name                  | 20 established, 20 reset (`connlimit` counter 20)    |
-| 40 concurrent sockets, tailnet address              | 40 established, 0 reset (tailnet `RETURN` counter 160 packets) |
-| 80 connects at 311/s, public name, concurrency lifted | 21 established, 59 reset (`hashlimit` counter 59)   |
-| `pg_dump` of `gracefully_imagined` over the tailnet  | 419 objects, 155K, server saw client `100.86.145.8`, TLSv1.3 |
+| Case                                                  | Result                                                         |
+| ----------------------------------------------------- | -------------------------------------------------------------- |
+| one app connection, `verify-full`, public name        | connects                                                       |
+| 40 concurrent sockets, public name                    | 20 established, 20 reset (`connlimit` counter 20)              |
+| 40 concurrent sockets, tailnet address                | 40 established, 0 reset (tailnet `RETURN` counter 160 packets) |
+| 80 connects at 311/s, public name, concurrency lifted | 21 established, 59 reset (`hashlimit` counter 59)              |
+| `pg_dump` of `gracefully_imagined` over the tailnet   | 419 objects, 155K, server saw client `100.86.145.8`, TLSv1.3   |
 
 ### Is 20 concurrent per source enough? Measured 2026-10-28
 
@@ -391,14 +747,14 @@ The LAC-6061 security read passed this but flagged one unknown: 20 concurrent
 per source address is untested against real Vercel egress, which may be shared
 NAT. Measured two hours after the rules went in, on a normal weekday hour:
 
-| | |
-| --- | --- |
-| `connection received` in one hour | 195 |
-| of those, authorized | 150 |
-| `FATAL` (auth failures) | 11 |
-| busiest real client, concurrent backends | 1 |
-| `connlimit` rejects since install | 0 |
-| `hashlimit` rejects since install | 0 |
+|                                          |     |
+| ---------------------------------------- | --- |
+| `connection received` in one hour        | 195 |
+| of those, authorized                     | 150 |
+| `FATAL` (auth failures)                  | 11  |
+| busiest real client, concurrent backends | 1   |
+| `connlimit` rejects since install        | 0   |
+| `hashlimit` rejects since install        | 0   |
 
 Vercel arrives from several AWS addresses (`98.83.39.124`, `54.81.38.44`) at one
 or two connections each, nowhere near the cap. Neither limit has turned away a
@@ -447,9 +803,9 @@ five project databases, and a password being guessed at produced exactly as much
 noise as a quiet night. The hourly watch now counts two FATALs from sources
 outside the tailnet over the last hour:
 
-| Line                             | What it means                                            |
-| -------------------------------- | -------------------------------------------------------- |
-| `password authentication failed` | someone has a role name and is trying passwords, or an app is deployed with a stale one |
+| Line                             | What it means                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `password authentication failed` | someone has a role name and is trying passwords, or an app is deployed with a stale one                  |
 | `no pg_hba.conf entry`           | someone is reaching for a database or a role that is not theirs, which is enumeration rather than a typo |
 
 Over `AUTH_FAIL_THRESHOLD` (default 20/hour) it prints and, with `--notify`,
@@ -560,7 +916,7 @@ being reachable:
    `GET /v1/firewalls/11789519`.
 
 2. **Reset the root password, then the noVNC console.** `POST
-   /v1/servers/169986608/actions/reset_password` returns a new root password and
+/v1/servers/169986608/actions/reset_password` returns a new root password and
    reboots the server. This needs step 1 for nothing, but it does reboot.
 
 3. **Rescue mode.** `POST /v1/servers/169986608/actions/enable_rescue` then
@@ -571,13 +927,13 @@ being reachable:
 
 Measured 2026-10-28, after LAC-6059:
 
-| Proto | Port    | Source                        | Why                                                      |
-| ----- | ------- | ----------------------------- | -------------------------------------------------------- |
-| tcp   | `22`    | `178.156.130.157/32`          | the off-tailnet dead-man check, forced-command key only   |
-| udp   | `41641` | `0.0.0.0/0`, `::/0`           | tailscale direct wireguard; without it everything falls back to DERP |
-| icmp  | —       | `0.0.0.0/0`, `::/0`           | so reachability can be distinguished from a dead service  |
-| tcp   | `26432` | `0.0.0.0/0`                   | projects-db for Vercel (LAC-6056). No `::/0`: see the third trap above |
-| tcp   | `80`    | `0.0.0.0/0`, `::/0`           | certbot HTTP-01; nothing listens here between renewals    |
+| Proto | Port    | Source               | Why                                                                    |
+| ----- | ------- | -------------------- | ---------------------------------------------------------------------- |
+| tcp   | `22`    | `178.156.130.157/32` | the off-tailnet dead-man check, forced-command key only                |
+| udp   | `41641` | `0.0.0.0/0`, `::/0`  | tailscale direct wireguard; without it everything falls back to DERP   |
+| icmp  | —       | `0.0.0.0/0`, `::/0`  | so reachability can be distinguished from a dead service               |
+| tcp   | `26432` | `0.0.0.0/0`          | projects-db for Vercel (LAC-6056). No `::/0`: see the third trap above |
+| tcp   | `80`    | `0.0.0.0/0`, `::/0`  | certbot HTTP-01; nothing listens here between renewals                 |
 
 ## Add a database
 
