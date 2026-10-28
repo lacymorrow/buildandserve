@@ -16,6 +16,7 @@ client-certificate auth added by LAC-6060.
 | Client CA | private, `/data/projects-db/ca`, 10-year root, `CN` = role name (LAC-6060)             |
 | Script    | `scripts/bas-projects-db.sh`, installed at `/usr/local/sbin/bas-projects-db.sh`        |
 | Watch     | `scripts/bas-projects-db-watch.sh` on zero, hourly, silent when healthy                |
+| Checks    | served cert, client-cert expiry, auth failures from off-tailnet, secret file modes     |
 | Secrets   | zero, `~/.paperclip/secrets/<project>-db.env`, mode 600                                |
 | Ops       | over the tailnet: `bas.hyrax-boga.ts.net` = `100.117.119.81` (LAC-6059)                |
 | Limits    | `authentication_timeout` 10s, 20 concurrent and 10/s new per source address            |
@@ -653,8 +654,9 @@ that reaching those slots needs no credential at all:
 > Postgres reserves the backend slot at fork and checks the role's `CONNECTION
 LIMIT` only after authentication succeeds.
 
-So the `CONNECTION LIMIT 10` on every project role, which this box does have,
-stops a runaway app and stops nothing else. One internet host that opens 97 TCP
+So the per-role `CONNECTION LIMIT` every project role carries (see "Connection
+limits" below for the current values) stops a runaway app and stops nothing
+else. One internet host that opens 97 TCP
 sessions and never finishes a SCRAM exchange takes all five project databases
 down for as long as it keeps doing it, authenticates as nobody, and leaves no log
 line naming anyone. Measured before the fix: `authentication_timeout` was 60s, so
@@ -739,6 +741,60 @@ tests both sides.
 | 80 connects at 311/s, public name, concurrency lifted | 21 established, 59 reset (`hashlimit` counter 59)              |
 | `pg_dump` of `gracefully_imagined` over the tailnet   | 419 objects, 155K, server saw client `100.86.145.8`, TLSv1.3   |
 
+### Is 20 concurrent per source enough? Measured 2026-10-28
+
+The LAC-6061 security read passed this but flagged one unknown: 20 concurrent
+per source address is untested against real Vercel egress, which may be shared
+NAT. Measured two hours after the rules went in, on a normal weekday hour:
+
+|                                          |     |
+| ---------------------------------------- | --- |
+| `connection received` in one hour        | 195 |
+| of those, authorized                     | 150 |
+| `FATAL` (auth failures)                  | 11  |
+| busiest real client, concurrent backends | 1   |
+| `connlimit` rejects since install        | 0   |
+| `hashlimit` rejects since install        | 0   |
+
+Vercel arrives from several AWS addresses (`98.83.39.124`, `54.81.38.44`) at one
+or two connections each, nowhere near the cap. Neither limit has turned away a
+single legitimate connection.
+
+That is a reassuring number and a weak one: only `gracefully_imagined` is live
+on this box today. The cap is not proven until keepsake and shipkit-www cut over
+and a cold start opens a pool from one egress IP. **The counter is the test.**
+Check it after each cutover, and raise `CONCURRENT` if real clients are being
+reset:
+
+```bash
+ssh root@bas.hyrax-boga.ts.net /usr/local/sbin/bas-projects-db-ratelimit.sh show
+```
+
+### The port is being scanned right now, and the watch will never tell you
+
+Of those 195 connections, roughly 20 an hour were internet scanners:
+
+```
+[1425] LOG:  connection received: host=172.104.209.135 port=38128
+[1425] LOG:  could not accept SSL connection: no application protocol
+```
+
+They complete a TCP connect, fail ALPN, and vanish. They never send a startup
+packet, so they produce **no `FATAL` at all** and the auth-failure check above
+cannot see them by design. Do not read a silent watch as "nothing is touching
+the port".
+
+This is the attack the connection limits exist for, not the password guessing.
+A scanner that held its sockets open instead of dropping them is the 97-slot
+exhaustion from the top of this runbook, and what bounds it is
+`authentication_timeout=10s` and the concurrency cap, neither of which needs
+anyone to be alerted. To see the scanners:
+
+```bash
+ssh root@bas.hyrax-boga.ts.net \
+  'docker logs --since 1h projects-db 2>&1 | grep "could not accept SSL connection"'
+```
+
 ## Authentication-failure alerting
 
 `log_connections` was on from the day the box was built and nothing read it.
@@ -777,6 +833,19 @@ there to report.
 The auth check reads the log over the tailnet by ssh. If the tailnet is down it
 exits 3 (void) rather than paging, because the cert check runs over the public
 internet and will say so if the box is genuinely gone.
+
+## Secret file modes
+
+The watch's third check, and the cheapest one: every `~/.paperclip/secrets/*-db.env*`
+must be mode `600`. These files hold plaintext passwords for databases on a port
+open to `0.0.0.0/0`, so the mode is the whole protection. It reads no file and
+logs no content, only the name and the mode it found.
+
+It is scoped to `*-db.env*` on purpose. A sweep of every secret on this host is
+a different job and belongs with `cred-scrub`, which does not check modes today.
+
+See "Editing a secret file, and the mode trap" for the failure that put this
+here and the `install -m 600` idiom that avoids it.
 
 ## ssh is tailnet-only
 
@@ -876,11 +945,52 @@ printf '%s\n' "$PW" | ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projec
 umask 077
 cat > ~/.paperclip/secrets/${PROJ//_/-}-db.env <<EOF
 DATABASE_URL=postgresql://$PROJ:$PW@projects-db.cloud0.dev:26432/$PROJ?sslmode=verify-full
+OPS_DATABASE_URL=postgresql://$PROJ:$PW@bas.hyrax-boga.ts.net:26432/$PROJ?sslmode=require
 EOF
 ```
 
-The hostname and `verify-full` are not optional and there is no per-driver
-variant to choose; see "One URL, every driver" above before changing either.
+Both URLs, every time. A file with only `DATABASE_URL` means the next person to
+run a dump reaches for the public port, which is the thing LAC-6059 took ops
+off. See "Ops runs over the tailnet" for why the ops one is `require`.
+
+The hostname and `verify-full` are not optional on the app URL and there is no
+per-driver variant to choose; see "One URL, every driver" above before changing
+either.
+
+### Editing a secret file, and the mode trap
+
+`umask 077` above is load-bearing, and it only covers the file that line
+creates. The failure that actually happened, on 2026-10-28:
+
+> A run rewrote four `*-db.env` files to add the ops URL. It made a `.bak` copy
+> of each first, then `chmod 600`-ed the file it had rewritten. The backups kept
+> the umask default and sat at `644` for about five hours. Each one held a
+> working password for a live database on a port open to `0.0.0.0/0`.
+
+The agent shell's umask on zero is `022`, so anything that creates a file
+without an explicit mode is world-readable. `chmod`-ing the file you meant to
+write does not cover the copy you made of it. Use `install`, which sets the mode
+as it creates:
+
+```bash
+install -m 600 the-file.env the-file.env.bak-LAC-NNNN-$(date +%Y%m%d)
+```
+
+After touching anything in that directory, check the whole family rather than
+the file you were thinking about:
+
+```bash
+find ~/.paperclip/secrets -maxdepth 1 -type f ! -perm 600
+```
+
+Silence is correct. `scripts/bas-projects-db-watch.sh` now runs that check
+hourly over `*-db.env*` and pages if it finds one, because the doc line you are
+reading was not enough on its own: three separate runs edited these files on the
+same day and one got it wrong.
+
+Every `.bak` is another copy of a live credential and another thing to rotate.
+Prune them once the cutover they were taken for is confirmed; LAC-5969 still
+owns the rotation procedure and there is not one yet.
 
 `add-project` creates the role with no `SUPERUSER`, `CREATEDB` or `CREATEROLE`,
 creates the database owned by that role, revokes `CONNECT` from `PUBLIC` and
@@ -909,8 +1019,13 @@ printf '%s\n' "$PW" | ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projec
 umask 077
 cat > ~/.paperclip/secrets/${PROJ//_/-}-preview-db.env <<EOF
 DATABASE_URL=postgresql://${PROJ}_preview:$PW@projects-db.cloud0.dev:26432/${PROJ}_preview?sslmode=verify-full
+OPS_DATABASE_URL=postgresql://${PROJ}_preview:$PW@bas.hyrax-boga.ts.net:26432/${PROJ}_preview?sslmode=require
 EOF
 ```
+
+Both URLs here too, for the same reason as the production pair. A preview
+database is the one people reach for when they want to test a migration by
+hand, which is exactly the ops traffic that belongs on the tailnet.
 
 Pass the project name, not the preview name: `add-preview gracefully_imagined`
 creates role and database `gracefully_imagined_preview`.

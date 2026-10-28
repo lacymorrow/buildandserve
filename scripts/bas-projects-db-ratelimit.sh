@@ -10,9 +10,11 @@
 #   shared by all five project databases on this box.
 #
 # Postgres reserves the backend slot at fork, and only checks the per-role
-# CONNECTION LIMIT after authentication succeeds. So `CONNECTION LIMIT 10` on
-# every project role, which this box does have, stops a runaway app and stops
-# nothing else: one internet host that opens 97 TCP sessions and never finishes
+# CONNECTION LIMIT after authentication succeeds. So the per-role CONNECTION
+# LIMIT every project role carries stops a runaway app and stops nothing else
+# (the values live in docs/ops/bas-projects-db.md and have already changed once;
+# nothing here depends on them): one host that opens 97 TCP sessions and never
+# finishes
 # a SCRAM exchange takes every project down for as long as it keeps doing it, and
 # never authenticates as anybody. There is no password involved and no log line
 # saying who. LAC-6059 cut authentication_timeout from 60s to 10s, which divides
