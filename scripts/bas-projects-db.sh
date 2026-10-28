@@ -321,11 +321,20 @@ ensure_container() {
 	fi
 
 	log "container: starting $CONTAINER on :$HOST_PORT"
+	# Three of these are LAC-6059 and are easy to drop by accident on a rewrite:
+	# --log-opt caps a json-file log that was unbounded on a 75 GB disk and that
+	# the auth-failure watch reads; 0.0.0.0 on the publish removes the [::]
+	# listener, which reached Postgres through docker-proxy in userspace and so
+	# bypassed the DOCKER-USER rate limit entirely and lost the client address;
+	# authentication_timeout=10s cuts how long an unauthenticated session can hold
+	# one of the 97 usable connection slots. See docs/ops/bas-projects-db.md.
 	POSTGRES_PASSWORD="$pw" docker run -d \
 		--name "$CONTAINER" \
 		--restart unless-stopped \
 		-m 1g \
-		-p "$HOST_PORT:5432" \
+		--log-opt max-size=10m \
+		--log-opt max-file=5 \
+		-p "0.0.0.0:$HOST_PORT:5432" \
 		-v "$DATA:/var/lib/postgresql/data" \
 		-v "$CONF:/pgconf:ro" \
 		-e POSTGRES_PASSWORD \
@@ -339,7 +348,8 @@ ensure_container() {
 		-c max_connections=100 \
 		-c password_encryption=scram-sha-256 \
 		-c log_connections=on \
-		-c logging_collector=off >/dev/null
+		-c logging_collector=off \
+		-c authentication_timeout=10s >/dev/null
 
 	wait_ready
 }

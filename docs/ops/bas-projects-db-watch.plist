@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.buildandserve.projects-db-watch</string>
+
+  <!-- One job, two checks, for the five project databases on the bas box.
+
+       Certificate (LAC-6054): every project URL is sslmode=verify-full against
+       a 90-day Let's Encrypt cert. A renewal that stops working is a
+       simultaneous hard outage for every project, with no partial degradation
+       to notice first.
+
+       Authentication failures (LAC-6059): tcp/26432 is world-open for Vercel,
+       so scram is the only thing between the internet and those databases.
+       log_connections has been on since the box was built and nothing read it.
+
+       Scheduled by launchd, not by a Paperclip routine: the box this watches
+       also carries the BAS control plane, so a routine could be unable to run
+       for the same reason the check would have fired.
+       Runbook: ~/repo/buildandserve/docs/ops/bas-projects-db.md -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/lacy/repo/buildandserve/scripts/bas-projects-db-watch.sh</string>
+    <string>--notify</string>
+  </array>
+
+  <!-- Hourly, on the hour. An auth-failure threshold measured per hour and
+       reported once a day is a threshold that tells you about last night.
+       The cert check does not need this cadence and does not get it: the
+       script keeps its own stamp file and runs that half at most once every
+       20 hours, so the hourly run is one ssh and a log parse.
+
+       StartCalendarInterval rather than StartInterval, because launchd runs a
+       missed calendar job on wake and that is what makes this survive a lid
+       that was shut overnight. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <!-- Silence means healthy: the script prints nothing and exits 0 when the
+       cert is fine and nobody is guessing passwords, so a growing log file is
+       itself a signal. Exit 3 means the run proved nothing (this host could
+       not do DNS, or the tailnet was down) and is not an incident. -->
+  <key>StandardOutPath</key>
+  <string>/Users/lacy/.paperclip/logs/projects-db-watch.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/lacy/.paperclip/logs/projects-db-watch.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
