@@ -1,34 +1,85 @@
 # projects-db backups, restores and the watcher
 
 Off-box backups for the project databases on the bas box, the restore procedure that
-has actually been run, password rotation, and the four fleet-health cards that say
+has actually been run, password rotation, and the five fleet-health cards that say
 when any of it stops. Built by LAC-5980 under LAC-5969.
 
 The box, the TLS story, the per-driver URL table, adding a database, and the
 connection-limit policy are in [`bas-projects-db.md`](./bas-projects-db.md). This
 file does not repeat them.
 
-|            |                                                                           |
-| ---------- | ------------------------------------------------------------------------- |
-| Script     | `scripts/projects-db-backup.sh` → `/usr/local/bin/projects-db-backup.sh`  |
-| Schedule   | `projects-db-backup.timer`, nightly 02:40 local, `RandomizedDelaySec=300` |
-| On box     | `/data/backups/projects/YYYYMMDD/`, kept 7 days                           |
-| On NAS     | `library:/mnt/user/backups/projects-db-bas/YYYYMMDD/`, kept 14 days       |
-| Credential | `/etc/paperclip/library_backup_ed25519` on the box, `root@100.119.64.141` |
-| Watcher    | `fleet-health-check.sh` on graphite, four keys, every 15 minutes          |
+|            |                                                                                  |
+| ---------- | -------------------------------------------------------------------------------- |
+| Dumps      | `scripts/projects-db-backup.sh`, `projects-db-backup.timer`, nightly 02:40 local |
+| PITR       | `scripts/projects-db-pitr.sh`, pgBackRest, WAL archived continuously, full 02:50 |
+| Pull       | `scripts/library-pull-bas.sh` on library, cron `30 5 * * *`, log `bas/pull.log`  |
+| On box     | `/data/backups/projects/YYYYMMDD/` 7 days; `/data/backups/pgbackrest/` 14 days   |
+| On NAS     | `library:/mnt/user/backups/bas/{projects,pgbackrest}/`, dumps 60 days, repo 14   |
+| Credential | library's `bas/.ssh/pull_key`; the box holds **no** NAS credential               |
+| Watcher    | `fleet-health-check.sh` on graphite, five keys, every 15 minutes                 |
 
-## Push, not pull
+## Pull, not push
 
-[LAC-5969](https://github.com/lacymorrow/buildandserve) asked for a NAS-side pull
-script. This pushes instead. The box already pushes chatwoot and the Paperclip
-database to the same NAS through the same key, so this copies a pattern that works
-rather than provisioning a second rrsync key on the NAS. The template is
-`/usr/local/bin/chatwoot-backup.sh` (LAC-4165) and the shape is the same: dump, local
-prune, rsync, remote prune, `chown`, `logger`.
+Lacy's scope on LAC-5980 (2026-10-29): same recipe as the production box, no paid
+storage. The box never pushes. library.local pulls `/data/backups` nightly over
+Tailscale through a key restricted in the box's `authorized_keys` to
 
-The NAS prune runs **on the NAS**, deliberately. A prune driven from the box stops
-happening the moment the tunnel or the box dies, which is exactly when the NAS copy
-is the only copy and is quietly growing without limit.
+```
+restrict,from="100.119.64.141",command="/usr/bin/rrsync -ro /data/backups" ssh-ed25519 ... library-backup-pull-bas
+```
+
+So a stolen copy of that key reads backups and nothing else (a write and a shell were
+both refused when tried), and a compromised box cannot reach, delete or overwrite the
+NAS copy. The first version of this ticket pushed instead; that was replaced the same
+day and the old `projects-db-bas/` directory on the NAS stopped growing.
+
+Two retention rules, on purpose different:
+
+- `projects/` is **added to**, never mirrored, and pruned at 60 days by mtime. A box that
+  lost its dumps cannot take the NAS copies with it.
+- `pgbackrest/` is **mirrored** (`--delete`), because pgBackRest owns its own retention
+  and deleting repo files by age would orphan a backup from the WAL it needs. The pull
+  refuses to mirror when the box has no `backup.info`, so a rebuilt empty box cannot
+  erase the only copy. The NAS therefore holds 14 days of point-in-time history, and the
+  dumps are what reach back to 60.
+
+Unraid cron lives in `/boot/config/plugins/dynamix/bas-backup.cron`, merged into
+`/etc/cron.d/root`. It is not in `crontab -l`.
+
+## Point-in-time recovery
+
+`projects-db` runs `projects-db-pgbackrest:17` (the stock `postgres:17-alpine` plus the
+`pgbackrest` apk) with `archive_mode=on`, `archive_timeout=900` and
+`archive_command='pgbackrest --stanza=projects archive-push %p'`. A full backup runs
+nightly at 02:50, kept 14 days (time-based). On a quiet database a segment ships at
+least every 15 minutes, so the loss window on the box is about 15 minutes.
+
+This is the one Neon feature that has actually saved us (the keepsake column drop,
+recovered from Neon's 6-hour history). It restores the **whole cluster** to a moment;
+to fix one app, restore a dump (below) or restore PITR into a scratch cluster and copy
+the one table across.
+
+`enable` recreated the live container once (2026-10-29, a few seconds of refused
+connections, data directory untouched). The previous container is still there as
+`projects-db-pre-pitr`, stopped. `bas-projects-db.sh bootstrap` still builds the stock container for a first install; run `projects-db-pitr.sh enable` after it to get archiving. Remove the old one with `docker rm projects-db-pre-pitr` once a
+week of nightlies has passed.
+
+```bash
+projects-db-pitr.sh info                          # backups and the WAL range
+projects-db-pitr.sh check                         # proves archive-push end to end
+projects-db-pitr.sh restore-test '2026-10-29 11:44:07+00'   # scratch only, production untouched
+PITR_PROBE_DB=mydb PITR_PROBE_SQL='select count(*) from t' \
+  projects-db-pitr.sh restore-test '<time>'       # ask the restored cluster a question
+```
+
+Proven 2026-10-29: created `pitr_probe` with 100 rows, noted a time, deleted every row,
+restored to the noted time into a scratch cluster. The scratch cluster answered 100;
+live answered 0. The scratch container and directory were gone afterwards.
+
+To restore production to a point in time (a real recovery, not the test): stop
+`projects-db`, move `/data/projects-db/data` aside, run
+`docker run --rm -u postgres --entrypoint pgbackrest -v /data/projects-db/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro -v /data/backups/pgbackrest:/var/lib/pgbackrest -v /data/projects-db/data:/var/lib/postgresql/data projects-db-pgbackrest:17 --stanza=projects --type=time --target='<time>' --target-action=promote restore`,
+then start the container. The moved-aside directory is the undo.
 
 ## What gets dumped
 
@@ -43,7 +94,7 @@ The globals file is not decoration. A `-Fc` dump of one database carries its tab
 and its `OWNER TO <role>` statements but not the role itself, so restoring into a
 rebuilt container with no roles fails on the first owner line. That file carries the
 roles and their scram verifiers, which is why the whole tree is mode 600 under
-`umask 077` and why the pushed copy is too.
+`umask 077` and why the pulled copy is too.
 
 `postgres` is skipped. It is the maintenance database and holds no project data.
 
@@ -95,17 +146,12 @@ no flag that restores over a live database: `restore` refuses a target that alre
 exists, so the only available procedure is the one that can be aborted halfway.
 
 ```bash
+# From library, push the one you want to the box (the box holds no NAS credential, so
+# this is run from a shell on library, or any host that can reach both).
+ssh root@100.119.64.141 ls -la /mnt/user/backups/bas/projects/
+scp root@100.119.64.141:/mnt/user/backups/bas/projects/20261028/gracefully_imagined-20261028-0738.dump \
+  root@bas.hyrax-boga.ts.net:/tmp/restore/
 ssh root@bas.hyrax-boga.ts.net
-SSHK="ssh -i /etc/paperclip/library_backup_ed25519 -o BatchMode=yes -o ConnectTimeout=25"
-
-# 1. what is on the NAS
-$SSHK root@100.119.64.141 ls -la /mnt/user/backups/projects-db-bas/
-
-# 2. pull the one you want
-umask 077; mkdir -p /tmp/restore
-rsync -a -e "$SSHK" \
-  root@100.119.64.141:/mnt/user/backups/projects-db-bas/20261028/gracefully_imagined-20261028-0738.dump \
-  /tmp/restore/
 
 # 3. restore beside the live database
 /usr/local/bin/projects-db-backup.sh restore \
@@ -197,20 +243,21 @@ Preview roles rotate the same way against `${PROJ}_preview` and the
 `<project>-preview-db.env` secret. Client certificates (LAC-6060) are separate from
 the password and are reissued with `bas-projects-db.sh client-cert <proj>`.
 
-## The watcher: four cards
+## The watcher: five cards
 
 In `fleet-health-check.sh` on graphite, section 1b, gated on the same
 `~/.paperclip/fleet-health/bas-enabled` marker as the rest of the bas box. Tests are
-`test/lac5980-projects-db-test.sh`, 94 assertions.
+`test/lac5980-projects-db-test.sh`, 107 assertions.
 
-| Card                           | Fails when                                                  | First thing to look at                              |
-| ------------------------------ | ----------------------------------------------------------- | --------------------------------------------------- |
-| `projects-db`                  | a real project database does not answer `SELECT 1` over TLS | `docker logs --tail 50 projects-db`, then `df -h /` |
-| `projects-db-backup`           | the newest `*.dump` on the NAS is over 26h old              | `journalctl -u projects-db-backup.service -n 50`    |
-| `projects-db-connections`      | client backends pass 60 of `max_connections=100`            | `pg_stat_activity` grouped by `usename`             |
-| `projects-db-role-connections` | any role is at 80% or more of its own `rolconnlimit`        | that app's pool cap                                 |
+| Card                           | Fails when                                                  | First thing to look at                                                                                  |
+| ------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `projects-db`                  | a real project database does not answer `SELECT 1` over TLS | `docker logs --tail 50 projects-db`, then `df -h /`                                                     |
+| `projects-db-backup`           | the newest `*.dump` on the NAS is over 26h old              | `tail /mnt/user/backups/bas/pull.log` on library, then `journalctl -u projects-db-backup.service -n 50` |
+| `projects-db-pitr`             | the pgBackRest `backup.info` on the NAS is over 26h old     | the same pull log, then `projects-db-pitr.sh info`                                                      |
+| `projects-db-connections`      | client backends pass 60 of `max_connections=100`            | `pg_stat_activity` grouped by `usename`                                                                 |
+| `projects-db-role-connections` | any role is at 80% or more of its own `rolconnlimit`        | that app's pool cap                                                                                     |
 
-Four keys and not one, because any one of them alone lies. A box that answers while
+Five keys and not one, because any one of them alone lies. A box that answers while
 its backups stopped a week ago reads healthy on reachability. A role at its own cap is
 down for one app while the cluster reads calm, which is the outage that reached Lacy as
 a 500 on a site.
@@ -288,7 +335,7 @@ the SQL above is what to re-run then.
 
 The bas box is a single Hetzner cx33 in Falkenstein, server id `169986608`, with delete
 and rebuild protection on. Every project database on it has one live copy and one NAS
-copy up to 24h old. If the box dies:
+copy (dumps up to 24h old; PITR to the last pull, also up to 24h). If the box dies:
 
 - Every site whose `DATABASE_URL` points at `26432` returns 500 on any database read.
 - `projects-db` and `projects-db-backup` both fail inside 15 minutes.
@@ -303,7 +350,10 @@ That is a known gap, not a solved problem.
 
 ## What this does not do
 
-- No point-in-time recovery. These are nightly dumps, not WAL archiving.
+- Point-in-time history on the NAS is 14 days, not 60 (dumps reach back 60).
+- No third copy on the production Hetzner box. Lacy's scope made it optional, and it needs
+  a write credential on that box; filed rather than shipped. Library is a home server on
+  residential power, so a fire or an outage there still leaves only the bas box.
 - No public-port reachability card. See the tailnet note above.
 - No offsite copy. Box plus one NAS on the same LAN.
 - No automatic restore. `verify-restore` proves a dump is restorable; it does not

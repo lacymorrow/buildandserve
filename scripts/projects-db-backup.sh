@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# Nightly projects-db backup: one pg_dump per database, pushed to the library NAS.
+# Nightly projects-db backup: one pg_dump per database, left on the box for the library NAS to pull.
 # Runs ON the bas box as root. Installed at /usr/local/bin/projects-db-backup.sh.
 #
-#   (no args)                     dump every database, prune, push to the NAS
+#   (no args)                     dump every database and prune; the NAS pulls
 #   install                       write the systemd units and enable the timer
 #   restore <dumpfile> <target>   restore one dump into a database that does not exist
 #   verify-restore [db]           restore the newest local dump into a scratch
 #                                 database, compare row counts, drop the scratch
 #
-# Push, not pull. The box already pushes chatwoot and the Paperclip database to the
-# same NAS through /etc/paperclip/library_backup_ed25519, so this copies a working
-# pattern instead of provisioning a second rrsync key on the NAS. The template is
-# /usr/local/bin/chatwoot-backup.sh (LAC-4165) and this keeps its shape: dump,
-# local prune, rsync, remote prune, chown, logger.
+# Pull, not push (Lacy's scope, LAC-5980 2026-10-29). The box holds no credential
+# for the NAS: library.local pulls /data/backups nightly through a key restricted to
+# `rrsync -ro /data/backups`, the same recipe as the production box. A compromised
+# bas box can therefore not reach, delete or overwrite the NAS copy. The pull job is
+# scripts/library-pull-bas.sh. WAL archiving for point in time recovery is
+# scripts/projects-db-pitr.sh and lands in /data/backups/pgbackrest.
 #
 # A dump nobody has restored is not a backup, which is why `verify-restore` is in
 # here rather than in a runbook step somebody does once. See
@@ -23,13 +24,6 @@ umask 077
 CONTAINER="${PROJECTS_DB_CONTAINER:-projects-db}"
 LOCAL_ROOT="${PROJECTS_DB_BACKUP_DIR:-/data/backups/projects}"
 LOCAL_KEEP_DAYS="${PROJECTS_DB_LOCAL_KEEP_DAYS:-7}"
-NAS_KEY="${PROJECTS_DB_NAS_KEY:-/etc/paperclip/library_backup_ed25519}"
-NAS_HOST="${PROJECTS_DB_NAS_HOST:-root@100.119.64.141}"
-NAS_DIR="${PROJECTS_DB_NAS_DIR:-/mnt/user/backups/projects-db-bas}"
-NAS_KEEP_DAYS="${PROJECTS_DB_NAS_KEEP_DAYS:-14}"
-# 99:100 is nobody:users on Unraid. Without it the pushed files are owned by root
-# and the array's own tooling cannot read them; the chatwoot script does the same.
-NAS_OWNER="${PROJECTS_DB_NAS_OWNER:-99:100}"
 
 TS="$(date +%Y%m%d-%H%M)"
 DAY="$(date +%Y%m%d)"
@@ -49,8 +43,6 @@ list_databases() {
 	in_db psql -U postgres -At \
 		-c "select datname from pg_database where datistemplate = false and datname <> 'postgres' order by 1"
 }
-
-ssh_nas() { ssh -i "$NAS_KEY" -o BatchMode=yes -o ConnectTimeout=25 -o StrictHostKeyChecking=accept-new "$NAS_HOST" "$@"; }
 
 # ---------------------------------------------------------------- the backup
 run_backup() {
@@ -96,21 +88,8 @@ run_backup() {
 	# same age, and deleting files alone leaves a tree of empty directories behind.
 	find "$LOCAL_ROOT" -mindepth 1 -maxdepth 1 -type d -mtime "+$LOCAL_KEEP_DAYS" -exec rm -rf {} + 2>/dev/null || true
 
-	# One rsync of the day directory, so the NAS mirrors the same YYYYMMDD layout.
-	local SSH="ssh -i $NAS_KEY -o BatchMode=yes -o ConnectTimeout=25 -o StrictHostKeyChecking=accept-new"
-	ssh_nas "mkdir -p '$NAS_DIR'"
-	rsync -a --partial -e "$SSH" "$DEST" "$NAS_HOST:$NAS_DIR/"
-
-	# Pruned ON the NAS, deliberately. A prune driven from here stops happening the
-	# moment the tunnel or the box dies, which is exactly when the NAS copy is the
-	# only copy and is quietly growing without limit. `|| true` because a NAS that
-	# refuses the prune has not lost the backup that just landed.
-	ssh_nas "find '$NAS_DIR' -mindepth 1 -maxdepth 2 -type f -mtime +$NAS_KEEP_DAYS -delete 2>/dev/null; \
-	         find '$NAS_DIR' -mindepth 1 -maxdepth 1 -type d -empty -delete 2>/dev/null; \
-	         chown -R $NAS_OWNER '$NAS_DIR'" || true
-
-	logger -t projects-db-backup "ok $TS $count databases + globals -> $NAS_DIR/$DAY"
-	log "pushed $count databases + globals to $NAS_HOST:$NAS_DIR/$DAY"
+	logger -t projects-db-backup "ok $TS $count databases + globals -> $DEST"
+	log "dumped $count databases + globals to $DEST; the library NAS pulls them"
 }
 
 # ---------------------------------------------------------------- restore
@@ -192,7 +171,7 @@ install_units() {
 
 	cat > /etc/systemd/system/projects-db-backup.service <<'UNIT'
 [Unit]
-Description=Dump every projects-db database and ship it to the library NAS
+Description=Dump every projects-db database (the library NAS pulls them)
 After=docker.service network-online.target
 
 [Service]
