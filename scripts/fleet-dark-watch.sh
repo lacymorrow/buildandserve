@@ -58,6 +58,12 @@ HEALTH_HOST="${FLEET_DARK_WATCH_HOST:-zero.hyrax-boga.ts.net}"
 HEALTH_IP="${FLEET_DARK_WATCH_IP:-100.86.145.8}"
 HEALTH_URL="${FLEET_DARK_WATCH_URL:-https://${HEALTH_HOST}/api/health}"
 
+# The name a human reads at 2am. Derived from the host already configured above,
+# never its own variable: a sixth env var on the cron line is one an operator can
+# forget, and a page naming the wrong machine is the whole defect this avoids.
+# A second instance of this script watching graphite says graphite everywhere.
+HEALTH_LABEL="${HEALTH_HOST%%.*}"
+
 # Long enough to ride out a loaded laptop, short enough that a wedged request
 # cannot still be running when cron starts the next one.
 CURL_TIMEOUT="${FLEET_DARK_WATCH_TIMEOUT:-10}"
@@ -217,8 +223,8 @@ state_put() {
 # the words Lacy reads at 00:30 before he has picked the phone up. They are also
 # the first words of each message below, deliberately: the title on the phone
 # and the sentence in Slack must not say different things about the same event.
-DARK_TITLE='Fleet is dark'
-BACK_TITLE='Fleet is back'
+DARK_TITLE="Fleet is dark on ${HEALTH_LABEL}"
+BACK_TITLE="Fleet is back on ${HEALTH_LABEL}"
 
 # The dark message. What happened first, because that is the fact. What is
 # stopped second, because "the control plane is down" means nothing on its own.
@@ -226,10 +232,20 @@ BACK_TITLE='Fleet is back'
 format_dark() {
   local elapsed=$1 since_epoch=$2 since
   since=$(at_epoch "$since_epoch" '%H:%M %Z')
-  printf 'Fleet is dark. The control plane on zero stopped answering %s ago, at %s. ' \
-    "$(fmt_duration "$elapsed")" "$since"
-  printf 'Nothing is running: no agent runs, no routines, no store watch. Every other watch lives on that same Mac, so none of them can tell you either. '
-  printf 'Check the laptop: power first, then the FileVault prompt.'
+  printf 'Fleet is dark. The control plane on %s stopped answering %s ago, at %s. ' \
+    "$HEALTH_LABEL" "$(fmt_duration "$elapsed")" "$since"
+  # What is stopped is host-specific, not a wording difference. zero holds the
+  # agent runs, the routines, the store watch and every other watch, so its page
+  # is the only notice that can arrive. graphite holds none of those: 6 of
+  # zero's watches are absent there and it has no crontab, so claiming nothing
+  # can reach him would be false.
+  case "$HEALTH_LABEL" in
+    zero) printf 'Nothing is running: no agent runs, no routines, no store watch. This is your only notice; every other watch runs on zero too. ' ;;
+    *) printf 'Nothing on %s is running: no agent runs, no routines. ' "$HEALTH_LABEL" ;;
+  esac
+  # "any login prompt" rather than FileVault: FileVault is On on zero and Off on
+  # graphite, and this survives a flip on either.
+  printf 'Check %s: power first, then any login prompt.' "$HEALTH_LABEL"
 }
 
 # The recovery message, and the reason this script is worth more than a louder
@@ -237,8 +253,8 @@ format_dark() {
 format_back() {
   local dark_for=$1 back_at_epoch=$2 back_at
   back_at=$(at_epoch "$back_at_epoch" '%H:%M %Z')
-  printf 'Fleet is back. The control plane answered again at %s, after %s dark. Anything scheduled in that window did not run.' \
-    "$back_at" "$(fmt_duration "$dark_for")"
+  printf 'Fleet is back. The control plane on %s answered again at %s, after %s dark. Anything scheduled in that window did not run.' \
+    "$HEALTH_LABEL" "$back_at" "$(fmt_duration "$dark_for")"
 }
 
 # Slack-DM one line. Returns non-zero and prints why rather than exiting, so a
