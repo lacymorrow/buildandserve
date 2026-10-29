@@ -17,6 +17,17 @@ const serverSchema = {
 
   // ======== Database ========
   DATABASE_URL: z.string().url().optional(),
+  // The direct, unpooled listener (LAC-6076). Set it whenever DATABASE_URL goes
+  // through a transaction pooler: migrations, LISTEN/NOTIFY and advisory locks
+  // are session state and must not. src/server/db/pooling.ts reads both of these
+  // from process.env rather than from here, because drizzle.config.ts imports it
+  // and runs outside Next; they are declared here to be documented and validated.
+  DATABASE_URL_UNPOOLED: z.string().url().optional(),
+  // Escape hatch for a pooler on a port pooling.ts has never heard of, and the
+  // way out of a wrong guess in either direction. A plain string, not an enum:
+  // pooling.ts trims and lowercases before comparing, so validating a narrower
+  // set here would reject values that work and fail the whole build to do it.
+  DATABASE_POOLED: z.string().optional(),
   DB_PREFIX: z.string().default("db"),
   // Client certificate for projects-db, base64-encoded PEM (LAC-6060). Both or
   // neither; one alone is a half-finished deployment and is ignored. Base64
