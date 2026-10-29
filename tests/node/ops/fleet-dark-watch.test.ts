@@ -74,6 +74,8 @@ interface PollOptions {
   ntfyTopic?: string;
   /** Where the topic is read from when it is not in the environment. */
   ntfyTopicFile?: string;
+  /** The watched host. Only the label before the first dot reaches the page. */
+  host?: string;
 }
 
 /**
@@ -85,7 +87,11 @@ async function poll(dir: string, options: PollOptions): Promise<Result> {
     ...process.env,
     FLEET_DARK_WATCH_DIR: dir,
     FLEET_DARK_WATCH_URL: options.url ?? healthUrl,
-    FLEET_DARK_WATCH_HOST: "127.0.0.1",
+    // The production default, not a loopback literal: every word of the page
+    // is derived from this, so a test that overrode it would never see the
+    // text a real page carries. `--resolve` stays inert either way, because
+    // the URL below points at 127.0.0.1 on a port that is not 443.
+    FLEET_DARK_WATCH_HOST: options.host ?? "zero.hyrax-boga.ts.net",
     FLEET_DARK_WATCH_NOW: String(options.now),
     TZ: "UTC",
     // Neutralised rather than inherited. ntfy.sh is a public server and a test
@@ -237,8 +243,8 @@ describe("going dark", () => {
     // Naming the three things that die is the point. "The control plane is
     // down" is a sentence Lacy cannot act on at 23:30.
     expect(result.stdout).toContain("no agent runs, no routines, no store watch");
-    expect(result.stdout).toContain("Every other watch lives on that same Mac");
-    expect(result.stdout).toContain("Check the laptop: power first, then the FileVault prompt.");
+    expect(result.stdout).toContain("every other watch runs on zero too");
+    expect(result.stdout).toContain("Check zero: power first, then any login prompt.");
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -774,7 +780,7 @@ describe("a channel that survives Do Not Disturb (LAC-5366)", () => {
     expect(ntfy.received).toHaveLength(1);
     expect(ntfy.received[0]?.topic).toBe(TOPIC);
     // The lock-screen glance, before the phone is even picked up.
-    expect(ntfy.received[0]?.title).toBe("Fleet is dark");
+    expect(ntfy.received[0]?.title).toBe("Fleet is dark on zero");
     // 5 is ntfy's max, and the one value the iOS app maps to a Critical Alert.
     // Anything lower and the whole change is decorative.
     expect(ntfy.received[0]?.priority).toBe("5");
@@ -813,7 +819,7 @@ describe("a channel that survives Do Not Disturb (LAC-5366)", () => {
     });
 
     expect(ntfy.received).toHaveLength(1);
-    expect(ntfy.received[0]?.title).toBe("Fleet is back");
+    expect(ntfy.received[0]?.title).toBe("Fleet is back on zero");
     expect(ntfy.received[0]?.tags).toBe("white_check_mark");
     expect(ntfy.received[0]?.body).toContain("after 11h41m dark");
     expect(ntfy.received[0]?.body).toBe(slack.received[0]?.text);
@@ -1174,6 +1180,91 @@ describe("the BLIP line said something impossible (LAC-5366)", () => {
     // ignore the next real one.
     expect(result.stdout).not.toContain("Fleet is back");
     expect(result.state).toBeNull();
+    await rm(dir, { recursive: true, force: true });
+  });
+});
+
+describe("a second instance watching another host (LAC-6265)", () => {
+  // graphite runs the LACA control plane, so a copy of this script on library
+  // watches it. Before this, every word of the page said zero: a graphite
+  // outage paged at priority 5 saying the control plane on zero had stopped
+  // answering while zero was answering 200, which sends a human to power-cycle
+  // the wrong laptop.
+  const GRAPHITE = "graphite.hyrax-boga.ts.net";
+
+  it("names the host it watches in the title and the first sentence", async () => {
+    const dir = await scratch();
+    const slack = fakeSlack();
+    const slackApi = await slack.listen();
+    const ntfy = fakeNtfy();
+    const ntfyUrl = await ntfy.listen();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+
+    const result = await poll(dir, {
+      now: T0 + 15 * 60,
+      url: DEAD_URL,
+      host: GRAPHITE,
+      notify: true,
+      slackApi,
+      ntfyUrl,
+      ntfyTopic: TOPIC,
+    });
+
+    expect(result.code).toBe(1);
+    // The lock-screen glance has to be able to tell the two instances apart:
+    // both page the same phone, and before this they sent identical titles.
+    expect(ntfy.received[0]?.title).toBe("Fleet is dark on graphite");
+    expect(ntfy.received[0]?.body).toBe(slack.received[0]?.text);
+    expect(result.stdout).toContain(
+      "Fleet is dark. The control plane on graphite stopped answering 15m ago"
+    );
+    expect(result.stdout).toContain("Check graphite: power first, then any login prompt.");
+    expect(result.stdout).not.toContain("zero");
+
+    await slack.close();
+    await ntfy.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("claims nothing about zero's watches, which are measurably still up", async () => {
+    // `comm -23` over ~/Library/LaunchAgents, 2026-10-29: 11 plists on zero and
+    // not on graphite, 6 of them watches, and graphite has no crontab. "Every
+    // other watch lives on that same Mac" is true of zero and false here.
+    const dir = await scratch();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+    const result = await poll(dir, { now: T0 + 15 * 60, url: DEAD_URL, host: GRAPHITE });
+
+    expect(result.stdout).toContain("Nothing on graphite is running: no agent runs, no routines.");
+    expect(result.stdout).not.toContain("store watch");
+    expect(result.stdout).not.toContain("only notice");
+    // FileVault is On on zero and Off on graphite, so naming it would send him
+    // hunting a prompt that cannot appear.
+    expect(result.stdout).not.toContain("FileVault");
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("still says zero when nothing is overridden", async () => {
+    const dir = await scratch();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=0\n`);
+    const result = await poll(dir, { now: T0 + 15 * 60, url: DEAD_URL });
+
+    expect(result.stdout).toContain(
+      "Fleet is dark. The control plane on zero stopped answering 15m ago"
+    );
+    expect(result.stdout).not.toContain("graphite");
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("names the host on the way back up too", async () => {
+    const dir = await scratch();
+    await writeFile(path.join(dir, "state"), `down_since=${T0}\npaged=1\n`);
+    const result = await poll(dir, { now: T0 + 60 * 60, host: GRAPHITE });
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(
+      "Fleet is back. The control plane on graphite answered again at"
+    );
+    expect(result.stdout).not.toContain("zero");
     await rm(dir, { recursive: true, force: true });
   });
 });
