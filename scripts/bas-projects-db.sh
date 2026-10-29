@@ -219,9 +219,33 @@ disk_fingerprint() {
 # which is all this needs. The probe authenticates as nobody and reaches no
 # database.
 served_pem_on() {
-	openssl s_client -starttls postgres -connect "127.0.0.1:$1" \
-		-servername "$DB_HOST" </dev/null 2>/dev/null |
+	# The `|| true` is load-bearing. On the pooled port the handshake cannot
+	# complete: client_tls_sslmode is verify-full and this probe holds no client
+	# certificate, so the pooler sends its own certificate and then a TLS 1.3
+	# `certificate required` alert. Whether that alert lands before s_client
+	# exits is a race. Measured 2026-10-29 over 40 sequential probes against the
+	# live pooler: non-zero exit on 3 of them, the server certificate present in
+	# stdout on all 40. Under `set -o pipefail` that status reached the caller's
+	# `|| served=""` and threw the good read away, which failed one renewal in
+	# eight and let the hourly watch claim every pooled project was down. Decide
+	# on whether a PEM came back, never on the exit status (LAC-6245).
+	{ openssl s_client -starttls postgres -connect "127.0.0.1:$1" \
+		-servername "$DB_HOST" </dev/null 2>/dev/null || true; } |
 		sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p'
+}
+
+# One retry on an empty read. With the exit status no longer consulted, an empty
+# read is the only evidence of a real fault, and both callers act hard on it: the
+# certbot deploy hook fails the renewal and the watch reports a total outage. A
+# single refused connection should not be either of those (LAC-6245).
+served_pem_twice() {
+	local pem
+	pem=$(served_pem_on "$1")
+	if [[ -z "$pem" ]]; then
+		sleep 2
+		pem=$(served_pem_on "$1")
+	fi
+	printf '%s\n' "$pem"
 }
 
 served_pem() { served_pem_on "$HOST_PORT"; }
@@ -310,7 +334,7 @@ reload_pooler_cert() {
 	fi
 	"$POOLER_SELF_PATH" reload
 	local served disk
-	served=$(served_pem_on "$POOLER_PORT" | fingerprint_of) || served=""
+	served=$(served_pem_twice "$POOLER_PORT" | fingerprint_of) || served=""
 	disk=$(disk_fingerprint) || disk=""
 	if [[ -n "$served" && "$served" == "$disk" ]]; then
 		log "cert: $POOLER_CONTAINER is serving the new cert"
@@ -406,8 +430,10 @@ pooler_cert_check() {
 		problems+=("$POOLER_CONTAINER resolves $DB_HOST to $resolved, which is not an address of $CONTAINER; a recreate dropped the pool network. Every pooled login fails 'server down'. Fix: $POOLER_SELF_PATH network")
 	fi
 
-	local problems=() pooled_pem pf df
-	pooled_pem=$(served_pem_on "$POOLER_PORT") || pooled_pem=""
+	# One findings array for both halves, declared once at the top of the
+	# function. A second `local problems=()` here reset it, so every network
+	# finding above was discarded and the check still returned 0 (LAC-6245).
+	pooled_pem=$(served_pem_twice "$POOLER_PORT") || pooled_pem=""
 	df=$(disk_fingerprint) || df=""
 
 	if [[ -z "$pooled_pem" ]]; then
@@ -474,6 +500,14 @@ wait_ready() {
 # re-attaches. Idempotent, and a no-op on a box with no pooler.
 attach_pool_network() {
 	[[ -x "$POOLER_SELF_PATH" ]] || return 0
+	# An older copy of the pooler script has no `network` subcommand: it exits 1
+	# with a usage dump, and `set -e` turns that into a bootstrap failure whose
+	# message is about the wrong script entirely. Still fail, but say what is
+	# actually wrong (LAC-6245).
+	if ! grep -q '^[[:space:]]*network)' "$POOLER_SELF_PATH"; then
+		echo "$POOLER_SELF_PATH predates the 'network' subcommand, so the pooler cannot be re-attached; install all three scripts from the same commit" >&2
+		return 1
+	fi
 	"$POOLER_SELF_PATH" network
 }
 

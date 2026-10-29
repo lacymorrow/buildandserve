@@ -555,7 +555,7 @@ add_project() {
 	ensure_ini
 	reload
 	log "$role: pooled, pool_size=$pool reserve=$reserve, limit $limit"
-	log "$role: pooler now budgets $total of $POOL_BUDGET server connections across $(ls -1 "$CONF"/databases.d/*.conf 2>/dev/null | wc -l) database(s)"
+	log "$role: pooler now budgets $total of $POOL_BUDGET server connections across $(ls -1 "$CONF"/databases.d/*.conf 2>/dev/null | wc -l | tr -d ' ') database(s)"
 	log "$role: DATABASE_URL host port becomes $HOST_PORT, and the app needs prepare: false"
 }
 

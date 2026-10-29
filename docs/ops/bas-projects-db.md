@@ -270,6 +270,21 @@ shape, not a finding. An unreachable box or a box whose installed script predate
 the subcommand both void (exit 3) rather than page, the same ruling as everywhere
 else here.
 
+**Never judge the pooled-port probe by `openssl`'s exit status.** The probe
+cannot complete the handshake: `client_tls_sslmode` is `verify-full` and the
+probe holds no client certificate, so the pooler sends its certificate and then
+a TLS 1.3 `certificate required` alert. Whether that alert lands before
+`s_client` exits is a race. Measured 2026-10-29 over 40 sequential probes
+against the live pooler: non-zero exit on 3 of them, the server certificate
+present in stdout on all 40. The first version of this check keyed on the exit
+status, so it threw away a good read and reported `serves no TLS cert ... every
+pooled project is down` 3 times in 40 — on an hourly watch, roughly two false
+total-outage pages a day, and one failed `cert-deploy` in eight on a renewal
+that had worked. `served_pem_on` now swallows that exit status and the decision
+is whether a PEM came back, with one retry on an empty read (LAC-6245). Measured
+after the fix on the same box: 0 findings in 40 runs, and a port that genuinely
+serves nothing still reports.
+
 The same job carries the auth-failure check (see "Authentication-failure
 alerting"), which is why it runs hourly while the cert half runs at most once
 every `CERT_EVERY_HOURS` (20). The stamp file at

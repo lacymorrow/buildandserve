@@ -146,9 +146,9 @@ describe("migrationDatabaseUrl", () => {
   it("does not throw for a pooled-looking URL that DATABASE_POOLED declares direct", () => {
     // The escape hatch has to work here too, or a pooler on 26433 that is in
     // fact a direct listener has no way to run a migration.
-    expect(
-      migrationDatabaseUrl(envWith({ DATABASE_URL: POOLED, DATABASE_POOLED: "false" }))
-    ).toBe(POOLED);
+    expect(migrationDatabaseUrl(envWith({ DATABASE_URL: POOLED, DATABASE_POOLED: "false" }))).toBe(
+      POOLED
+    );
   });
 
   it("prefers the direct URL and never throws when both are set", () => {
