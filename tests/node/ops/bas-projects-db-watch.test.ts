@@ -453,6 +453,50 @@ describe("secret file modes", () => {
     expect(result.stdout).not.toContain("gracefully-imagined-db.env is");
   });
 
+  // LAC-6096. The original pattern was `*-db.env*`, written for the per-project
+  // credentials, and it matched neither of the two files named
+  // projects-db-SOMETHING.env, the superuser password and the monitor's. Both
+  // were sitting in the swept directory, unswept, which is the worst shape a
+  // sweep can have: it reads green and the operator believes it.
+  it("covers the two projects-db env files the original pattern missed", async () => {
+    await secret("projects-db-superuser.env", 0o644);
+    await secret("projects-db-monitor.env", 0o600);
+    const result = await watch({ lines: quiet });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("projects-db-superuser.env is 644");
+    expect(result.stdout).not.toContain("projects-db-monitor.env is");
+  });
+
+  // The client private key for the public-path probe (LAC-6096). libpq refuses a
+  // key with group or world access outright, so a loose mode here is both a
+  // leaked credential and the public-path check going blind.
+  it("covers the client private key, not just the env files", async () => {
+    await secret("projects-db-monitor.key", 0o644);
+    const result = await watch({ lines: quiet });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("projects-db-monitor.key is 644");
+    expect(result.stdout).toContain("client private key");
+  });
+
+  // Two patterns match projects-db-monitor.env. Counting it once is the whole
+  // reason the loop carries a seen-list.
+  it("counts a file that matches two patterns once", async () => {
+    await secret("projects-db-monitor.env", 0o644);
+    const result = await watch({ lines: quiet });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("1 projects-db credential file(s)");
+  });
+
+  // The public certificate is public. Demanding 600 of it would be a false alarm
+  // every time someone legitimately made it readable.
+  it("does not demand 600 of the public certificate", async () => {
+    const crt = path.join(box.secrets, "projects-db-monitor.crt");
+    await writeFile(crt, "-----BEGIN CERTIFICATE-----\n");
+    await chmod(crt, 0o644);
+    const result = await watch({ lines: quiet });
+    expect(result.code).toBe(0);
+  });
+
   it("leaves other people's secrets alone, because fixing those is someone else's job", async () => {
     const other = path.join(box.secrets, "ph-shopify-agent-totp.txt");
     await writeFile(other, "123456\n");
