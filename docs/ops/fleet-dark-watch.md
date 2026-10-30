@@ -41,21 +41,46 @@ Going dark:
 
 ```
 Fleet is dark. The control plane on zero stopped answering 15m ago, at 12:58 EDT.
-Nothing is running: no agent runs, no routines, no store watch. Every other watch
-lives on that same Mac, so none of them can tell you either. Check the laptop:
-power first, then the FileVault prompt.
+Nothing is running: no agent runs, no routines, no store watch. This is your only
+notice; every other watch runs on zero too. Check zero: power first, then any
+login prompt.
 ```
 
 Coming back:
 
 ```
-Fleet is back. The control plane answered again at 00:39 EDT, after 11h41m dark.
-Anything scheduled in that window did not run.
+Fleet is back. The control plane on zero answered again at 00:39 EDT, after
+11h41m dark. Anything scheduled in that window did not run.
 ```
 
 What happened first, because that is the fact. What is stopped second, because
 "the control plane is down" is not actionable at 23:30. The action last, and it
 names the two things to look at, because the 2026-10-19 cause was the second one.
+
+### The host it watches is the host it names (LAC-6265)
+
+Every word above is derived from `HEALTH_HOST`, through one label:
+`HEALTH_LABEL="${HEALTH_HOST%%.*}"`. Point a second copy at graphite and it says
+graphite in both titles and both messages. Deliberately not its own env var: the
+cron line already carries five load-bearing variables, and a sixth an operator
+can forget puts the wrong machine back in the page.
+
+graphite's dark message is shorter, because two of zero's sentences are false
+there:
+
+```
+Fleet is dark. The control plane on graphite stopped answering 15m ago, at 00:53
+EDT. Nothing on graphite is running: no agent runs, no routines. Check graphite:
+power first, then any login prompt.
+```
+
+Measured 2026-10-29, which is why the branch exists rather than a substitution:
+11 `~/Library/LaunchAgents` plists are on zero and not on graphite, 6 of them
+watches, and graphite has no crontab, so zero's "this is your only notice" would
+be a lie there. FileVault reads On on zero and Off on graphite, so the action
+line says "any login prompt" on both and survives a flip on either. The default
+arm asserts nothing about other hosts: unverified for any third `HEALTH_HOST`,
+and it changes nothing Lacy does at 2am.
 
 The recovery line is the one that would have made this issue unnecessary, and the
 duration in it is measured, not estimated: `serverInfo.processStartedAt` from the
@@ -192,10 +217,12 @@ will not survive Do Not Disturb)
 ```
 
 **On the phone.** ntfy renders the `Title` header above the body, so the
-lock-screen glance is `Fleet is dark` or `Fleet is back` before the phone is
-picked up. Those four words are also the first words of the message body, on
-purpose: the title on the phone and the sentence in Slack must not say different
-things about the same event.
+lock-screen glance is `Fleet is dark on zero` or `Fleet is back on zero` before
+the phone is picked up. Those words are also the first words of the message body,
+on purpose: the title on the phone and the sentence in Slack must not say
+different things about the same event. The host is in the title because both
+instances page the same phone, and without it the glance cannot tell which
+machine went dark.
 
 ### The one step that cannot be automated
 

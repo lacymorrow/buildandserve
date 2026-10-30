@@ -666,11 +666,182 @@ hand-rolled config, and both reported `client_dn=/CN=keepsake`.
 | `gracefully_imagined`         | issued      | off                      | LAC-5984                          |
 | `gracefully_imagined_preview` | issued      | off                      | LAC-5984                          |
 | `ai_profile_pic`              | not yet     | off                      | LAC-6045, role does not exist yet |
+| `fleet_monitor`               | issued      | **on**                   | done, LAC-6096                    |
 
 Every issued certificate is in that project's
 `~/.paperclip/secrets/<project>-db.env` on zero, mode `600`, next to the URLs.
 A project is flipped by whoever lands its move, after its app is live on the
 certificate, with the one command above.
+
+`fleet_monitor` is not a project and is not flipped that way. See below.
+
+### `fleet_monitor`: the one certificate that is not a project's
+
+Every other certificate on this box belongs to an app. This one belongs to the
+watcher, and it exists because of a gap LAC-5980 named and left open.
+
+fleet-health's four `projects-db` cards all dial the **tailnet** name with
+`sslmode=require`. Vercel dials `projects-db.cloud0.dev:26432` over the public
+internet with `sslmode=verify-full` and a client certificate. Those are a
+different line in `pg_hba.conf`, a different hostname, a different port through
+a different firewall, and TLS material the tailnet path never touches. Five
+breaks live only on the public side:
+
+- the Let's Encrypt certificate expires or stops renewing
+- the Hetzner firewall rule for `tcp/26432` is changed or removed
+- the `clientcert=verify-full` line stops accepting the certificate apps present
+- the client CA expires, or a per-project certificate does
+- the DNS record for `projects-db.cloud0.dev` breaks
+
+Not one of them fails a tailnet probe. Every one of them is every site on this
+box returning 500 while four cards read green. LAC-6096 closed it with a fifth
+card, `projects-db-public`, which takes the route an app takes.
+
+`fleet_monitor` has two hba lines, narrowest first:
+
+```
+hostssl gracefully_imagined      fleet_monitor        100.64.0.0/10  scram-sha-256
+hostssl gracefully_imagined      fleet_monitor        all            scram-sha-256 clientcert=verify-full
+```
+
+`pg_hba` is first-match-wins, so the tailnet half of the watcher never reaches
+the second line and never needs a certificate. The public half does, and the
+certificate is the access control: the CN has to be `fleet_monitor`, so the
+password in `projects-db-monitor.env` on its own is still not a way in from the
+internet.
+
+These two lines are hand-managed. `require-client-cert` rewrites the lines where
+the database and the role share a name, which is every project and not this, and
+`bootstrap` does not recreate them. If the box is rebuilt, re-run the SQL for the
+role and then re-append both lines.
+
+#### Installing it
+
+```bash
+# 1. Mint the certificate. Printed once; the box keeps only the public half.
+#    Capture it straight to a file: the key is on stdout and must not land in a
+#    terminal transcript.
+ssh root@bas.hyrax-boga.ts.net \
+  '/usr/local/sbin/bas-projects-db.sh client-cert fleet_monitor' > /tmp/fm.out
+
+# 2. Split it into ~/.paperclip/secrets, mode 600 both. The key mode is
+#    load-bearing twice over: libpq refuses a key with group or world access, and
+#    the mode is the only thing protecting a credential that now reaches a port
+#    open to the internet.
+#    (umask 077 first, or you get 644 and the watch files a card about you.)
+
+# 3. Add the public hba line and reload, checked.
+ssh root@bas.hyrax-boga.ts.net 'bash -s' <<'EOS'
+HBA=/data/projects-db/conf/pg_hba.conf
+grep -qE '^hostssl[[:space:]]+gracefully_imagined[[:space:]]+fleet_monitor[[:space:]]+all[[:space:]]' "$HBA" ||
+  printf 'hostssl %-20s %-20s %-14s %s\n' gracefully_imagined fleet_monitor all \
+    'scram-sha-256 clientcert=verify-full' >> "$HBA"
+chown 70:70 "$HBA"; chmod 644 "$HBA"
+EOS
+# A reload is not proof: a pg_hba.conf with a syntax error leaves the old rules
+# in force and exits 0. pg_hba_file_rules is the proof.
+ssh root@bas.hyrax-boga.ts.net \
+  'docker exec -i projects-db psql -q -U postgres -c "SELECT pg_reload_conf()" </dev/null >/dev/null;
+   docker exec -i projects-db psql -tAU postgres -c "select count(*) from pg_hba_file_rules where error is not null" </dev/null'
+# must print 0
+
+# 4. Add the public URL to the secret file. Same role and password as the tailnet
+#    URL, public host, verify-full, and sslrootcert=system.
+#      PROJECTS_DB_MONITOR_PUBLIC_URL=postgresql://fleet_monitor:<pw>@projects-db.cloud0.dev:26432/gracefully_imagined?sslmode=verify-full&sslrootcert=system
+
+# 5. Prove it end to end from zero.
+PGSSLCERT=~/.paperclip/secrets/projects-db-monitor.crt \
+PGSSLKEY=~/.paperclip/secrets/projects-db-monitor.key \
+psql "$PROJECTS_DB_MONITOR_PUBLIC_URL" -At \
+  -c "select current_user, inet_client_addr(), (select client_dn from pg_stat_ssl where pid = pg_backend_pid())"
+```
+
+`sslrootcert=system` is not optional for `psql`. libpq defaults to
+`~/.postgresql/root.crt` and fails `verify-full` outright on a missing file,
+where every Node driver on Vercel uses the system store. That also means a pass
+is checking a laptop's trust store and not Vercel's, so it is the weaker of the
+two claims; a failure is unambiguous.
+
+Install it on **both** laptops, not just one. fleet-health's fleet-wide tier runs
+on whichever host `~/.openclaw/ACTIVE_HOST` names, which was graphite on
+2026-10-28, and that is the host that files the card. The copy on the other host
+is a standby that costs nothing and survives the day `ACTIVE_HOST` flips. One
+certificate copied to both, rather than one per host: the CN has to be
+`fleet_monitor` either way, and a second mint would overwrite
+`ca/issued/fleet_monitor.crt` on the box so `client-cert-check` would then be
+watching only the newer one's expiry.
+
+#### "system" has to mean something, and on one laptop it did not
+
+Graphite's Homebrew `openssl@3` had lost its `cert.pem` symlink into the
+`ca-certificates` formula. `OPENSSLDIR/cert.pem` was simply absent, so
+`sslrootcert=system` named an empty store and **every** `verify-full` dial from
+that host failed, including `openssl s_client` against `one.one.one.one`. curl
+and every browser on the box were fine, because on macOS those verify against the
+system keychain and never touch OpenSSL's store.
+
+```bash
+brew postinstall openssl@3     # recreates OPENSSLDIR/cert.pem
+echo Q | openssl s_client -connect cloudflare.com:443 -verify_return_error |
+  grep '^Verification: OK'
+```
+
+Read as written, that host's state is indistinguishable from a failed Let's
+Encrypt renewal: same libpq error, same class. The `projects-db-public` card
+therefore dials a control, `cloudflare.com:443`, before it blames our
+certificate, and files "this host cannot verify ANY public chain" instead. Loud,
+specific and wrong is the worst card this key can produce, and it is the one
+thing that would stop anyone believing it the second time.
+
+#### Measured 2026-10-28 from zero, against the live box
+
+| Probe                                    | Result                                                        |
+| ---------------------------------------- | ------------------------------------------------------------- |
+| public name, `verify-full`, with the cert | `fleet_monitor gracefully_imagined 107.141.224.67 /CN=fleet_monitor` |
+| the same without the cert                | `FATAL: connection requires a valid client certificate`        |
+| tailnet name, no cert (ops path)         | still works, `100.86.145.8`                                    |
+| a certificate the CA never signed        | `SSL error: tlsv1 alert unknown ca`                            |
+| dialed by IP, so the name cannot match   | `verify-full` fails on the server certificate                  |
+| `:26433`, closed at the Hetzner firewall | `Operation timed out`                                          |
+| a hostname with no A record              | `could not translate host name`                                |
+| `SSL_CERT_FILE=/dev/null`, i.e. no roots | filed as this host's trust store, not as the box               |
+
+The `projects-db-public` card classifies all seven, because they have different
+owners and nobody reading one card at 2am should have to rediscover which.
+`fleet-health/test/lac6096-projects-db-public-test.sh` is the harness; the
+messages in it are these measured ones and not invented. The `:26433` row was
+measured before LAC-6076; PgBouncer listens there now, and the dial still times
+out only because the Hetzner firewall does not open that port.
+
+#### This card does not cover the pooled port
+
+It dials `:26432`, which is the port Vercel dials today. When `tcp/26433` opens
+at the Hetzner firewall and `DATABASE_URL` moves to the pooler, that stops being
+true and this card stops covering the path the apps use.
+
+It cannot be widened by changing a port number either. PgBouncer terminates TLS,
+so `clientcert=verify-full` does not reach through it and the pooled path is
+cert-only with a different TLS stack, a different CA setting and a different set
+of failure strings (see "PgBouncer terminates TLS" below). A sixth arm is a
+ticket, not an edit: LAC-6132, owed before `:26433` opens rather than after.
+
+#### Expiry
+
+Nothing new watches it. `client-cert-check` globs `$CA_ISSUED/*.crt`, so this
+certificate joined the hourly client-CA check the moment it was issued, and the
+Let's Encrypt certificate on the public name is check 1 of the same job, read
+over the public name and the public port. Both are described under "Expiry
+monitoring" and "Expiry" above.
+
+#### The cadence cannot trip the rate limit
+
+fleet-health runs every 15 minutes and this card opens one connection per tick.
+The limits LAC-6059 put on the public port are 10 new connections per second per
+source with a burst of 20, and 20 concurrent per source. One connection every
+900 seconds is four orders of magnitude under the rate and holds one of twenty
+slots for the length of one `SELECT`. The harness asserts the connection count,
+so a future rewrite that reconnects per assertion fails a test rather than
+discovering this in production.
 
 ## Pre-auth connection limits
 
@@ -863,13 +1034,31 @@ internet and will say so if the box is genuinely gone.
 
 ## Secret file modes
 
-The watch's third check, and the cheapest one: every `~/.paperclip/secrets/*-db.env*`
-must be mode `600`. These files hold plaintext passwords for databases on a port
-open to `0.0.0.0/0`, so the mode is the whole protection. It reads no file and
-logs no content, only the name and the mode it found.
+The watch's third check, and the cheapest one. Three patterns under
+`~/.paperclip/secrets`, and every file matching one of them must be mode `600`:
 
-It is scoped to `*-db.env*` on purpose. A sweep of every secret on this host is
-a different job and belongs with `cred-scrub`, which does not check modes today.
+| Pattern                | What it is                                            |
+| ---------------------- | ----------------------------------------------------- |
+| `*-db.env*`            | the per-project credentials, and their backup copies   |
+| `projects-db-*.env*`   | the superuser password and the monitor's               |
+| `projects-db-*.key`    | client private keys, currently `fleet_monitor`'s       |
+
+These hold either a plaintext password or a client private key for a database on
+a port open to `0.0.0.0/0`, so the mode is the whole protection. libpq also
+refuses a key with group or world access outright, so a loose key is both a
+leaked credential and the public-path card going blind. The check reads no file
+and logs no content, only the name and the mode it found.
+
+It was one pattern, `*-db.env*`, until LAC-6096. That pattern was written for the
+per-project credentials and matched **neither** of the two files named
+`projects-db-SOMETHING.env`, which are the superuser password and the monitor's:
+the two most valuable files in the directory sat in the swept directory, unswept,
+while the sweep read green. The public certificate, `projects-db-monitor.crt`, is
+deliberately not covered. It is public, and demanding `600` of it would be a
+false alarm every time someone legitimately made it readable.
+
+The patterns stay narrow on purpose. A sweep of every secret on this host is a
+different job and belongs with `cred-scrub`, which does not check modes today.
 
 See "Editing a secret file, and the mode trap" for the failure that put this
 here and the `install -m 600` idiom that avoids it.
@@ -1281,6 +1470,44 @@ on either port. In practice both halves live in the same Vercel environment and
 leak together, which is why this was judged an acceptable trade rather than a
 free one.
 
+### fleet-health's pooled-path card (LAC-6132)
+
+`projects-db-public` dials `:26432` straight into Postgres and stops covering
+production once `DATABASE_URL` moves to the pooler. The sixth card,
+`projects-db-pooled` (section 1b of `fleet-health-check.sh`, tests in
+`fleet-health/test/lac6132-projects-db-pooled-test.sh`), dials `:26433`.
+
+Install order matters. The card is a logged SKIP until
+`PROJECTS_DB_MONITOR_POOLED_URL` exists in `projects-db-monitor.env`, so it can
+ship before the port opens without alarming on a port closed on purpose. Install
+it *before* `DATABASE_URL` moves:
+
+```
+ssh root@bas.hyrax-boga.ts.net
+printf '%s' "$FLEET_MONITOR_PASSWORD" | bas-pgbouncer.sh add-monitor
+bas-projects-db.sh allow-monitor-pooler
+# then, on each fleet-health host, after tcp/26433 opens at the Hetzner firewall:
+PROJECTS_DB_MONITOR_POOLED_URL=postgresql://fleet_monitor@projects-db.cloud0.dev:26433/fleet_monitor?sslmode=verify-full&sslrootcert=system
+```
+
+The URL has no password: the pooled path is cert-only, and the pooler keeps
+`fleet_monitor`'s password in its userlist for the hop to Postgres. The database
+in the URL is the pool alias (the role name), which `add-monitor` points at the one
+database the role may read. `allow-monitor-pooler` is a separate step on purpose;
+without it the pooler accepts the certificate and Postgres refuses it one hop later.
+Rollback is `drop-monitor` and `deny-monitor-pooler`; the direct port is untouched.
+
+What it proves differs from the direct card: the connection existing proves the
+certificate chained to the private CA, and `current_user` coming back as
+`fleet_monitor` proves the CN was bound to the role. `pg_stat_ssl.client_dn` is not
+used, because through the pooler it describes the pooler's own connection.
+
+A pooled failure is not filed when the tailnet probe or `projects-db-public` also
+failed; those own the incident. Cadence is one connection per 15 minutes into a pool
+of one. LAC-6059's `DOCKER-USER` rules are written for `26432`; if a rate limit is
+added for `26433`, anything above one new connection per 15 minutes per source is
+fine for this card.
+
 ### The pooler holds plaintext passwords, which is new
 
 `/data/pgbouncer/secret/userlist.txt`, mode `600`, owner `70:70`, in a `700`
@@ -1447,17 +1674,21 @@ belong with LAC-5980, and the second one is the more urgent of the two.
 Backups, the backup-age check, and the rotate-a-password and
 restore-from-backup procedures all belong to LAC-5969. **There are no off-box
 backups of this container today**, which is the largest remaining gap on this
-box by a distance. `scripts/bas-projects-db-watch.sh` is where the reachability
-and backup-age checks go when LAC-5980 adds them: it already runs hourly from
-zero, holds the Slack plumbing, and has the tailnet ssh path a backup pull
-needs.
+box by a distance. LAC-5980 put the reachability and backup-age
+checks in fleet-health rather than here, as four `projects-db*` cards in section
+1b of `fleet-health-check.sh`, and LAC-6096 added a fifth for the public path
+(see "`fleet_monitor`: the one certificate that is not a project's").
+`scripts/bas-projects-db-watch.sh` keeps the three things only it can do: the
+served certificate, the authentication-failure log, and the secret file modes.
 
 `tcp/26432` stays open to `0.0.0.0/0` for Vercel, which LAC-6056 settled and
 LAC-6059 did not revisit. What changed is that the port is no longer free to
-abuse and no longer carries ops. What is still true is that a leaked project
-password is a full compromise of that one database from anywhere on the
-internet; client-certificate auth is LAC-6060 and is the thing that would
-change it.
+abuse and no longer carries ops. LAC-6060 then landed client-certificate auth,
+which is the thing that makes a leaked password stop being a full compromise of
+that database from anywhere on the internet. That is only true for a role whose
+`all` line carries `clientcert=verify-full`, and the rollout table above is the
+list: `keepsake` and `fleet_monitor` today, the other four still password-only
+from the internet until their own tickets land.
 
 The `projects-db-ratelimit.service` rules are reapplied when the Docker daemon
 restarts (`PartOf=docker.service`) and at boot. They are not reapplied if

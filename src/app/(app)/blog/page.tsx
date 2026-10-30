@@ -11,9 +11,9 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = constructMetadata({
   path: "/blog",
-  title: "Blog - Latest Updates & Guides | Shipkit",
+  title: "Blog",
   description:
-    "Stay up to date with the latest app development trends, tutorials, and best practices. Learn how to build better apps faster with Shipkit's expert guides and tips.",
+    "Notes on building and running websites and AI systems, from the team that ships them.",
 });
 
 // Enhanced BlogPost type with LogSpot-style fields
