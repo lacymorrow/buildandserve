@@ -59,7 +59,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return constructMetadata({
     path: `/blog/authors/${encodeURIComponent(authorId)}`,
-    title: `Posts by ${displayName} | Shipkit Blog`,
+    title: `Posts by ${displayName} | Blog`,
     description: `Read all blog posts written by ${displayName}. Discover insights, tutorials, and best practices for app development.`,
   });
 }

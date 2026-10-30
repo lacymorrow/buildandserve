@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   return constructMetadata({
     path: `/blog/categories/${encodeURIComponent(name)}`,
     title: `${name} — Blog`,
-    description: `Browse all Shipkit blog posts in the ${name} category.`,
+    description: `Browse all blog posts in the ${name} category.`,
   });
 }
 

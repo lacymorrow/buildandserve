@@ -43,7 +43,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!post) {
     return constructMetadata({
-      title: "Post Not Found | Shipkit Blog",
+      title: "Post Not Found",
       description:
         "The blog post you're looking for could not be found. Browse our other articles for app development insights and guides.",
     });
@@ -57,10 +57,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return constructMetadata({
     path: `/blog/${slug}`,
-    title: `${post.title} | Shipkit Blog`,
+    title: `${post.title} | Blog`,
     description:
       post.description ??
-      "Read this comprehensive guide on app development best practices, tips, and insights from the Shipkit team.",
+      "Notes on building and running websites and AI systems, from the team that ships them.",
     images: [
       {
         url: ogUrl.toString(),
