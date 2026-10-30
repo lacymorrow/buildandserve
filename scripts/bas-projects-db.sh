@@ -15,6 +15,8 @@
 #   client-cert <role>         mint a 10-year client cert, CN=<role>, print it base64 for Vercel
 #   require-client-cert <role> that role needs a client cert from off-tailnet. Reversible
 #   relax-client-cert <role>   put that role back to password-only. The rollback lever
+#   allow-monitor-pooler       fleet-health's role may reach its database through the pooler
+#   deny-monitor-pooler        take that back; the direct port is untouched
 #   verify                     report what is actually running
 #
 # The superuser password is read from stdin on bootstrap (never an argument, so it
@@ -845,6 +847,79 @@ write_hba_pair() {
 	exit 1
 }
 
+# The monitor role's own hba trio, which `write_hba_pair` cannot express. That
+# function matches on database == user == project; fleet-health's role reads ONE
+# project database and is not named after it, so its lines are
+# `hostssl <some project db> fleet_monitor ...` and never match.
+#
+# LAC-6132. Without the pooler line here, a probe of the pooled port fails at the
+# second hop rather than the first: the pooler accepts the client certificate,
+# binds the CN to the role, and is then refused by Postgres, because PgBouncer
+# presents no client certificate of its own on the server side and so lands on
+# the `all` line with clientcert=verify-full. The card would read as a pooler
+# fault when it is a missing grant.
+#
+# The database is read out of the role's existing lines rather than passed in or
+# assumed. If the monitor is ever repointed at a different project database, this
+# follows it; a hardcoded name would write a line for a database the role cannot
+# reach and the probe would fail with the line looking correct.
+#
+# The widening is the same trade already taken for every pooled project, and no
+# larger: the pooler's bridge is a user-defined Docker network with no route in
+# from anywhere, so this line is reachable only by a container this box's root
+# attached to that network. What it adds is that `fleet_monitor`'s password alone
+# opens its one database FROM THERE, with no certificate. The role has CONNECT on
+# that database and USAGE on no schema, so it is the least sensitive credential
+# in the pooler's userlist.
+monitor_hba() {
+	local mode="$1" role="${MONITOR_ROLE:-fleet_monitor}" db
+	local backup="$HBA.bak" tmp="$HBA.new"
+
+	db=$(awk -v r="$role" '$1 == "hostssl" && $3 == r { print $2; exit }' "$HBA")
+	if [[ -z "$db" ]]; then
+		echo "$role has no hostssl line in $HBA, so there is no monitor path to widen." >&2
+		echo "That role is provisioned by hand (LAC-5980); add its direct lines first." >&2
+		exit 1
+	fi
+
+	cp -p "$HBA" "$backup"
+	awk -v r="$role" -v d="$db" -v mode="$mode" \
+		-v tailnet="$TAILNET_CIDR" -v pooler="$POOLER_CIDR" '
+		function emit() {
+			if (mode == "pooled") {
+				printf "hostssl %-20s %-20s %-14s %s\n", d, r, pooler, "scram-sha-256"
+			}
+			printf "hostssl %-20s %-20s %-14s %s\n", d, r, tailnet, "scram-sha-256"
+			printf "hostssl %-20s %-20s %-14s %s\n", d, r, "all", "scram-sha-256 clientcert=verify-full"
+		}
+		$1 == "hostssl" && $3 == r {
+			if (!done) { emit(); done = 1 }
+			next
+		}
+		{ print }
+	' "$HBA" >"$tmp"
+
+	chown "$PG_UID:$PG_GID" "$tmp"
+	chmod 644 "$tmp"
+	mv -f "$tmp" "$HBA"
+
+	if reload_hba_checked; then
+		rm -f "$backup"
+		if [[ "$mode" == "pooled" ]]; then
+			log "$role: may now reach $db through the pooler at $POOLER_CIDR"
+		else
+			log "$role: pooler line removed; the direct port is unchanged"
+		fi
+		return 0
+	fi
+
+	mv -f "$backup" "$HBA"
+	chown "$PG_UID:$PG_GID" "$HBA"
+	psql_super -q -c "SELECT pg_reload_conf()" >/dev/null
+	echo "$role: hba rewrite rolled back, nothing changed" >&2
+	exit 1
+}
+
 days_left() {
 	local end end_epoch
 	end=$(openssl x509 -in "$1" -noout -enddate 2>/dev/null | cut -d= -f2) || return 1
@@ -1016,11 +1091,17 @@ require-client-cert)
 relax-client-cert)
 	relax_client_cert "${2:?project name required}"
 	;;
+allow-monitor-pooler)
+	monitor_hba pooled
+	;;
+deny-monitor-pooler)
+	monitor_hba direct
+	;;
 verify)
 	verify
 	;;
 *)
-	echo "usage: $0 {bootstrap|add-project <name>|add-preview <name>|cert-deploy|cert-check|client-cert-check|ca-init|client-cert <role>|require-client-cert <role>|relax-client-cert <role>|verify}" >&2
+	echo "usage: $0 {bootstrap|add-project <name>|add-preview <name>|cert-deploy|cert-check|client-cert-check|ca-init|client-cert <role>|require-client-cert <role>|relax-client-cert <role>|allow-monitor-pooler|deny-monitor-pooler|verify}" >&2
 	exit 2
 	;;
 esac

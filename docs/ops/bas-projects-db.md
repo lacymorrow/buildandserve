@@ -1439,6 +1439,44 @@ on either port. In practice both halves live in the same Vercel environment and
 leak together, which is why this was judged an acceptable trade rather than a
 free one.
 
+### fleet-health's pooled-path card (LAC-6132)
+
+`projects-db-public` dials `:26432` straight into Postgres and stops covering
+production once `DATABASE_URL` moves to the pooler. The sixth card,
+`projects-db-pooled` (section 1b of `fleet-health-check.sh`, tests in
+`fleet-health/test/lac6132-projects-db-pooled-test.sh`), dials `:26433`.
+
+Install order matters. The card is a logged SKIP until
+`PROJECTS_DB_MONITOR_POOLED_URL` exists in `projects-db-monitor.env`, so it can
+ship before the port opens without alarming on a port closed on purpose. Install
+it *before* `DATABASE_URL` moves:
+
+```
+ssh root@bas.hyrax-boga.ts.net
+printf '%s' "$FLEET_MONITOR_PASSWORD" | bas-pgbouncer.sh add-monitor
+bas-projects-db.sh allow-monitor-pooler
+# then, on each fleet-health host, after tcp/26433 opens at the Hetzner firewall:
+PROJECTS_DB_MONITOR_POOLED_URL=postgresql://fleet_monitor@projects-db.cloud0.dev:26433/fleet_monitor?sslmode=verify-full&sslrootcert=system
+```
+
+The URL has no password: the pooled path is cert-only, and the pooler keeps
+`fleet_monitor`'s password in its userlist for the hop to Postgres. The database
+in the URL is the pool alias (the role name), which `add-monitor` points at the one
+database the role may read. `allow-monitor-pooler` is a separate step on purpose;
+without it the pooler accepts the certificate and Postgres refuses it one hop later.
+Rollback is `drop-monitor` and `deny-monitor-pooler`; the direct port is untouched.
+
+What it proves differs from the direct card: the connection existing proves the
+certificate chained to the private CA, and `current_user` coming back as
+`fleet_monitor` proves the CN was bound to the role. `pg_stat_ssl.client_dn` is not
+used, because through the pooler it describes the pooler's own connection.
+
+A pooled failure is not filed when the tailnet probe or `projects-db-public` also
+failed; those own the incident. Cadence is one connection per 15 minutes into a pool
+of one. LAC-6059's `DOCKER-USER` rules are written for `26432`; if a rate limit is
+added for `26433`, anything above one new connection per 15 minutes per source is
+fine for this card.
+
 ### The pooler holds plaintext passwords, which is new
 
 `/data/pgbouncer/secret/userlist.txt`, mode `600`, owner `70:70`, in a `700`
