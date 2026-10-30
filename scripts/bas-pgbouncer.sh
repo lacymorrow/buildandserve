@@ -8,6 +8,8 @@
 #
 #   bootstrap                network, dirs, config, container
 #   add-project <role>       pool entry + userlist entry + pooler hba line (password on stdin)
+#   add-monitor              the same three for fleet-health's monitor role (password on stdin)
+#   drop-monitor             take the monitor off the pooler; the direct port is untouched
 #   drop-project <role>      remove all three. The rollback lever
 #   pools                    SHOW POOLS / SHOW SERVERS / SHOW CLIENTS over the unix socket
 #   console <sql>            any admin console command, same path
@@ -105,7 +107,20 @@ USERLIST="$SECRET/userlist.txt"
 # clients-ca.crt is the LAC-6060 private CA. A second copy would be a second
 # thing to forget on renewal.
 PG_CONF=${PG_CONF:-/data/projects-db/conf}
+# Read, never written, by this script: `add-monitor` takes the monitor's database
+# out of the Postgres hba rather than being told it, so the two scripts cannot
+# disagree about which database fleet-health's role is allowed to reach.
+PG_HBA=${PG_HBA:-$PG_CONF/pg_hba.conf}
 SELF_PATH=/usr/local/sbin/bas-pgbouncer.sh
+
+# fleet-health's no-data role (LAC-5980). It is not a project: it reads ONE
+# project database, is not named after it, and holds USAGE on no schema.
+MONITOR_ROLE=${MONITOR_ROLE:-fleet_monitor}
+# One server connection, no reserve. The probe opens one connection per tick and
+# the role's CONNECTION LIMIT is 3, so a pool of 1 can neither queue behind
+# itself nor take a slot a project pool was counting on. A watcher that can
+# contribute to the saturation it is measuring is not a watcher.
+MONITOR_POOL=${MONITOR_POOL:-1}
 
 # Pool sizes. The production pair sums to 15, under the role's CONNECTION LIMIT
 # of 25; the preview pair sums to 5, which is exactly the preview role's limit.
@@ -559,6 +574,98 @@ add_project() {
 	log "$role: DATABASE_URL host port becomes $HOST_PORT, and the app needs prepare: false"
 }
 
+# fleet-health's monitor through the pooler (LAC-6132). Same three things as
+# add_project, with two differences that matter.
+#
+# The pool is an ALIAS. A project's pool is named after its role because the two
+# names are the same; the monitor's are not, so the pool is named for the ROLE and
+# its `dbname=` points at the project database the role may read. PgBouncer
+# matches its hba on the database the client ASKED for, which is the alias, so the
+# cert line below is about `fleet_monitor` and nothing else can use it. Pools are
+# keyed per (database, user), so the monitor's one connection is its own pool and
+# never draws on the project's.
+#
+# And the Postgres half is a separate, deliberate step, for the same reason
+# `require-client-cert` is: this subcommand grants nothing on the server. Without
+# `bas-projects-db.sh allow-monitor-pooler` the pooler authenticates the
+# certificate here and is then refused one hop later.
+add_monitor() {
+	local role="$MONITOR_ROLE" password db limit
+	valid_role "$role"
+
+	password=$(cat)
+	password=${password%$'\n'}
+	if [[ -z "$password" ]]; then
+		echo "no password on stdin" >&2
+		exit 1
+	fi
+	case "$password" in
+	*'"'* | *'\\'*)
+		echo "password contains a quote or backslash; regenerate it with openssl rand -hex 24" >&2
+		exit 1
+		;;
+	esac
+
+	# The database comes from the role's own hba lines, not from an argument. The
+	# monitor is provisioned by hand, so a name typed here twice is a name that
+	# can be typed differently twice.
+	db=$(awk -v r="$role" '$1 == "hostssl" && $3 == r { print $2; exit }' "$PG_HBA" 2>/dev/null || true)
+	if [[ -z "$db" ]]; then
+		echo "$role has no hostssl line in $PG_HBA, so which database it may read is unknown" >&2
+		echo "the monitor role is provisioned by hand (LAC-5980); add its direct lines first" >&2
+		exit 1
+	fi
+
+	limit=$(docker exec -i "$PG_CONTAINER" psql -tAU postgres \
+		-c "select rolconnlimit from pg_roles where rolname = '$role'" 2>/dev/null || true)
+	if [[ -z "$limit" ]]; then
+		echo "role $role does not exist on $PG_CONTAINER" >&2
+		exit 1
+	fi
+	if [[ "$limit" != "-1" ]] && ((MONITOR_POOL > limit)); then
+		echo "pool_size $MONITOR_POOL exceeds $role CONNECTION LIMIT $limit" >&2
+		exit 1
+	fi
+
+	mkdir -p "$CONF/databases.d"
+	printf '%s = host=%s port=5432 dbname=%s pool_size=%s reserve_pool=0\n' \
+		"$role" "$DB_HOST" "$db" "$MONITOR_POOL" >"$CONF/databases.d/$role.conf"
+	chmod 644 "$CONF/databases.d/$role.conf"
+
+	grep -v "^\"$role\" " "$USERLIST" >"$USERLIST.new" || true
+	printf '"%s" "%s"\n' "$role" "$password" >>"$USERLIST.new"
+	chmod 600 "$USERLIST.new"
+	chown "$PGB_UID:$PGB_GID" "$USERLIST.new"
+	mv -f "$USERLIST.new" "$USERLIST"
+
+	if ! grep -qE "^hostssl[[:space:]]+${role}[[:space:]]+${role}[[:space:]]" "$HBA"; then
+		printf 'hostssl %-30s %-30s %-6s %s\n' "$role" "$role" "all" "cert" >>"$HBA"
+	fi
+
+	ensure_ini
+	reload
+	log "$role: pooled as alias '$role' -> dbname=$db, pool_size=$MONITOR_POOL, limit $limit"
+	log "$role: now run on this box: /usr/local/sbin/bas-projects-db.sh allow-monitor-pooler"
+	log "$role: then add PROJECTS_DB_MONITOR_POOLED_URL to zero's projects-db-monitor.env"
+}
+
+drop_monitor() {
+	local role="$MONITOR_ROLE"
+	valid_role "$role"
+	rm -f "$CONF/databases.d/$role.conf"
+	grep -v "^\"$role\" " "$USERLIST" >"$USERLIST.new" || true
+	chmod 600 "$USERLIST.new"
+	chown "$PGB_UID:$PGB_GID" "$USERLIST.new"
+	mv -f "$USERLIST.new" "$USERLIST"
+	grep -vE "^hostssl[[:space:]]+${role}[[:space:]]+${role}[[:space:]]" "$HBA" >"$HBA.new" || true
+	chmod 644 "$HBA.new"
+	mv -f "$HBA.new" "$HBA"
+	ensure_ini
+	reload
+	log "$role: removed from the pooler. Drop the server grant too with:"
+	log "$role:   /usr/local/sbin/bas-projects-db.sh deny-monitor-pooler"
+}
+
 # The rollback lever. Removes the project from the pooler and leaves the direct
 # port exactly as it was, so an app put back on port 26432 is working again as
 # soon as it redeploys.
@@ -638,6 +745,8 @@ main() {
 	case "$cmd" in
 	bootstrap) bootstrap ;;
 	add-project) add_project "${1:?role}" ;;
+	add-monitor) add_monitor ;;
+	drop-monitor) drop_monitor ;;
 	drop-project) drop_project "${1:?role}" ;;
 	pools) pools ;;
 	console) console "${1:?sql}" ;;

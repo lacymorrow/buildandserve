@@ -20,6 +20,12 @@ separate discharge cycles down to 2-7%, every one of them a delivered Slack DM,
 every one of them ignored. A fifth louder copy of an ignored message is not a
 fix.
 
+(A sixth, seventh and eighth cycle later cost 3h32m, and the power watch now
+pages this same topic at 10% rather than only DMing Slack: LAC-6137. That is not
+a louder Slack message, it is the channel this file built, used earlier. The
+reasoning above still stands against repeating an ignored message on the channel
+that was already ignored.)
+
 And no warning of any volume helps after the Mac is dead, which is where the
 outage actually went. On 2026-10-19 at 23:36:52 the Mac rebooted and sat at the
 FileVault prompt, alive and useless, for **11h41m**. Every fleet watch there is
@@ -35,21 +41,46 @@ Going dark:
 
 ```
 Fleet is dark. The control plane on zero stopped answering 15m ago, at 12:58 EDT.
-Nothing is running: no agent runs, no routines, no store watch. Every other watch
-lives on that same Mac, so none of them can tell you either. Check the laptop:
-power first, then the FileVault prompt.
+Nothing is running: no agent runs, no routines, no store watch. This is your only
+notice; every other watch runs on zero too. Check zero: power first, then any
+login prompt.
 ```
 
 Coming back:
 
 ```
-Fleet is back. The control plane answered again at 00:39 EDT, after 11h41m dark.
-Anything scheduled in that window did not run.
+Fleet is back. The control plane on zero answered again at 00:39 EDT, after
+11h41m dark. Anything scheduled in that window did not run.
 ```
 
 What happened first, because that is the fact. What is stopped second, because
 "the control plane is down" is not actionable at 23:30. The action last, and it
 names the two things to look at, because the 2026-10-19 cause was the second one.
+
+### The host it watches is the host it names (LAC-6265)
+
+Every word above is derived from `HEALTH_HOST`, through one label:
+`HEALTH_LABEL="${HEALTH_HOST%%.*}"`. Point a second copy at graphite and it says
+graphite in both titles and both messages. Deliberately not its own env var: the
+cron line already carries five load-bearing variables, and a sixth an operator
+can forget puts the wrong machine back in the page.
+
+graphite's dark message is shorter, because two of zero's sentences are false
+there:
+
+```
+Fleet is dark. The control plane on graphite stopped answering 15m ago, at 00:53
+EDT. Nothing on graphite is running: no agent runs, no routines. Check graphite:
+power first, then any login prompt.
+```
+
+Measured 2026-10-29, which is why the branch exists rather than a substitution:
+11 `~/Library/LaunchAgents` plists are on zero and not on graphite, 6 of them
+watches, and graphite has no crontab, so zero's "this is your only notice" would
+be a lie there. FileVault reads On on zero and Off on graphite, so the action
+line says "any login prompt" on both and survives a flip on either. The default
+arm asserts nothing about other hosts: unverified for any third `HEALTH_HOST`,
+and it changes nothing Lacy does at 2am.
 
 The recovery line is the one that would have made this issue unnecessary, and the
 duration in it is measured, not estimated: `serverInfo.processStartedAt` from the
@@ -186,10 +217,12 @@ will not survive Do Not Disturb)
 ```
 
 **On the phone.** ntfy renders the `Title` header above the body, so the
-lock-screen glance is `Fleet is dark` or `Fleet is back` before the phone is
-picked up. Those four words are also the first words of the message body, on
-purpose: the title on the phone and the sentence in Slack must not say different
-things about the same event.
+lock-screen glance is `Fleet is dark on zero` or `Fleet is back on zero` before
+the phone is picked up. Those words are also the first words of the message body,
+on purpose: the title on the phone and the sentence in Slack must not say
+different things about the same event. The host is in the title because both
+instances page the same phone, and without it the glance cannot tell which
+machine went dark.
 
 ### The one step that cannot be automated
 
@@ -227,9 +260,13 @@ every fleet notification down at once.
 
 Tracked separately rather than bundled into a feature PR, for that reason.
 
-The ntfy topic has none of this coupling: it is used by this script alone, it is
-generated on the host, and rotating it is two commands plus re-subscribing the
-phone.
+The ntfy topic is less coupled but no longer local either. Since LAC-6137
+[the power watch](./fleet-power-watch.md) pages on the same topic at the same
+priority, deliberately: one subscription on the phone and one Critical Alert
+setting to keep switched on, rather than two chances to forget one. So a
+rotation is this host, zero's `~/.paperclip/ntfy-topic`, and re-subscribing the
+phone. Nothing mints it but the host, so that is still three steps, not an
+api.slack.com login.
 
 ## Run it by hand
 

@@ -146,7 +146,13 @@ CERT_EVERY_HOURS=${CERT_EVERY_HOURS:-20}
 STATE_DIR=${STATE_DIR:-$HOME/.paperclip/state}
 # The projects-db credential files on this host. Checked for mode, not read.
 SECRETS_DIR=${SECRETS_DIR:-$HOME/.paperclip/secrets}
-SECRETS_GLOB=${SECRETS_GLOB:-*-db.env*}
+# Space-separated patterns, not one. `*-db.env*` was written for the per-project
+# credentials (keepsake-db.env and friends) and matched neither of the two files
+# named projects-db-SOMETHING.env: the superuser password and the monitor's,
+# which are the two most valuable in the directory. LAC-6096 then put a client
+# private key beside them. One pattern per family, so adding a family is adding
+# a word.
+SECRETS_GLOBS=${SECRETS_GLOBS:-*-db.env* projects-db-*.env* projects-db-*.key}
 CERT_STAMP=${CERT_STAMP:-$STATE_DIR/projects-db-cert-checked-at}
 
 NOTIFY=0
@@ -457,25 +463,35 @@ check_pooler_cert() {
 # without an explicit mode gets 644, and chmod-ing the file you meant to write
 # does not cover the backup copy you made first.
 #
-# Nothing here reads a file or logs a name beyond its path. `*-db.env*` is
+# Nothing here reads a file or logs a name beyond its path. The patterns are
 # deliberately narrow: this is the projects-db credential family, which is what
 # this runbook owns. A sweep of every secret on this host is a different job
 # and belongs with cred-scrub, which does not check modes today.
+#
+# LAC-6096 widened them, because the original `*-db.env*` was written for the
+# per-project credentials and silently matched neither projects-db-superuser.env
+# nor projects-db-monitor.env, and a private key now sits beside them.
 check_secret_modes() {
-	local f mode bad=()
+	local f g mode bad=() seen=" "
 	# BSD stat first, as on zero; the GNU form is the fallback, same rule as
 	# the date parsing above.
-	for f in "$SECRETS_DIR"/$SECRETS_GLOB; do
-		[ -f "$f" ] || continue
-		mode=$(stat -f '%Lp' "$f" 2>/dev/null || stat -c '%a' "$f" 2>/dev/null)
-		[ -n "$mode" ] || continue
-		[ "$mode" = "600" ] && continue
-		bad+=("$(basename "$f") is $mode")
+	for g in $SECRETS_GLOBS; do
+		for f in "$SECRETS_DIR"/$g; do
+			[ -f "$f" ] || continue
+			# The patterns overlap by design, so a file can match two of them.
+			# Counting it twice would report three offenders where there are two.
+			case "$seen" in *" $f "*) continue ;; esac
+			seen="$seen$f "
+			mode=$(stat -f '%Lp' "$f" 2>/dev/null || stat -c '%a' "$f" 2>/dev/null)
+			[ -n "$mode" ] || continue
+			[ "$mode" = "600" ] && continue
+			bad+=("$(basename "$f") is $mode")
+		done
 	done
 
 	if [ "${#bad[@]}" -gt 0 ]; then
-		PROBLEMS+=("$(printf '%s projects-db credential file(s) are not mode 600. Each holds a plaintext password for a database reachable from the internet, so the mode is the only thing protecting it. Fix: chmod 600 %s/%s\n%s' \
-			"${#bad[@]}" "$SECRETS_DIR" "$SECRETS_GLOB" "$(printf '      %s\n' "${bad[@]}")")")
+		PROBLEMS+=("$(printf '%s projects-db credential file(s) are not mode 600. Each holds either a plaintext password or a client private key for a database reachable from the internet, so the mode is the only thing protecting it. libpq also refuses a key with group or world access outright, so a loose key is the public-path watch going blind as well as a leaked credential. Fix: chmod 600 %s/{%s}\n%s' \
+			"${#bad[@]}" "$SECRETS_DIR" "$(printf '%s' "$SECRETS_GLOBS" | tr ' ' ',')" "$(printf '      %s\n' "${bad[@]}")")")
 	fi
 }
 
