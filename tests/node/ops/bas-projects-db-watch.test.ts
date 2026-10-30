@@ -316,13 +316,23 @@ describe("the cert check keeps its own cadence", () => {
  * public-internet half is allowed to do whatever it does and only the client
  * findings are asserted.
  */
-async function fakeBox({ exit, output }: { exit: number; output: string }) {
+async function fakeBox({
+  exit,
+  output,
+  poolerExit = 0,
+  poolerOutput = "",
+}: {
+  exit: number;
+  output: string;
+  poolerExit?: number;
+  poolerOutput?: string;
+}) {
   const file = path.join(box.bin, "ssh-box");
   await writeFile(
     file,
     [
       "#!/bin/bash",
-      "# The remote command is whichever argument mentions one of the two.",
+      "# The remote command is whichever argument mentions one of the three.",
       'for arg in "$@"; do',
       "  case $arg in",
       "  *client-cert-check*)",
@@ -330,6 +340,11 @@ async function fakeBox({ exit, output }: { exit: number; output: string }) {
       output,
       "OUT",
       `    exit ${exit} ;;`,
+      "  *pooler-cert-check*)",
+      `    cat <<'POOL'`,
+      poolerOutput,
+      "POOL",
+      `    exit ${poolerExit} ;;`,
       "  *docker*logs*)",
       `    cat "${box.log}"; exit 0 ;;`,
       "  esac",
@@ -341,9 +356,18 @@ async function fakeBox({ exit, output }: { exit: number; output: string }) {
   return file;
 }
 
-async function certWatch(boxExit: number, boxOutput: string) {
+async function certWatch(
+  boxExit: number,
+  boxOutput: string,
+  pooler: { exit: number; output: string } = { exit: 0, output: "" }
+) {
   await writeFile(box.log, "");
-  const ssh = await fakeBox({ exit: boxExit, output: boxOutput });
+  const ssh = await fakeBox({
+    exit: boxExit,
+    output: boxOutput,
+    poolerExit: pooler.exit,
+    poolerOutput: pooler.output,
+  });
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     SSH_BIN: ssh,
@@ -408,6 +432,56 @@ describe("client-certificate expiry", () => {
     const result = await certWatch(2, "usage: /usr/local/sbin/bas-projects-db.sh {bootstrap|...}");
     expect(result.code).toBe(3);
     expect(result.stdout).toContain("could not run client-cert-check");
+  });
+});
+
+/**
+ * The pooled port's certificate (LAC-6122 F1).
+ *
+ * The fault being guarded is specific: certbot renews, the deploy hook reloads
+ * Postgres, the pooler is never told, and :26432 reads perfect while PgBouncer
+ * keeps serving a certificate that expires. Every pooled app is verify-full, so
+ * the outage is total, timed, and invisible to the check on the other port.
+ */
+describe("the certificate on the pooled port", () => {
+  it("reports the drift the box found, and exits 1", async () => {
+    const result = await certWatch(0, "", {
+      exit: 1,
+      output: [
+        "projects-db pooler certificate problem:",
+        "  - the pooler serves AA:BB but /data/projects-db/conf/server.crt is CC:DD; a renewal landed without a pooler RELOAD, so every pooled project goes down at the old cert's expiry. Fix: /usr/local/sbin/bas-projects-db.sh cert-deploy",
+      ].join("\n"),
+    });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("a renewal landed without a pooler RELOAD");
+  });
+
+  it("stays silent when the pooler is healthy, or absent", async () => {
+    // The box-side check exits 0 for both, because a box with no pooler is a
+    // supported shape rather than a finding.
+    const result = await certWatch(0, "", { exit: 0, output: "" });
+    expect(result.stdout).not.toContain("pooler");
+  });
+
+  it("voids rather than pages when the box cannot be reached", async () => {
+    const result = await certWatch(0, "", {
+      exit: 255,
+      output: "ssh: connect to host bas port 22: Operation timed out",
+    });
+    expect(result.code).toBe(3);
+    expect(result.stdout).toContain("could not run pooler-cert-check");
+  });
+
+  it("voids rather than pages when the box has an older script without the command", async () => {
+    // The pooler check landed after the script was already installed on the
+    // box, so "this copy does not have the subcommand" is a real state and it
+    // proves nothing either way.
+    const result = await certWatch(0, "", {
+      exit: 2,
+      output: "usage: /usr/local/sbin/bas-projects-db.sh {bootstrap|...}",
+    });
+    expect(result.code).toBe(3);
+    expect(result.stdout).toContain("could not run pooler-cert-check");
   });
 });
 

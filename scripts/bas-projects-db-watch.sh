@@ -69,6 +69,19 @@
 # This half reads the box over ssh, like the auth check and for the same
 # reason: the CA is a file on the box, not something a client can see.
 #
+# ## Check 4: the certificate the POOLER serves (LAC-6122)
+#
+# PgBouncer on :26433 terminates TLS with the same Let's Encrypt pair, read from
+# the same mount, and holds it in memory. certbot's deploy hook reloads Postgres
+# and, before LAC-6122, did not reload the pooler, so a renewal could land with
+# :26432 perfect and the pooler still serving a certificate that expires. Every
+# pooled app is `sslmode=verify-full`, so that is a timed total outage of every
+# pooled project, and check 1 cannot see it: it reads a different port.
+#
+# Read over ssh rather than over the public internet, like check 3 and for a
+# duller reason: tcp/26433 is closed at the Hetzner firewall until the LAC-6077
+# gate opens it, so probing it from here would report a closed port as an outage.
+#
 # ## Cadence
 #
 # Hourly, because an auth-failure threshold measured per hour is worth nothing
@@ -408,6 +421,36 @@ check_client_certs() {
 	return 1
 }
 
+# -------------------------------------------------------------- pooler cert
+
+# Same shape as check_client_certs, and for the same two reasons: the box is
+# where the certificate and the pooler both live, and a threshold with two homes
+# drifts. Silent and 0 when the pooler is healthy or absent.
+check_pooler_cert() {
+	local out rc
+	out=$("$SSH_BIN" -o BatchMode=yes -o ConnectTimeout=10 "$BAS_SSH" \
+		"$BOX_SCRIPT pooler-cert-check" 2>&1)
+	rc=$?
+
+	if [ "$rc" -eq 0 ]; then
+		return 0
+	fi
+
+	if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q 'pooler certificate problem'; then
+		while IFS= read -r line; do
+			case "$line" in
+			'  - '*) PROBLEMS+=("${line#  - }") ;;
+			esac
+		done <<-FINDINGS
+			$out
+		FINDINGS
+		return 0
+	fi
+
+	VOIDS+=("pooler cert: could not run pooler-cert-check on $BAS_SSH (exit $rc), so nothing was proven about the certificate on the pooled port: $(printf '%s\n' "$out" | head -n1)")
+	return 1
+}
+
 # ------------------------------------------------------- secret file modes
 
 # Every one of these holds a plaintext password for a live database on a port
@@ -471,6 +514,7 @@ main() {
 		local proved=0
 		check_cert || proved=1
 		check_client_certs || proved=1
+		check_pooler_cert || proved=1
 		[ "$proved" -eq 0 ] && date -u +%s >"$CERT_STAMP" 2>/dev/null
 	fi
 

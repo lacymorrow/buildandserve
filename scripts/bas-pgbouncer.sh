@@ -14,6 +14,7 @@
 #   pools                    SHOW POOLS / SHOW SERVERS / SHOW CLIENTS over the unix socket
 #   console <sql>            any admin console command, same path
 #   reload                   RELOAD the pooler after a config edit
+#   network                  (re)attach projects-db to the pool network; run after any recreate
 #   verify                   report what is actually running
 #
 # Why this exists, measured: within a minute of the first cutover (LAC-5984) the
@@ -41,6 +42,15 @@
 # checks the chain only, never the CN. The second without the first accepts any
 # self-signed certificate claiming any CN, because at `require` and below
 # "if the client presents a client certificate, it is not validated".
+#
+# One more way the two controls differ, and it is not visible in either config.
+# PgBouncer's `cert` method calls tls_peer_cert_contains_name(), which matches the
+# CN *or any subjectAltName*. Postgres `clientcert=verify-full` matches the CN and
+# nothing else. The pooled path is only as narrow as the CN today because
+# `bas-projects-db.sh client-cert` issues with -subj "/CN=$role" and an extfile
+# that carries no SAN. Put a SAN in that issuance template one day and the
+# role binding widens here and not on the direct port, silently. If you ever add
+# one, add a `cert` line per name you actually mean (LAC-6122).
 #
 # What is deliberately given up, and it is not nothing: the pooled path is
 # cert-only, single-factor. PgBouncer has no equivalent of Postgres's
@@ -125,6 +135,33 @@ PREVIEW_RESERVE=${PREVIEW_RESERVE:-2}
 # connection, no Postgres slot. Generous on purpose, because the whole point is
 # that a client connection is no longer the scarce thing.
 MAX_CLIENT_CONN=${MAX_CLIENT_CONN:-1000}
+# The real ceiling on *server* connections, and the one thing a per-role
+# CONNECTION LIMIT does not bound: the sum of (pool_size + reserve_pool) over
+# every pooled database. Postgres is where it lands, at max_connections=100 less
+# superuser_reserved_connections=3, so 97 usable slots shared with every
+# direct-port migration and ops session.
+#
+# Five production pairs at 10+5 plus five preview pairs at 3+2 is exactly 100,
+# and the eleven-role plan reaches about 115. A role's CONNECTION LIMIT is a
+# blast-radius cap and overcommitting it is deliberate and correct; a pool size
+# is much closer to a reservation, because the pooler opens up to pool_size under
+# load and holds it for server_idle_timeout. Cross the global ceiling and
+# Postgres raises "FATAL: sorry, too many clients already" against whichever
+# project happens to ask next, which is the cross-tenant blast radius LAC-5969
+# removed, reintroduced one layer up, arriving at a time unrelated to the config
+# change that caused it (LAC-6122 F3).
+#
+# 85 of 97 leaves 12 slots for a migration and an ops session.
+POOL_BUDGET=${POOL_BUDGET:-85}
+# The pooled-port probe (fleet-health arm projects-db-pooled, LAC-6132). One
+# server connection and no reserve: it runs `select 1` and gives it back. Its
+# role and database are not a project's, so add-project special-cases the name
+# instead of growing a second subcommand with the same three-part install
+# (LAC-6122 F9). Without this the probe could not authenticate and the arm was a
+# logged SKIP on every tick, which is how the F8 outage ran 3h50m unnoticed.
+MONITOR_ROLE=${MONITOR_ROLE:-fleet_monitor}
+MONITOR_DB=${MONITOR_DB:-postgres}
+MONITOR_POOL=${MONITOR_POOL:-1}
 # uid/gid of the pgbouncer user inside the image. Same 70 as postgres:17-alpine,
 # which is why the shared $PG_CONF mount works for both containers.
 PGB_UID=70
@@ -208,6 +245,26 @@ HBAEOF
 	chmod 644 "$HBA"
 }
 
+# `grep -v ... > new || true` cannot tell "no lines matched" (exit 1, the normal
+# case for a role that was never in the file) from "missing or unreadable"
+# (exit 2 or more). The second one writes an EMPTY file: on the userlist that
+# drops every other project's server password at once, and on the hba it drops
+# every other project's access. Refuse instead of installing it (LAC-6122).
+filter_file() {
+	local src="$1" dest="$2" rc=0
+	shift 2
+	if [[ ! -f "$src" ]]; then
+		echo "$src is missing; refusing to rewrite it" >&2
+		exit 1
+	fi
+	grep "$@" "$src" >"$dest" || rc=$?
+	if ((rc > 1)); then
+		rm -f "$dest"
+		echo "cannot read $src (grep exit $rc); refusing to rewrite it" >&2
+		exit 1
+	fi
+}
+
 ensure_userlist() {
 	if [[ ! -f "$USERLIST" ]]; then
 		# pgbadmin has an empty secret on purpose: its hba line is `trust` on a
@@ -253,6 +310,14 @@ max_client_conn = $MAX_CLIENT_CONN
 default_pool_size = $PROD_POOL
 reserve_pool_size = $PROD_RESERVE
 reserve_pool_timeout = 3
+
+# The belt under the $POOL_BUDGET check in add_project. PgBouncer has no global
+# server-connection limit, so the sum across databases can only be enforced at
+# configuration time, which is what add_project does. This is the part the pooler
+# can hold for itself: no single database opens more server connections than one
+# production pair is allowed, whatever a hand-edited databases.d line or a second
+# pool on the same dbname asks for.
+max_db_connections = $((PROD_POOL + PROD_RESERVE))
 
 # Hand a server connection back reasonably fast. This is the idle timer the
 # frozen Vercel instance could not run for itself.
@@ -307,23 +372,46 @@ ensure_container() {
 
 	if docker inspect "$CONTAINER" >/dev/null 2>&1; then
 		running=$(docker inspect "$CONTAINER" --format '{{.Image}}')
-		if [[ "$running" == "$want" ]]; then
+		# The hardening below is host config, not image content, so a container
+		# created before LAC-6122 matches on image and would otherwise be left
+		# exactly as it was. Checked here so one re-run is enough.
+		local hardening
+		hardening=$(docker inspect "$CONTAINER" \
+			--format '{{.HostConfig.ReadonlyRootfs}} {{.HostConfig.CapDrop}} {{.HostConfig.SecurityOpt}}' 2>/dev/null || true)
+		hardening=${hardening^^}
+		if [[ "$running" == "$want" &&
+			"$hardening" == *TRUE* &&
+			"$hardening" == *ALL* &&
+			"$hardening" == *NO-NEW-PRIVILEGES* ]]; then
 			docker start "$CONTAINER" >/dev/null 2>&1 || true
-			log "container: already on the pinned image"
+			log "container: already on the pinned image and hardened"
 			return 0
 		fi
-		log "container: image changed, recreating"
+		if [[ "$running" == "$want" ]]; then
+			log "container: hardening missing ($hardening), recreating"
+		else
+			log "container: image changed, recreating"
+		fi
 		docker rm -f "$CONTAINER" >/dev/null
 	fi
 
 	# --entrypoint bypasses the image's entrypoint.sh, which generates a config
 	# from environment variables. The config here is written by this script and
 	# mounted read-only; nothing should be able to rewrite it at boot.
+	# This is about to be an internet-facing TLS terminator with the Let's Encrypt
+	# private key on a read-only mount, so it gets less than the Postgres
+	# container next to it: no capabilities, no way to gain any, and nothing
+	# writable except $RUN, which holds the admin socket and is the only path
+	# PgBouncer needs to write. It logs to stderr and this config sets no pidfile
+	# and no logfile, so there is nothing else (LAC-6122 F5).
 	docker run -d \
 		--name "$CONTAINER" \
 		--restart unless-stopped \
 		--network "$NETWORK" \
 		--memory 256m \
+		--cap-drop=ALL \
+		--security-opt no-new-privileges \
+		--read-only \
 		-p "0.0.0.0:$HOST_PORT:6432" \
 		-v "$PG_CONF:/pgconf:ro" \
 		-v "$CONF:$CONF:ro" \
@@ -351,13 +439,17 @@ wait_ready() {
 # The admin console, over the unix socket. A throwaway psql because the pooler
 # image has no client; it joins the pool network and the 0700 socket directory,
 # both of which already require root on this box.
+#
+# Stdin is closed explicitly. `docker run -i` inherits this script's stdin, and
+# add_project reads a password from it; measured on the box, a console container
+# with an open stdin swallows whatever is left of it.
 console() {
 	docker run --rm -i \
 		--network "$NETWORK" \
 		-v "$RUN:$RUN" \
 		-e PGCONNECT_TIMEOUT=5 \
 		postgres:17-alpine \
-		psql -h "$RUN" -p 6432 -U pgbadmin pgbouncer -c "$1"
+		psql -h "$RUN" -p 6432 -U pgbadmin pgbouncer -c "$1" </dev/null
 }
 
 reload() {
@@ -370,6 +462,22 @@ pools() {
 	console "SHOW SERVERS"
 	console "SHOW CLIENTS"
 	console "SHOW DATABASES"
+}
+
+# Sum of (pool_size + reserve_pool) across the recorded pool entries. Pass a role
+# name plus a pool and reserve to ask what the total *would become* with that
+# entry replaced, which is the question add_project needs answered before it
+# writes anything.
+pool_total() {
+	local skip="${1:-}" add_pool="${2:-0}" add_reserve="${3:-0}" f total=0 p r
+	for f in "$CONF"/databases.d/*.conf; do
+		[[ -e "$f" ]] || continue
+		if [[ -n "$skip" && "$(basename "$f" .conf)" == "$skip" ]]; then continue; fi
+		p=$(sed -n 's/.*[[:space:]]pool_size=\([0-9]*\).*/\1/p' "$f")
+		r=$(sed -n 's/.*[[:space:]]reserve_pool=\([0-9]*\).*/\1/p' "$f")
+		total=$((total + ${p:-0} + ${r:-0}))
+	done
+	echo $((total + add_pool + add_reserve))
 }
 
 # One project through the pooler. Three things land together and all three are
@@ -401,7 +509,12 @@ add_project() {
 		;;
 	esac
 
-	if [[ "$role" == *_preview ]]; then
+	local dbname=$role
+	if [[ "$role" == "$MONITOR_ROLE" ]]; then
+		pool=$MONITOR_POOL
+		reserve=0
+		dbname=$MONITOR_DB
+	elif [[ "$role" == *_preview ]]; then
 		pool=$PREVIEW_POOL
 		reserve=$PREVIEW_RESERVE
 	else
@@ -425,12 +538,26 @@ add_project() {
 		exit 1
 	fi
 
+	# And refuse to take the box past the global ceiling. See $POOL_BUDGET above:
+	# the per-role limit checked just now bounds one tenant, this bounds the
+	# server, and only the second one prevents an unrelated project meeting
+	# "sorry, too many clients already".
+	local total
+	total=$(pool_total "$role" "$pool" "$reserve")
+	if ((total > POOL_BUDGET)); then
+		echo "adding $role at pool_size $pool + reserve $reserve takes the pooler to $total server connections, over the budget of $POOL_BUDGET" >&2
+		echo "max_connections is 100 with 3 held for the superuser, so 97; the budget keeps room for a migration and an ops session." >&2
+		echo "Options: drop an unused project, lower PROD_POOL/PREVIEW_POOL and re-add the others, or raise max_connections on the server first." >&2
+		exit 1
+	fi
+
 	mkdir -p "$CONF/databases.d"
 	printf '%s = host=%s port=5432 dbname=%s pool_size=%s reserve_pool=%s\n' \
-		"$role" "$DB_HOST" "$role" "$pool" "$reserve" >"$CONF/databases.d/$role.conf"
+		"$role" "$DB_HOST" "$dbname" "$pool" "$reserve" >"$CONF/databases.d/$role.conf"
 	chmod 644 "$CONF/databases.d/$role.conf"
 
-	grep -v "^\"$role\" " "$USERLIST" >"$USERLIST.new" || true
+	ensure_userlist
+	filter_file "$USERLIST" "$USERLIST.new" -v "^\"$role\" "
 	printf '"%s" "%s"\n' "$role" "$password" >>"$USERLIST.new"
 	chmod 600 "$USERLIST.new"
 	chown "$PGB_UID:$PGB_GID" "$USERLIST.new"
@@ -443,6 +570,7 @@ add_project() {
 	ensure_ini
 	reload
 	log "$role: pooled, pool_size=$pool reserve=$reserve, limit $limit"
+	log "$role: pooler now budgets $total of $POOL_BUDGET server connections across $(ls -1 "$CONF"/databases.d/*.conf 2>/dev/null | wc -l | tr -d ' ') database(s)"
 	log "$role: DATABASE_URL host port becomes $HOST_PORT, and the app needs prepare: false"
 }
 
@@ -545,11 +673,12 @@ drop_project() {
 	local role="$1"
 	valid_role "$role"
 	rm -f "$CONF/databases.d/$role.conf"
-	grep -v "^\"$role\" " "$USERLIST" >"$USERLIST.new" || true
+	ensure_userlist
+	filter_file "$USERLIST" "$USERLIST.new" -v "^\"$role\" "
 	chmod 600 "$USERLIST.new"
 	chown "$PGB_UID:$PGB_GID" "$USERLIST.new"
 	mv -f "$USERLIST.new" "$USERLIST"
-	grep -vE "^hostssl[[:space:]]+${role}[[:space:]]+${role}[[:space:]]" "$HBA" >"$HBA.new" || true
+	filter_file "$HBA" "$HBA.new" -vE "^hostssl[[:space:]]+${role}[[:space:]]+${role}[[:space:]]"
 	chmod 644 "$HBA.new"
 	mv -f "$HBA.new" "$HBA"
 	ensure_ini
@@ -566,6 +695,14 @@ verify() {
 	echo
 	echo "== pooled databases"
 	cat "$CONF"/databases.d/*.conf 2>/dev/null || echo "(none)"
+	echo "server-connection budget: $(pool_total) of $POOL_BUDGET used"
+	echo
+	echo "== container hardening"
+	# Expect CapDrop [all], no-new-privileges, ReadOnly true. The TLS key is on
+	# the /pgconf mount and this is the process that terminates TLS for the
+	# internet, so these are not decoration.
+	docker inspect "$CONTAINER" \
+		--format 'CapDrop={{.HostConfig.CapDrop}} SecurityOpt={{.HostConfig.SecurityOpt}} ReadOnlyRootfs={{.HostConfig.ReadonlyRootfs}} User={{.Config.User}}' 2>/dev/null || true
 	echo
 	echo "== pooler hba"
 	grep -vE '^\s*#|^\s*$' "$HBA" || true
@@ -580,7 +717,7 @@ verify() {
 	stat -c '%a %u:%g %n' "$SECRET" "$USERLIST" 2>/dev/null || true
 	echo
 	echo "== TLS settings in force"
-	console "SHOW CONFIG" 2>/dev/null | grep -E 'client_tls|server_tls|auth_type|auth_hba|pool_mode' || true
+	console "SHOW CONFIG" 2>/dev/null | grep -E 'client_tls|server_tls|auth_type|auth_hba|pool_mode|max_db_connections|max_client_conn' || true
 	echo
 	echo "== pools"
 	console "SHOW POOLS" 2>/dev/null || true
@@ -614,6 +751,7 @@ main() {
 	pools) pools ;;
 	console) console "${1:?sql}" ;;
 	reload) reload ;;
+	network) ensure_network ;;
 	verify) verify ;;
 	*)
 		sed -n '2,30p' "$0" >&2

@@ -217,6 +217,28 @@ new one sitting on disk and nothing complaining. That is why the watch measures
 the cert the server **serves** rather than the files on disk: this fault then
 shows up as ordinary expiry, weeks ahead.
 
+**The hook reloads two things, not one.** PgBouncer reads
+`client_tls_cert_file` and `client_tls_key_file` once, at config load, and holds
+the parsed pair in memory for the life of the process. Nothing in it notices the
+file changing underneath. Before LAC-6122 the hook reloaded only Postgres, which
+made the next Let's Encrypt expiry a timed, total outage of every pooled project
+while `:26432` read perfectly: every pooled app connects `sslmode=verify-full`.
+`cert-deploy` now issues `bas-pgbouncer.sh reload` as well, and reads the
+certificate back off `:26433` to prove the reload took, exactly as it already
+did for Postgres. Both arms are no-ops with a log line when the pooler is absent,
+because certbot runs this hook unattended on a box that may not have one.
+
+Measured 2026-10-28 on a scratch pooler on the box, which is the only way to
+know a RELOAD is enough rather than assume it:
+
+| Step                                 | Served certificate |
+| ------------------------------------ | ------------------ |
+| container start, cert A on disk      | A                  |
+| cert B copied over the files on disk | **still A**        |
+| `RELOAD` through the admin console   | B                  |
+
+The middle row is the outage. The third is the fix.
+
 ### Expiry monitoring
 
 ```bash
@@ -235,6 +257,33 @@ database password: it reads the certificate with
 `openssl s_client -starttls postgres`, which needs no login. Threshold is 21 days
 remaining, because certbot renews at 30 and its timer runs twice a day, so
 anything below 21 means the renewal path has been failing for weeks.
+
+The pooled port is checked over ssh instead, by
+`bas-projects-db.sh pooler-cert-check`, which the watch runs in the same block
+as `client-cert-check`. Over ssh rather than over the public internet for a dull
+reason: `tcp/26433` was closed at the Hetzner firewall when this was written; it is open
+now (see "Opening the port"), and the ssh route stayed because it also sees the
+pooler's own view of its server. It compares the certificate the pooler
+serves to the one on disk and checks the name on it, and it is silent and exit 0
+when the pooler is healthy **or absent**. A box with no pooler is a supported
+shape, not a finding. An unreachable box or a box whose installed script predates
+the subcommand both void (exit 3) rather than page, the same ruling as everywhere
+else here.
+
+**Never judge the pooled-port probe by `openssl`'s exit status.** The probe
+cannot complete the handshake: `client_tls_sslmode` is `verify-full` and the
+probe holds no client certificate, so the pooler sends its certificate and then
+a TLS 1.3 `certificate required` alert. Whether that alert lands before
+`s_client` exits is a race. Measured 2026-10-29 over 40 sequential probes
+against the live pooler: non-zero exit on 3 of them, the server certificate
+present in stdout on all 40. The first version of this check keyed on the exit
+status, so it threw away a good read and reported `serves no TLS cert ... every
+pooled project is down` 3 times in 40 — on an hourly watch, roughly two false
+total-outage pages a day, and one failed `cert-deploy` in eight on a renewal
+that had worked. `served_pem_on` now swallows that exit status and the decision
+is whether a PEM came back, with one retry on an empty read (LAC-6245). Measured
+after the fix on the same box: 0 findings in 40 runs, and a port that genuinely
+serves nothing still reports.
 
 The same job carries the auth-failure check (see "Authentication-failure
 alerting"), which is why it runs hourly while the cert half runs at most once
@@ -530,6 +579,36 @@ A CRL would. `ssl_crl_file` makes OpenSSL check the list's own validity, so an
 expired CRL locks every certificate client out at once, which is the exact
 failure this design is built to avoid, re-introduced with a short fuse. Not
 worth it for a lever that is slower than the one we already have.
+
+#### On the pooled port the certificate *is* the credential
+
+The paragraph above holds on `:26432` and does not hold on `:26433`, and the
+difference is the whole of LAC-6122 F6.
+
+PgBouncer's client auth is `cert`, which means no password is sent at all, so
+the certificate is single-factor there (see "PgBouncer terminates TLS" below for
+why there is no other option: `clientcert=` is not a PgBouncer setting and its
+HBA parser rejects it). Rotating the role's password does **not** end access
+through the pooler. PgBouncer also has no CRL setting of any kind, so there is
+nothing to revoke into.
+
+The only lever that ends a leaked certificate's access to the pooled port is:
+
+```bash
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-pgbouncer.sh drop-project <role>"
+```
+
+That removes the role's pool entry, its userlist entry and its `cert` hba line,
+so revocation and taking that project off the pooler are the same action. The
+project keeps working as soon as its `DATABASE_URL` points back at `:26432` and
+it redeploys, which is also the ordinary rollback path, so the cost is one
+redeploy rather than an outage. **Rotate the password as well**, because the
+direct port still accepts it.
+
+This is an acceptable answer rather than a good one, and it is written down here
+so the first person who needs it does not go looking for a CRL that does not
+exist. A second lever would be reissuing the CA, which is a flag day for every
+project requiring a certificate.
 
 #### What to do if a client key leaks
 
@@ -867,6 +946,29 @@ Two levers, both applied:
 | `authentication_timeout`               | 60s    | 10s                           |
 | concurrent sessions per source address | none   | 20, `REJECT` with a TCP reset |
 | new connections per source address     | none   | 10/s, burst 20, `REJECT`      |
+
+**Both ports, one budget.** The limits cover `26432` and `26433`. The pooled
+port was outside them when it was added, because the jump rule keys on
+`--ctorigdstport 26432` and nothing else matched (LAC-6122 F2); opening 26433 to
+`0.0.0.0/0` in that state would have been a world-open listener with none of the
+protection this was built for. PgBouncer is the worse of the two to leave
+unprotected: it is single-threaded and it terminates TLS, so a handshake flood
+blocks every real client on the same thread, where Postgres forks per connection
+and holds `authentication_timeout=10s`. `max_client_conn=1000` against
+PgBouncer's default `client_login_timeout` of 60s is a thousand half-finished
+logins able to wedge the pooler a minute at a time.
+
+Both ports jump into the same `PROJECTSDB` chain, so one source address gets one
+allowance of 20 concurrent and 10/s **across both of them** rather than a
+separate allowance each. That is deliberate: the thing being defended is the box.
+It is also the only option available, because `xt_connlimit` counts conntrack
+entries per source address rather than per port, and `hashlimit` shares one hash
+table per `--hashlimit-name`.
+
+The unit is in the repo at `docs/ops/projects-db-ratelimit.service`. Its
+`ExecStart` passes no `PORT`, so the script's default covers both listeners;
+that is what makes the pooled port's limits survive a Docker restart rather than
+being a rule someone ran once by hand.
 
 `authentication_timeout` is a `-c` flag on the container command, so it survives
 a restart but not a `docker run` built from an older copy of
@@ -1359,9 +1461,20 @@ and a separate unit, so a rebuild needs one more step:
 
 ```bash
 scp scripts/bas-projects-db-ratelimit.sh root@bas.hyrax-boga.ts.net:/usr/local/sbin/
+scp docs/ops/projects-db-ratelimit.service \
+  root@bas.hyrax-boga.ts.net:/etc/systemd/system/projects-db-ratelimit.service
 ssh root@bas.hyrax-boga.ts.net 'chmod 755 /usr/local/sbin/bas-projects-db-ratelimit.sh \
+  && systemctl daemon-reload \
   && systemctl enable --now projects-db-ratelimit.service \
   && /usr/local/sbin/bas-projects-db-ratelimit.sh show'
+```
+
+The pooler is a third script and a third step, after the database is up:
+
+```bash
+scp scripts/bas-pgbouncer.sh root@bas.hyrax-boga.ts.net:/usr/local/sbin/
+ssh root@bas.hyrax-boga.ts.net 'chmod 755 /usr/local/sbin/bas-pgbouncer.sh \
+  && /usr/local/sbin/bas-pgbouncer.sh bootstrap && /usr/local/sbin/bas-pgbouncer.sh verify'
 ```
 
 On a box that already has the certificate, `bootstrap` reuses it. On a genuinely
@@ -1537,6 +1650,15 @@ hostssl p p all             scram-sha-256 clientcert=verify-full <- the internet
 `172.31.0.0/24` is a private Docker bridge with no route in from anywhere, so
 that line is reachable only by a container this box's root attached to it.
 
+**The two controls are not identical, and the difference is invisible in both
+configs.** PgBouncer's `cert` method calls `tls_peer_cert_contains_name()`,
+which matches the CN **or any subjectAltName**. Postgres `clientcert=verify-full`
+matches the CN and nothing else. The pooled path is only as narrow as the CN
+today because `client-cert` issues with `-subj "/CN=$role"` and an extfile that
+carries no SAN. Add a SAN to that issuance template one day and the role binding
+widens on the pooled port and not on the direct one, with nothing to see in
+either file (LAC-6122).
+
 ### What breaks in transaction mode
 
 A server connection goes back to the pool when the **transaction** ends, so
@@ -1602,12 +1724,15 @@ URL, or use `psql`, which does honour it.
 
 ### Opening the port
 
-`tcp/26433` is **closed at the Hetzner firewall** (`bas-automation`, id
-11789519). Everything above was measured over the tailnet. Vercel egress has no
-fixed IP range, so cutting an app over means opening it to `0.0.0.0/0`, which is
-the same decision LAC-6056 already made for `:26432` — and it is left for the
-security gate rather than taken in advance, because an open port is the one part
-of this that cannot be rolled back by editing a file.
+`tcp/26433` is **open to `0.0.0.0/0` and `::/0`** on the Hetzner firewall
+(`bas-automation`, id 11789519), as of 2026-10-29. Vercel egress has no fixed IP
+range, so this is the only shape that works, and it is the same decision LAC-6056
+made for `:26432`. What makes it tolerable is the rate limit: the second
+`--ctorigdstport 26433` jump into `PROJECTSDB` lives in
+`projects-db-ratelimit.service` (`docs/ops/projects-db-ratelimit.service`), which
+runs `install` with no `PORT` and so covers both ports, and which `PartOf=docker.service`
+reapplies after a daemon restart. Re-installing `bas-projects-db-ratelimit.sh`
+from an old checkout removes it, so install all three scripts from the same commit.
 
 ### Rolling one project over
 
@@ -1626,17 +1751,128 @@ grep '^DATABASE_URL=' ~/.paperclip/secrets/${PROJ//_/-}-db.env \
 #    before LAC-6076 does not have.
 ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projects-db.sh require-client-cert $PROJ"
 
-# 3. In Vercel: DATABASE_URL to port 26433, DATABASE_URL_UNPOOLED to 26432.
+# 3. Mint the client certificate. The key is printed ONCE and never stored; a
+#    lost key means minting a fresh pair, not recovering it.
+ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-projects-db.sh client-cert $PROJ"
+#    Put the two base64 values in Vercel as the cert and key variables.
+#
+# 3b. In Vercel: DATABASE_URL to port 26433, DATABASE_URL_UNPOOLED to 26432.
+#    BOTH, in the same edit. Setting only the first one makes the next build
+#    fail loudly on purpose (LAC-6122 F4): migrationDatabaseUrl() throws rather
+#    than fall back to a pooled URL, because a migration through a transaction
+#    pooler takes drizzle-kit's advisory lock on one server connection and can
+#    release it from another, while every run still reports success.
 #    Keep the client cert variables exactly as they are.
 # 4. Redeploy and check the app AND the CMS route, then:
 ssh root@bas.hyrax-boga.ts.net "/usr/local/sbin/bas-pgbouncer.sh pools"
 ```
+
+Verify with the real certificate, then with none. Both matter:
+
+```bash
+PGSSLCERT=c.crt PGSSLKEY=c.key psql \
+  "postgresql://$PROJ@projects-db.cloud0.dev:26433/$PROJ?sslmode=verify-full&sslrootcert=system" \
+  -At -c "select current_user"        # prints the role
+
+psql "postgresql://$PROJ@projects-db.cloud0.dev:26433/$PROJ?sslmode=verify-full&sslrootcert=system" \
+  -At -c "select 1"                   # MUST fail: tlsv13 alert certificate required
+```
+
+A pooler that answers the second command is the `cert` regression: the chain is
+being checked and the role binding is not.
+
+**Revoking a leaked certificate.** There is no CRL. PgBouncer has no CRL setting,
+and `bas-projects-db.sh` sets no `ssl_crl_file` on the Postgres side either. On
+the direct port a leaked cert survives only until the password is rotated, because
+the password is a second factor. On the pooled port the certificate *is* the
+credential, so the one lever that ends a leaked one is
+`bas-pgbouncer.sh drop-project <role>`, and revocation and an outage of that
+project are the same action. Then mint a fresh pair with `client-cert` and re-add
+the project. Certificates last 10 years (`CLIENT_DAYS=3650`); do not go looking
+for a CRL.
+
+### A recreate must not sever the pooler, and the monitor says so
+
+The pooler reaches Postgres over the `projects-db-pool` bridge, where
+`projects-db.cloud0.dev` is an alias for `172.31.0.2`. A recreated `projects-db`
+container does not carry that attachment, and the pooler then resolves the name to
+the public address, where `tcp/5432` is not published: every pooled login fails
+`client_login_timeout (server down)`. That ran 3h50m on 2026-10-29 after the
+pgvector recreate (LAC-6122 F8). `bas-projects-db.sh` now calls
+`bas-pgbouncer.sh network` on every path out of `ensure_container`, and
+`pooler-cert-check` fails if the pooler's resolution of its server is not an
+address of `projects-db`. By hand: `bas-pgbouncer.sh network`.
+
+The pooled port has a monitor role so fleet-health's `projects-db-pooled` arm can
+authenticate (LAC-6122 F9): feed the `fleet_monitor` password on stdin to
+`bas-pgbouncer.sh add-project fleet_monitor` (pool of `MONITOR_POOL=1`, no
+reserve, database `MONITOR_DB`, default `postgres`), mint its certificate with
+`bas-projects-db.sh client-cert fleet_monitor`, then add
+`PROJECTS_DB_MONITOR_POOLED_URL` to
+`~/.paperclip/secrets/projects-db-monitor.env` on **both** fleet-health hosts.
 
 `add-project` refuses a pool larger than the role's `CONNECTION LIMIT`, which is
 the trap that otherwise bites later: a pool of 10 against a preview role limited
 to 5 does not fail at configuration time, it fails as the pooler trying to open a
 connection the role is not allowed to have. Production gets `pool_size=10
 reserve_pool=5` against a limit of 25; preview gets `3` and `2` against 5.
+
+### The sum of the pools is the real ceiling, and it is 85
+
+A role's `CONNECTION LIMIT` bounds one tenant. What bounds the **server** is the
+sum of (`pool_size` + `reserve_pool`) over every pooled database, and until
+LAC-6122 nothing checked it. `max_connections` is 100 less 3 held for the
+superuser, so 97 usable, shared with every direct-port migration and ops session.
+Five production pairs at 10+5 plus five preview pairs at 3+2 is exactly **100**.
+The eleven-role plan reaches about 115.
+
+Overcommitting a role's `CONNECTION LIMIT` is deliberate and correct, because a
+limit is a blast-radius cap. A pool size is much closer to a reservation: the
+pooler opens up to `pool_size` under load and holds it for
+`server_idle_timeout=60`. Cross the global ceiling and Postgres raises
+`FATAL: sorry, too many clients already` against whichever project happens to
+ask next, at a time unrelated to the configuration change that caused it. That
+is the cross-tenant blast radius LAC-5969 removed, one layer up.
+
+So `add-project` sums the recorded pool entries, counting the one it is about to
+write, and refuses above `POOL_BUDGET`, which is 85 of 97. The remaining 12 are
+for a migration and an ops session. It prints the running total on success, and
+`verify` prints it any time:
+
+```
+server-connection budget: 5 of 85 used
+```
+
+The belt underneath is `max_db_connections = 15` in the generated config, so no
+single database can open more server connections than one production pair is
+allowed whatever a hand-edited `databases.d` line asks for. PgBouncer has no
+*global* server-connection limit, which is why the sum has to be enforced at
+configuration time rather than by the pooler.
+
+If the budget is genuinely in the way, the order to try is: drop an unused
+project, lower `PROD_POOL`, or raise `max_connections` on the server. The last
+one costs memory in a container capped at 1 GB, which is why it is last.
+
+### The pooler container is hardened; the Postgres one next to it is not
+
+`--cap-drop=ALL`, `--security-opt no-new-privileges`, `--read-only`, uid 70, and
+nothing writable but `/data/pgbouncer/run`. This is an internet-facing TLS
+terminator with the Let's Encrypt private key on its mount, so it gets less than
+the database container beside it. Measured: PgBouncer 1.26.1 starts, listens and
+reloads with all three. It logs to stderr and the generated config sets no
+pidfile and no logfile, so the socket directory is the only path it needs.
+
+`bootstrap` recreates the container when the hardening is missing as well as
+when the image digest changes, because these are host config rather than image
+content and a container built before LAC-6122 would otherwise match on image and
+be left alone. `verify` prints what is actually in force:
+
+```
+CapDrop=[ALL] SecurityOpt=[no-new-privileges] ReadOnlyRootfs=true User=postgres
+```
+
+The Postgres container is equally unhardened and that is a separate change with
+a worse blast radius if it goes wrong, so it is not in this one.
 
 **The rollback lever.** Point `DATABASE_URL` back at `:26432` and redeploy; the
 direct port was never changed. To take the project off the pooler entirely:
@@ -1662,12 +1898,11 @@ only and there is no pooler admin credential stored anywhere.
 
 ### Still to do on the pooler
 
-Nothing watches it. `scripts/bas-projects-db-watch.sh` runs hourly from zero and
-checks certificates and auth failures on `:26432`; it does not know `:26433`
-exists. A pooler that has stopped answering looks exactly like a dead site, and
-the certbot deploy hook reloads Postgres but **does not reload the pooler**, so
-PgBouncer keeps serving the old certificate until something restarts it. Both
-belong with LAC-5980, and the second one is the more urgent of the two.
+The certificate half and the network half are done (LAC-6122): the deploy hook
+reloads the pooler and proves it took, `pooler-cert-check` runs over ssh every
+`CERT_EVERY_HOURS` and also catches a pooler cut off from its server. The
+remaining step is the `PROJECTS_DB_MONITOR_POOLED_URL` secret on both
+fleet-health hosts, which is an operator action and not in this repo.
 
 ## Not done yet
 

@@ -125,4 +125,35 @@ describe("migrationDatabaseUrl", () => {
   it("is undefined when there is no database at all", () => {
     expect(migrationDatabaseUrl(envWith({}))).toBeUndefined();
   });
+
+  it("throws rather than hand back a pooled URL as the migration target", () => {
+    // Cutover runbook step 3 asks for DATABASE_URL and DATABASE_URL_UNPOOLED in
+    // one Vercel edit, so "pointed at the pooler, forgot the direct one" is the
+    // likely half-finished state. Falling back silently would migrate through a
+    // transaction pooler, where drizzle-kit's advisory lock stops serialising
+    // concurrent migrators while every run still reports success.
+    expect(() => migrationDatabaseUrl(envWith({ DATABASE_URL: POOLED }))).toThrow(
+      /DATABASE_URL_UNPOOLED/
+    );
+  });
+
+  it("throws when DATABASE_POOLED says pooled, whatever the port looks like", () => {
+    expect(() =>
+      migrationDatabaseUrl(envWith({ DATABASE_URL: DIRECT, DATABASE_POOLED: "true" }))
+    ).toThrow(/pooled/i);
+  });
+
+  it("does not throw for a pooled-looking URL that DATABASE_POOLED declares direct", () => {
+    // The escape hatch has to work here too, or a pooler on 26433 that is in
+    // fact a direct listener has no way to run a migration.
+    expect(migrationDatabaseUrl(envWith({ DATABASE_URL: POOLED, DATABASE_POOLED: "false" }))).toBe(
+      POOLED
+    );
+  });
+
+  it("prefers the direct URL and never throws when both are set", () => {
+    expect(
+      migrationDatabaseUrl(envWith({ DATABASE_URL: POOLED, DATABASE_URL_UNPOOLED: DIRECT }))
+    ).toBe(DIRECT);
+  });
 });

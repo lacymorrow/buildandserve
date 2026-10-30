@@ -9,9 +9,10 @@
 #   bootstrap                  swap, /data dirs, LE cert, renewal hook, pg_hba, container, client CA
 #   add-project <name>         one role + one database + one hostssl line, then reload
 #   add-preview <name>         the same for <name>_preview, the preview-deploy pair
-#   cert-deploy                install the current LE cert and reload postgres
-#   cert-check                 expiry, hostname, served-vs-disk drift, client CA. Silent when healthy
+#   cert-deploy                install the current LE cert, reload postgres AND the pooler
+#   cert-check                 expiry, hostname, served-vs-disk drift on both ports, client CA. Silent when healthy
 #   client-cert-check          the client-CA half of cert-check on its own, for the watch
+#   pooler-cert-check          the pooled-port half of cert-check on its own, for the watch
 #   ca-init                    create the private client CA and point ssl_ca_file at it
 #   client-cert <role>         mint a 10-year client cert, CN=<role>, print it base64 for Vercel
 #   require-client-cert <role> that role needs a client cert from off-tailnet. Reversible
@@ -48,6 +49,15 @@ SELF_PATH=/usr/local/sbin/bas-projects-db.sh
 # certbot renews at 30 days remaining and its timer runs twice a day, so a cert
 # with less than this left has already missed dozens of renewal attempts.
 CERT_WARN_DAYS=${CERT_WARN_DAYS:-21}
+# The pooler (LAC-6076). It terminates TLS with the same Let's Encrypt pair, read
+# out of the same $CONF mount, and holds it in memory. Nothing inside PgBouncer
+# notices a file changing underneath it, and certbot's deploy hook runs this
+# script, so this script is the only place that can know to tell it. Missing that
+# reload is a timed, total outage of every pooled project at the next renewal,
+# because every pooled app connects sslmode=verify-full (LAC-6122 F1).
+POOLER_CONTAINER=${POOLER_CONTAINER:-projects-db-pooler}
+POOLER_PORT=${POOLER_PORT:-26433}
+POOLER_SELF_PATH=${POOLER_SELF_PATH:-/usr/local/sbin/bas-pgbouncer.sh}
 # The private client CA (LAC-6060). Nothing to do with the Let's Encrypt server
 # cert: that one authenticates the box to clients, this one authenticates clients
 # to the box. They are separate chains on purpose, because they answer separate
@@ -204,16 +214,56 @@ disk_fingerprint() {
 	openssl x509 -in "$CONF/server.crt" -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2
 }
 
-# What the server actually serves, read the way a client sees it. Postgres
-# negotiates TLS in its own protocol rather than on connect, hence -starttls.
-served_pem() {
-	openssl s_client -starttls postgres -connect "127.0.0.1:$HOST_PORT" \
-		-servername "$DB_HOST" </dev/null 2>/dev/null |
+# What a listener actually serves, read the way a client sees it. Postgres
+# negotiates TLS in its own protocol rather than on connect, hence -starttls;
+# PgBouncer speaks the same protocol, so the same probe reads the pooled port.
+#
+# On the pooled port the handshake does not complete: client_tls_sslmode is
+# verify-full, so the pooler asks for a client certificate this probe has no
+# reason to hold. Measured 2026-10-28 on the live pooler: the server sends its
+# own certificate before the handshake fails and s_client prints it anyway,
+# which is all this needs. The probe authenticates as nobody and reaches no
+# database.
+served_pem_on() {
+	# The `|| true` is load-bearing. On the pooled port the handshake cannot
+	# complete: client_tls_sslmode is verify-full and this probe holds no client
+	# certificate, so the pooler sends its own certificate and then a TLS 1.3
+	# `certificate required` alert. Whether that alert lands before s_client
+	# exits is a race. Measured 2026-10-29 over 40 sequential probes against the
+	# live pooler: non-zero exit on 3 of them, the server certificate present in
+	# stdout on all 40. Under `set -o pipefail` that status reached the caller's
+	# `|| served=""` and threw the good read away, which failed one renewal in
+	# eight and let the hourly watch claim every pooled project was down. Decide
+	# on whether a PEM came back, never on the exit status (LAC-6245).
+	{ openssl s_client -starttls postgres -connect "127.0.0.1:$1" \
+		-servername "$DB_HOST" </dev/null 2>/dev/null || true; } |
 		sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p'
 }
 
-served_fingerprint() {
-	served_pem | openssl x509 -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2
+# One retry on an empty read. With the exit status no longer consulted, an empty
+# read is the only evidence of a real fault, and both callers act hard on it: the
+# certbot deploy hook fails the renewal and the watch reports a total outage. A
+# single refused connection should not be either of those (LAC-6245).
+served_pem_twice() {
+	local pem
+	pem=$(served_pem_on "$1")
+	if [[ -z "$pem" ]]; then
+		sleep 2
+		pem=$(served_pem_on "$1")
+	fi
+	printf '%s\n' "$pem"
+}
+
+served_pem() { served_pem_on "$HOST_PORT"; }
+
+fingerprint_of() {
+	openssl x509 -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2
+}
+
+served_fingerprint() { served_pem | fingerprint_of; }
+
+pooler_running() {
+	[[ "$(docker inspect -f '{{.State.Status}}' "$POOLER_CONTAINER" 2>/dev/null)" == "running" ]]
 }
 
 # Runs as the certbot deploy hook and by hand. Copy first, reload second: if the
@@ -241,6 +291,13 @@ deploy_cert() {
 	mv -f "$CONF/.server.key.new" "$CONF/server.key"
 	log "cert: installed into $CONF, expires $(openssl x509 -in "$CONF/server.crt" -noout -enddate | cut -d= -f2)"
 
+	# Both consumers of these two files, in the order that matters least: they
+	# are independent, and each one proves its own reload took.
+	reload_postgres_cert
+	reload_pooler_cert
+}
+
+reload_postgres_cert() {
 	if [[ "$(docker inspect -f '{{.State.Status}}' "$CONTAINER" 2>/dev/null)" != "running" ]]; then
 		log "cert: $CONTAINER is not running, skipping reload; it reads the new files on next start"
 		return 0
@@ -257,10 +314,39 @@ deploy_cert() {
 	served=$(served_fingerprint) || served=""
 	disk=$(disk_fingerprint) || disk=""
 	if [[ -n "$served" && "$served" == "$disk" ]]; then
-		log "cert: server is serving the new cert"
+		log "cert: $CONTAINER is serving the new cert"
 	else
 		echo "cert: reload did not take. serving '$served', on disk '$disk'" >&2
 		docker logs --tail 20 "$CONTAINER" >&2 || true
+		exit 1
+	fi
+}
+
+# The other half of a renewal, and it did not exist before LAC-6122. PgBouncer
+# reads client_tls_cert_file and client_tls_key_file once, at config load, and
+# holds the parsed pair in memory for the life of the process. A RELOAD re-runs
+# that load, which is the only thing short of a restart that picks up a new pair.
+#
+# A missing pooler is not a problem to report. certbot runs this hook unattended
+# on a box that may have no pooler at all, so both arms below log and return.
+reload_pooler_cert() {
+	if [[ ! -x "$POOLER_SELF_PATH" ]]; then
+		log "cert: no $POOLER_SELF_PATH on this box, so no pooler to reload"
+		return 0
+	fi
+	if ! pooler_running; then
+		log "cert: $POOLER_CONTAINER is not running, skipping reload; it reads the new files on next start"
+		return 0
+	fi
+	"$POOLER_SELF_PATH" reload
+	local served disk
+	served=$(served_pem_twice "$POOLER_PORT" | fingerprint_of) || served=""
+	disk=$(disk_fingerprint) || disk=""
+	if [[ -n "$served" && "$served" == "$disk" ]]; then
+		log "cert: $POOLER_CONTAINER is serving the new cert"
+	else
+		echo "cert: pooler reload did not take. serving '$served', on disk '$disk'" >&2
+		docker logs --tail 20 "$POOLER_CONTAINER" >&2 || true
 		exit 1
 	fi
 }
@@ -319,7 +405,59 @@ cert_check() {
 	# expiry, with the same blast radius, so it belongs in the check people
 	# already run rather than in a second one they do not.
 	client_cert_check || rc=1
+	# LAC-6122 F1, and the same argument: the pooler terminates TLS with this
+	# same pair and every fault above can be true of it while $HOST_PORT looks
+	# perfect.
+	pooler_cert_check || rc=1
 	return $rc
+}
+
+# The pooled half of cert-check, separately callable because the watch on zero
+# runs it over ssh and cannot see this port from the public internet until the
+# firewall opens (same shape as client-cert-check).
+#
+# The pooler holds its own in-memory copy of the Let's Encrypt pair, so a
+# renewal that reloaded Postgres and not the pooler was invisible to every check
+# on this box before LAC-6122: $HOST_PORT reads perfect, and every pooled project
+# goes down at the old cert's expiry instead.
+#
+# Silent and 0 when the pooler is healthy OR absent. A box with no pooler is a
+# supported shape, not a finding.
+pooler_cert_check() {
+	pooler_running || return 0
+
+	local problems=() pooled_pem pf df resolved
+	# Can the pooler reach its own server? A pooler that serves a perfect cert
+	# and resolves $DB_HOST to the public address is up and dead (LAC-6122 F8).
+	resolved=$(docker exec "$POOLER_CONTAINER" getent hosts "$DB_HOST" 2>/dev/null | awk '{print $1; exit}') || resolved=""
+	if [[ -z "$resolved" ]]; then
+		problems+=("$POOLER_CONTAINER cannot resolve $DB_HOST, so it cannot reach its server. Fix: $POOLER_SELF_PATH network")
+	elif ! docker inspect "$CONTAINER" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' 2>/dev/null | grep -qw "$resolved"; then
+		problems+=("$POOLER_CONTAINER resolves $DB_HOST to $resolved, which is not an address of $CONTAINER; a recreate dropped the pool network. Every pooled login fails 'server down'. Fix: $POOLER_SELF_PATH network")
+	fi
+
+	# One findings array for both halves, declared once at the top of the
+	# function. A second `local problems=()` here reset it, so every network
+	# finding above was discarded and the check still returned 0 (LAC-6245).
+	pooled_pem=$(served_pem_twice "$POOLER_PORT") || pooled_pem=""
+	df=$(disk_fingerprint) || df=""
+
+	if [[ -z "$pooled_pem" ]]; then
+		problems+=("$POOLER_CONTAINER is running but serves no TLS cert on $DB_HOST:$POOLER_PORT, so every pooled project is down. Fix: $POOLER_SELF_PATH verify")
+	else
+		pf=$(printf '%s\n' "$pooled_pem" | fingerprint_of) || pf=""
+		if [[ -n "$df" && -n "$pf" && "$pf" != "$df" ]]; then
+			problems+=("the pooler serves $pf but $CONF/server.crt is $df; a renewal landed without a pooler RELOAD, so every pooled project goes down at the old cert's expiry. Fix: $SELF_PATH cert-deploy")
+		fi
+		if ! printf '%s\n' "$pooled_pem" | openssl x509 -noout -ext subjectAltName 2>/dev/null | grep -q "DNS:$DB_HOST"; then
+			problems+=("the cert on $POOLER_PORT does not name $DB_HOST; every verify-full client on the pooled port will reject it")
+		fi
+	fi
+
+	(( ${#problems[@]} > 0 )) || return 0
+	printf 'projects-db pooler certificate problem:\n'
+	printf '  - %s\n' "${problems[@]}"
+	return 1
 }
 
 # Deliberately tighter than the umami-db copy this container is modelled on.
@@ -359,6 +497,26 @@ wait_ready() {
 	exit 1
 }
 
+# A recreate drops every network but the default bridge, and the pooler's only
+# path to Postgres is the private bridge it is attached to afterwards. Before
+# LAC-6122 F8 nothing here knew that: the pgvector recreate on 2026-10-29 left
+# the pooler resolving $DB_HOST to the public address, where tcp/5432 is not
+# published, and every pooled login failed `server down` for 3h50m. So the two
+# are never allowed to come up unpaired: every path out of ensure_container
+# re-attaches. Idempotent, and a no-op on a box with no pooler.
+attach_pool_network() {
+	[[ -x "$POOLER_SELF_PATH" ]] || return 0
+	# An older copy of the pooler script has no `network` subcommand: it exits 1
+	# with a usage dump, and `set -e` turns that into a bootstrap failure whose
+	# message is about the wrong script entirely. Still fail, but say what is
+	# actually wrong (LAC-6245).
+	if ! grep -q '^[[:space:]]*network)' "$POOLER_SELF_PATH"; then
+		echo "$POOLER_SELF_PATH predates the 'network' subcommand, so the pooler cannot be re-attached; install all three scripts from the same commit" >&2
+		return 1
+	fi
+	"$POOLER_SELF_PATH" network
+}
+
 build_image() {
 	[[ -r "$DOCKERFILE_SRC" ]] || { echo "no Dockerfile at $DOCKERFILE_SRC" >&2; exit 1; }
 	local ctx
@@ -372,6 +530,11 @@ build_image() {
 }
 
 ensure_container() {
+	ensure_container_running
+	attach_pool_network
+}
+
+ensure_container_running() {
 	if docker inspect "$CONTAINER" >/dev/null 2>&1; then
 		local state
 		state=$(docker inspect -f '{{.State.Status}}' "$CONTAINER")
@@ -1028,6 +1191,13 @@ verify() {
 	echo
 	echo "== served cert"
 	served_pem | openssl x509 -noout -subject -issuer -enddate -ext subjectAltName 2>/dev/null || echo "none served"
+	echo
+	echo "== served cert on the pooled port $POOLER_PORT"
+	if pooler_running; then
+		served_pem_on "$POOLER_PORT" | openssl x509 -noout -subject -enddate 2>/dev/null || echo "none served"
+	else
+		echo "$POOLER_CONTAINER is not running"
+	fi
 	if cert_check; then echo "cert-check: ok"; fi
 	echo
 	echo "== container"
@@ -1104,6 +1274,9 @@ cert-check)
 client-cert-check)
 	client_cert_check
 	;;
+pooler-cert-check)
+	pooler_cert_check
+	;;
 ca-init)
 	ensure_ca
 	ensure_ssl_ca_file
@@ -1127,7 +1300,7 @@ verify)
 	verify
 	;;
 *)
-	echo "usage: $0 {build-image|bootstrap|add-project <name>|add-preview <name>|cert-deploy|cert-check|client-cert-check|ca-init|client-cert <role>|require-client-cert <role>|relax-client-cert <role>|allow-monitor-pooler|deny-monitor-pooler|verify}" >&2
+	echo "usage: $0 {build-image|bootstrap|add-project <name>|add-preview <name>|cert-deploy|cert-check|client-cert-check|pooler-cert-check|ca-init|client-cert <role>|require-client-cert <role>|relax-client-cert <role>|allow-monitor-pooler|deny-monitor-pooler|verify}" >&2
 	exit 2
 	;;
 esac

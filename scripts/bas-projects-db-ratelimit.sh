@@ -2,6 +2,19 @@
 #
 # Pre-auth connection limits for projects-db on the bas box (LAC-6059).
 #
+# Covers BOTH listeners: 26432 (Postgres) and 26433 (PgBouncer). The pooled port
+# was outside these rules when it was added, because the jump keyed on
+# `--ctorigdstport 26432` and nothing else matched (LAC-6122 F2). Opening 26433
+# to 0.0.0.0/0 in that state would have put a world-open listener on the box with
+# none of the protection this file exists to provide.
+#
+# PgBouncer is the worse of the two to leave unprotected. It is single-threaded
+# and it terminates TLS, so a handshake flood blocks every real client on the
+# same thread, where Postgres forks per connection and holds
+# authentication_timeout=10s. max_client_conn=1000 against PgBouncer's default
+# client_login_timeout of 60s means a thousand half-finished logins can wedge the
+# pooler a minute at a time.
+#
 # tcp/26432 is world-open because Vercel egress has no fixed IP range (LAC-6056).
 # That decision is settled. What it leaves behind is that the expensive part of a
 # connection happens before anyone proves who they are:
@@ -50,12 +63,24 @@
 # fails in milliseconds and lets the driver retry. The attack this defends
 # against is exhaustion, and a reset frees the slot just as well as a drop does.
 #
+# ## One chain, one budget, both ports
+#
+# Both ports jump into the same $CHAIN, so a source address gets ONE budget of
+# $CONCURRENT concurrent sessions and ONE rate of $RATE across both of them
+# rather than a separate allowance per port. That is deliberate: the resource
+# being defended is the box, and `xt_connlimit` counts conntrack entries per
+# source address rather than per port anyway, so a per-port budget was never
+# really available. `hashlimit` shares one hash table for the same reason: the
+# `--hashlimit-name` is the table, and both rules name `projectsdb`.
+#
 # Idempotent. Run `install` as many times as you like.
 #
 # Runbook: docs/ops/bas-projects-db.md
 set -uo pipefail
 
-PORT=${PORT:-26432}
+# Both listeners. $PORT is still honoured for a one-off run against a single
+# port; the systemd unit passes neither, so the default is what production gets.
+PORTS=${PORTS:-${PORT:-26432 26433}}
 CHAIN=${CHAIN:-PROJECTSDB}
 # Tailscale's CGNAT range. Every tailnet peer has an address in it and nothing
 # else on the internet may use it, so it is safe as an exemption key here in a
@@ -81,7 +106,7 @@ die() {
 # hand keeps one backend in charge of a chain Docker also edits.
 ipt() { iptables "$@"; }
 
-jump_spec=(-p tcp -m conntrack --ctorigdstport "$PORT" -j "$CHAIN")
+jump_spec_for() { printf '%s\n' -p tcp -m conntrack --ctorigdstport "$1" -j "$CHAIN"; }
 
 install_rules() {
 	command -v iptables >/dev/null || die "iptables not found"
@@ -97,8 +122,12 @@ install_rules() {
 	# touch anything Docker put there.
 	ipt -N "$CHAIN" 2>/dev/null || ipt -F "$CHAIN"
 
-	ipt -C DOCKER-USER "${jump_spec[@]}" 2>/dev/null ||
-		ipt -I DOCKER-USER 1 "${jump_spec[@]}"
+	local port jump
+	for port in $PORTS; do
+		mapfile -t jump < <(jump_spec_for "$port")
+		ipt -C DOCKER-USER "${jump[@]}" 2>/dev/null ||
+			ipt -I DOCKER-USER 1 "${jump[@]}"
+	done
 
 	ipt -A "$CHAIN" -s "$TAILNET" -j RETURN
 	# Only the opening SYN is gated. Gating established traffic would count every
@@ -116,8 +145,12 @@ install_rules() {
 }
 
 uninstall_rules() {
-	while ipt -C DOCKER-USER "${jump_spec[@]}" 2>/dev/null; do
-		ipt -D DOCKER-USER "${jump_spec[@]}"
+	local port jump
+	for port in $PORTS; do
+		mapfile -t jump < <(jump_spec_for "$port")
+		while ipt -C DOCKER-USER "${jump[@]}" 2>/dev/null; do
+			ipt -D DOCKER-USER "${jump[@]}"
+		done
 	done
 	ipt -F "$CHAIN" 2>/dev/null
 	ipt -X "$CHAIN" 2>/dev/null
@@ -125,7 +158,7 @@ uninstall_rules() {
 }
 
 show_rules() {
-	echo "== FORWARD -> DOCKER-USER -> $CHAIN, with counters =="
+	echo "== FORWARD -> DOCKER-USER -> $CHAIN for port(s) $PORTS, with counters =="
 	nft -a list chain ip filter DOCKER-USER 2>/dev/null ||
 		ipt -L DOCKER-USER -n -v --line-numbers
 	echo

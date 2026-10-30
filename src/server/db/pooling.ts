@@ -20,6 +20,13 @@
  * named prepared statements. The first three are why migrations keep the direct
  * port. The last one is why `prepare: false` exists below.
  *
+ * These three functions read the environment through an injected
+ * `NodeJS.ProcessEnv` rather than through `@/env`, and that is on purpose:
+ * `drizzle.config.ts` imports this module and runs outside Next, where pulling
+ * in the validated env module would mean loading Next-specific presets to read
+ * two strings. Both variables are declared in `src/env.ts` so they are
+ * documented and validated for everything that does go through it.
+ *
  * Runbook: docs/ops/bas-projects-db.md
  */
 
@@ -122,7 +129,33 @@ export const databasePoolingOptions = (
  * Falls back to `DATABASE_URL` so a database with no pooler in front of it --
  * every local Postgres, and anything still on Neon's direct endpoint -- keeps
  * working with no configuration at all.
+ *
+ * Throws when that fallback would hand back a *pooled* URL. The two cases are
+ * indistinguishable from the variables alone -- "this database has no pooler"
+ * and "someone pointed `DATABASE_URL` at :26433 and forgot
+ * `DATABASE_URL_UNPOOLED`" -- and the second one is exactly what the cutover
+ * runbook invites by asking for both in one Vercel edit. Silence there means
+ * migrating through a transaction pooler, where drizzle-kit's advisory lock
+ * stops serialising anything while every run still reports success. A neighbour
+ * of that trap (`sslrootcert=system` in a URL) makes drizzle-kit apply nothing
+ * and print no error at all, which is what makes a wrong migration target
+ * expensive to discover. `drizzle.config.ts` is build-time config, so throwing
+ * here is loud and costs a deploy at worst (LAC-6122 F4).
  */
 export const migrationDatabaseUrl = (
   environment: NodeJS.ProcessEnv = process.env
-): string | undefined => environment.DATABASE_URL_UNPOOLED?.trim() || environment.DATABASE_URL;
+): string | undefined => {
+  const unpooled = environment.DATABASE_URL_UNPOOLED?.trim();
+  if (unpooled) return unpooled;
+
+  const fallback = environment.DATABASE_URL;
+  if (isPooledDatabaseUrl(fallback, environment)) {
+    throw new Error(
+      "DATABASE_URL looks pooled (PgBouncer transaction pooling) and DATABASE_URL_UNPOOLED is not set. " +
+        "Migrations and anything else holding session state must use the direct port. " +
+        "Set DATABASE_URL_UNPOOLED to the same database on port 26432, or set DATABASE_POOLED=false " +
+        "if this URL is in fact a direct connection. See docs/ops/bas-projects-db.md."
+    );
+  }
+  return fallback;
+};
