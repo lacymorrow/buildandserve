@@ -5,6 +5,7 @@
 # Runs ON the bas box as root. Idempotent: every step checks before it acts, so
 # re-running it after a partial failure is safe.
 #
+#   build-image                build projects-db-pgbackrest:17 (postgres + pgbackrest + pgvector), then recreate the container by hand, see the runbook
 #   bootstrap                  swap, /data dirs, LE cert, renewal hook, pg_hba, container, client CA
 #   add-project <name>         one role + one database + one hostssl line, then reload
 #   add-preview <name>         the same for <name>_preview, the preview-deploy pair
@@ -29,7 +30,10 @@
 set -euo pipefail
 
 CONTAINER=projects-db
-IMAGE=postgres:17-alpine
+# Built locally from scripts/projects-db.Dockerfile (LAC-6218): postgres:17-alpine
+# plus pgbackrest and pgvector. `build-image` produces it; there is no registry.
+IMAGE=projects-db-pgbackrest:17
+DOCKERFILE_SRC=${DOCKERFILE_SRC:-/usr/local/share/projects-db/Dockerfile}
 HOST_PORT=26432
 # Overridable so cert-check can be exercised against a scratch directory without
 # touching the live cert. Nothing in normal operation sets these.
@@ -79,7 +83,7 @@ TAILNET_CIDR=${TAILNET_CIDR:-100.64.0.0/10}
 # a user-defined bridge with no route in from anywhere, so a line scoped to it is
 # reachable only by a container this box's root attached to that network.
 POOLER_CIDR=${POOLER_CIDR:-172.31.0.0/24}
-# uid/gid of the postgres user inside postgres:17-alpine
+# uid/gid of the postgres user inside the postgres:17-alpine base
 PG_UID=70
 PG_GID=70
 # Per-role connection limits, decided on LAC-5969 after one warm Vercel instance
@@ -355,6 +359,18 @@ wait_ready() {
 	exit 1
 }
 
+build_image() {
+	[[ -r "$DOCKERFILE_SRC" ]] || { echo "no Dockerfile at $DOCKERFILE_SRC" >&2; exit 1; }
+	local ctx
+	ctx=$(mktemp -d)
+	cp "$DOCKERFILE_SRC" "$ctx/Dockerfile"
+	# Keep the previous image as :17-prev so a bad build is one retag from undone.
+	docker tag "$IMAGE" "${IMAGE}-prev" 2>/dev/null || true
+	log "image: building $IMAGE"
+	docker build -q -t "$IMAGE" "$ctx" >/dev/null
+	rm -rf "$ctx"
+}
+
 ensure_container() {
 	if docker inspect "$CONTAINER" >/dev/null 2>&1; then
 		local state
@@ -397,6 +413,8 @@ ensure_container() {
 		-p "0.0.0.0:$HOST_PORT:5432" \
 		-v "$DATA:/var/lib/postgresql/data" \
 		-v "$CONF:/pgconf:ro" \
+		-v "$ROOT/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro" \
+		-v /data/backups/pgbackrest:/var/lib/pgbackrest \
 		-e POSTGRES_PASSWORD \
 		"$IMAGE" \
 		postgres \
@@ -409,7 +427,11 @@ ensure_container() {
 		-c password_encryption=scram-sha-256 \
 		-c log_connections=on \
 		-c logging_collector=off \
-		-c authentication_timeout=10s >/dev/null
+		-c authentication_timeout=10s \
+		-c wal_level=replica \
+		-c archive_mode=on \
+		-c archive_timeout=900 \
+		-c "archive_command=pgbackrest --stanza=projects archive-push %p" >/dev/null
 
 	wait_ready
 }
@@ -1038,6 +1060,10 @@ verify() {
 
 require_root
 case "${1:-}" in
+build-image)
+	require_root
+	build_image
+	;;
 bootstrap)
 	ensure_swap
 	ensure_dirs
@@ -1101,7 +1127,7 @@ verify)
 	verify
 	;;
 *)
-	echo "usage: $0 {bootstrap|add-project <name>|add-preview <name>|cert-deploy|cert-check|client-cert-check|ca-init|client-cert <role>|require-client-cert <role>|relax-client-cert <role>|allow-monitor-pooler|deny-monitor-pooler|verify}" >&2
+	echo "usage: $0 {build-image|bootstrap|add-project <name>|add-preview <name>|cert-deploy|cert-check|client-cert-check|ca-init|client-cert <role>|require-client-cert <role>|relax-client-cert <role>|allow-monitor-pooler|deny-monitor-pooler|verify}" >&2
 	exit 2
 	;;
 esac

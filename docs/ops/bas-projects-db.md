@@ -1295,9 +1295,40 @@ guaranteed to restore into an older server. Use the image this container runs:
 docker run --rm postgres:17-alpine pg_dump "$DATABASE_URL" > dump.sql
 ```
 
-That is `pg_dump 17.11`, the same version Neon serves, and it carried a 50-table
-schema with 17 enums with no errors. `plpgsql` is the only extension these
-databases use.
+That is `pg_dump 17.11`, the same version Neon served for the first projects
+moved, and it carried a 50-table schema with 17 enums with no errors.
+
+**Exception: keepsake (LAC-5981).** Its Neon source is PG 18.6, and `pg_dump` 17
+refuses a newer server. Dump with 18 (zero: `/opt/homebrew/opt/libpq/bin/pg_dump`).
+`pg_restore` 18 into this PG 17.11 box works, and so does 17 reading the archive.
+Check the source's major version before choosing the tool.
+
+## pgvector (LAC-6218)
+
+The image is `projects-db-pgbackrest:17`, built from `scripts/projects-db.Dockerfile`:
+`postgres:17-alpine` + `pgbackrest` + pgvector 0.8.6 (pinned tarball, sha256 checked,
+compiled against the image's own headers, `OPTFLAGS=""` so no host CPU is baked in).
+The extension is available server-wide but created per database, and only in
+`keepsake`, which has six `vector` columns. `CREATE EXTENSION` needs superuser:
+
+```bash
+ssh root@bas.hyrax-boga.ts.net docker exec projects-db psql -U postgres -d keepsake -c 'create extension if not exists vector'
+```
+
+Rebuild or bump the version (about 1 second of downtime; the box is shared, so say so
+on the issue first):
+
+```bash
+scp scripts/projects-db.Dockerfile root@bas:/usr/local/share/projects-db/Dockerfile
+ssh root@bas /usr/local/sbin/bas-projects-db.sh build-image   # keeps the old one as :17-prev
+# then docker stop -t 120 projects-db; docker rename projects-db projects-db-old;
+# docker run with the flags in ensure_container(); docker rm projects-db-old
+```
+
+After any swap prove the backups still work: `pgbackrest --stanza=projects check`
+and an incremental backup, both inside the container as `postgres`. Rollback is
+`docker tag projects-db-pgbackrest:17-prev projects-db-pgbackrest:17` and recreate.
+Measured 2026-10-29: stop to ready 1s, `check` OK, incr backup OK.
 
 ## Editing the script
 
