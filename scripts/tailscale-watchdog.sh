@@ -127,9 +127,9 @@ MAX_REPAIRS_PER_WINDOW="${TS_WATCHDOG_MAX_REPAIRS_PER_WINDOW:-6}"
 # would read a successful repair as a failed one.
 SETTLE="${TS_WATCHDOG_SETTLE:-3}"
 
-# Quiet period between two "I fixed something" notices, so a bad afternoon is a
-# couple of messages rather than a channel nobody reads. The page path is
-# separate and is not rate-limited by this.
+# Unused since LAC-6450, kept so existing env and state files keep parsing. It
+# used to space out "I fixed something" DMs; those are now log lines unless the
+# repair newly changed the resolver or an outage had already paged.
 NOTICE_GAP="${TS_WATCHDOG_NOTICE_GAP:-21600}"
 
 # --- the tools it drives ---------------------------------------------------
@@ -760,18 +760,23 @@ fi
 if [ "$PLANE_OK" = "1" ] && [ "$PUBLIC_OK" = "1" ]; then
   WAS_BROKEN=$(outage_phrase "$DOWN_SINCE")
   log "FIXED $DID; healthy again, was broken $WAS_BROKEN"
-  # A successful repair is still a change to Lacy's laptop, and if it set a
-  # resolver it is a change he has to be able to see. Rate-limited, so a bad
-  # afternoon is a couple of messages rather than a muted channel. If an outage
-  # had already paged, the recovery message is owed instead and is not gated.
+  # A repair that already worked is not something only Lacy can do, so it is a
+  # log line. Two things still earn a DM (LAC-6450): the outage had already
+  # paged him, so the recovery is owed; or this cycle NEWLY changed his resolver,
+  # which he has to be able to see and undo. An override that was already in
+  # place (previous value equals what was set) tells him nothing the first
+  # notice did not, so it is logged only. The old "one notice per NOTICE_GAP"
+  # arm is gone: it DMed the identical self-fix every few hours.
   message="Zero's network was broken and the watchdog fixed it: $DID. Unreachable $WAS_BROKEN."
   if [ "$DNS_OVERRIDE_SET" = "1" ]; then
     message="$message DNS on $DNS_SERVICE now overrides DHCP (was ${DNS_PREVIOUS:-unset}); undo with: networksetup -setdnsservers $DNS_SERVICE empty."
   fi
-  if [ "$PAGED" = "1" ] || [ $((NOW - NOTICE_AT)) -ge "$NOTICE_GAP" ]; then
-    if announce "say fixed" "$message"; then NOTICE_AT=$NOW; fi
+  if [ "$PAGED" = "1" ]; then
+    announce "say fixed" "$message" || true
+  elif [ "$DNS_OVERRIDE_SET" = "1" ] && [ "$DNS_PREVIOUS" != "$DNS_SERVERS" ]; then
+    announce "say fixed" "$message" || true
   else
-    log "QUIET fixed it, and the last notice was $(fmt_duration "$((NOW - NOTICE_AT))") ago, under the $(fmt_duration "$NOTICE_GAP") gap"
+    log "QUIET fixed it inside the page threshold and changed no resolver that was not already overridden, so no DM: $message"
   fi
   # The repair counters survive; the outage does not.
   clear_outage || log "STATE-WRITE-FAILED fixed it but could not record the repair, so the rate cap is blind next cycle"

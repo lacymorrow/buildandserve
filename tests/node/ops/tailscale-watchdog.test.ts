@@ -298,7 +298,8 @@ describe("how long it says it was broken", () => {
     const fixed = await cycle({ now: T0 + 300, repair: true, notify: true });
     expect(fixed.code).toBe(0);
     expect(fixed.log).toContain("was broken for up to 5m (last healthy check");
-    expect(slackPosts.join()).toContain("Unreachable for up to 5m");
+    // LAC-6450: quiet path, so the window lands in the log line, not a DM.
+    expect(fixed.log).toContain("Unreachable for up to 5m");
   });
 
   it("says only what it can prove when there is no healthy check on record", async () => {
@@ -331,7 +332,9 @@ describe("rung 1, the tailnet", () => {
     expect(r.log).toContain("LoggedOut=false");
     expect(repaired(r)).toEqual(["tailscale up --timeout=30s --accept-routes"]);
     expect(r.log).toContain("FIXED tailscale up");
-    expect(slackPosts.join()).toContain("the watchdog fixed it");
+    // LAC-6450: a repair that worked inside the threshold is a log line.
+    expect(slackPosts).toEqual([]);
+    expect(r.log).toContain("QUIET fixed it");
   });
 
   it("does not claim a DNS change it did not make this cycle", async () => {
@@ -352,7 +355,7 @@ describe("rung 1, the tailnet", () => {
 
     const r = await cycle({ now: T0, repair: true, notify: true });
     expect(r.code).toBe(0);
-    expect(slackPosts.join()).toContain("the watchdog fixed it");
+    expect(slackPosts).toEqual([]);
     expect(slackPosts.join()).not.toContain("overrides DHCP");
     // And the override itself is untouched, because reverting it is Lacy's call.
     expect(r.override).toContain("previous=10.0.0.243");
@@ -446,6 +449,24 @@ describe("rung 2, the system resolver", () => {
     const healthy = await cycle({ now: T0 + 600, repair: true, notify: true });
     expect(healthy.log).toContain("dns-override: 1.1.1.1 8.8.8.8 on Wi-Fi");
     expect(healthy.log).toContain("networksetup -setdnsservers Wi-Fi empty");
+  });
+
+  it("is a log line, not a DM, when the same override was already in place (LAC-6450)", async () => {
+    // Resolver already reads 1.1.1.1 8.8.8.8, so setting it again changes nothing
+    // Lacy has not already been told about.
+    await writeFile(path.join(box.dir, "dns-current.txt"), "1.1.1.1\n8.8.8.8\n");
+    const r = await cycle({ now: T0, repair: true, notify: true });
+    expect(r.code).toBe(0);
+    expect(r.log).toContain("FIXED set DNS");
+    expect(r.log).toContain("QUIET fixed it");
+    expect(slackPosts).toEqual([]);
+  });
+
+  it("still DMs when the override is newly set, with the undo line (LAC-6450)", async () => {
+    const r = await cycle({ now: T0, repair: true, notify: true });
+    expect(r.code).toBe(0);
+    expect(slackPosts).toHaveLength(1);
+    expect(slackPosts[0]).toContain("undo with: networksetup -setdnsservers Wi-Fi empty");
   });
 
   it("changes nothing when the public resolver is silent too", async () => {
