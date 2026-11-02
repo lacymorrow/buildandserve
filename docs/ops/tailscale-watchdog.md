@@ -143,18 +143,18 @@ look was the point of LAC-4874.
 | What happened                                 | Message                                              |
 | --------------------------------------------- | ---------------------------------------------------- |
 | First failing cycle                           | none, clock starts                                   |
-| Repaired on this cycle                        | one notice naming what it did, at most one per 6h    |
+| Repaired, resolver newly overridden           | one notice naming the override and how to undo it    |
+| Repaired, nothing newly changed               | none, logged as `QUIET`                              |
 | Three repair attempts failed                  | one page, with what it tried and what it saw         |
 | Needs a human (logged out, wedged, link down) | one page at 15 minutes, naming what only Lacy can do |
 | Broken 15 minutes for any other reason        | one page with both probe results                     |
 | Back up, having paged                         | one recovery message with the duration               |
 | Back up, under 15 minutes                     | none, logged as `BLIP`                               |
 
-A successful repair notifies rather than staying silent, which is the one place
-this is louder than its siblings. A watchdog that rewrites DNS on the owner's
-laptop and says nothing is the mysterious change the CTO asked not to make.
-Rate-limited to one notice per 6 hours so a bad afternoon is a couple of
-messages rather than a muted channel.
+A repair that already worked is a log line (LAC-6450). It DMs only when it
+newly rewrote the resolver (the previous value differs from what was set), which
+Lacy has to be able to see and undo, or when the outage had already paged and
+the recovery is owed. The same override on later outages is logged, not sent.
 
 ### The pager cannot depend on the thing it reports
 
@@ -248,7 +248,7 @@ launchctl list | grep tailscale-watchdog
 
 ```
 ~/Library/LaunchAgents/com.buildandserve.tailscale-watchdog.plist   the schedule
-~/repo/buildandserve/scripts/tailscale-watchdog.sh                  the script
+~/repo/buildandserve-ops/scripts/tailscale-watchdog.sh              the script (checkout tracks main; the plist pulls --ff-only before each run)
 ~/.paperclip/tailscale-watchdog/tailscale-watchdog.log              the log to read
 ~/.paperclip/tailscale-watchdog/state                               the outage clock plus the rate caps' memory
 ~/.paperclip/tailscale-watchdog/last-ok                             the last cycle that found the host healthy
@@ -282,13 +282,12 @@ by the next scheduled cycle without anybody touching it:
 12:14:39 REPAIR tailscale up returned ok
 12:14:43 RE-PROBE plane ok
 12:14:43 FIXED tailscale up; healthy again, was broken for up to 5m (last healthy check 12:09 EDT)
-12:14:43 QUIET fixed it, and the last notice was 8m ago, under the 6h00m gap
+12:14:43 QUIET fixed it inside the page threshold and changed no resolver that was not already overridden, so no DM: ...
 ```
 
 Five seconds from detection to healthy, and `/api/agents/me` over
 `https://zero.hyrax-boga.ts.net` answered 200 afterwards. The `QUIET` line is
-the notice cap working: the first proof run an hour earlier had already
-delivered a real Slack DM, so the second repair was logged and not sent.
+the quiet path: a repair that worked inside the threshold is logged, not sent.
 
 The first run is where the duration wording came from. It said "healthy again
 after 0m" about a fleet that had been unreachable for 4m46s, because the stop

@@ -11,13 +11,12 @@
        write fails. Overnight 2026-10-20/21 that cost ~6 hours.
        Scheduled by launchd, not by a Paperclip routine: a routine that watches
        the control plane cannot run when the control plane is unreachable.
-       Runbook: ~/repo/buildandserve/docs/ops/tailscale-watchdog.md -->
+       Runbook: ~/repo/buildandserve-ops/docs/ops/tailscale-watchdog.md -->
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/bash</string>
-    <string>/Users/lacy/repo/buildandserve/scripts/tailscale-watchdog.sh</string>
-    <string>--repair</string>
-    <string>--notify</string>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>cd /Users/lacy/repo/buildandserve-ops &amp;&amp; { git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=10 pull --ff-only -q || true; } &amp;&amp; exec /bin/bash scripts/tailscale-watchdog.sh --repair --notify</string>
   </array>
 
   <!-- Every 5 minutes, and the page threshold is three cycles. Short enough
