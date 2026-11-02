@@ -88,6 +88,7 @@ fifteen weeks in the channel Lacy also uses for approval cards.
 | First run that succeeds again | yes, one recovery line |
 | Healthy run | no |
 | Token expiry inside the warning window | yes, then weekly |
+| A DM Slack refuses | nothing is recorded; the next run says it again |
 
 The ledger is `/mnt/cachex/appdata/github-mirror/notify-state`, one line:
 
@@ -102,8 +103,15 @@ Keys name the **kind** of failure, not its wording: `api-http-401`,
 counts that move between runs of one unchanging outage, so dedup is keyed on
 the key and never on the text.
 
-Three properties worth not breaking:
+Four properties worth not breaking:
 
+- **Dedup only ever suppresses a DM that was delivered.** The ledger is written
+  after Slack accepts the message, never before. It used to be written first,
+  so one refused send on the first run of an outage was filed as "told him" and
+  bought six quiet days (LAC-6465). The same rule holds for the weekly reminder
+  and for the recovery line: a refused send leaves the ledger where it was, and
+  the next run tries again. A permanently broken Slack therefore re-attempts
+  daily, which costs nothing because nothing arrives.
 - **Silence while red is bounded.** The weekly reminder exists because
   permanent silence while red is the original defect, not the fix for it.
 - **A missing or corrupt ledger DMs every run.** It fails toward noise, never
@@ -146,7 +154,14 @@ Slack endpoint and counts DMs across a scripted outage. Run it anywhere with
 bash scripts/library-mirror-refresh-test.sh
 ```
 
-25 checks over 9 arms. Arm 0 is a **control**: it runs the pre-LACA-2947 script
-and asserts three identical failures DM three times. If arm 0 ever goes quiet
-the harness has stopped observing DMs and the other arms prove nothing. It
-needs `library-mirror-refresh-pre-laca2947.sh` beside it for that arm.
+32 checks over 10 arms. Arm 0 is a **control**: it runs the pre-LACA-2947
+script and asserts three identical failures DM three times. If arm 0 ever goes
+quiet the harness has stopped observing DMs and the other arms prove nothing.
+It needs `library-mirror-refresh-pre-laca2947.sh` beside it for that arm.
+
+Arm 9 covers the delivery rule above. The stub reads `SLACK` from its control
+directory: `ok` accepts the DM, `reject` answers Slack's own `{"ok":false}`.
+Attempted sends are counted separately from delivered ones, because "it tried
+and Slack refused" and "it stayed quiet" are the same number of DMs and the
+whole defect lives in the difference. Against the pre-LAC-6465 script that arm
+fails three of its seven checks.

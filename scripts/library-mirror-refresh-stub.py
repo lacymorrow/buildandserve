@@ -54,12 +54,23 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(n)
-        with open(os.path.join(CTL, "dms"), "a") as fh:
-            try:
-                fh.write(json.loads(raw).get("text", "") + "\n")
-            except Exception:
-                fh.write(raw.decode("utf-8", "replace") + "\n")
-        body = b'{"ok":true}'
+        try:
+            text = json.loads(raw).get("text", "")
+        except Exception:
+            text = raw.decode("utf-8", "replace")
+        # Attempts are recorded whether or not the send is accepted: an arm has
+        # to be able to tell "it tried and Slack refused" from "it stayed
+        # quiet", and those two look identical if only deliveries are counted.
+        with open(os.path.join(CTL, "attempts"), "a") as fh:
+            fh.write(text + "\n")
+        if ctl("SLACK", "ok") == "reject":
+            # Slack's own shape for a refusal: HTTP 200 carrying ok:false. The
+            # message did not arrive, so it is not written to `dms`.
+            body = b'{"ok":false,"error":"channel_not_found"}'
+        else:
+            with open(os.path.join(CTL, "dms"), "a") as fh:
+                fh.write(text + "\n")
+            body = b'{"ok":true}'
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
