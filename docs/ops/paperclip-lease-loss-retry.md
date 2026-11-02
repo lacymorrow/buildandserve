@@ -165,6 +165,14 @@ Needs `PAPERCLIP_DB_URL`. Reads `LEASE_LOSS_RETRY_API`, default
 `~/Library/LaunchAgents/com.buildandserve.paperclip-lease-loss-retry.plist`,
 `StartInterval` 300, log at `~/.paperclip/logs/paperclip-lease-loss-retry.log`.
 
+**Runs from the `main` worktree, on purpose (LAC-6457).** The plist does
+`cd /Users/lacy/repo/buildandserve-ops`, a worktree that tracks `main`. It used to
+`cd` into `~/repo/buildandserve`, a shared tree parked on a feature branch
+(`LAC-5692/brand-implementation`), so a merged fix to this script never reached
+the running job. Do not repoint it back. The ops tree needs its own
+`node_modules` (`pnpm install --frozen-lockfile --ignore-scripts`); the script
+imports `postgres`.
+
 ```bash
 launchctl bootout gui/$UID/com.buildandserve.paperclip-lease-loss-retry 2>/dev/null
 launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.buildandserve.paperclip-lease-loss-retry.plist
