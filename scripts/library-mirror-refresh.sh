@@ -38,7 +38,9 @@
 # Lacy's approval cards. Now a DM costs a CHANGE of state: the first run of an
 # outage, one reminder a week while it is unfixed, and the run that recovers.
 # Silence while red is deliberate but bounded, because permanent silence while
-# red is the original defect, not the fix for it.
+# red is the original defect, not the fix for it. Dedup only ever suppresses a
+# message that was DELIVERED: the ledger is written after Slack accepts the DM,
+# never before, so a rejected send leaves the outage on the books as untold.
 #
 # It also warns BEFORE the credential dies. The token this reads is a
 # fine-grained PAT, and those carry a mandatory expiry, so the July 2026 outage
@@ -247,10 +249,20 @@ notify_once() {
 
   if [ "$ledger_key" != "$key" ]; then
     # A different condition, or the first run of this one. Always DMs.
-    if ! write_ledger "$key" "$now" "$now" 1; then
-      loud "cannot write the notify ledger $NOTIFY_STATE; every run of this outage will DM"
+    #
+    # The send comes FIRST and the ledger records it only once Slack has taken
+    # it. Writing the ledger first meant one lost DM on the first run of an
+    # outage was filed as "told him" and bought six days of silence: the
+    # LACA-2947 defect again, in the one case where the alarm is load-bearing.
+    # A persistently broken Slack now re-attempts every run, which costs
+    # nothing because nothing arrives, and beats silence.
+    if notify "$text"; then
+      if ! write_ledger "$key" "$now" "$now" 1; then
+        loud "cannot write the notify ledger $NOTIFY_STATE; every run of this outage will DM"
+      fi
+    else
+      loud "the DM for [$key] did not get through, so this outage is NOT on record and the next run will say it again"
     fi
-    notify "$text" || true
     return 0
   fi
 
@@ -258,8 +270,14 @@ notify_once() {
   age=$((now - ledger_first))
   due=$((now - ledger_last))
   if [ "$due" -ge "$REMIND_AFTER" ]; then
-    write_ledger "$key" "$ledger_first" "$now" "$ledger_runs" || true
-    notify "$text (still unfixed after $(human_age "$age"), $ledger_runs runs; reminding once a week)" || true
+    # Same rule as the first DM: last_notified only moves when the reminder
+    # actually arrived, so a rejected reminder is retried on the next run
+    # instead of costing another week of quiet.
+    if notify "$text (still unfixed after $(human_age "$age"), $ledger_runs runs; reminding once a week)"; then
+      write_ledger "$key" "$ledger_first" "$now" "$ledger_runs" || true
+    else
+      write_ledger "$key" "$ledger_first" "$ledger_last" "$ledger_runs" || true
+    fi
   else
     write_ledger "$key" "$ledger_first" "$ledger_last" "$ledger_runs" || true
     log "already reported [$key] $(human_age "$age") ago, run $ledger_runs; next reminder in $(human_age $((REMIND_AFTER - due)))"
@@ -280,8 +298,15 @@ notify_recovered() {
   esac
   now=$(date +%s)
   age=$((now - ledger_first))
-  clear_ledger
-  notify "GitHub mirror on library is working again, after $(human_age "$age") of [$ledger_key]" || true
+  # Clearing before the send had the same shape as the bug above, pointing the
+  # other way: a lost recovery DM left Lacy believing a fixed backup was still
+  # red, with no run left that would ever correct him. The ledger is the thing
+  # that makes the next healthy run say it again.
+  if notify "GitHub mirror on library is working again, after $(human_age "$age") of [$ledger_key]"; then
+    clear_ledger
+  else
+    loud "the recovery DM for [$ledger_key] did not get through; keeping the ledger so the next healthy run says it again"
+  fi
 }
 
 # `exit 2` is "could not look", and it is never allowed to read as success.
@@ -422,6 +447,11 @@ while IFS= read -r full; do
     else
       failures=$((failures + 1))
       loud "CLONE-FAILED $full: $(printf '%s' "$output" | tail -n 2 | tr '\n' ' ')"
+      # A partial clone that git left behind still has the tokenised remote in
+      # its config, and this directory lives on the Backup share, so scrub
+      # before deciding whether to keep it. Already `|| true`, so it is a
+      # no-op when git cleaned up after itself.
+      scrub_remote "$dest" "$full"
       # git usually removes its own partial clone. If it did not, the leftover
       # would be read as a present mirror on every later run and fetched into
       # forever, so an unfinished directory (no HEAD) goes. A complete one is

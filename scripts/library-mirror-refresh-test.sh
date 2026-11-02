@@ -43,12 +43,22 @@ export LIBRARY_MIRROR_TOKEN_FILE="$ROOT/state/.token"
 
 mode() { printf '%s\n' "$1" >"$CTL/MODE"; }
 expires() { printf '%s\n' "${1:-}" >"$CTL/EXPIRES"; }
+# `ok` accepts the DM, `reject` answers Slack's own ok:false. A rejected send
+# is still counted as an attempt, so an arm can separate a refusal from silence.
+slack() { printf '%s\n' "${1:-ok}" >"$CTL/SLACK"; }
 # `grep -c` prints 0 AND exits 1 on no match, so a `|| echo 0` fallback here
 # prints a second zero and every "expect 0" arm compares against "0\n0".
 dms() {
   if [ -f "$CTL/dms" ]; then wc -l <"$CTL/dms" | tr -d ' '; else printf '0'; fi
 }
-reset_dms() { : >"$CTL/dms"; }
+attempts() {
+  if [ -f "$CTL/attempts" ]; then wc -l <"$CTL/attempts" | tr -d ' '; else printf '0'; fi
+}
+ledger() { if [ -f "$ROOT/state/notify-state" ]; then printf 'present'; else printf 'absent'; fi; }
+reset_dms() {
+  : >"$CTL/dms"
+  : >"$CTL/attempts"
+}
 
 PASS=0
 FAIL=0
@@ -67,6 +77,7 @@ run() { bash "$1" --notify >/dev/null 2>&1; }
 
 # ---------------------------------------------------------------- arm 0 control
 printf '\nARM 0  control: the unpatched script on an unchanging 401\n'
+slack ok
 mode 401
 expires ""
 reset_dms
@@ -194,6 +205,29 @@ rc=$?
 n=$(find "$ROOT/mirror" -maxdepth 3 -name '*.git' -type d | grep -c '^')
 check "exit 0 on a good run" 0 "$rc"
 check "both repos are on disk (count, not DMs)" 2 "$n"
+
+printf '\nARM 9  a DM Slack refuses must not dedup the outage\n'
+mode 401
+expires ""
+slack reject
+rm -f "$ROOT/state/notify-state" "$ROOT/state/refresh.log"
+reset_dms
+run library-mirror-refresh.sh
+run library-mirror-refresh.sh
+run library-mirror-refresh.sh
+check "three refused sends deliver nothing" 0 "$(dms)"
+check "but the script tried on every one of the three runs" 3 "$(attempts)"
+check "a refused DM is not filed as told him" absent "$(ledger)"
+slack ok
+reset_dms
+run library-mirror-refresh.sh
+check "the first run after Slack recovers delivers it" 1 "$(dms)"
+check "and files the outage once it is actually delivered" present "$(ledger)"
+reset_dms
+run library-mirror-refresh.sh
+run library-mirror-refresh.sh
+check "deduped from then on, not one DM per run" 0 "$(dms)"
+check "and it stopped trying, too" 0 "$(attempts)"
 
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
