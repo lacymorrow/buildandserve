@@ -648,7 +648,8 @@ add_monitor() {
 		"$role" "$DB_HOST" "$db" "$MONITOR_POOL" >"$CONF/databases.d/$role.conf"
 	chmod 644 "$CONF/databases.d/$role.conf"
 
-	grep -v "^\"$role\" " "$USERLIST" >"$USERLIST.new" || true
+	ensure_userlist
+	filter_file "$USERLIST" "$USERLIST.new" -v "^\"$role\" "
 	printf '"%s" "%s"\n' "$role" "$password" >>"$USERLIST.new"
 	chmod 600 "$USERLIST.new"
 	chown "$PGB_UID:$PGB_GID" "$USERLIST.new"
@@ -673,11 +674,12 @@ drop_monitor() {
 		return 0
 	fi
 	rm -f "$CONF/databases.d/$role.conf"
-	grep -v "^\"$role\" " "$USERLIST" >"$USERLIST.new" || true
+	ensure_userlist
+	filter_file "$USERLIST" "$USERLIST.new" -v "^\"$role\" "
 	chmod 600 "$USERLIST.new"
 	chown "$PGB_UID:$PGB_GID" "$USERLIST.new"
 	mv -f "$USERLIST.new" "$USERLIST"
-	grep -vE "^hostssl[[:space:]]+${role}[[:space:]]+${role}[[:space:]]" "$HBA" >"$HBA.new" || true
+	filter_file "$HBA" "$HBA.new" -vE "^hostssl[[:space:]]+${role}[[:space:]]+${role}[[:space:]]"
 	chmod 644 "$HBA.new"
 	mv -f "$HBA.new" "$HBA"
 	ensure_ini
