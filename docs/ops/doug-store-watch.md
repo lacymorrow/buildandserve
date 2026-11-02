@@ -227,6 +227,15 @@ standard, and the output rules are what must match.
 
 ## Watching the watch
 
+### Where the freshness job runs from (LAC-6457)
+
+`com.buildandserve.store-watch-freshness` does `cd /Users/lacy/repo/buildandserve-ops`,
+the worktree that tracks `main`, not `~/repo/buildandserve`, which is a shared tree
+parked on a feature branch where merged fixes to this script would never run. Do not
+repoint it back. Evidence is still read from `~/repo/buildandserve/store-watch-runs`:
+the script resolves a linked worktree back to its main checkout (LAC-4300), so the
+move changes the code that runs and not the data it reads.
+
 Silence is the success signal, which means a run that never starts looks
 exactly like a clean one. On 2026-10-13 the 04:00 ET slot never executed: no
 evidence directory, no exit code, no message. Doug's stores were unwatched for
