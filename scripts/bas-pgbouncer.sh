@@ -160,7 +160,6 @@ POOL_BUDGET=${POOL_BUDGET:-85}
 # (LAC-6122 F9). Without this the probe could not authenticate and the arm was a
 # logged SKIP on every tick, which is how the F8 outage ran 3h50m unnoticed.
 MONITOR_ROLE=${MONITOR_ROLE:-fleet_monitor}
-MONITOR_DB=${MONITOR_DB:-postgres}
 MONITOR_POOL=${MONITOR_POOL:-1}
 # uid/gid of the pgbouncer user inside the image. Same 70 as postgres:17-alpine,
 # which is why the shared $PG_CONF mount works for both containers.
@@ -492,6 +491,19 @@ pool_total() {
 add_project() {
 	local role="$1" password pool reserve
 	valid_role "$role"
+	# --check is only implemented for the monitor; a silent no-op flag would mutate.
+	if [[ "$CHECK" == 1 && "$role" != "$MONITOR_ROLE" ]]; then
+		echo "--check is not supported for add-project of $role" >&2
+		exit 1
+	fi
+
+	# One source of truth for the monitor: the database its pg_hba lines grant.
+	# A second path with its own MONITOR_DB default wrote an alias Postgres refuses
+	# and overwrote a correct add-monitor result (LAC-6158).
+	if [[ "$role" == "$MONITOR_ROLE" ]]; then
+		add_monitor
+		return
+	fi
 
 	password=$(cat)
 	password=${password%$'\n'}
@@ -500,7 +512,7 @@ add_project() {
 		exit 1
 	fi
 	case "$password" in
-	*'"'* | *'\'*)
+	*'"'* | *'\'* | *$'\n'* | *$'\r'*)
 		# The userlist format is quoted strings with backslash escapes. Rather
 		# than get the escaping subtly wrong in a file that controls database
 		# access, refuse and let the password be regenerated.
@@ -510,11 +522,7 @@ add_project() {
 	esac
 
 	local dbname=$role
-	if [[ "$role" == "$MONITOR_ROLE" ]]; then
-		pool=$MONITOR_POOL
-		reserve=0
-		dbname=$MONITOR_DB
-	elif [[ "$role" == *_preview ]]; then
+	if [[ "$role" == *_preview ]]; then
 		pool=$PREVIEW_POOL
 		reserve=$PREVIEW_RESERVE
 	else
@@ -592,6 +600,7 @@ add_project() {
 add_monitor() {
 	local role="$MONITOR_ROLE" password db limit
 	valid_role "$role"
+	# --check: validate and print what would be written, write nothing.
 
 	password=$(cat)
 	password=${password%$'\n'}
@@ -600,8 +609,8 @@ add_monitor() {
 		exit 1
 	fi
 	case "$password" in
-	*'"'* | *'\\'*)
-		echo "password contains a quote or backslash; regenerate it with openssl rand -hex 24" >&2
+	*'"'* | *'\'* | *$'\n'* | *$'\r'*)
+		echo "password contains a quote, backslash or newline; regenerate it with openssl rand -hex 24" >&2
 		exit 1
 		;;
 	esac
@@ -625,6 +634,13 @@ add_monitor() {
 	if [[ "$limit" != "-1" ]] && ((MONITOR_POOL > limit)); then
 		echo "pool_size $MONITOR_POOL exceeds $role CONNECTION LIMIT $limit" >&2
 		exit 1
+	fi
+
+	if [[ "$CHECK" == 1 ]]; then
+		log "check: would write $CONF/databases.d/$role.conf: $role = host=$DB_HOST port=5432 dbname=$db pool_size=$MONITOR_POOL reserve_pool=0"
+		log "check: would replace the \"$role\" line in $USERLIST (password not shown)"
+		log "check: would ensure '$role $role all cert' in $HBA, then reload"
+		return 0
 	fi
 
 	mkdir -p "$CONF/databases.d"
@@ -652,6 +668,10 @@ add_monitor() {
 drop_monitor() {
 	local role="$MONITOR_ROLE"
 	valid_role "$role"
+	if [[ "$CHECK" == 1 ]]; then
+		log "check: would remove $CONF/databases.d/$role.conf, the \"$role\" userlist line, and the $role cert line in $HBA, then reload"
+		return 0
+	fi
 	rm -f "$CONF/databases.d/$role.conf"
 	grep -v "^\"$role\" " "$USERLIST" >"$USERLIST.new" || true
 	chmod 600 "$USERLIST.new"
@@ -738,13 +758,21 @@ bootstrap() {
 	log "bootstrap: done. add a project with: $SELF_PATH add-project <role> (password on stdin)"
 }
 
+CHECK=0
 main() {
 	require_root
 	local cmd="${1:-}"
 	shift || true
+	if [[ "${1:-}" == "--check" ]]; then
+		CHECK=1
+		shift
+	fi
 	case "$cmd" in
 	bootstrap) bootstrap ;;
-	add-project) add_project "${1:?role}" ;;
+	add-project)
+		[[ "${2:-}" == "--check" ]] && CHECK=1
+		add_project "${1:?role}"
+		;;
 	add-monitor) add_monitor ;;
 	drop-monitor) drop_monitor ;;
 	drop-project) drop_project "${1:?role}" ;;
