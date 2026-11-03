@@ -44,12 +44,12 @@ chown() { :; }
 reload() { :; }
 ensure_ini() { :; }
 valid_role() { :; }
-PGB_UID=0 PGB_GID=0
+PGB_UID=0 PGB_GID=0 CHECK=0
 CONF="${dir}/conf"
 USERLIST="${userlist}"
 HBA="${hba}"
 MONITOR_ROLE=fleet_monitor
-for f in filter_file ensure_userlist drop_monitor; do
+for f in filter_file ensure_userlist ensure_hba drop_monitor; do
   eval "$(awk -v f="$f" '$0 ~ "^"f"\\\\(\\\\) \\\\{" {p=1} p {print} p && /^}/ {exit}' "${SCRIPT}")"
 done
 drop_monitor
@@ -95,5 +95,81 @@ describe("drop_monitor", () => {
     await chmod(hba, 0o644);
     expect(result.code).not.toBe(0);
     expect(await readFile(hba, "utf8")).toContain(HBA_OTHER);
+  });
+});
+
+async function addMonitor() {
+  const pgHba = path.join(dir, "pg_hba.conf");
+  await writeFile(pgHba, "hostssl proj_a fleet_monitor all cert\n");
+  const harness = `
+set -euo pipefail
+log() { :; }
+chown() { :; }
+reload() { :; }
+ensure_ini() { :; }
+valid_role() { :; }
+docker() { echo -1; }
+PGB_UID=0 PGB_GID=0
+CHECK=0 MONITOR_POOL=2 DB_HOST=h PG_CONTAINER=c
+CONF="${dir}/conf"
+PG_HBA="${pgHba}"
+USERLIST="${userlist}"
+HBA="${hba}"
+MONITOR_ROLE=fleet_monitor
+for f in filter_file ensure_userlist ensure_hba add_monitor; do
+  eval "$(awk -v f="$f" '$0 ~ "^"f"\\\\(\\\\) \\\\{" {p=1} p {print} p && /^}/ {exit}' "${SCRIPT}")"
+done
+echo pw | add_monitor
+`;
+  return run("bash", ["-c", harness]).then(
+    (r) => ({ code: 0, stderr: r.stderr }),
+    (e: { code: number; stderr: string }) => ({ code: e.code, stderr: e.stderr }),
+  );
+}
+
+describe("add_monitor hba append (LAC-6569)", () => {
+  it("restores the admin console line when the hba is missing", async () => {
+    await rm(hba);
+    const r = await addMonitor();
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+    const h = await readFile(hba, "utf8");
+    expect(h).toContain("local   pgbouncer  pgbadmin  trust");
+    expect(h).toContain("hostssl fleet_monitor");
+  });
+
+  it("restores the admin console line when the hba is 0 bytes", async () => {
+    await writeFile(hba, "");
+    const r = await addMonitor();
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+    const h = await readFile(hba, "utf8");
+    expect(h).toContain("local   pgbouncer  pgbadmin  trust");
+    expect(h).toContain("hostssl fleet_monitor");
+  });
+
+  it("keeps other roles' lines when the hba is healthy", async () => {
+    await writeFile(hba, `${HBA_OTHER}\n`);
+    const r = await addMonitor();
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+    const h = await readFile(hba, "utf8");
+    expect(h).toContain(HBA_OTHER);
+    expect(h).toContain("hostssl fleet_monitor");
+  });
+});
+
+describe("drop_monitor on 0-byte sources (LAC-6569)", () => {
+  it("repairs a 0-byte userlist instead of installing it empty", async () => {
+    await writeFile(userlist, "");
+    expect((await dropMonitor()).code).toBe(0);
+    expect(await readFile(userlist, "utf8")).toContain('"pgbadmin" ""');
+  });
+
+  it("refuses a 0-byte hba, leaving it empty and not claiming success", async () => {
+    await writeFile(hba, "");
+    const result = await dropMonitor();
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("refusing to rewrite");
   });
 });
