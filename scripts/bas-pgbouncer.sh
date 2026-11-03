@@ -491,6 +491,11 @@ pool_total() {
 add_project() {
 	local role="$1" password pool reserve
 	valid_role "$role"
+	# --check is only implemented for the monitor; a silent no-op flag would mutate.
+	if [[ "$CHECK" == 1 && "$role" != "$MONITOR_ROLE" ]]; then
+		echo "--check is not supported for add-project of $role" >&2
+		exit 1
+	fi
 
 	# One source of truth for the monitor: the database its pg_hba lines grant.
 	# A second path with its own MONITOR_DB default wrote an alias Postgres refuses
@@ -507,7 +512,7 @@ add_project() {
 		exit 1
 	fi
 	case "$password" in
-	*'"'* | *'\'*)
+	*'"'* | *'\'* | *$'\n'* | *$'\r'*)
 		# The userlist format is quoted strings with backslash escapes. Rather
 		# than get the escaping subtly wrong in a file that controls database
 		# access, refuse and let the password be regenerated.
@@ -604,8 +609,8 @@ add_monitor() {
 		exit 1
 	fi
 	case "$password" in
-	*'"'* | *'\\'*)
-		echo "password contains a quote or backslash; regenerate it with openssl rand -hex 24" >&2
+	*'"'* | *'\'* | *$'\n'* | *$'\r'*)
+		echo "password contains a quote, backslash or newline; regenerate it with openssl rand -hex 24" >&2
 		exit 1
 		;;
 	esac
