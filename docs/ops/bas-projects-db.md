@@ -1596,9 +1596,9 @@ ship before the port opens without alarming on a port closed on purpose. Install
 it *before* `DATABASE_URL` moves:
 
 ```
-ssh root@bas.hyrax-boga.ts.net
-printf '%s' "$FLEET_MONITOR_PASSWORD" | bas-pgbouncer.sh add-monitor
-bas-projects-db.sh allow-monitor-pooler
+# password travels over ssh stdin; it must not be expanded on the box
+printf '%s' "$FLEET_MONITOR_PASSWORD" | ssh root@bas.hyrax-boga.ts.net 'bas-pgbouncer.sh add-monitor'
+ssh root@bas.hyrax-boga.ts.net 'bas-projects-db.sh allow-monitor-pooler'
 # then, on each fleet-health host, after tcp/26433 opens at the Hetzner firewall:
 PROJECTS_DB_MONITOR_POOLED_URL=postgresql://fleet_monitor@projects-db.cloud0.dev:26433/fleet_monitor?sslmode=verify-full&sslrootcert=system
 ```
@@ -1609,6 +1609,16 @@ in the URL is the pool alias (the role name), which `add-monitor` points at the 
 database the role may read. `allow-monitor-pooler` is a separate step on purpose;
 without it the pooler accepts the certificate and Postgres refuses it one hop later.
 Rollback is `drop-monitor` and `deny-monitor-pooler`; the direct port is untouched.
+
+`add-monitor`, `drop-monitor`, `allow-monitor-pooler` and `deny-monitor-pooler` take
+`--check`, which prints what would change (the hba diff for the two Postgres-side
+commands) and writes nothing. `allow-monitor-pooler` inserts exactly one line,
+`hostssl <db> fleet_monitor 172.31.0.0/24 scram-sha-256`, above the role's first
+existing line, and `deny-monitor-pooler` deletes exactly that line; the role's other
+lines are never rewritten. `add-monitor` has no rollback: if `ensure_ini` or the
+reload fails after the writes, state is half-applied. Re-running it is idempotent,
+so re-run it. `bas-pgbouncer.sh add-project fleet_monitor` now delegates to
+`add-monitor`, so the database always comes from the role's `pg_hba.conf` lines.
 
 What it proves differs from the direct card: the connection existing proves the
 certificate chained to the private CA, and `current_user` coming back as
@@ -1805,8 +1815,8 @@ address of `projects-db`. By hand: `bas-pgbouncer.sh network`.
 
 The pooled port has a monitor role so fleet-health's `projects-db-pooled` arm can
 authenticate (LAC-6122 F9): feed the `fleet_monitor` password on stdin to
-`bas-pgbouncer.sh add-project fleet_monitor` (pool of `MONITOR_POOL=1`, no
-reserve, database `MONITOR_DB`, default `postgres`), mint its certificate with
+`bas-pgbouncer.sh add-project fleet_monitor` (same as `add-monitor`: pool of
+`MONITOR_POOL=1`, no reserve, database read from the role's `pg_hba.conf` lines), mint its certificate with
 `bas-projects-db.sh client-cert fleet_monitor`, then add
 `PROJECTS_DB_MONITOR_POOLED_URL` to
 `~/.paperclip/secrets/projects-db-monitor.env` on **both** fleet-health hosts.

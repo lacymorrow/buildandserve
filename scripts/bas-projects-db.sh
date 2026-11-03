@@ -1057,7 +1057,7 @@ write_hba_pair() {
 # that database and USAGE on no schema, so it is the least sensitive credential
 # in the pooler's userlist.
 monitor_hba() {
-	local mode="$1" role="${MONITOR_ROLE:-fleet_monitor}" db
+	local mode="$1" role="${MONITOR_ROLE:-fleet_monitor}" db line
 	local backup="$HBA.bak" tmp="$HBA.new"
 
 	db=$(awk -v r="$role" '$1 == "hostssl" && $3 == r { print $2; exit }' "$HBA")
@@ -1067,23 +1067,38 @@ monitor_hba() {
 		exit 1
 	fi
 
-	cp -p "$HBA" "$backup"
-	awk -v r="$role" -v d="$db" -v mode="$mode" \
-		-v tailnet="$TAILNET_CIDR" -v pooler="$POOLER_CIDR" '
-		function emit() {
-			if (mode == "pooled") {
-				printf "hostssl %-20s %-20s %-14s %s\n", d, r, pooler, "scram-sha-256"
+	# Exactly one line is ever added or removed. The role's existing lines are
+	# passed through untouched, so a hardened tailnet line (clientcert=...) or a
+	# second database survives, and deny restores precisely what allow found.
+	line=$(printf 'hostssl %-20s %-20s %-14s %s' "$db" "$role" "$POOLER_CIDR" "scram-sha-256")
+
+	awk -v r="$role" -v d="$db" -v mode="$mode" -v pooler="$POOLER_CIDR" -v line="$line" '
+		function ours() { return $1 == "hostssl" && $2 == d && $3 == r && $4 == pooler && $5 == "scram-sha-256" && NF == 5 }
+		mode == "pooled" && ours() { present = 1 }
+		{ rows[++n] = $0; own[n] = ours() }
+		mode == "pooled" && $1 == "hostssl" && $3 == r && !first { first = n }
+		END {
+			for (i = 1; i <= n; i++) {
+				if (mode == "pooled" && !present && i == first) print line
+				if (mode == "direct" && own[i]) continue
+				print rows[i]
 			}
-			printf "hostssl %-20s %-20s %-14s %s\n", d, r, tailnet, "scram-sha-256"
-			printf "hostssl %-20s %-20s %-14s %s\n", d, r, "all", "scram-sha-256 clientcert=verify-full"
 		}
-		$1 == "hostssl" && $3 == r {
-			if (!done) { emit(); done = 1 }
-			next
-		}
-		{ print }
 	' "$HBA" >"$tmp"
 
+	if [[ "${CHECK:-0}" == 1 ]]; then
+		diff -u "$HBA" "$tmp" || true
+		rm -f "$tmp"
+		log "check: nothing written"
+		return 0
+	fi
+	if cmp -s "$HBA" "$tmp"; then
+		rm -f "$tmp"
+		log "$role: pooler line already $([[ "$mode" == pooled ]] && echo present || echo absent), nothing to do"
+		return 0
+	fi
+
+	cp -p "$HBA" "$backup"
 	chown "$PG_UID:$PG_GID" "$tmp"
 	chmod 644 "$tmp"
 	mv -f "$tmp" "$HBA"
@@ -1291,9 +1306,11 @@ relax-client-cert)
 	relax_client_cert "${2:?project name required}"
 	;;
 allow-monitor-pooler)
+	[[ "${2:-}" == "--check" ]] && CHECK=1
 	monitor_hba pooled
 	;;
 deny-monitor-pooler)
+	[[ "${2:-}" == "--check" ]] && CHECK=1
 	monitor_hba direct
 	;;
 verify)
