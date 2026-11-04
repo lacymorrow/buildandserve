@@ -1916,13 +1916,10 @@ fleet-health hosts, which is an operator action and not in this repo.
 
 ## Not done yet
 
-Backups, the backup-age check, and the rotate-a-password and
-restore-from-backup procedures all belong to LAC-5969. **There are no off-box
-backups of this container today**, which is the largest remaining gap on this
-box by a distance. LAC-5980 put the reachability and backup-age
-checks in fleet-health rather than here, as four `projects-db*` cards in section
-1b of `fleet-health-check.sh`, and LAC-6096 added a fifth for the public path
-(see "`fleet_monitor`: the one certificate that is not a project's").
+Backups, restores, password rotation and the LAC-5980 fleet-health cards are in
+[`projects-db-backups.md`](./projects-db-backups.md). The later cards are in this file:
+the public path under "`fleet_monitor`: the one certificate that is not a project's"
+(LAC-6096), the pooled port under "fleet-health's pooled-path card (LAC-6132)".
 `scripts/bas-projects-db-watch.sh` keeps the three things only it can do: the
 served certificate, the authentication-failure log, and the secret file modes.
 
