@@ -30,7 +30,7 @@ blocker. Three outcomes:
 |---|---|---|
 | escalated | an active recovery action owns it, nobody was told | yes |
 | orphaned | no recovery action, no declared wait, nothing will wake it | yes |
-| declared wait | `unblock_descriptor` names the owner and the thing, and no board-owned action | no |
+| declared wait | `unblock_descriptor` names the owner and the thing, and no action or an agent-owned one | no |
 
 A declared wait is a person parking work on purpose. Alerting on it would bury
 the hundred cases where nobody chose anything.
@@ -44,6 +44,14 @@ When an issue has both a descriptor and an active recovery action, the action's
   "when LAC-4177 resolves, re-record"; LAC-4177 went `done` and the issue stayed
   parked, because `blocked` wakes nobody when the named condition comes true.
   Treating a descriptor as proof of health would silence that.
+- **system-owned** is still an escalation. `provider_quota` is system-owned, and
+  a quota exhaustion is nobody having been told, descriptor or not.
+
+The test is an allowlist (`no action` or `agent`), not "anything but board".
+`owner_type` has three live values, measured 2026-11-04: board 5295, agent 1233,
+system 40. A fourth value added upstream escalates rather than going quiet,
+because the cost is asymmetric: a spurious line is one Lacy ignores, a missed
+one is the blind window this script exists for.
 
 A park younger than 30 minutes is ignored: platform revalidation clears a
 transient one in seconds, and an agent mid-PATCH holds the state for a moment.

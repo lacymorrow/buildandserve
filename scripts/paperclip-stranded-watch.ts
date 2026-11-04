@@ -108,6 +108,15 @@ export function alertKey(issue: BlockedIssue): string {
  * went `done` on 2026-10-15, and the issue stayed parked because `blocked`
  * wakes nobody when the named condition comes true. Descriptor-first would have
  * silenced exactly the case this check exists for.
+ *
+ * So the carve-out is an allowlist, not "anything but board". `owner_type` has
+ * three live values, measured 2026-11-04: board (5295 rows), agent (1233) and
+ * **system** (40). Only an agent-owned action is the agent restating its own
+ * wait. A system-owned one is not: `provider_quota` is system-owned, and a
+ * quota exhaustion that happened to carry a descriptor is still nobody having
+ * been told. An unknown fourth value must escalate too, because the cost of
+ * this check being wrong is asymmetric -- a spurious alert is a line Lacy
+ * ignores, a missed one is the 9.5h blind window this script exists for.
  */
 export function classify(
   issues: BlockedIssue[],
@@ -128,7 +137,8 @@ export function classify(
       verdict.young += 1;
       continue;
     }
-    if (issue.hasDescriptor && issue.recoveryOwner !== "board") verdict.declared.push(issue);
+    const restatesOwnWait = issue.recoveryOwner === "" || issue.recoveryOwner === "agent";
+    if (issue.hasDescriptor && restatesOwnWait) verdict.declared.push(issue);
     else if (issue.recoveryCause) verdict.escalated.push(issue);
     else verdict.orphaned.push(issue);
   }
