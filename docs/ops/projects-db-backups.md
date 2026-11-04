@@ -1,7 +1,7 @@
 # projects-db backups, restores and the watcher
 
 Off-box backups for the project databases on the bas box, the restore procedure that
-has actually been run, password rotation, and the five fleet-health cards that say
+has actually been run, password rotation, and the fleet-health cards that say
 when any of it stops. Built by LAC-5980 under LAC-5969.
 
 The box, the TLS story, the per-driver URL table, adding a database, and the
@@ -16,7 +16,7 @@ file does not repeat them.
 | On box     | `/data/backups/projects/YYYYMMDD/` 7 days; `/data/backups/pgbackrest/` 14 days   |
 | On NAS     | `library:/mnt/user/backups/bas/{projects,pgbackrest}/`, dumps 60 days, repo 14   |
 | Credential | library's `bas/.ssh/pull_key`; the box holds **no** NAS credential               |
-| Watcher    | `fleet-health-check.sh` on graphite, five keys, every 15 minutes                 |
+| Watcher    | `fleet-health-check.sh` on graphite, `projects-db*` keys, every 15 min              |
 
 ## Pull, not push
 
@@ -243,7 +243,7 @@ Preview roles rotate the same way against `${PROJ}_preview` and the
 `<project>-preview-db.env` secret. Client certificates (LAC-6060) are separate from
 the password and are reissued with `bas-projects-db.sh client-cert <proj>`.
 
-## The watcher: five cards
+## The watcher: the `projects-db*` cards
 
 In `fleet-health-check.sh` on graphite, section 1b, gated on the same
 `~/.paperclip/fleet-health/bas-enabled` marker as the rest of the bas box. Tests are
@@ -256,8 +256,10 @@ In `fleet-health-check.sh` on graphite, section 1b, gated on the same
 | `projects-db-pitr`             | the pgBackRest `backup.info` on the NAS is over 26h old     | the same pull log, then `projects-db-pitr.sh info`                                                      |
 | `projects-db-connections`      | client backends pass 60 of `max_connections=100`            | `pg_stat_activity` grouped by `usename`                                                                 |
 | `projects-db-role-connections` | any role is at 80% or more of its own `rolconnlimit`        | that app's pool cap                                                                                     |
+| `projects-db-public`           | the public port `:26432` fails the way an app's connection does | [`bas-projects-db.md`](./bas-projects-db.md), "`fleet_monitor`: the one certificate that is not a project's" |
+| `projects-db-pooled`           | the pooled port `:26433` fails                              | [`bas-projects-db.md`](./bas-projects-db.md), "fleet-health's pooled-path card (LAC-6132)"              |
 
-Five keys and not one, because any one of them alone lies. A box that answers while
+Several keys and not one, because any one of them alone lies. A box that answers while
 its backups stopped a week ago reads healthy on reachability. A role at its own cap is
 down for one app while the cluster reads calm, which is the outage that reached Lacy as
 a 500 on a site.
@@ -272,11 +274,10 @@ The reachability probe dials the server and authenticates rather than asking the
 about itself through `docker exec`. A port that accepts TCP but refuses auth is still
 down.
 
-It dials the **tailnet** name, not the public one. The public port is mid-change under
-LAC-6059 and LAC-6060, so a probe there would alarm on a planned rollout instead of on
-an outage. What that does not cover is a public-port-only break, where the tailnet is
-fine and Vercel cannot connect. Closing that gap needs a client certificate for the
-watcher and is filed as a follow-up. Everything else that "the database is gone" means
+It dials the **tailnet** name, not the public one. That probe cannot see a public-port-only
+break, where the tailnet is fine and Vercel cannot connect. `projects-db-public`
+(LAC-6096) covers that route and `projects-db-pooled` (LAC-6132) covers the pooled
+one; both are described in `bas-projects-db.md`. Everything else that "the database is gone" means
 in practice fails this probe: container down, disk full, Postgres wedged, scram broken,
 box dead.
 
