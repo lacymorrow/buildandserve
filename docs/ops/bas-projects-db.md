@@ -1906,9 +1906,10 @@ fleet-health hosts, which is an operator action and not in this repo.
 
 ## Not done yet
 
-Backups, restores, password rotation and the four fleet-health cards are in
-[`projects-db-backups.md`](./projects-db-backups.md). The fifth card, for the public path,
-is LAC-6096 (see "`fleet_monitor`: the one certificate that is not a project's").
+Backups, restores, password rotation and the LAC-5980 fleet-health cards are in
+[`projects-db-backups.md`](./projects-db-backups.md). The later cards are in this file:
+the public path under "`fleet_monitor`: the one certificate that is not a project's"
+(LAC-6096), the pooled port under "fleet-health's pooled-path card (LAC-6132)".
 `scripts/bas-projects-db-watch.sh` keeps the three things only it can do: the
 served certificate, the authentication-failure log, and the secret file modes.
 
