@@ -1,7 +1,7 @@
 "use client";
 
 import { CaretSortIcon } from "@radix-ui/react-icons";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/lib/auth/use-session";
 import { useState } from "react";
 import { UserMenuDropdown } from "@/components/shipkit/user-menu-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -45,15 +45,10 @@ export function NavUser({ className, showUpgrade = true }: NavUserProps) {
           user={session?.user}
           showUpgrade={showUpgrade}
           hasActiveSubscription={hasActiveSubscription}
-          showOnboarding={
-            env.NEXT_PUBLIC_FEATURE_VERCEL_INTEGRATION_ENABLED &&
-            env.NEXT_PUBLIC_FEATURE_GITHUB_API_ENABLED &&
-            env.NEXT_PUBLIC_FEATURE_DATABASE_ENABLED
-          }
           side={isMobile ? "bottom" : "right"}
           align="end"
           sideOffset={4}
-          contentClassName="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+          contentClassName="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
         >
           <SidebarMenuButton
             size="lg"

@@ -26,11 +26,9 @@ interface NotFoundPageProps {
 	descriptionClassName?: string;
 }
 
-const NoOpProvider = ({ children }: { children: React.ReactNode }) => <>{children}</>;
-
 export const NotFoundPage = ({ containerClassName, descriptionClassName }: NotFoundPageProps) => {
 	return (
-		<AppRouterLayout themeProvider={NoOpProvider}>
+		<AppRouterLayout>
 			<WavesBackground config={config} />
 			<div className="container relative flex h-screen w-screen flex-col items-center justify-center">
 				<div

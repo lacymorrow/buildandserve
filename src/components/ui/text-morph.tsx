@@ -14,12 +14,23 @@ export type TextMorphProps = {
 
 export function TextMorph({
   children,
-  as: Component = "p",
+  as = "p",
   className,
   style,
   variants,
   transition,
 }: TextMorphProps) {
+  /*
+   * `React.ElementType` is a union wide enough that TS intersects every
+   * member's props and resolves `children` to `never`. Narrowing to the props
+   * actually passed below keeps the `as` prop polymorphic and type-checked.
+   */
+  const Component = as as React.ElementType<{
+    className?: string;
+    style?: React.CSSProperties;
+    "aria-label"?: string;
+    children?: React.ReactNode;
+  }>;
   const uniqueId = useId();
 
   const characters = useMemo(() => {

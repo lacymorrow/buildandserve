@@ -1,0 +1,22 @@
+[Unit]
+# Pre-auth connection limits for projects-db (LAC-6059, both ports LAC-6122).
+# PartOf=docker.service is the point of this unit: Docker rebuilds its own
+# chains when the daemon restarts, so the rules have to be reapplied then and
+# not only at boot. Runbook: docs/ops/bas-projects-db.md
+#
+# ExecStart passes no PORT, so the script's default covers tcp/26432 (Postgres)
+# and tcp/26433 (PgBouncer). That is what makes the pooled port's limits survive
+# a docker restart instead of being a rule someone ran once.
+Description=Pre-auth connection limits for projects-db on tcp/26432 and tcp/26433
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/bas-projects-db-ratelimit.sh install
+ExecStop=/usr/local/sbin/bas-projects-db-ratelimit.sh uninstall
+
+[Install]
+WantedBy=multi-user.target

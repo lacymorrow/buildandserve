@@ -1,8 +1,7 @@
 "use client";
 
-import * as React from "react";
-import * as VisuallyHiddenPrimitive from "@radix-ui/react-visually-hidden";
+import { VisuallyHidden as VisuallyHiddenPrimitive } from "radix-ui";
 
 const VisuallyHidden = VisuallyHiddenPrimitive.Root;
 
-export { VisuallyHidden }; 
+export { VisuallyHidden };

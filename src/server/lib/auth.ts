@@ -1,20 +1,18 @@
 import { auth } from "@/server/auth";
+import { isAdmin } from "@/server/services/admin-service";
 
-/**
- * Get the current session. Returns null if not authenticated.
- */
-export async function getSession() {
-  return auth();
+export async function getSession(protect = true) {
+  const session = await auth({ protect });
+  if (!session?.user && protect) {
+    throw new Error("Unauthorized");
+  }
+  return session;
 }
 
-/**
- * Require admin access. Throws if not authenticated.
- * TODO: Add proper admin role check.
- */
 export async function requireAdmin() {
-  const session = await auth();
-  if (!session) {
-    throw new Error("Unauthorized");
+  const session = await getSession();
+  if (!session?.user?.email || !(await isAdmin({ email: session.user.email }))) {
+    throw new Error("Unauthorized: Admin access required");
   }
   return session;
 }

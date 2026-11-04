@@ -39,8 +39,10 @@ import { evidenceBaseFor, expiredRuns, RETENTION_DAYS } from "./utils/store-watc
 
 const TLS_MIN_DAYS = 14;
 const NAV_TIMEOUT = 45_000;
+const ATC_VISIBLE_TIMEOUT = 25_000;
+const ATC_CLICK_TIMEOUT = 20_000;
 
-interface StoreSpec {
+export interface StoreSpec {
   key: string;
   label: string;
   base: string;
@@ -93,6 +95,44 @@ type Severity = "down" | "checkout_broken" | "degraded";
  */
 export const HARNESS_CHECK = "harness";
 
+/**
+ * Check name reserved for "this machine could not resolve names", as distinct
+ * from "the store has no DNS record". Like HARNESS_CHECK it never becomes a
+ * store incident, but it is stricter: it voids the whole run (see verdictFor).
+ */
+export const RESOLVER_CHECK = "resolver";
+
+/** Neither of these is an observation about a store, so neither can be a ticket. */
+const INFRA_CHECKS = new Set([HARNESS_CHECK, RESOLVER_CHECK]);
+
+/**
+ * c-ares error codes that mean the resolver never answered, as opposed to
+ * answering "that name does not exist".
+ *
+ * The difference is the whole ballgame for this job. ENOTFOUND (NXDOMAIN) and
+ * ENODATA are verdicts from DNS itself and are exactly the raw-kratom outage
+ * this watch exists to catch (LACA-1909, the apex A record was gone). ETIMEOUT
+ * and friends are not verdicts at all — they mean the question never got
+ * answered, so the store's real state is unknown.
+ */
+const RESOLVER_FAULT_CODES = new Set([
+  "ETIMEOUT",
+  "ETIMEDOUT",
+  "ESERVFAIL",
+  "ECONNREFUSED",
+  "EREFUSED",
+  "ECANCELLED",
+  "ENOTINITIALIZED",
+  "ELOADIPHLPAPI",
+  "EADDRGETNETWORKPARAMS",
+]);
+
+/** True when a DNS lookup failed because our resolver is unreachable, not because the name is gone. */
+export function isResolverFault(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" && RESOLVER_FAULT_CODES.has(code);
+}
+
 export type Verdict = "clean" | "incident" | "needs_adaptation" | "harness_error";
 
 interface Incident {
@@ -117,9 +157,10 @@ interface Incident {
  * symptoms are folded into it.
  */
 export function toIncidents(result: StoreResult, detectedAt: string): Incident[] {
-  // A crashed probe is our bug, not Doug's outage. Dropping it here keeps it out
-  // of the ticket stream entirely; verdictFor turns it into exit 3 instead.
-  const failed = result.checks.filter((c) => c.status === "fail" && c.name !== HARNESS_CHECK);
+  // A crashed probe or a dead resolver is our bug, not Doug's outage. Dropping
+  // both here keeps them out of the ticket stream entirely; verdictFor turns
+  // them into exit 3 instead.
+  const failed = result.checks.filter((c) => c.status === "fail" && !INFRA_CHECKS.has(c.name));
   if (!failed.length) return [];
 
   const names = failed.map((c) => c.name);
@@ -185,12 +226,24 @@ export function toIncidents(result: StoreResult, detectedAt: string): Incident[]
  * 2026-10-13T12:23Z run when Playwright closed mid-probe.
  *
  * A real store failure outranks a harness crash: if one store is down and the
- * probe died on the other, the outage still has to surface.
+ * probe died on the other, the outage still has to surface. A browser that died
+ * on store B says nothing about what we saw on store A.
+ *
+ * A dead resolver is the one exception, and it outranks everything. Every check
+ * in this job — DNS, TLS, fetch, Playwright — begins by turning a hostname into
+ * an address, so if this machine cannot resolve names then no failure in the run
+ * is evidence of anything. On 2026-10-21T15:11Z the host's only nameserver went
+ * away mid-run and the job reported thepurplehaze.com DOWN and raw-kratom.com
+ * unable to take orders, with Slack pages for both, while both stores were
+ * serving 200s the whole time (LAC-5278). Exit 3 points the next agent at the
+ * resolver and files nothing against the stores.
  */
 export function verdictFor(results: StoreResult[]): Verdict {
   const checks = results.flatMap((r) => r.checks);
-  if (checks.some((c) => c.status === "fail" && c.name !== HARNESS_CHECK)) return "incident";
-  if (checks.some((c) => c.status === "fail" && c.name === HARNESS_CHECK)) return "harness_error";
+  const failed = checks.filter((c) => c.status === "fail");
+  if (failed.some((c) => c.name === RESOLVER_CHECK)) return "harness_error";
+  if (failed.some((c) => !INFRA_CHECKS.has(c.name))) return "incident";
+  if (failed.length) return "harness_error";
   return checks.some((c) => c.status === "adapt") ? "needs_adaptation" : "clean";
 }
 
@@ -225,9 +278,123 @@ const bad = (name: string, detail: string, httpCode?: number, evidence?: string)
   httpCode,
   evidence,
 });
-const adapt = (name: string, detail: string): Check => ({ name, status: "adapt", detail });
+const adapt = (name: string, detail: string, evidence?: string): Check => ({
+  name,
+  status: "adapt",
+  detail,
+  evidence,
+});
 
-/** Resolve apex A records. The raw-kratom outage was exactly this going empty. */
+/**
+ * Playwright errors are a one-line finding followed by a long "Call log:" dump.
+ * Keep the finding, drop the dump: the full text goes nowhere useful in a report
+ * and the first line is the part that names what timed out.
+ *
+ * The first line also carries an API-call prefix that arrives mangled under Bun
+ * ("for: Timeout 25000ms exceeded." for a locator.waitFor), so drop it. The
+ * caller already says which step it was, in words a reader can act on.
+ */
+export function briefError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const line = (message.split("\n")[0] ?? "").trim();
+  return line.replace(/^[\w.]+:\s+/, "").slice(0, 160);
+}
+
+/** Which step of the add-to-cart interaction gave up. */
+export type AddToCartStage = "locate" | "click";
+
+export interface AddToCartOutcome {
+  added: boolean;
+  stage: AddToCartStage;
+  /** First line of the Playwright error. Empty when the item went in. */
+  error: string;
+}
+
+/** The slice of a Playwright Locator this interaction needs, so it can be faked. */
+interface AddToCartTarget {
+  waitFor(options: { state: "visible"; timeout: number }): Promise<void>;
+  scrollIntoViewIfNeeded(options: { timeout: number }): Promise<void>;
+  click(options: { timeout: number }): Promise<void>;
+}
+
+/**
+ * Add the item, and keep the two failure modes apart.
+ *
+ * "The control never appeared" and "the control was there but the click timed
+ * out" need different responses, so the caller is told which one happened
+ * (LAC-4597). A timed-out click is usually an overlay swallowing the pointer
+ * event rather than anything about the store, so it gets one retry after the
+ * caller re-clears overlays. A single flake used to cost a full agent wake.
+ *
+ * The retry can in principle add the item twice, if a click landed and then the
+ * page detached before Playwright saw it resolve. That is harmless here: the
+ * cart is a throwaway session, the cart check only asserts the line item exists,
+ * and the probe never submits an order.
+ */
+export async function clickAddToCart(
+  target: AddToCartTarget,
+  label: string,
+  notes: string[],
+  settle: () => Promise<void>
+): Promise<AddToCartOutcome> {
+  try {
+    // The control is rendered by the theme bundle, so it is absent at
+    // domcontentloaded. Wait for it rather than racing it.
+    await target.waitFor({ state: "visible", timeout: ATC_VISIBLE_TIMEOUT });
+  } catch (error) {
+    const brief = briefError(error);
+    notes.push(`${label}: no add-to-cart control became visible (${brief})`);
+    return { added: false, stage: "locate", error: brief };
+  }
+
+  let last = "";
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (attempt > 1) await settle();
+    try {
+      await target.scrollIntoViewIfNeeded({ timeout: 10_000 }).catch(() => {});
+      await target.click({ timeout: ATC_CLICK_TIMEOUT });
+      if (attempt > 1) notes.push(`${label}: add-to-cart click landed on retry`);
+      return { added: true, stage: "click", error: "" };
+    } catch (error) {
+      last = briefError(error);
+      notes.push(`${label}: add-to-cart click failed (attempt ${attempt} of 2: ${last})`);
+    }
+  }
+  return { added: false, stage: "click", error: last };
+}
+
+/**
+ * Say which add-to-cart failure happened, and quote the error that proves it.
+ *
+ * The old single message asserted the template had changed whatever the cause,
+ * which sent the next agent hunting for a renamed control that was never
+ * renamed (2026-10-16 20:03Z run on thepurplehaze.com).
+ */
+export function addToCartAdaptDetail(outcome: AddToCartOutcome, productUrl: string): string {
+  if (outcome.stage === "locate") {
+    return [
+      `No add-to-cart control matched on ${productUrl} within ${ATC_VISIBLE_TIMEOUT / 1000}s.`,
+      "The product template likely changed; locate the new control and record it in the runbook notes.",
+      `Playwright: ${outcome.error}`,
+    ].join(" ");
+  }
+  return [
+    `The add-to-cart control on ${productUrl} was found and visible, but two clicks timed out.`,
+    "This is not a template change. Look for an overlay eating the pointer event (the age gate re-shows)",
+    "or a theme bundle that loaded late, and re-run the job before adapting anything.",
+    "The product screenshot in this run's evidence shows the page as the click saw it.",
+    `Playwright: ${outcome.error}`,
+  ].join(" ");
+}
+
+/**
+ * Resolve apex A records. The raw-kratom outage was exactly this going empty.
+ *
+ * Uses dns.resolve4 (c-ares) rather than getaddrinfo on purpose: it reports the
+ * precise failure code, so "the name is gone" can be told apart from "our
+ * nameserver is not answering". getaddrinfo collapses both to ENOTFOUND on
+ * macOS, which is how a resolver outage used to read as a store outage.
+ */
 async function checkDns(spec: StoreSpec): Promise<Check> {
   const host = new URL(spec.base).hostname;
   try {
@@ -235,7 +402,15 @@ async function checkDns(spec: StoreSpec): Promise<Check> {
     if (!addrs.length) return bad("dns", `${host} resolved to zero A records`);
     return ok("dns", `${host} -> ${addrs.join(", ")}`);
   } catch (error) {
-    return bad("dns", `${host} did not resolve: ${(error as Error).message}`);
+    const message = (error as Error).message;
+    if (isResolverFault(error)) {
+      return bad(
+        RESOLVER_CHECK,
+        `this machine's DNS resolver did not answer for ${host} (${message}). ` +
+          `Store state is UNKNOWN, not down. Check the host's nameservers (scutil --dns) first.`
+      );
+    }
+    return bad("dns", `${host} did not resolve: ${message}`);
   }
 }
 
@@ -457,28 +632,21 @@ async function walkPurchasePath(
   // which therefore has no text node to match on.
   const addToCart = page.getByRole("button", { name: /add to cart|add to bag/i }).first();
 
-  let added = false;
-  try {
-    // The control is rendered by the theme bundle, so it is absent at
-    // domcontentloaded. Wait for it rather than racing it.
-    await addToCart.waitFor({ state: "visible", timeout: 25_000 });
-    await addToCart.scrollIntoViewIfNeeded({ timeout: 10_000 }).catch(() => {});
-    await addToCart.click({ timeout: 20_000 });
-    await page.waitForTimeout(5_000);
-    added = true;
-  } catch (error) {
-    notes.push(
-      `${spec.label}: add-to-cart click failed (${(error as Error).message.slice(0, 120)})`
-    );
-  }
+  const outcome = await clickAddToCart(addToCart, spec.label, notes, async () => {
+    // The age gate re-shows and covers the button, which is the likeliest reason
+    // a click on a visible control times out. Clear it, then let the theme settle.
+    await dismissAgeGate(page, spec.label, notes);
+    await dismissCookieBanner(page);
+    await page.waitForTimeout(2_000);
+  });
+  if (outcome.added) await page.waitForTimeout(5_000);
 
-  if (!added) {
-    checks.push(
-      adapt(
-        "add_to_cart",
-        `No add-to-cart control matched on ${productUrl}. The product template likely changed; locate the new control and record it in the runbook notes.`
-      )
-    );
+  if (!outcome.added) {
+    // This path used to return before any screenshot, so the one run that needed
+    // a picture of the page was the one run that had none (LAC-4597).
+    const productShot = path.join(outDir, `${spec.key}-product.png`);
+    await page.screenshot({ path: productShot, fullPage: false }).catch(() => {});
+    checks.push(adapt("add_to_cart", addToCartAdaptDetail(outcome, productUrl), productShot));
     return checks;
   }
 
@@ -618,6 +786,33 @@ async function runStore(spec: StoreSpec, browser: Browser, outDir: string): Prom
 }
 
 /**
+ * Before calling a store broken, prove this machine could still resolve names.
+ *
+ * A pass on the DNS check at the top of a run does not cover this: the answer
+ * can come from cache and the resolver can die seconds later, which is precisely
+ * the 2026-10-21T15:11Z run — raw-kratom.com resolved, its cart loaded, and then
+ * the nameserver went away, so the checkout navigation landed on
+ * chrome-error://chromewebdata/ and got filed as "cannot take orders".
+ *
+ * Only runs when something already failed, so a clean run pays nothing for it.
+ * A genuine NXDOMAIN is not a resolver fault and still reaches the ticket
+ * stream, so this cannot hide the outage the job was built for.
+ */
+export async function resolverFaultResult(specs: StoreSpec[]): Promise<StoreResult | null> {
+  const checks = await Promise.all(specs.map((spec) => checkDns(spec)));
+  const fault = checks.find((c) => c.name === RESOLVER_CHECK && c.status === "fail");
+  if (!fault) return null;
+  return {
+    key: "host",
+    store: "monitoring host",
+    base: "",
+    platform: "host",
+    checks: [fault],
+    notes: ["Re-probed after a failing check; the resolver was gone by the end of the run."],
+  };
+}
+
+/**
  * Enforce retention. Nothing else does, so without this the evidence directory
  * grows without bound and "keep it 30 days" means "keep it forever".
  */
@@ -695,12 +890,27 @@ async function main() {
   }
 
   const detectedAt = startedAt.toISOString();
-  const incidents = results.flatMap((r) => toIncidents(r, detectedAt));
+
+  // Anything that failed is only a finding if the host could still resolve names.
+  if (results.some((r) => r.checks.some((c) => c.status === "fail"))) {
+    const fault = await resolverFaultResult(specs);
+    if (fault) {
+      console.log(`\n=== ${fault.store} ===`);
+      console.log(`  [FAIL] ${fault.checks[0]?.name}: ${fault.checks[0]?.detail}`);
+      results.push(fault);
+    }
+  }
+
+  const verdict = verdictFor(results);
+  // A voided run has nothing to file: see verdictFor. Computing the tickets and
+  // then declining to print them would still leave them in report.json, where
+  // the next agent would find them and file them anyway.
+  const incidents =
+    verdict === "harness_error" ? [] : results.flatMap((r) => toIncidents(r, detectedAt));
   const adaptations = results.flatMap((r) =>
     r.checks.filter((c) => c.status === "adapt").map((c) => ({ store: r.store, ...c }))
   );
 
-  const verdict = verdictFor(results);
   const report = {
     job: "doug-store-watch",
     issue: "LAC-4280",
@@ -713,6 +923,10 @@ async function main() {
     results,
     // File exactly one ticket per entry here, deduped on dedupeKey.
     incidents,
+    // What the run would have filed if the resolver had held up. Diagnostic
+    // only: these are unproven in both directions. Never file from this key.
+    unprovenFindings:
+      verdict === "harness_error" ? results.flatMap((r) => toIncidents(r, detectedAt)) : [],
     adaptations,
   };
   const reportPath = path.join(outDir, "report.json");
@@ -725,12 +939,27 @@ async function main() {
     }
   }
   if (verdict === "harness_error") {
-    console.log("\nHARNESS ERROR — this is this script's bug, not a store outage.");
+    const resolverDown = results.some((r) =>
+      r.checks.some((c) => c.name === RESOLVER_CHECK && c.status === "fail")
+    );
+    console.log("\nHARNESS ERROR — this is our side, not a store outage.");
     console.log("Fix the harness and re-run. Do NOT file a ticket against the store.");
     for (const r of results) {
-      for (const c of r.checks.filter((c) => c.name === HARNESS_CHECK && c.status === "fail")) {
+      for (const c of r.checks.filter((c) => INFRA_CHECKS.has(c.name) && c.status === "fail")) {
         console.log(`  ${r.store}: ${c.detail}`);
       }
+    }
+    if (resolverDown) {
+      // Say this out loud. The stores were never checked, and a silent exit 3
+      // reads too much like the silence that means "clean".
+      const suppressed = results.flatMap((r) => toIncidents(r, detectedAt));
+      console.log("\nSTORE HEALTH WAS NOT VERIFIED THIS RUN. The resolver went away mid-run,");
+      console.log("so every check below it is unproven in both directions.");
+      if (suppressed.length) {
+        console.log(`Suppressed ${suppressed.length} unproven finding(s), NOT to be filed:`);
+        for (const i of suppressed) console.log(`  ${i.dedupeKey}: ${i.firstLine}`);
+      }
+      console.log("Restore DNS on this host, then re-run this job to get a real verdict.");
     }
   }
   console.log(`\nVERDICT: ${verdict}`);

@@ -75,12 +75,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.85,
     },
     {
-      url: `${siteConfig.url}${routes.features}`,
-      lastModified: staticLastModified,
-      changeFrequency: "weekly" as const,
-      priority: 0.9,
-    },
-    {
       url: `${siteConfig.url}${routes.pricing}`,
       lastModified: staticLastModified,
       changeFrequency: "weekly" as const,
@@ -122,12 +116,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "weekly" as const,
       priority: 0.5,
     },
-    {
-      url: `${siteConfig.url}${routes.docs}`,
-      lastModified: staticLastModified,
-      changeFrequency: "daily" as const,
-      priority: 0.8,
-    },
   ];
 
   // Support pages (lower priority)
@@ -160,10 +148,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ];
 
-  const [blogFiles, docFiles] = await Promise.all([
-    getContentFiles("blog"),
-    getContentFiles("docs"),
-  ]);
+  const blogFiles = await getContentFiles("blog");
 
   const blogRoutes = await Promise.all(
     blogFiles.map(async (file) => {
@@ -177,17 +162,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   );
 
-  const docsRoutes = await Promise.all(
-    docFiles.map(async (file) => {
-      const stats = await stat(file.path);
-      return {
-        url: `${siteConfig.url}${routes.docs}/${file.slug}`,
-        lastModified: stats.mtime,
-        changeFrequency: "weekly" as const,
-        priority: 0.7,
-      };
-    })
-  );
 
   return [
     ...marketingRoutes,
@@ -195,6 +169,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...contentIndexRoutes,
     ...supportRoutes,
     ...blogRoutes,
-    ...docsRoutes,
   ];
 }

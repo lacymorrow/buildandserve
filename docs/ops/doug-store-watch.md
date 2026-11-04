@@ -1,10 +1,10 @@
 # Doug store watch
 
-Monitoring job for Doug's two stores. Runs every 4 hours. Read-only.
+Monitoring job for Doug's two stores. Runs twice daily (08:00 and 20:00 ET).
+Read-only.
 
-This file is the whole job. The BAS server and the Managed Agents trial both run
-it unchanged, so whatever difference shows up between them is the service, not
-the brief.
+This file is the whole job. Run it unchanged; whatever difference shows up
+between runs is the stores, not the brief.
 
 Ticket: LAC-4280.
 
@@ -40,7 +40,10 @@ The job has to walk the path a paying customer walks and prove it got there.
 
 ## Cadence
 
-Every 4 hours. If a run overlaps the previous one, skip it rather than stacking.
+Twice daily, at 08:00 and 20:00 ET. If a run overlaps the previous one, skip it
+rather than stacking. Cut from every 4h on 2026-10-19 (LAC-4913): the 4h cadence
+existed for a parallel trial that is now cancelled, and it was already missing
+slots silently, so a stated 12h gap is more honest than an unannounced 15h one.
 
 ## What to check, per store
 
@@ -78,6 +81,11 @@ them.
   password field.
 - **An empty cart page still returns 200**, and a soft-404 can return 200 too. A
   status code alone never proves a step passed.
+- **A single Add to Cart click can time out on a button that is right there.**
+  The age gate re-shows over it, or the theme bundle lands late. The job clicks
+  twice with the gate re-cleared in between, and only gives up after both. One
+  run reporting this is a flake, not a store change. See "Two different
+  add_to_cart failures" below.
 
 ## Evidence
 
@@ -85,6 +93,8 @@ A run is judged on its evidence, not on the agent's summary. Every run saves:
 
 - The **HTTP status code** for each navigation (checks 3 through 7).
 - A **screenshot of the cart page and of the checkout page**, per store.
+- A **screenshot of the product page** whenever Add to Cart gives up, per store.
+  The run that cannot add the item is the run someone needs a picture of.
 - The product URL actually used.
 - A machine-readable report of every check with pass/fail and detail.
 
@@ -115,6 +125,19 @@ Layouts and URLs change. That is expected and is not an incident by itself.
 5. **Write down what changed in the Notes section at the bottom of this file**,
    with the date, so the next run starts from the new reality instead of
    rediscovering it. This is the part that makes the job cheaper over time.
+
+### Two different add_to_cart failures
+
+`add_to_cart` reaches exit 2 for two unrelated reasons. Read which one the
+report names before you go looking for a renamed control.
+
+| Report says | What happened | What to do |
+|---|---|---|
+| "No add-to-cart control matched on ... within 25s" | The control never became visible. | This is the layout change. Find the new control, record it in Notes. |
+| "was found and visible, but two clicks timed out" | The control is there. Two clicks did not land, with the age gate re-cleared between them. | Nothing changed on the store. Re-run the job. Open `<store>-product.png` in the run's evidence to see what was covering the button. |
+
+Both quote the Playwright error that ended the attempt. The product screenshot
+is saved either way.
 
 ## What to do with the result
 
@@ -176,6 +199,12 @@ bun scripts/doug-store-watch.ts
 Exit codes: `0` clean, `1` incident, `2` needs a human or agent to adapt, `3`
 harness error.
 
+Exit `3` also covers the monitoring host losing DNS, and that case voids the
+whole run: no store ticket is filed, because nothing the run saw is evidence
+either way. The output says `STORE HEALTH WAS NOT VERIFIED THIS RUN` and lists
+what it would have filed under `unprovenFindings` in `report.json`. **Never file
+from that key.** Fix DNS on the host, then re-run to get a real verdict.
+
 Evidence lands in `store-watch-runs/<timestamp>/` as `report.json` plus the
 screenshots. That path is resolved against the **main checkout**, not the
 working directory, because an agent woken on this job runs inside a disposable
@@ -193,10 +222,19 @@ does not exist:
 bun scripts/doug-store-watch.ts --store raw-kratom --base https://store-watch-drill.raw-kratom.com
 ```
 
-The Managed Agents trial gets this same file and uses its own tooling. The
-checks, the evidence standard, and the output rules are what must match.
+Any runner of this file may use its own tooling. The checks, the evidence
+standard, and the output rules are what must match.
 
 ## Watching the watch
+
+### Where the freshness job runs from (LAC-6457)
+
+`com.buildandserve.store-watch-freshness` does `cd /Users/lacy/repo/buildandserve-ops`,
+the worktree that tracks `main`, not `~/repo/buildandserve`, which is a shared tree
+parked on a feature branch where merged fixes to this script would never run. Do not
+repoint it back. Evidence is still read from `~/repo/buildandserve/store-watch-runs`:
+the script resolves a linked worktree back to its main checkout (LAC-4300), so the
+move changes the code that runs and not the data it reads.
 
 Silence is the success signal, which means a run that never starts looks
 exactly like a clean one. On 2026-10-13 the 04:00 ET slot never executed: no
@@ -211,10 +249,11 @@ bun scripts/doug-store-watch-freshness.ts [--notify] [--max-age-hours N] [--evid
 ```
 
 It reads the newest `store-watch-runs/<ts>/report.json` and compares its
-`startedAt` to now. Under 5 hours, it prints nothing and exits 0. Over 5 hours,
-or if no run has ever been recorded, it prints one line and exits 1. Five hours
-is one 4h cadence plus an hour of slack, so a run that merely started late does
-not wake anyone.
+`startedAt` to now. Under 13 hours, it prints nothing and exits 0. Over 13
+hours, or if no run has ever been recorded, it prints one line and exits 1.
+Thirteen hours is one full 12h gap between the two daily slots plus an hour of
+slack, so a run that merely started late does not wake anyone. Change the
+cadence and this threshold moves with it: longest gap between slots, plus 1h.
 
 Exit codes: `0` the watch is running, `1` the watch is blind, `2` bad usage. A
 typo in the schedule exits 2 rather than 1, so it cannot sit in the log looking
@@ -239,8 +278,8 @@ outage into forty-eight identical messages, and the next real one gets ignored.
 If Slack itself fails, the line still goes to stdout, the exit code is still 1,
 and the gap keeps its unsent alert for the next hour.
 
-Credentials come from the environment, not from a path on Lacy's laptop, so the
-Managed Agents trial runs the same file:
+Credentials come from the environment, not from a path on Lacy's laptop, so any
+host runs the same file:
 
 | Variable | Value |
 |---|---|
@@ -291,6 +330,35 @@ bun scripts/doug-store-watch-freshness.ts --evidence /tmp/drill/store-watch-runs
 Running log of what changed on the stores, newest first. Each run that adapts
 appends a line here.
 
+- **2026-10-21** Neither store changed. The **monitoring host** lost DNS: its
+  only nameserver (`10.0.0.243`) stopped answering mid-run at ~15:12Z. The 15:11Z
+  run reported thepurplehaze.com **DOWN** and raw-kratom.com **unable to take
+  orders**, with a Slack page on both, and both were false. Checked by hand
+  against public resolvers at the time: thepurplehaze.com resolves to
+  23.227.38.32 and served 200 on `/` and `/cart`; raw-kratom.com resolves to
+  192.200.160.14 and served 200 on `/` and `/cart.php`, and `/checkout` served
+  the checkout asset chain and correctly 302'd an empty cart to `/cart.php`. The
+  15:25Z run, with the resolver still dead, passed thepurplehaze's full purchase
+  path through to a real Shopify checkout URL. **A "store is down" finding from
+  this job is only as trustworthy as the host's resolver — check `scutil --dns`
+  and `dig @1.1.1.1 <host>` before you believe it.** Fixed in LAC-5278: an
+  unanswered DNS query (`ETIMEOUT` and friends) is now a `resolver` check, not a
+  `dns` check, which voids the entire run as exit 3 and files nothing. An
+  authoritative `ENOTFOUND`/`ENODATA` is still a real outage and still files, so
+  the LACA-1909 case is unaffected. A failing run also re-probes the resolver at
+  the end, because the first DNS check can pass from cache and the nameserver
+  can die seconds later, which is exactly what happened to raw-kratom here.
+- **2026-10-16** thepurplehaze.com returned `needs_adaptation` on add_to_cart at
+  20:03Z and nothing had changed on the store. The 16:14Z run before it and the
+  21:21Z run after it both added the same product
+  (`/products/top-shelf-pre-roll-5-pack-0-5g-each`) and reached checkout. The
+  control was found and visible; it was the *click* that timed out at 20s, so
+  the "No add-to-cart control matched" wording in that report was misleading.
+  **A lone exit 2 on add_to_cart is not evidence of a layout change. Re-run the
+  job first.** If the next run is clean, the store is fine and there is nothing
+  to adapt. Fixed in LAC-4597: the job now retries the click once after
+  re-dismissing the age gate, names which of the two failures happened, quotes
+  the Playwright error, and saves a product-page screenshot before it gives up.
 - **2026-10-12** Baseline established. Both stores pass all 7 checks. Known
   shape at this date: both stores show a 21+ age gate on first load;
   raw-kratom products require Strength and Flavor options before Add to Cart

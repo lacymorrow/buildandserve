@@ -1,3 +1,5 @@
+import { env } from "@/env";
+
 /**
  * Admin Configuration
  *
@@ -9,9 +11,9 @@
  * Admin configuration interface
  */
 export interface AdminConfig {
-	emails: string[];
-	domains: string[];
-	isAdminByEmailConfig: (email?: string | null) => boolean;
+  emails: string[];
+  domains: string[];
+  isAdminByEmailConfig: (email?: string | null) => boolean;
 }
 
 /**
@@ -20,23 +22,37 @@ export interface AdminConfig {
  * during deployment without touching code
  */
 export const adminConfig: AdminConfig = {
-	// Admin emails - comma-separated list from environment variable or defaults
-	emails: process.env.ADMIN_EMAIL
-		? process.env.ADMIN_EMAIL.split(",").map((email) => email.trim())
-		: ["admin@buildandserve.com"],
+  /*
+   * No defaults. These previously fell back to the template author's address
+   * and domain, which meant every downstream deployment granted admin to
+   * anyone holding a lacymorrow.com email. Deployments opt in via ADMIN_EMAIL
+   * and ADMIN_DOMAINS.
+   */
+  emails: env.ADMIN_EMAIL
+    ? env.ADMIN_EMAIL.split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean)
+    : [],
 
-	// Admin domains - using default values
-	domains: process.env.ADMIN_DOMAINS
-		? process.env.ADMIN_DOMAINS.split(",").map((domain) => domain.trim())
-		: ["buildandserve.com"],
+  domains: env.ADMIN_DOMAINS
+    ? env.ADMIN_DOMAINS.split(",")
+        .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
+        .filter(Boolean)
+    : [],
 
-	// Check if an email is an admin based on config
-	isAdminByEmailConfig: (email?: string | null): boolean => {
-		if (!email) return false;
+  // Check if an email is an admin based on config
+  isAdminByEmailConfig: (email?: string | null): boolean => {
+    if (!email) return false;
 
-		return (
-			adminConfig.emails.includes(email) ||
-			adminConfig.domains.some((domain) => email.endsWith(`@${domain}`))
-		);
-	},
+    const normalised = email.trim().toLowerCase();
+    if (!normalised.includes("@")) return false;
+    const domain = normalised.slice(normalised.lastIndexOf("@") + 1);
+
+    return (
+      adminConfig.emails.includes(normalised) ||
+      // Compare the domain exactly. `endsWith("@evil-lacymorrow.com")` style
+      // suffix matching would have accepted a lookalike domain.
+      adminConfig.domains.includes(domain)
+    );
+  },
 };

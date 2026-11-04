@@ -141,7 +141,7 @@ export default function WorkPage() {
         {projects.map((project) => (
           <Card
             key={project.id}
-            className="group hover:shadow-lg transition-all duration-300 overflow-hidden h-full flex flex-col"
+            className="group hover:shadow-lg transition-all duration-300 overflow-hidden h-full flex flex-col gap-0 py-0"
           >
             <div className="relative">
               <Image
@@ -154,7 +154,7 @@ export default function WorkPage() {
               <div className="absolute top-4 left-4">{project.icon}</div>
             </div>
 
-            <CardHeader className="space-y-4">
+            <CardHeader className="gap-4 p-6">
               <div className="space-y-2">
                 <CardTitle className="text-2xl">{project.title}</CardTitle>
                 <CardDescription className="line-clamp-3 leading-relaxed">
@@ -176,7 +176,7 @@ export default function WorkPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-6 pt-0">
               {/* Metrics */}
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
@@ -197,7 +197,7 @@ export default function WorkPage() {
               </div>
             </CardContent>
 
-            <CardFooter className="mt-auto">
+            <CardFooter className="mt-auto p-6 pt-0">
               <Button asChild className="w-full group">
                 <Link href={project.href}>
                   View Case Study

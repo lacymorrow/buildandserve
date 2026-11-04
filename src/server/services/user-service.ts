@@ -27,6 +27,7 @@
  */
 
 import { and, eq } from "drizzle-orm";
+import { buildTimeFeatures } from "@/config/features-config";
 import { logger } from "@/lib/logger";
 import { db } from "@/server/db";
 import type { User } from "@/server/db/schema";
@@ -34,7 +35,6 @@ import { projectMembers, teamMembers, userFiles, users } from "@/server/db/schem
 import { apiKeyService } from "./api-key-service";
 import { BaseService } from "./base-service";
 import { PaymentService } from "./payment-service";
-import { deleteFromS3 } from "./s3";
 import { teamService } from "./team-service";
 
 /**
@@ -99,7 +99,11 @@ export class UserService extends BaseService<typeof users> {
     });
 
     if (!dbUser) {
-      // No user with this email - create new user
+      // No user with this email - create new user.
+      // emailVerified stays null: the caller hands us a profile, not proof
+      // that this address was confirmed. Whoever can prove it stamps the
+      // column. Passed explicitly because a database created before
+      // LAC-4100 still defaults the column to now.
       const [newUser] = await db
         .insert(users)
         .values({
@@ -107,6 +111,7 @@ export class UserService extends BaseService<typeof users> {
           email: normalizedEmail,
           name: authUser.name ?? null,
           image: authUser.image ?? null,
+          emailVerified: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
@@ -408,7 +413,7 @@ export class UserService extends BaseService<typeof users> {
 
     logger.info("Added file to user profile", {
       userId,
-      fileId: newFile?.id || "",
+      fileId: newFile?.id ?? "",
       title: file.title,
     });
 
@@ -434,11 +439,17 @@ export class UserService extends BaseService<typeof users> {
       throw new Error("File not found or access denied");
     }
 
-    // Delete from S3 first
+    // Delete from S3 first. The S3 client is imported lazily so this service
+    // does not statically depend on the AWS SDK when S3 is disabled.
     try {
       const fileName = file.location.split("/").pop();
       if (fileName) {
-        await deleteFromS3(fileName);
+        if (buildTimeFeatures.S3_ENABLED) {
+          const { deleteFromS3 } = await import("./s3");
+          await deleteFromS3(fileName);
+        } else {
+          logger.debug("S3 is disabled, skipping S3 file deletion", { fileId, fileName });
+        }
       }
     } catch (error) {
       logger.error("Failed to delete file from S3", {
@@ -500,6 +511,11 @@ export class UserService extends BaseService<typeof users> {
         logger.info("User not found by email, creating new user.", { email: normalizedEmail });
         const newUserId = crypto.randomUUID();
 
+        // emailVerified stays null. The callers here are payment webhooks,
+        // and the address on an order is whatever the buyer typed into the
+        // provider's checkout — a payment is not proof of ownership. Signing
+        // in through the magic link stamps the column. Passed explicitly
+        // because a database created before LAC-4100 still defaults it to now.
         const [newUserRecord] = await tx
           .insert(users)
           .values({
@@ -507,9 +523,9 @@ export class UserService extends BaseService<typeof users> {
             email: normalizedEmail,
             name: userData?.name ?? null,
             image: userData?.image ?? null,
+            emailVerified: null,
             createdAt: new Date(),
             updatedAt: new Date(),
-            // emailVerified might need specific handling depending on requirements
           })
           .returning();
 
@@ -547,7 +563,7 @@ export class UserService extends BaseService<typeof users> {
             });
             logger.info("Created default API key for newly created user", {
               userId: result.user.id,
-              apiKeyId: apiKey?.id || "",
+              apiKeyId: apiKey?.id ?? "",
             });
           } catch (error) {
             logger.error("Failed to create default API key for new user", {

@@ -1,4 +1,3 @@
-import * as math from "mathjs";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import "./GradualBlur.css";
@@ -69,7 +68,7 @@ const useResponsiveDimension = (responsive: any, config: any, key: string) => {
     const calc = () => {
       const w = window.innerWidth;
       let v = (config as any)[key];
-      const capitalizedKey = key && key.length > 0 ? key[0]!.toUpperCase() + key.slice(1) : key;
+      const capitalizedKey = key && key.length > 0 ? key[0]?.toUpperCase() + key.slice(1) : key;
       if (w <= 480 && (config as any)[`mobile${capitalizedKey}`])
         v = (config as any)[`mobile${capitalizedKey}`];
       else if (w <= 768 && (config as any)[`tablet${capitalizedKey}`])
@@ -135,17 +134,17 @@ function GradualBlur(props: any) {
       let progress = i / config.divCount;
       progress = curveFunc(progress);
 
-      let blurValue;
+      let blurValue: number;
       if (config.exponential) {
         blurValue = ((2 ** (progress * 4)) as number) * 0.0625 * currentStrength;
       } else {
         blurValue = 0.0625 * (progress * config.divCount + 1) * currentStrength;
       }
 
-      const p1 = math.round((increment * i - increment) * 10) / 10;
-      const p2 = math.round(increment * i * 10) / 10;
-      const p3 = math.round((increment * i + increment) * 10) / 10;
-      const p4 = math.round((increment * i + increment * 2) * 10) / 10;
+      const p1 = Math.round((increment * i - increment) * 10) / 10;
+      const p2 = Math.round(increment * i * 10) / 10;
+      const p3 = Math.round((increment * i + increment) * 10) / 10;
+      const p4 = Math.round((increment * i + increment * 2) * 10) / 10;
 
       let gradient = `transparent ${p1}%, black ${p2}%`;
       if (p3 <= 100) gradient += `, black ${p3}%`;
@@ -215,6 +214,7 @@ function GradualBlur(props: any) {
   }, [isVisible, animated, onAnimationComplete, duration]);
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: decorative/UI hover interaction, not primary action
     <div
       ref={containerRef}
       className={`gradual-blur ${config.target === "page" ? "gradual-blur-page" : "gradual-blur-parent"} ${config.className}`}

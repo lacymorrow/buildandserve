@@ -35,11 +35,13 @@ import { fileURLToPath } from "node:url";
 import { evidenceBaseFor } from "./utils/store-watch-evidence";
 
 /**
- * The watch runs every 4 hours, so 5 is one full cadence plus an hour of slack
- * for a run that merely started late. Below this and a slow run pages someone;
- * far above it and a genuine blind window lasts most of a day unnoticed.
+ * The watch runs at 08:00 and 20:00 ET, so 13 is one full 12h gap plus an hour
+ * of slack for a run that merely started late. Below this and the healthy gap
+ * between the two daily slots pages someone; far above it and a genuine blind
+ * window lasts past the next slot unnoticed. Keep this in step with the
+ * routine's cron (LAC-4913): threshold = longest gap between slots + 1h.
  */
-export const STALE_AFTER_HOURS = 5;
+export const STALE_AFTER_HOURS = 13;
 
 /** Remembers which gap was already reported, so one gap produces one DM. */
 const ALERT_STATE_FILE = ".freshness-alert";
@@ -75,7 +77,7 @@ function easternTime(ms: number): string {
     hour: "2-digit",
     minute: "2-digit",
     // h23 rather than hour12:false, which renders midnight as hour 24 on some
-    // ICU builds. A 4h cadence puts a run at midnight ET twice a day.
+    // ICU builds, and a stalled run can sit on any hour, midnight included.
     hourCycle: "h23",
   }).formatToParts(new Date(ms));
   const at = (type: Intl.DateTimeFormatPartTypes) =>
@@ -132,7 +134,7 @@ export function assessStaleness(
     ageHours,
     line:
       `Store watch is blind: no run in ${formatAge(ageHours)}. ` +
-      `Last run ${easternTime(newest.startedAtMs)}, expected every 4h. ` +
+      `Last run ${easternTime(newest.startedAtMs)}, expected twice daily (08:00 and 20:00 ET). ` +
       `Doug's stores are unwatched.`,
     alertKey: `stale-since:${new Date(newest.startedAtMs).toISOString()}`,
   };
@@ -179,7 +181,7 @@ async function writeAlertKey(base: string, key: string): Promise<void> {
 
 /**
  * Slack-DM the line. Credentials come from the environment rather than a path
- * on Lacy's laptop so the Managed Agents trial can run this same file.
+ * on Lacy's laptop so any host can run this same file.
  *
  * Returns an error string instead of throwing: a failed DM must still leave the
  * line in the cron log and the exit code at 1. A monitor that goes quiet

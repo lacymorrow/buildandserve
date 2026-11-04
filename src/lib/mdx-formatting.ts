@@ -22,8 +22,8 @@ function formatMDXContent(content: string): string {
 	let inFrontmatter = false;
 	const formattedLines: string[] = [];
 
-	for (let i = 0; i < lines.length; i++) {
-		let line = lines[i];
+	for (const rawLine of lines) {
+		let line = rawLine;
 
 		// Handle frontmatter
 		if (line.trim() === "---") {
