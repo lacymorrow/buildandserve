@@ -1492,8 +1492,10 @@ Never run `docker system prune` here. It would take out chatwoot and the
 Paperclip Postgres cluster alongside this container.
 
 The server itself carries Hetzner delete and rebuild protection (set 2026-10-28
-on LAC-5979). There are no off-box backups yet, so the automation token that can
-open a firewall rule must not also be able to destroy the only copy of this data.
+on LAC-5979). Off-box backups exist (nightly NAS pull plus pgBackRest PITR, see
+[`projects-db-backups.md`](./projects-db-backups.md)), but the NAS is one copy, so the
+automation token that can open a firewall rule must not also be able to destroy the
+server that holds the live data.
 Rebuilding the server, as opposed to the container, means turning protection off
 first and back on after:
 
