@@ -121,8 +121,8 @@ export const BlogPostListItemSkeleton = ({ className }: { className?: string }) 
         <Skeleton className="h-4 w-20" />
       </div>
       <div className="content-block">
-        <div className="feed-border"></div>
-        <div className="feed-dot"></div>
+        <div className="feed-border" />
+        <div className="feed-dot" />
 
         {/* Badge skeleton */}
         <Skeleton className="h-6 w-12 absolute -top-6 right-0 md:static mb-4" />
@@ -163,6 +163,7 @@ export const BlogPostListSkeleton = ({
   return (
     <div className={cn("space-y-8", className)}>
       {Array.from({ length: count }).map((_, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length skeleton placeholders, never reordered
         <BlogPostListItemSkeleton key={i} />
       ))}
     </div>
