@@ -908,9 +908,12 @@ export function readDeployState(
    * 2026-11-05). So `--git-path FETCH_HEAD` points into
    * `.git/worktrees/buildandserve-ops/`, which its own pulls write, while
    * `--git-common-dir` holds a second `FETCH_HEAD` that every other session's
-   * fetch in the main checkout touches. Preferring the newest of the two would
-   * let a sibling's healthy fetch mask this checkout's stale one, which is the
-   * false negative this whole function exists to close.
+   * fetch in the main checkout touches. Note `refs/remotes/origin/main` itself
+   * is shared, so a sibling's full fetch does refresh it for this checkout too;
+   * the risk in newest-wins is a sibling fetching some OTHER branch, which
+   * touches the shared `FETCH_HEAD` without moving `origin/main`. Own-first
+   * trades that false negative for a rare false alarm (own pull failing for two
+   * days while a sibling's succeeds), which is the louder and safer error here.
    *
    * The fallback still matters: a worktree that has never fetched on its own
    * has no per-worktree file at all, and reading that as "never fetched" would
@@ -930,7 +933,9 @@ export function readDeployState(
       } catch {
         // Nothing at that path; try the next. Missing from both means no fetch
         // has ever landed here, which `formatFetchAlert` reports rather than
-        // treating as fresh.
+        // treating as fresh. Any error lands here, not only ENOENT, so an
+        // unreadable file (EACCES) also reads as "no fetch on record": the alarm
+        // fires with slightly wrong wording rather than staying silent.
       }
     }
     return null;
