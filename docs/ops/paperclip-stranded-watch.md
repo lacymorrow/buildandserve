@@ -282,13 +282,22 @@ three wait on the LAC-4482 decision about shipping platform patches.
   - So the saved message is genuinely never-started, and a
     waiter-is-not-assignee suppressor is rejected on its own terms: 5 of the 29
     deferred wakes on the board have waiter != assignee and would be hidden.
-  Caveat carried from that trace, not independently checked: the `paperclip`
-  checkout read is dated 2026-10-20, so the running server could differ.
-  **Disposition: the row clears when LAC-6939 reaches a terminal status, and
-  that is Lacy's approval decision, not an agent's write.** The lane filters
-  `i.status NOT IN ('done','cancelled')`, so approving or rejecting the stage
-  removes the row with no suppressor at all. Until then it is a correct alarm
-  about a real waiting message, and it must never be re-filed.
+  Caveat, partly settled 2026-11-05 against the running server (`paperclipai`
+  2026.1023.0 under `~/.npm/_npx/0aa74679bec75e15`, started 2026-11-04). The
+  line numbers above are from the 2026-10-20 `paperclip` source checkout and do
+  not apply to the running build, which is compiled and split into modules. What
+  carries over: `modules/run-dispatch/domain/policy.js` `decideIssueOwnership`
+  returns `current_owner` for any `isInteractionWake`, so the assignee guard does
+  not cancel this wake. Not re-read in the running build: the promotion path
+  (`deferred.agentId` queued with no assignee check) and the 5-of-29 count (a
+  database measurement, not source).
+  **Disposition: the row clears when LAC-6939 reaches `done` or `cancelled`
+  (the lane filters `i.status NOT IN ('done','cancelled')`), and that is not an
+  agent's write.** Resolving the board approval is the likely route, but whether
+  approve or reject moves the issue terminal, rather than leaving it `in_review`
+  or sending it back to `in_progress`, was not tested; if it does not, the row
+  persists after the decision. Until then it is a correct alarm about a real
+  waiting message, and it must never be re-filed.
   Re-filing destroys the live board `approval` stage it carries
   (`reviewAttention` responder `Board` since 21:17Z), which is the one path Lacy
   has to it on client-visible work. PR #110 (the run-start suppressor) is sound
