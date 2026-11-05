@@ -218,6 +218,10 @@ export interface DeferredWake {
   savedCount: number;
   /** The oldest saved wake, which is how long the strand has lasted. */
   oldestMs: number;
+  /** The newest saved wake. A reply after this settles the whole strand. */
+  newestMs: number;
+  /** Latest comment the waiting agent posted on the issue, or 0 if none. */
+  waiterSpokeMs: number;
   /** `executionWait.reason`, or "" when the wake was deferred behind a live run. */
   waitReason: string;
   /** `cause` of the recovery action still holding the issue, or "" if none. */
@@ -229,6 +233,8 @@ export interface DeferredVerdict {
   stranded: DeferredWake[];
   /** Saved too recently to judge. */
   young: number;
+  /** The waiting agent commented after the newest wake, so it got control anyway. */
+  superseded: number;
 }
 
 /**
@@ -252,9 +258,18 @@ export function classifyDeferred(
   nowMs: number,
   graceMinutes: number = GRACE_MINUTES
 ): DeferredVerdict {
-  const verdict: DeferredVerdict = { stranded: [], young: 0 };
+  const verdict: DeferredVerdict = { stranded: [], young: 0, superseded: 0 };
   const cutoff = nowMs - graceMinutes * 60_000;
   for (const wake of wakes) {
+    // The waiter spoke on this issue after its newest saved wake: it got control
+    // some other way (LAC-6939, 2 minutes after the wake deferred). Nothing was
+    // lost and there is nothing to repair. This is evidence the agent ran, not
+    // a guess that the strand looks settled; a hold or a missing hold says
+    // nothing about it. A comment BEFORE the wake does not count.
+    if (wake.waiterSpokeMs > wake.newestMs) {
+      verdict.superseded += 1;
+      continue;
+    }
     // Age is the only reason to withhold one. A missing hold is NOT a reason:
     // promotion is edge-triggered on a run release, so a cleared hold starts
     // nothing by itself (LAC-2809 sat 40.5h with no hold and a release in
@@ -443,12 +458,20 @@ const DEFERRED_QUERY = `
          coalesce(wa.name, '') AS waiter,
          count(*)::bigint AS saved_count,
          (extract(epoch FROM min(w.requested_at)) * 1000)::bigint AS oldest_ms,
+         (extract(epoch FROM max(w.requested_at)) * 1000)::bigint AS newest_ms,
+         coalesce((extract(epoch FROM max(sp.last_at)) * 1000)::bigint, 0) AS waiter_spoke_ms,
          coalesce(max(w.payload -> 'executionWait' ->> 'reason'), '') AS wait_reason,
          coalesce(max(h.cause), '') AS hold_cause
     FROM agent_wakeup_requests w
     JOIN issues i ON i.id::text = w.payload ->> 'issueId'
     LEFT JOIN agents ia ON ia.id = i.assignee_agent_id
     LEFT JOIN agents wa ON wa.id = w.agent_id
+    LEFT JOIN LATERAL (
+           SELECT max(c.created_at) AS last_at
+             FROM issue_comments c
+            WHERE c.issue_id = i.id
+              AND c.author_agent_id = w.agent_id
+         ) sp ON true
     LEFT JOIN LATERAL (
            SELECT ra.cause
              FROM issue_recovery_actions ra
@@ -506,6 +529,8 @@ async function readBoard(
         waiter: String(row.waiter ?? ""),
         savedCount: Number(row.saved_count),
         oldestMs: Number(row.oldest_ms),
+        newestMs: Number(row.newest_ms),
+        waiterSpokeMs: Number(row.waiter_spoke_ms ?? 0),
         waitReason: String(row.wait_reason ?? ""),
         holdCause: String(row.hold_cause ?? ""),
       })),

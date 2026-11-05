@@ -216,3 +216,9 @@ three wait on the LAC-4482 decision about shipping platform patches.
 - Neither lane can see a strand on an issue that also holds a live run. That is
   the correct default (the release drains it) but it is an assumption, not a
   verification.
+- The second lane drops a strand when the waiting agent commented on the issue
+  after its newest saved wake (LAC-7040; LAC-6939 was the standing false
+  positive: the wake deferred at 21:05Z and the agent replied at 21:07Z). A
+  comment before the wake does not count. A board-approval-only suppressor was
+  considered and dropped: it keys on issue shape, not on proof the agent ran,
+  and could hide a real strand on an issue that also awaits the board.

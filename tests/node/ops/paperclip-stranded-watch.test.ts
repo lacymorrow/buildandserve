@@ -288,6 +288,8 @@ const wake = (over: Partial<DeferredWake> & { identifier: string }): DeferredWak
   waiter: "Founding Engineer",
   savedCount: 1,
   oldestMs: minutesAgo(120),
+  newestMs: over.oldestMs ?? minutesAgo(120),
+  waiterSpokeMs: 0,
   waitReason: "execution_recovery",
   holdCause: "legacy_execution_requires_reconciliation",
   ...over,
@@ -346,6 +348,41 @@ describe("classifyDeferred", () => {
     expect(classifyDeferred([drainNeverRan], NOW).stranded.map((w) => w.identifier)).toEqual([
       "LAC-2809",
     ]);
+  });
+
+  it("drops a strand whose waiter commented after the wake (LAC-6939)", () => {
+    const spoke = wake({
+      identifier: "LAC-6939",
+      oldestMs: minutesAgo(600),
+      waiterSpokeMs: minutesAgo(600) + 2 * 60_000,
+    });
+    const verdict = classifyDeferred([spoke], NOW);
+    expect(verdict.stranded).toHaveLength(0);
+    expect(verdict.superseded).toBe(1);
+  });
+
+  it("still reports a strand when the waiter commented only BEFORE the wake", () => {
+    const verdict = classifyDeferred(
+      [wake({ identifier: "LAC-X", oldestMs: minutesAgo(600), waiterSpokeMs: minutesAgo(700) })],
+      NOW
+    );
+    expect(verdict.stranded.map((w) => w.identifier)).toEqual(["LAC-X"]);
+    expect(verdict.superseded).toBe(0);
+  });
+
+  it("still reports when a newer wake landed after the waiter's last comment", () => {
+    const verdict = classifyDeferred(
+      [
+        wake({
+          identifier: "LAC-Y",
+          oldestMs: minutesAgo(600),
+          newestMs: minutesAgo(300),
+          waiterSpokeMs: minutesAgo(500),
+        }),
+      ],
+      NOW
+    );
+    expect(verdict.stranded).toHaveLength(1);
   });
 
   it("puts the oldest strand first, because that is the one to answer", () => {
