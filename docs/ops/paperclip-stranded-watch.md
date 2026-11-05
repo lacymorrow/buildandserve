@@ -284,7 +284,11 @@ three wait on the LAC-4482 decision about shipping platform patches.
     deferred wakes on the board have waiter != assignee and would be hidden.
   Caveat carried from that trace, not independently checked: the `paperclip`
   checkout read is dated 2026-10-20, so the running server could differ.
-  **Disposition: LAC-6939 is closed by hand by the board, never re-filed.**
+  **Disposition: the row clears when LAC-6939 reaches a terminal status, and
+  that is Lacy's approval decision, not an agent's write.** The lane filters
+  `i.status NOT IN ('done','cancelled')`, so approving or rejecting the stage
+  removes the row with no suppressor at all. Until then it is a correct alarm
+  about a real waiting message, and it must never be re-filed.
   Re-filing destroys the live board `approval` stage it carries
   (`reviewAttention` responder `Board` since 21:17Z), which is the one path Lacy
   has to it on client-visible work. PR #110 (the run-start suppressor) is sound
