@@ -263,7 +263,10 @@ export function classifyDeferred(
   for (const wake of wakes) {
     // The waiter spoke on this issue after its newest saved wake: it got control
     // some other way (LAC-6939, 2 minutes after the wake deferred). Nothing was
-    // lost and there is nothing to repair. This is evidence the agent ran, not
+    // lost and there is nothing to repair. The comment must come from a run
+    // that STARTED after the newest wake (enforced in DEFERRED_QUERY): the run
+    // that was live when the wake deferred never read the saved message, so its
+    // closing comment is not evidence. This is evidence the agent ran, not
     // a guess that the strand looks settled; a hold or a missing hold says
     // nothing about it. A comment BEFORE the wake does not count.
     if (wake.waiterSpokeMs > wake.newestMs) {
@@ -459,7 +462,7 @@ const DEFERRED_QUERY = `
          count(*)::bigint AS saved_count,
          (extract(epoch FROM min(w.requested_at)) * 1000)::bigint AS oldest_ms,
          (extract(epoch FROM max(w.requested_at)) * 1000)::bigint AS newest_ms,
-         coalesce((extract(epoch FROM max(sp.last_at)) * 1000)::bigint, 0) AS waiter_spoke_ms,
+         coalesce((extract(epoch FROM (array_agg(sp.last_at ORDER BY w.requested_at DESC))[1]) * 1000)::bigint, 0) AS waiter_spoke_ms,
          coalesce(max(w.payload -> 'executionWait' ->> 'reason'), '') AS wait_reason,
          coalesce(max(h.cause), '') AS hold_cause
     FROM agent_wakeup_requests w
@@ -469,8 +472,10 @@ const DEFERRED_QUERY = `
     LEFT JOIN LATERAL (
            SELECT max(c.created_at) AS last_at
              FROM issue_comments c
+             JOIN heartbeat_runs cr ON cr.id = c.created_by_run_id
             WHERE c.issue_id = i.id
               AND c.author_agent_id = w.agent_id
+              AND cr.started_at > w.requested_at
          ) sp ON true
     LEFT JOIN LATERAL (
            SELECT ra.cause

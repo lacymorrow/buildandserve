@@ -361,6 +361,19 @@ describe("classifyDeferred", () => {
     expect(verdict.superseded).toBe(1);
   });
 
+  it("still reports a strand when the only later comment came from a run that started before the wake", () => {
+    // The live run that held the issue when the wake deferred posts its closing
+    // comment after the wake but never read it. DEFERRED_QUERY filters that
+    // comment out (cr.started_at > w.requested_at), so the row arrives with
+    // waiterSpokeMs 0 and the strand must stay reported.
+    const verdict = classifyDeferred(
+      [wake({ identifier: "LAC-Y", oldestMs: minutesAgo(600), waiterSpokeMs: 0 })],
+      NOW
+    );
+    expect(verdict.stranded.map((w) => w.identifier)).toEqual(["LAC-Y"]);
+    expect(verdict.superseded).toBe(0);
+  });
+
   it("still reports a strand when the waiter commented only BEFORE the wake", () => {
     const verdict = classifyDeferred(
       [wake({ identifier: "LAC-X", oldestMs: minutesAgo(600), waiterSpokeMs: minutesAgo(700) })],
