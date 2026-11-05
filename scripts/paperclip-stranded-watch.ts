@@ -41,6 +41,7 @@
  * Silence means healthy, same contract as the watch and the freshness check.
  */
 
+import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import postgres from "postgres";
@@ -571,25 +572,45 @@ async function readBoard(
  * Reads git in the script's OWN checkout, derived from `import.meta.path`, not
  * from the process cwd: the point is which copy of this file is executing, and
  * the invocation's cwd is the same thing only by convention.
+ *
+ * `repo` is a parameter rather than being computed inside, so a test can point
+ * it at a temp repo while cwd is somewhere else entirely. That is the one branch
+ * the whole function exists for, and it is unreachable from a test otherwise
+ * (LAC-7050 nit 1).
+ *
+ * git runs through `node:child_process`, not `Bun.spawn`. The unit suite runs
+ * under vitest on Node, where `Bun` is undefined, so a `Bun.spawn` here throws,
+ * is swallowed by the catch below and returns all-nulls -- which looks exactly
+ * like "not a repo" and made the first two tests of this function fail and the
+ * third pass for the wrong reason. `node:child_process` runs on both runtimes,
+ * so the test exercises the same code path production does (LAC-7050 nit 1).
+ *
+ * The default argument uses `import.meta.path`, which is Bun-only. Production
+ * runs under bun (shebang, and launchd invokes bun), so the default is right
+ * there; under Node it is undefined, the default throws, the catch returns
+ * all-nulls and `formatDeployAlert` says "cannot tell" -- loud, not silent,
+ * which is the safe direction. Tests must always pass `repo` explicitly.
  */
-async function readDeployState(): Promise<DeployState> {
-  const repo = path.dirname(path.dirname(import.meta.path));
-  const run = async (args: string[]): Promise<string | null> => {
+export function readDeployState(
+  repo: string = path.dirname(path.dirname(import.meta.path))
+): DeployState {
+  const run = (args: string[]): string | null => {
     try {
-      const proc = Bun.spawn(["git", "-C", repo, ...args], {
-        stdout: "pipe",
-        stderr: "ignore",
+      const result = spawnSync("git", ["-C", repo, ...args], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
       });
-      const out = (await new Response(proc.stdout).text()).trim();
-      return (await proc.exited) === 0 && out.length > 0 ? out : null;
+      if (result.status !== 0) return null;
+      const out = (result.stdout ?? "").trim();
+      return out.length > 0 ? out : null;
     } catch {
       return null;
     }
   };
   return {
-    head: await run(["rev-parse", "HEAD"]),
-    originMain: await run(["rev-parse", "origin/main"]),
-    branch: await run(["rev-parse", "--abbrev-ref", "HEAD"]),
+    head: run(["rev-parse", "HEAD"]),
+    originMain: run(["rev-parse", "origin/main"]),
+    branch: run(["rev-parse", "--abbrev-ref", "HEAD"]),
   };
 }
 
@@ -674,7 +695,7 @@ async function main() {
   // Read before the silent exit below. A stale deploy on an empty board is the
   // worst version of this: the report is silent AND the copy producing the
   // silence is not the one that was merged.
-  const deployState = await readDeployState();
+  const deployState = readDeployState();
   const deployAlert = formatDeployAlert(deployState);
   const deployIsNews =
     deployAlert !== null && (isBaseline || !seenKeys!.includes(deployKey(deployState)));
@@ -686,7 +707,12 @@ async function main() {
     // Healthy is silent. Record the empty set so a later park reads as new,
     // keeping any deploy key so a stale copy is not re-reported every day.
     if (!isBaseline) await writeSeenKeys(statePath, deployStateKeys);
-    process.exit(deployAlert === null ? 0 : 1);
+    // Exit 0 even on a standing stale deploy. The documented contract is
+    // "1 = something is parked", the sweep discards anything under 2, and this
+    // path told nobody -- so a 1 here is a claim no reader ever sees and the
+    // runbook's own exit table contradicts. The line is already on stdout.
+    // A deploy alert that IS news keeps the 1 below: that one did tell someone.
+    process.exit(0);
   }
 
   const fresh = isBaseline ? current : unreported(current, seenKeys);

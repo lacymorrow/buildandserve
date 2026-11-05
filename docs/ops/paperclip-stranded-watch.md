@@ -191,6 +191,12 @@ something, `2` could not look (missing `PAPERCLIP_DB_URL`, database
 unreachable). `2` never consumes an alert, and a failure in either query is a
 `2`: half a board reported as healthy is the thing this file exists to prevent.
 
+A **standing** stale-deploy line (already reported, so nothing new to say) exits
+`0`, not `1`. The code means "something is parked", the sweep discards anything
+under `2`, and that path DMs nobody, so a `1` there would be a claim with no
+reader contradicting this table. A stale deploy that is *news* rides the `1`,
+because that run did tell someone.
+
 Both lanes share one state file and one DM. Two notifiers on one launchd tick
 would mean two Slack calls and two chances for one lane's outage to eat the
 other lane's alert.
