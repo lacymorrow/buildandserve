@@ -6,10 +6,14 @@ import {
   classifyDeferred,
   type DeferredWake,
   deferredKey,
+  DEPLOY_KEY_PREFIX,
+  deployKey,
+  type DeployState,
   describeDeferred,
   formatAge,
   formatAlert,
   formatDeferredAlert,
+  formatDeployAlert,
   GRACE_MINUTES,
   MAX_NAMED,
   nextDeferredState,
@@ -435,5 +439,71 @@ describe("formatDeferredAlert", () => {
     expect(describeDeferred(wake({ identifier: "LAC-9", waiter: "" }), NOW)).toContain(
       "LAC-9 (unknown agent,"
     );
+  });
+});
+
+describe("formatDeployAlert", () => {
+  const state = (over: Partial<DeployState> = {}): DeployState => ({
+    head: "a".repeat(40),
+    originMain: "a".repeat(40),
+    branch: "main",
+    ...over,
+  });
+
+  it("says nothing when the running copy is origin/main", () => {
+    expect(formatDeployAlert(state())).toBeNull();
+  });
+
+  it("names the branch and both commits when the running copy is not origin/main", () => {
+    // The live 2026-11-05 case: the sweep ran this check from ~/repo/buildandserve,
+    // parked on a feature branch with a copy dated 2026-10-17, while two merged
+    // fixes to this very script sat on main unused.
+    const line = formatDeployAlert(
+      state({
+        head: "a1ca77e5aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        originMain: "9a9be939bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        branch: "LAC-5692/brand-implementation",
+      })
+    );
+    expect(line).toContain("a1ca77e5");
+    expect(line).toContain("9a9be939");
+    expect(line).toContain("LAC-5692/brand-implementation");
+    expect(line).toContain("not origin/main");
+  });
+
+  it("reports an unreadable checkout rather than assuming it is current", () => {
+    // Fail loud: "I cannot tell" must not read as "I am up to date", because the
+    // whole report below it is only as trustworthy as the copy producing it.
+    const line = formatDeployAlert(state({ head: null }));
+    expect(line).toContain("cannot tell which commit");
+    expect(formatDeployAlert(state({ originMain: null }))).toContain("cannot tell which commit");
+  });
+
+  it("still reports when the branch name is unavailable", () => {
+    const line = formatDeployAlert(
+      state({ head: "c".repeat(40), originMain: "d".repeat(40), branch: null })
+    );
+    expect(line).toContain("branch unknown");
+  });
+});
+
+describe("deployKey", () => {
+  it("is one key per (running commit, origin/main) pair, so it reports once", () => {
+    const a: DeployState = { head: "aa", originMain: "bb", branch: "x" };
+    const b: DeployState = { head: "aa", originMain: "bb", branch: "y" };
+    expect(deployKey(a)).toBe(deployKey(b));
+    expect(deployKey(a).startsWith(DEPLOY_KEY_PREFIX)).toBe(true);
+  });
+
+  it("changes when either side moves, so a new stale state is new news", () => {
+    const base: DeployState = { head: "aa", originMain: "bb", branch: "x" };
+    expect(deployKey({ ...base, head: "cc" })).not.toBe(deployKey(base));
+    expect(deployKey({ ...base, originMain: "cc" })).not.toBe(deployKey(base));
+  });
+
+  it("cannot collide with a park or a deferred key", () => {
+    const key = deployKey({ head: "aa", originMain: "bb", branch: null });
+    expect(key.startsWith("deferred:")).toBe(false);
+    expect(key).toContain(":");
   });
 });

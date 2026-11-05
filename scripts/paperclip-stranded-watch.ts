@@ -388,6 +388,58 @@ export function nextState(current: BlockedIssue[]): string[] {
   return current.map(alertKey).sort();
 }
 
+/** What commit this script is actually running from. See `formatDeployAlert`. */
+export interface DeployState {
+  /** `git rev-parse HEAD` in the script's own checkout, null when git failed. */
+  head: string | null;
+  /** `git rev-parse origin/main`, null when git failed or the ref is missing. */
+  originMain: string | null;
+  branch: string | null;
+}
+
+export const DEPLOY_KEY_PREFIX = "deploy-stale:";
+
+/**
+ * One key per (running commit, origin/main) pair, so a stale deploy is reported
+ * once rather than every day until someone notices. A new commit on either side
+ * is a different situation and gets its own line.
+ */
+export function deployKey(state: DeployState): string {
+  return `${DEPLOY_KEY_PREFIX}${state.head ?? "unknown"}:${state.originMain ?? "unknown"}`;
+}
+
+/**
+ * A report produced by a copy that is not `origin/main` is not a report about
+ * the fleet, it is a report about an old script, and until 2026-11-05 nothing
+ * said so. The sweep ran this check from `~/repo/buildandserve`, a shared
+ * checkout other sessions work in, which was sitting on branch
+ * `LAC-5692/brand-implementation` with a copy dated 2026-10-17. Both of
+ * LAC-4568's own merged fixes -- PR #58 (the `owner_type` allowlist) and PR #108
+ * (the deferred-wake lane) -- were on main and had never run, and the daily DM
+ * kept arriving, produced by pre-#58 logic. A wrong report is worse than no
+ * report, because it is trusted.
+ *
+ * The invocation pulls `--ff-only` before each run, so `origin/main` is fresh
+ * when this is read. Run by hand without a pull and a stale `origin/main` can
+ * read as a match; that is a false negative, never a false positive.
+ *
+ * Returns null when the running copy IS `origin/main`, which is the normal case.
+ */
+export function formatDeployAlert(state: DeployState): string | null {
+  if (state.head === null || state.originMain === null) {
+    return (
+      "The stranded watch cannot tell which commit it is running: `git rev-parse` " +
+      "failed in its own checkout. Treat the rest of this report as unverified."
+    );
+  }
+  if (state.head === state.originMain) return null;
+  return (
+    `The stranded watch is running ${state.head.slice(0, 8)} on branch ` +
+    `${state.branch ?? "unknown"}, not origin/main (${state.originMain.slice(0, 8)}). ` +
+    "Everything below was produced by that copy, so a fix merged to main may not be in it."
+  );
+}
+
 const QUERY = `
   SELECT i.identifier,
          i.title,
@@ -515,6 +567,32 @@ async function readBoard(
   }
 }
 
+/**
+ * Reads git in the script's OWN checkout, derived from `import.meta.path`, not
+ * from the process cwd: the point is which copy of this file is executing, and
+ * the invocation's cwd is the same thing only by convention.
+ */
+async function readDeployState(): Promise<DeployState> {
+  const repo = path.dirname(path.dirname(import.meta.path));
+  const run = async (args: string[]): Promise<string | null> => {
+    try {
+      const proc = Bun.spawn(["git", "-C", repo, ...args], {
+        stdout: "pipe",
+        stderr: "ignore",
+      });
+      const out = (await new Response(proc.stdout).text()).trim();
+      return (await proc.exited) === 0 && out.length > 0 ? out : null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    head: await run(["rev-parse", "HEAD"]),
+    originMain: await run(["rev-parse", "origin/main"]),
+    branch: await run(["rev-parse", "--abbrev-ref", "HEAD"]),
+  };
+}
+
 async function readSeenKeys(statePath: string): Promise<string[] | null> {
   const raw = await readFile(statePath, "utf8").catch(() => null);
   if (raw === null) return null;
@@ -593,10 +671,22 @@ async function main() {
   const seenKeys = await readSeenKeys(statePath);
   const isBaseline = seenKeys === null;
 
-  if (current.length === 0 && currentDeferred.length === 0) {
-    // Healthy is silent. Record the empty set so a later park reads as new.
-    if (!isBaseline) await writeSeenKeys(statePath, []);
-    process.exit(0);
+  // Read before the silent exit below. A stale deploy on an empty board is the
+  // worst version of this: the report is silent AND the copy producing the
+  // silence is not the one that was merged.
+  const deployState = await readDeployState();
+  const deployAlert = formatDeployAlert(deployState);
+  const deployIsNews =
+    deployAlert !== null && (isBaseline || !seenKeys!.includes(deployKey(deployState)));
+  const deployStateKeys = deployAlert === null ? [] : [deployKey(deployState)];
+
+  if (deployAlert !== null) console.log(deployAlert);
+
+  if (current.length === 0 && currentDeferred.length === 0 && !deployIsNews) {
+    // Healthy is silent. Record the empty set so a later park reads as new,
+    // keeping any deploy key so a stale copy is not re-reported every day.
+    if (!isBaseline) await writeSeenKeys(statePath, deployStateKeys);
+    process.exit(deployAlert === null ? 0 : 1);
   }
 
   const fresh = isBaseline ? current : unreported(current, seenKeys);
@@ -619,6 +709,8 @@ async function main() {
   // Slack calls, two failure modes and two chances for one lane's outage to
   // consume the other lane's alert.
   const blocks = [
+    // First, because it says whether to trust the rest.
+    ...(deployIsNews ? [deployAlert!] : []),
     ...(current.length > 0 && (isBaseline || fresh.length > 0)
       ? [formatAlert(verdict, fresh, now, isBaseline)]
       : []),
@@ -638,6 +730,7 @@ async function main() {
       await writeSeenKeys(statePath, [
         ...nextState(current),
         ...nextDeferredState(currentDeferred),
+        ...deployStateKeys,
       ]);
   }
 

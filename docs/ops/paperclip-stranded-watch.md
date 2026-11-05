@@ -190,19 +190,47 @@ Silence from a healthy board is the designed output, same contract as
 
 ## Schedule
 
-`~/Library/LaunchAgents/com.buildandserve.paperclip-stranded-watch.plist`,
-`StartInterval` 900, log at `~/.paperclip/logs/paperclip-stranded-watch.log`,
-state at `~/.paperclip/stranded-watch-state.json`.
+Once a day, from `~/.paperclip/paperclip-sweep.sh`, in the first 10-minute tick
+after 08:00 local. It has **no plist of its own**; the rule on this host is that
+a new Paperclip workaround gets a line in that script, never its own launchd
+agent. A day stamp at `~/.paperclip/logs/.stranded-watch-day` holds it to one run
+per day, log at `~/.paperclip/logs/paperclip-stranded-watch.log`, state at
+`~/.paperclip/stranded-watch-state.json`.
+
+To force today's run again (after a fix, or when the report looks wrong):
 
 ```bash
-launchctl bootout gui/$UID/com.buildandserve.paperclip-stranded-watch 2>/dev/null
-launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.buildandserve.paperclip-stranded-watch.plist
-launchctl kickstart -p gui/$UID/com.buildandserve.paperclip-stranded-watch
+rm -f ~/.paperclip/logs/.stranded-watch-day   # next sweep tick re-runs it, <=10 min
 ```
 
-Scheduled by launchd, not by a Paperclip routine, for the same reason as the
-freshness check: Paperclip is the thing that fails. It was down for two hours the
-morning this was written.
+Scheduled outside Paperclip, not by a Paperclip routine, for the same reason as
+the freshness check: Paperclip is the thing that fails. It was down for two hours
+the morning this was written.
+
+### Which copy runs, and why that is a check and not a detail
+
+The sweep runs it from **`~/repo/buildandserve-ops`**, a checkout that tracks
+`main` and nothing else, and pulls `--ff-only` before each run. That is the same
+shape as the four launchd watches on this host (`store-watch-freshness`,
+`paperclip-lease-loss-retry`, `fleet-power-watch`, `tailscale-watchdog`).
+
+It used to run from `~/repo/buildandserve`, the shared checkout sessions and
+agents actually work in. On 2026-11-05 that checkout was parked on branch
+`LAC-5692/brand-implementation` with a copy of this script dated 2026-10-17, so
+**both of this ticket's own merged fixes had never run**: PR #58 (the `owner_type`
+allowlist, merged 2026-11-04) and PR #108 (the deferred-wake lane, merged
+2026-11-05). The daily DM kept arriving on schedule, produced by pre-#58 logic.
+Nothing was broken in a way anyone could see, which is this script's own subject
+matter pointed at itself.
+
+So the script now reads its own checkout (`git rev-parse HEAD` vs
+`origin/main`, in the directory of `import.meta.path`, not the process cwd) and
+puts a line at the top of the report when they differ, or when git cannot be read
+at all. That line is deduped on the (running commit, `origin/main`) pair, so a
+stale deploy is reported once rather than every day. It depends on the
+invocation's `--ff-only` pull for a fresh `origin/main`: run by hand without one
+and a stale `origin/main` can read as a match, which is a false negative and
+never a false positive.
 
 ## Delete it when
 
