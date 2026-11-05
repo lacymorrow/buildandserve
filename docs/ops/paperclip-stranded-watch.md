@@ -2,8 +2,9 @@
 
 One job: tell Lacy when fleet work has gone quiet and the platform did not say so.
 
-`scripts/paperclip-stranded-watch.ts`, run by launchd every 15 minutes, reads the
-Paperclip Postgres read-only and Slack-DMs one line per newly quiet issue.
+`scripts/paperclip-stranded-watch.ts`, run [once a day from the Paperclip
+sweep](#schedule), reads the Paperclip Postgres read-only and Slack-DMs one line
+per newly quiet issue.
 
 Two lanes, same failure in two tables:
 
