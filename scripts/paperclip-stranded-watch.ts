@@ -490,6 +490,80 @@ const QUERY = `
 `;
 
 /**
+ * `EXECUTION_RECONCILIATION_CAUSES`, pinned, from `@paperclipai/shared`
+ * `dist/types/execution-projection.js`. The hold lateral below needs it in SQL
+ * and this script is standalone (`bun scripts/...`, no dependency on the
+ * server package), so the alternative to pinning is hardcoding an
+ * `~/.npm/_npx/<hash>/` path that changes on every server upgrade.
+ *
+ * Pinning trades a loud false positive for a quiet missing row: a cause the
+ * server adds becomes a hold this column fails to report. That trade is only
+ * acceptable because the drift is TESTED --
+ * `tests/node/ops/paperclip-stranded-watch.test.ts` resolves the installed
+ * package and asserts list equality, skipping loudly when it cannot find it.
+ * Without that test the pin is worse than the omission it replaced.
+ *
+ * A counter of recovery actions whose cause falls OUTSIDE this list was
+ * considered as the drift signal instead and rejected on measurement: at
+ * 17:10Z on 2026-11-05 that counter read 49, all of it ordinary board
+ * bookkeeping (`stranded_assigned_issue` 32, `deliberate_wait_without_target`
+ * 11, and so on). A signal that is permanently non-zero cannot announce an
+ * eighteenth cause; it would have to be pinned against a second list with the
+ * same drift problem. The test can tell those two apart and the counter cannot.
+ */
+export const EXECUTION_RECONCILIATION_CAUSES = [
+  "uncertain_provider_action",
+  "uncertain_external_action",
+  "uncertain_control_plane_action",
+  "completed_action_context_missing",
+  "continuation_evidence_incomplete",
+  "execution_finalization_deadline_exceeded",
+  "execution_recovery_budget_exhausted",
+  "provider_effect_inventory_unavailable",
+  "provider_failure_meaning_unverified",
+  "provider_ownership_unverified",
+  "native_provider_terminal_failed",
+  "native_event_replay_conflict",
+  "native_session_cleanup_quarantined",
+  "native_session_retry_exhausted",
+  "native_restart_recovery_blocked",
+  "native_continuation_requires_reconciliation",
+  "legacy_execution_requires_reconciliation",
+] as const;
+
+/**
+ * `CONVERSATION_ADAPTER_TYPES`, pinned, from the server's
+ * `dist/services/conversation-continuation.js`. Same trade and the same drift
+ * test as the causes above. It is needed because
+ * `conversationRecoveryActionPredicate()` is replicated in the hold lateral,
+ * and that predicate is built on `conversationRunPredicate()`, which is built
+ * on this list.
+ */
+export const CONVERSATION_ADAPTER_TYPES = [
+  "claude_local",
+  "codex_local",
+  "cursor",
+  "gemini_local",
+  "opencode_local",
+  "pi_local",
+  "grok_local",
+  "kimi_local",
+  "hermes_local",
+] as const;
+
+/**
+ * Both lists are interpolated into SQL rather than bound as parameters, because
+ * they are fixed-length literal sets and the query is built once at module
+ * load. They are source literals, never input, and the drift test asserts every
+ * entry matches `/^[a-z_]+$/`, so the interpolation cannot carry a quote.
+ */
+const sqlList = (values: readonly string[], separator: string): string =>
+  values.map((value) => `'${value}'`).join(separator);
+
+const CAUSES_SQL = sqlList(EXECUTION_RECONCILIATION_CAUSES, ",\n                    ");
+const ADAPTERS_SQL = sqlList(CONVERSATION_ADAPTER_TYPES, ", ");
+
+/**
  * Saved wakes with nothing left that could start them, grouped by issue and
  * waiting agent so five saved messages read as one strand.
  *
@@ -528,18 +602,61 @@ const QUERY = `
  *   today. This is a correctness guard against the next strand that happens to
  *   also be carrying board bookkeeping, not a fix for a wrong line someone
  *   read.
- * - It does NOT replicate the predicate's `NOT conversationRecoveryActionPredicate()`
- *   conjunct, and that omission is deliberate. That conjunct excludes a
- *   `legacy_execution_requires_reconciliation` row whose run was
- *   `runtime_mode = 'legacy'` and terminal. All 36 of the holds left after the
- *   cause filter carry exactly that cause, and 35 of the 36 satisfy a partial
- *   replication of the exists clause (run matches the issue, `legacy`, status in
- *   `failed`/`timed_out`/`interrupted`/`cancelled`) -- partial is permissive, so
- *   the real conjunct excludes at most those 35. Those issues are still held: it
- *   is `getConversationOwnershipBlocker` that holds them, checked and returned
- *   BEFORE the recovery-action read in `getExecutionBlocker` (line 31 vs 34), so
- *   the wake is deferred either way. Replicating the exclusion would take this
- *   column from 36 rows to at most 1 and hide every real hold on the board.
+ * - It DOES replicate the predicate's `NOT conversationRecoveryActionPredicate()`
+ *   conjunct, since the review of LAC-7022. The first version of this filter
+ *   skipped it and defended the skip by claiming those rows are held anyway
+ *   because `getConversationOwnershipBlocker` returns non-null for them. That
+ *   claim was wrong. The reviewer attacked it and was right to, then produced
+ *   the opposite error -- "the column reports ~35 false holds" -- and both
+ *   mistakes came from the same place: a PARTIAL replication of the exists
+ *   clause (run matches the issue, `legacy`, terminal status) which is far more
+ *   permissive than the real one. Author and reviewer each read the partial
+ *   number as the real one, in opposite directions. Measured on the live board
+ *   2026-11-05 18:0xZ, with every conjunct in place:
+ *
+ *   - Board-wide, 122 recovery-action rows across 77 issues pass the cause and
+ *     status halves. The real predicate excludes **0** of them, and **0**
+ *     issues change their hold column. On non-terminal issues alone the
+ *     candidate set is 68 rows / 34 issues, also 0 excluded.
+ *   - The reason is structural, not luck. The predicate matches 6070 rows
+ *     board-wide -- it fires constantly -- and every single one is `resolved`
+ *     (6068) or `cancelled` (2). None is `active`, none is `escalated`, none
+ *     carries `replay = 'blocked'`. The run evidence that satisfies the
+ *     predicate is the same evidence the recovery path uses to RETIRE the
+ *     action, so the two populations are disjoint by construction.
+ *   - "Disjoint by construction" is not "provably disjoint": an action could
+ *     sit `active` in the window before reconciliation catches up, and in that
+ *     window the unreplicated column names a hold the server would not. That
+ *     window is why the conjunct is replicated even at a measured 0-row
+ *     difference. The column is now the predicate, so nobody has to re-measure
+ *     the divergence by reading two files and guessing which way it cuts.
+ *   - The ownership leg of the old claim is simply false, and worth recording
+ *     because it will be tempting again. `getConversationOwnershipBlocker`
+ *     (`conversation-continuation.js:83-129`) returns null unless a PID is
+ *     alive, a process group is alive, a lease is held, or a retained remote
+ *     workspace has not confirmed it stopped. Returning early is not the same
+ *     as returning a blocker. Probed all 931 ownership-candidate runs on 310
+ *     non-terminal issues: 6 have a live PID, and all 6 are PID recycling
+ *     (`locationd`, WebKit, Chrome, `feedbackd`), which the server rejects by
+ *     comparing `process_started_at`. So there are 0 ownership holds on the
+ *     board, `getExecutionBlocker` reaches line 34, and the 34 held issues are
+ *     held by the recovery action after all -- the right answer, reached by the
+ *     wrong argument.
+ * - Two conjuncts are still NOT replicated, named here so the next reader does
+ *   not have to rediscover them:
+ *   - The ownership arm itself. The server checks it FIRST and it can hold an
+ *     issue that has no recovery action at all, which this column would read as
+ *     "no hold". It is a false negative with 0 current occurrences, and a
+ *     faithful version needs the `ps -o lstart=` recycled-PID comparison (the 6
+ *     live PIDs above are exactly what a liveness-only arm would report as
+ *     holds), the lease join, and the remote-termination-receipt check. Too much
+ *     to smuggle into this commit; tracked as its own issue (LAC-7073),
+ *     which carries the probe numbers.
+ *   - `getExecutionBlocker`'s conversation-boundary conjunct, which drops
+ *     actions created before an issue's `conversation_boundary_comment_id`.
+ *     Measured: 0 non-terminal issues on either company have a conversation
+ *     boundary set, so the branch is unreachable for agent issues and only
+ *     applies to chat-bound ones.
  * - Ordering mirrors the server exactly: `updated_at DESC, id DESC`
  *   (`execution-blocker.js:34`). A status-first key shipped in 4a5a9a23 and is
  *   reverted here. Its premise was that a `resolved` row is stale, but the
@@ -548,8 +665,9 @@ const QUERY = `
  *   hold, and the server does not rank it below an `active` one. Preferring
  *   `active` also promoted exactly the over-admitted class the cause filter
  *   just removed. It changed the named cause on 0 of 85 issues either way (0 of
- *   89 on the earlier read), so nothing on the board moves; the `id DESC` tie-break is new and makes the
- *   row choice deterministic where two share an `updated_at`.
+ *   89 on the earlier read), so nothing on the board moves; the `id DESC`
+ *   tie-break is new and makes the row choice deterministic where two share
+ *   an `updated_at`.
  */
 const DEFERRED_QUERY = `
   SELECT i.identifier,
@@ -569,26 +687,50 @@ const DEFERRED_QUERY = `
              FROM issue_recovery_actions ra
             WHERE ra.source_issue_id = i.id
               AND ra.cause IN (
-                    'uncertain_provider_action',
-                    'uncertain_external_action',
-                    'uncertain_control_plane_action',
-                    'completed_action_context_missing',
-                    'continuation_evidence_incomplete',
-                    'execution_finalization_deadline_exceeded',
-                    'execution_recovery_budget_exhausted',
-                    'provider_effect_inventory_unavailable',
-                    'provider_failure_meaning_unverified',
-                    'provider_ownership_unverified',
-                    'native_provider_terminal_failed',
-                    'native_event_replay_conflict',
-                    'native_session_cleanup_quarantined',
-                    'native_session_retry_exhausted',
-                    'native_restart_recovery_blocked',
-                    'native_continuation_requires_reconciliation',
-                    'legacy_execution_requires_reconciliation'
+                    ${CAUSES_SQL}
                   )
               AND (ra.status IN ('active', 'escalated')
                    OR ra.evidence -> 'automaticRecovery' ->> 'replay' = 'blocked')
+              AND NOT (
+                    ra.cause = 'legacy_execution_requires_reconciliation'
+                AND EXISTS (
+                      SELECT 1
+                        FROM heartbeat_runs r
+                       WHERE r.company_id = ra.company_id
+                         AND r.id::text = ra.evidence ->> 'runId'
+                         AND coalesce(r.native_issue_id::text,
+                                      r.context_snapshot ->> 'issueId')
+                             = ra.source_issue_id::text
+                         AND r.runtime_mode = 'legacy'
+                         AND r.status IN ('failed', 'timed_out', 'interrupted', 'cancelled')
+                         AND coalesce(r.result_json ->> 'workspaceRestoreFailure', '')
+                             <> 'restore_unsafe_archive'
+                         AND coalesce(r.result_json -> 'workspaceRestoreRecovery' ->> 'schema', '')
+                             <> 'paperclip.workspace-restore-recovery.v1'
+                         AND (r.runner_profile_json -> 'adapterDispatch' ->> 'adapterType'
+                                IN (${ADAPTERS_SQL})
+                              OR r.result_json ->> 'conversationContinuation'
+                                 = 'continue_conversation_v1'
+                              OR EXISTS (
+                                   SELECT 1
+                                     FROM heartbeat_run_events e
+                                    WHERE e.company_id = r.company_id
+                                      AND e.run_id = r.id
+                                      AND e.event_type = 'adapter.invoke'
+                                      AND e.payload ->> 'adapterType'
+                                          IN (${ADAPTERS_SQL})
+                                 ))
+                         AND (r.result_json ->> 'conversationContinuation'
+                                = 'continue_conversation_v1'
+                              OR r.status = 'interrupted'
+                              OR r.error_code IN ('process_lost',
+                                                  'server_shutdown_interrupted',
+                                                  'execution_reconciliation_required')
+                              OR (r.status = 'cancelled'
+                                  AND r.result_json -> 'executionCancellation' ->> 'state'
+                                      = 'acknowledged'))
+                    )
+                  )
             ORDER BY ra.updated_at DESC, ra.id DESC
             LIMIT 1
          ) h ON true
