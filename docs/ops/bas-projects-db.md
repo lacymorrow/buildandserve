@@ -1492,8 +1492,10 @@ Never run `docker system prune` here. It would take out chatwoot and the
 Paperclip Postgres cluster alongside this container.
 
 The server itself carries Hetzner delete and rebuild protection (set 2026-10-28
-on LAC-5979). There are no off-box backups yet, so the automation token that can
-open a firewall rule must not also be able to destroy the only copy of this data.
+on LAC-5979). Off-box backups exist (nightly NAS pull plus pgBackRest PITR, see
+[`projects-db-backups.md`](./projects-db-backups.md)), but the NAS is one copy, so the
+automation token that can open a firewall rule must not also be able to destroy the
+server that holds the live data.
 Rebuilding the server, as opposed to the container, means turning protection off
 first and back on after:
 
@@ -1916,13 +1918,10 @@ fleet-health hosts, which is an operator action and not in this repo.
 
 ## Not done yet
 
-Backups, the backup-age check, and the rotate-a-password and
-restore-from-backup procedures all belong to LAC-5969. **There are no off-box
-backups of this container today**, which is the largest remaining gap on this
-box by a distance. LAC-5980 put the reachability and backup-age
-checks in fleet-health rather than here, as four `projects-db*` cards in section
-1b of `fleet-health-check.sh`, and LAC-6096 added a fifth for the public path
-(see "`fleet_monitor`: the one certificate that is not a project's").
+Backups, restores, password rotation and the LAC-5980 fleet-health cards are in
+[`projects-db-backups.md`](./projects-db-backups.md). The later cards are in this file:
+the public path under "`fleet_monitor`: the one certificate that is not a project's"
+(LAC-6096), the pooled port under "fleet-health's pooled-path card (LAC-6132)".
 `scripts/bas-projects-db-watch.sh` keeps the three things only it can do: the
 served certificate, the authentication-failure log, and the secret file modes.
 
