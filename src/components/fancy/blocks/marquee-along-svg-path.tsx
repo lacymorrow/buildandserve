@@ -1,6 +1,6 @@
 "use client"
 
-import React, { type RefObject, useCallback, useEffect, useId, useRef } from "react"
+import React, { type RefObject, useCallback, useEffect, useId, useMemo, useRef } from "react"
 import {
   mix,
   motion,
@@ -113,6 +113,10 @@ interface MarqueeItemProps {
   onHoverEnd: () => void
 }
 
+// Stable default: an inline `= []` default param is a new array every render, which would
+// invalidate the useMemo in MarqueeItem and defeat the point of memoizing.
+const NO_CSS_VARIABLES: CSSVariableInterpolation[] = []
+
 // Same mapping as useTransform(v, [0, 100], [from, to]), without a hook so it can run per entry.
 const interpolateCssVar = (v: number, from: string | number, to: string | number) =>
   mix(from as never, to as never)(Math.min(Math.max(v, 0), 100) / 100)
@@ -150,16 +154,23 @@ const MarqueeItem = ({
     return unsubscribe
   }, [itemOffset, currentOffsetDistance])
 
-  const cssVariables = Object.fromEntries(
-    (cssVariableInterpolation ?? []).map(({ property, from, to }) => [
-      property,
-      transformValue(() => interpolateCssVar(currentOffsetDistance.get(), from, to)),
-    ])
+  // Memoized: each transformValue() creates a MotionValue subscribed to currentOffsetDistance
+  // that is never destroyed, so rebuilding this object per render leaks a subscriber per render.
+  // Caller note: cssVariableInterpolation is compared by identity here, so pass a hoisted or
+  // memoized array. An inline literal is a new reference every render and re-opens the leak.
+  const cssVariables = useMemo(
+    () =>
+      Object.fromEntries(
+        (cssVariableInterpolation ?? []).map(({ property, from, to }) => [
+          property,
+          transformValue(() => interpolateCssVar(currentOffsetDistance.get(), from, to)),
+        ])
+      ),
+    [cssVariableInterpolation, currentOffsetDistance]
   )
 
   return (
     <motion.div
-      key={key}
       ref={(el) => {
         if (el) itemRefs.current.set(key, el)
       }}
@@ -227,7 +238,7 @@ const MarqueeAlongSvgPath = ({
   zIndexBase = 1, // Base z-index value
   zIndexRange = 10, // Range of z-index values to use
 
-  cssVariableInterpolation = [],
+  cssVariableInterpolation = NO_CSS_VARIABLES,
 }: MarqueeAlongSvgPathProps) => {
   const container = useRef<HTMLDivElement>(null)
   const baseOffset = useMotionValue(0)
