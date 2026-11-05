@@ -867,16 +867,14 @@ async function main() {
   try {
     for (const spec of specs) {
       console.log(`\n=== ${spec.label} (${spec.platform}) ===`);
-      const result = await runStore(spec, browser, outDir).catch(
-        (error): StoreResult => ({
-          key: spec.key,
-          store: spec.label,
-          base: spec.base,
-          platform: spec.platform,
-          checks: [bad(HARNESS_CHECK, `probe threw: ${(error as Error).message}`)],
-          notes: [],
-        })
-      );
+      const result = await runStore(spec, browser, outDir).catch((error): StoreResult => ({
+        key: spec.key,
+        store: spec.label,
+        base: spec.base,
+        platform: spec.platform,
+        checks: [bad(HARNESS_CHECK, `probe threw: ${(error as Error).message}`)],
+        notes: [],
+      }));
       for (const c of result.checks) {
         const mark = c.status === "pass" ? "PASS" : c.status === "fail" ? "FAIL" : "ADAPT";
         console.log(`  [${mark}] ${c.name}: ${c.detail}`);

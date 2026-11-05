@@ -12,18 +12,18 @@ import { siteConfig } from "@/config/site-config";
 import { logger } from "@/lib/logger";
 
 export const Link = ({ children, ...props }: React.ComponentProps<typeof NextLink>) => {
-	if (typeof props.href !== "string") {
-		logger.warn("Link href must be a string", children, props);
-		props.href = "#";
-	}
+  if (typeof props.href !== "string") {
+    logger.warn("Link href must be a string", children, props);
+    props.href = "#";
+  }
 
-	if (siteConfig?.behavior?.pageTransitions) {
-		return (
-			<TransitionsLink prefetch={props?.prefetch ?? true} {...props}>
-				{children}
-			</TransitionsLink>
-		);
-	}
+  if (siteConfig?.behavior?.pageTransitions) {
+    return (
+      <TransitionsLink prefetch={props?.prefetch ?? true} {...props}>
+        {children}
+      </TransitionsLink>
+    );
+  }
 
-	return <NextLink {...props}>{children}</NextLink>;
+  return <NextLink {...props}>{children}</NextLink>;
 };

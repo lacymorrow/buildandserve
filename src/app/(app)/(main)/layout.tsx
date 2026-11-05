@@ -5,11 +5,11 @@ import FooterSection from "@/app/(app)/(main)/_components/footer";
 import { HeroHeader } from "@/app/(app)/(main)/_components/header";
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
-	const session = await auth();
+  const session = await auth();
 
-	return (
-		<MainLayout header={<HeroHeader />} footer={<FooterSection />}>
-			{children}
-		</MainLayout>
-	);
+  return (
+    <MainLayout header={<HeroHeader />} footer={<FooterSection />}>
+      {children}
+    </MainLayout>
+  );
 }

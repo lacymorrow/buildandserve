@@ -45,6 +45,11 @@ step() {
   fi
 }
 
+# The build refuses to run without a secret. A throwaway one, generated per run
+# and never written anywhere, is enough for a local gate; a real one in the
+# environment wins.
+export APP_SECRET="${APP_SECRET:-verify-$(openssl rand -hex 16)}"
+
 has_script typecheck && step "typecheck" $PM typecheck
 has_script lint && step "lint" $PM lint
 has_script test && step "unit tests" $PM test

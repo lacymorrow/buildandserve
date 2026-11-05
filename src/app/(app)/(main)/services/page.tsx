@@ -20,8 +20,7 @@ const services = [
     id: "nextjs",
     title: "Next.js and React development",
     body: "We've been building with React since early versions and Next.js since it became the obvious choice for production web apps. We know where projects go wrong, how to structure things for teams that grow, and how to ship something you won't have to rebuild in a year.",
-    goodFor:
-      "SaaS products, startup MVPs, customer portals, marketing sites that need to perform",
+    goodFor: "SaaS products, startup MVPs, customer portals, marketing sites that need to perform",
   },
   {
     id: "fullstack",
@@ -48,8 +47,7 @@ const services = [
     id: "api",
     title: "API development and integrations",
     body: "Whether you're building the API or connecting to someone else's, we do both well. Clean design, proper versioning, reliable performance under load.",
-    goodFor:
-      "Third-party integrations, webhook systems, internal API layers, data pipelines",
+    goodFor: "Third-party integrations, webhook systems, internal API layers, data pipelines",
   },
 ];
 
@@ -124,23 +122,20 @@ export default function ServicesPage() {
   return (
     <div className="min-h-screen">
       {/* Hero */}
-      <section className="pb-16 pt-24 md:pb-20 md:pt-36">
+      <section className="pt-24 pb-16 md:pt-36 md:pb-20">
         <div className="mx-auto max-w-5xl px-6">
-          <h1 className="max-w-3xl text-balance text-4xl font-medium tracking-tight md:text-5xl lg:text-[3.5rem] lg:leading-[1.1]">
+          <h1 className="max-w-3xl text-4xl font-medium tracking-tight text-balance md:text-5xl lg:text-[3.5rem] lg:leading-[1.1]">
             We handle the technical side.{" "}
-            <span className="text-muted-foreground">
-              You focus on everything else.
-            </span>
+            <span className="text-muted-foreground">You focus on everything else.</span>
           </h1>
           <p className="mt-8 max-w-xl text-lg leading-relaxed text-muted-foreground">
-            20 years of full-stack development. Built tools used by thousands of
-            developers, integrated AI into production apps, and shipped fast for
-            clients who needed to move.
+            20 years of full-stack development. Built tools used by thousands of developers,
+            integrated AI into production apps, and shipped fast for clients who needed to move.
           </p>
           <div className="mt-10 flex items-center gap-6">
             <ScheduleCallModal
               trigger={
-                <Button size="lg" className="h-12 rounded-full pl-5 pr-3 text-base">
+                <Button size="lg" className="h-12 rounded-full pr-3 pl-5 text-base">
                   <span className="text-nowrap">Start a project</span>
                   <ChevronRight className="ml-1" />
                 </Button>
@@ -156,7 +151,7 @@ export default function ServicesPage() {
       {/* Flagship Offerings */}
       <section className="border-t py-20 md:py-28">
         <div className="mx-auto max-w-5xl px-6">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
             Dedicated offerings
           </p>
 
@@ -168,7 +163,7 @@ export default function ServicesPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-3">
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                  <span className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                  <span className="text-xs font-medium tracking-[0.15em] text-muted-foreground uppercase">
                     AI Agent Orchestration
                   </span>
                 </div>
@@ -176,13 +171,10 @@ export default function ServicesPage() {
                   OpenClaw Setup &amp; Deployment
                 </h2>
                 <p className="mt-3 max-w-lg text-muted-foreground">
-                  Multi-agent systems deployed and running. Architecture,
-                  configuration, training. We know where setups go wrong because
-                  we run agent teams ourselves.
+                  Multi-agent systems deployed and running. Architecture, configuration, training.
+                  We know where setups go wrong because we run agent teams ourselves.
                 </p>
-                <p className="mt-4 text-sm font-medium">
-                  $5K–$15K project-based
-                </p>
+                <p className="mt-4 text-sm font-medium">$5K–$15K project-based</p>
               </div>
               <ArrowRight className="mt-10 h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
             </Link>
@@ -194,7 +186,7 @@ export default function ServicesPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-3">
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                  <span className="text-xs font-medium uppercase tracking-[0.15em] text-muted-foreground">
+                  <span className="text-xs font-medium tracking-[0.15em] text-muted-foreground uppercase">
                     AI Company Platform
                   </span>
                 </div>
@@ -202,8 +194,8 @@ export default function ServicesPage() {
                   Paperclip AI Company Setup
                 </h2>
                 <p className="mt-3 max-w-lg text-muted-foreground">
-                  Build your AI-powered company. Agent teams, workflows,
-                  governance. Set up by the people who built the platform.
+                  Build your AI-powered company. Agent teams, workflows, governance. Set up by the
+                  people who built the platform.
                 </p>
                 <p className="mt-4 text-sm font-medium">
                   $5K–$15K setup · transformation engagements $25K–$75K
@@ -220,12 +212,10 @@ export default function ServicesPage() {
         <div className="mx-auto max-w-5xl px-6">
           <div className="md:grid md:grid-cols-[1fr_2fr] md:gap-16">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
                 Packaged services
               </p>
-              <h2 className="mt-3 text-2xl font-medium md:text-3xl">
-                Clear scope, clear pricing
-              </h2>
+              <h2 className="mt-3 text-2xl font-medium md:text-3xl">Clear scope, clear pricing</h2>
             </div>
             <div className="mt-10 space-y-8 md:mt-0">
               {productizedServices.map((service) => (
@@ -235,13 +225,9 @@ export default function ServicesPage() {
                     <Badge variant="outline" className="text-[10px] font-normal">
                       {service.detail}
                     </Badge>
-                    <span className="ml-auto text-sm text-muted-foreground">
-                      {service.pricing}
-                    </span>
+                    <span className="ml-auto text-sm text-muted-foreground">{service.pricing}</span>
                   </div>
-                  <p className="mt-2 leading-relaxed text-muted-foreground">
-                    {service.body}
-                  </p>
+                  <p className="mt-2 leading-relaxed text-muted-foreground">{service.body}</p>
                 </div>
               ))}
             </div>
@@ -252,7 +238,7 @@ export default function ServicesPage() {
       {/* Core Services */}
       <section className="py-20 md:py-28">
         <div className="mx-auto max-w-5xl px-6">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
             What we build
           </p>
           <div className="mt-10">
@@ -261,18 +247,14 @@ export default function ServicesPage() {
                 key={service.id}
                 className="grid gap-4 border-t py-10 md:grid-cols-[3rem_1fr_1.5fr] md:gap-8"
               >
-                <span className="hidden text-sm tabular-nums text-muted-foreground/50 md:block">
+                <span className="hidden text-sm text-muted-foreground/50 tabular-nums md:block">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div>
                   <h3 className="text-lg font-medium">{service.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {service.goodFor}
-                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">{service.goodFor}</p>
                 </div>
-                <p className="leading-relaxed text-muted-foreground">
-                  {service.body}
-                </p>
+                <p className="leading-relaxed text-muted-foreground">{service.body}</p>
               </div>
             ))}
           </div>
@@ -282,13 +264,13 @@ export default function ServicesPage() {
       {/* Selected Work */}
       <section className="border-t py-20 md:py-28">
         <div className="mx-auto max-w-5xl px-6">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
             Selected work
           </p>
           <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-3">
             {caseStudies.map((study) => (
               <div key={study.id} className="flex flex-col bg-card p-8 md:p-10">
-                <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
                   {study.subtitle}
                 </p>
                 <h3 className="mt-2 text-xl font-medium">{study.title}</h3>
@@ -312,33 +294,30 @@ export default function ServicesPage() {
             </div>
             <div className="mt-6 space-y-4 leading-relaxed text-muted-foreground md:mt-0">
               <p>
-                Standard development runs $150/hr. Complex AI work,
-                architecture, and technical consulting run $200/hr. Active
-                care-plan clients get a $125/hr member rate.
+                Standard development runs $150/hr. Complex AI work, architecture, and technical
+                consulting run $200/hr. Active care-plan clients get a $125/hr member rate.
               </p>
               <p>
-                Project-based pricing is available for well-defined scopes —
-                starter sites from $7,500, business sites from $15,000, custom
-                web apps from $35,000. Minimum engagement is $5,000. See the
-                full breakdown on our{" "}
-                <Link href={routes.pricing} className="text-foreground underline underline-offset-4">
+                Project-based pricing is available for well-defined scopes — starter sites from
+                $7,500, business sites from $15,000, custom web apps from $35,000. Minimum
+                engagement is $5,000. See the full breakdown on our{" "}
+                <Link
+                  href={routes.pricing}
+                  className="text-foreground underline underline-offset-4"
+                >
                   pricing page
                 </Link>
                 .
               </p>
               <p>
-                All projects start with a free 30-minute call. We&apos;ll tell
-                you whether we&apos;re the right fit and roughly what it would
-                cost before anyone commits to anything.
+                All projects start with a free 30-minute call. We&apos;ll tell you whether
+                we&apos;re the right fit and roughly what it would cost before anyone commits to
+                anything.
               </p>
               <div className="pt-4">
                 <ScheduleCallModal
                   trigger={
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      className="rounded-full pl-5 pr-3"
-                    >
+                    <Button variant="outline" size="lg" className="rounded-full pr-3 pl-5">
                       <span className="text-nowrap">Book a free call</span>
                       <ChevronRight className="ml-1" />
                     </Button>
@@ -358,10 +337,9 @@ export default function ServicesPage() {
               Have something to build?
             </h2>
             <p className="mt-4 max-w-xl text-neutral-400">
-              We keep the client list manageable. Most projects start with a
-              30-minute call, no commitment, just a conversation about what
-              you&apos;re trying to build and whether we&apos;re the right
-              people to help.
+              We keep the client list manageable. Most projects start with a 30-minute call, no
+              commitment, just a conversation about what you&apos;re trying to build and whether
+              we&apos;re the right people to help.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <ScheduleCallModal

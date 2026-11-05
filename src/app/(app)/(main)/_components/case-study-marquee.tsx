@@ -106,12 +106,12 @@ const MARQUEE_PATH = "M-200,50 C0,400 400,450 1600,250";
 const CaseStudyItem = ({ study }: { study: CaseStudy }) => {
   return (
     <div
-      className="w-[300px] h-[200px] flex items-center justify-center select-none"
+      className="flex h-[200px] w-[300px] items-center justify-center select-none"
       draggable={false}
     >
       <Link
         href={study.href}
-        className="block relative group cursor-pointer select-none"
+        className="group relative block cursor-pointer select-none"
         draggable={false}
       >
         <Image
@@ -119,11 +119,11 @@ const CaseStudyItem = ({ study }: { study: CaseStudy }) => {
           alt={study.title}
           width={300}
           height={200}
-          className="object-contain max-w-[300px] max-h-[200px] transition-all duration-300 group-hover:scale-105 group-hover:brightness-110"
+          className="max-h-[200px] max-w-[300px] object-contain transition-all duration-300 group-hover:scale-105 group-hover:brightness-110"
           draggable={false}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex items-end justify-center select-none">
-          <span className="text-white text-sm font-semibold pb-4 px-2 text-center drop-shadow-lg select-none">
+        <div className="absolute inset-0 flex items-end justify-center rounded-lg bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 transition-opacity duration-300 select-none group-hover:opacity-100">
+          <span className="px-2 pb-4 text-center text-sm font-semibold text-white drop-shadow-lg select-none">
             {study.title}
           </span>
         </div>
@@ -150,14 +150,13 @@ export const CaseStudyMarquee = ({
       <div className="">
         <div className="mx-auto w-full max-w-5xl px-6">
           <div>
-            <h2 className="text-foreground max-w-2xl text-balance text-4xl font-semibold">Websites, Apps, Dashboards<br />Projects we are proud of</h2>
+            <h2 className="max-w-2xl text-4xl font-semibold text-balance text-foreground">
+              Websites, Apps, Dashboards
+              <br />
+              Projects we are proud of
+            </h2>
           </div>
-          <div
-            className={cn(
-              "relative h-[500px] w-full overflow-hidden -mx-8 z-0",
-              className,
-            )}
-          >
+          <div className={cn("relative z-0 -mx-8 h-[500px] w-full overflow-hidden", className)}>
             <MarqueeAlongSvgPath
               path={MARQUEE_PATH}
               viewBox="-250 0 1900 450"
@@ -172,7 +171,7 @@ export const CaseStudyMarquee = ({
               grabCursor
               enableRollingZIndex
               preserveAspectRatio="xMidYMid meet"
-              className="w-full h-full -my-16"
+              className="-my-16 h-full w-full"
             >
               {studies.map((study) => (
                 <CaseStudyItem key={study.id} study={study} />
@@ -180,9 +179,9 @@ export const CaseStudyMarquee = ({
             </MarqueeAlongSvgPath>
 
             {/* Fade out gradients */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute left-0 top-0 w-48 h-full bg-gradient-to-r from-background to-transparent z-10" />
-              <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-background to-transparent z-10" />
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute top-0 left-0 z-10 h-full w-48 bg-gradient-to-r from-background to-transparent" />
+              <div className="absolute top-0 right-0 z-10 h-full w-64 bg-gradient-to-l from-background to-transparent" />
             </div>
           </div>
         </div>
