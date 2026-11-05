@@ -35,7 +35,7 @@ export default function TwilioPage() {
           </div>
           <p className="text-xl text-muted-foreground leading-relaxed">
             Building innovative communication tools and developer experiences
-            with Twilio&apos;s APIs. Created hackathon projects and developer
+            with Twilio's APIs. Created hackathon projects and developer
             resources that showcase the power of programmable communications.
           </p>
 
@@ -91,7 +91,7 @@ export default function TwilioPage() {
               Twilio empowers developers to build the future of communications
               with powerful APIs for voice, video, messaging, and more. I
               created innovative hackpack projects that demonstrate creative
-              applications of Twilio&apos;s communication platform.
+              applications of Twilio's communication platform.
             </p>
 
             <h3>Key Contributions</h3>
@@ -134,7 +134,7 @@ export default function TwilioPage() {
             <div>
               <h4 className="font-medium mb-2">API Integration</h4>
               <p className="text-sm text-muted-foreground">
-                Utilized Twilio&apos;s REST APIs for SMS, Voice, and Video
+                Utilized Twilio's REST APIs for SMS, Voice, and Video
                 communication. Implemented webhook endpoints for real-time event
                 processing and response.
               </p>

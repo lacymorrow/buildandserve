@@ -67,7 +67,7 @@ export default function FAQsTwo() {
                     </Accordion>
 
                     <p className="text-center text-muted-foreground mt-6 px-8">
-                        Can&apos;t find what you&apos;re looking for?{' '}
+                        Can't find what you're looking for?{' '}
                         <Link
                             href="/contact"
                             className="text-primary font-medium hover:underline">

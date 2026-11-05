@@ -50,17 +50,17 @@ function formatMDXContent(content: string): string {
 		}
 
 		// Format lists
-		if (/^[\s]*[-*+]\s/.exec(line)) {
+		if (line.match(/^[\s]*[-*+]\s/)) {
 			line = line.replace(/^(\s*)[-*+]\s+/, "$1- ");
 		}
 
 		// Format headings
-		if (/^#+\s/.exec(line)) {
+		if (line.match(/^#+\s/)) {
 			line = line.replace(/^(#+)\s*/, "$1 ");
 		}
 
 		// Format blockquotes
-		if (/^>\s/.exec(line)) {
+		if (line.match(/^>\s/)) {
 			line = line.replace(/^>\s*/, "> ");
 		}
 

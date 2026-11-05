@@ -16,7 +16,7 @@ export const Heading = ({
   id,
   ...props
 }: HeadingProps) => {
-  const Component = `h${level}`;
+  const Component = `h${level}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
   // Generate ID from children if not provided
   const headingId =
