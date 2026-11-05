@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { redirects, routes } from "../../../src/config/routes";
+import { redirects } from "../../../src/config/redirects";
+import { routes } from "../../../src/config/routes";
 
 // LAC-3146: legacy AI-fleet URLs permanently redirect to lacymorrow.com,
 // while the pages themselves live on at new buildandserve URLs.
