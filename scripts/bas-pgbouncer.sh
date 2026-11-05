@@ -223,7 +223,7 @@ ensure_network() {
 # the `local all all trust` line in the Postgres hba. Keeping the console off TCP
 # entirely is what avoids storing a pgbadmin certificate and key on the box.
 ensure_hba() {
-	if [[ -f "$HBA" ]]; then
+	if [[ -s "$HBA" ]]; then
 		log "hba: already present, $(grep -c '^hostssl' "$HBA" || true) project line(s)"
 	else
 		cat >"$HBA" <<'HBAEOF'
@@ -252,8 +252,10 @@ HBAEOF
 filter_file() {
 	local src="$1" dest="$2" rc=0
 	shift 2
-	if [[ ! -f "$src" ]]; then
-		echo "$src is missing; refusing to rewrite it" >&2
+	if [[ ! -s "$src" ]]; then
+		# -s, not -f: grep -v on a 0-byte file exits 1, which reads as the normal
+		# "nothing selected" case and would install an empty dest (LAC-6569).
+		echo "$src is missing or empty; refusing to rewrite it" >&2
 		exit 1
 	fi
 	grep "$@" "$src" >"$dest" || rc=$?
@@ -265,7 +267,7 @@ filter_file() {
 }
 
 ensure_userlist() {
-	if [[ ! -f "$USERLIST" ]]; then
+	if [[ ! -s "$USERLIST" ]]; then
 		# pgbadmin has an empty secret on purpose: its hba line is `trust` on a
 		# unix socket in a 0700 directory, so there is nothing for a password to
 		# add. PgBouncer still requires the name to exist in this file.
@@ -571,6 +573,9 @@ add_project() {
 	chown "$PGB_UID:$PGB_GID" "$USERLIST.new"
 	mv -f "$USERLIST.new" "$USERLIST"
 
+	# ensure_hba first: grep -q exits 1/2 on a 0-byte or missing file, and the append
+	# below would then create an hba holding only this role (LAC-6569).
+	ensure_hba
 	if ! grep -qE "^hostssl[[:space:]]+${role}[[:space:]]+${role}[[:space:]]" "$HBA"; then
 		printf 'hostssl %-30s %-30s %-6s %s\n' "$role" "$role" "all" "cert" >>"$HBA"
 	fi
@@ -648,12 +653,16 @@ add_monitor() {
 		"$role" "$DB_HOST" "$db" "$MONITOR_POOL" >"$CONF/databases.d/$role.conf"
 	chmod 644 "$CONF/databases.d/$role.conf"
 
-	grep -v "^\"$role\" " "$USERLIST" >"$USERLIST.new" || true
+	ensure_userlist
+	filter_file "$USERLIST" "$USERLIST.new" -v "^\"$role\" "
 	printf '"%s" "%s"\n' "$role" "$password" >>"$USERLIST.new"
 	chmod 600 "$USERLIST.new"
 	chown "$PGB_UID:$PGB_GID" "$USERLIST.new"
 	mv -f "$USERLIST.new" "$USERLIST"
 
+	# ensure_hba first: grep -q exits 1/2 on a 0-byte or missing file, and the append
+	# below would then create an hba holding only this role (LAC-6569).
+	ensure_hba
 	if ! grep -qE "^hostssl[[:space:]]+${role}[[:space:]]+${role}[[:space:]]" "$HBA"; then
 		printf 'hostssl %-30s %-30s %-6s %s\n' "$role" "$role" "all" "cert" >>"$HBA"
 	fi
@@ -673,11 +682,12 @@ drop_monitor() {
 		return 0
 	fi
 	rm -f "$CONF/databases.d/$role.conf"
-	grep -v "^\"$role\" " "$USERLIST" >"$USERLIST.new" || true
+	ensure_userlist
+	filter_file "$USERLIST" "$USERLIST.new" -v "^\"$role\" "
 	chmod 600 "$USERLIST.new"
 	chown "$PGB_UID:$PGB_GID" "$USERLIST.new"
 	mv -f "$USERLIST.new" "$USERLIST"
-	grep -vE "^hostssl[[:space:]]+${role}[[:space:]]+${role}[[:space:]]" "$HBA" >"$HBA.new" || true
+	filter_file "$HBA" "$HBA.new" -vE "^hostssl[[:space:]]+${role}[[:space:]]+${role}[[:space:]]"
 	chmod 644 "$HBA.new"
 	mv -f "$HBA.new" "$HBA"
 	ensure_ini
