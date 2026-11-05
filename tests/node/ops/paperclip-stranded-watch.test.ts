@@ -1,11 +1,20 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   alertKey,
   type BlockedIssue,
+  CONVERSATION_ADAPTER_TYPES,
   classify,
   classifyDeferred,
   DEPLOY_KEY_PREFIX,
@@ -14,6 +23,7 @@ import {
   deferredKey,
   deployKey,
   describeDeferred,
+  EXECUTION_RECONCILIATION_CAUSES,
   formatAge,
   formatAlert,
   formatDeferredAlert,
@@ -585,5 +595,122 @@ describe("readDeployState", () => {
     expect(state.originMain).toBeNull();
     // Null must never read as "the copy is current".
     expect(formatDeployAlert(state)).toContain("cannot tell which commit it is running");
+  });
+});
+
+/**
+ * Drift guard for the two lists the hold lateral pins (LAC-7022 review).
+ *
+ * The lateral needs `EXECUTION_RECONCILIATION_CAUSES` and
+ * `CONVERSATION_ADAPTER_TYPES` as SQL literals, and this script is standalone,
+ * so both are copied into it. A copy fails in the quiet direction: when the
+ * server adds an eighteenth cause, the column stops reporting that kind of hold
+ * and says nothing. These tests are the only thing that makes the copy
+ * defensible, so they must fail loudly rather than pass vacuously -- which is
+ * why a missing install SKIPS with a message instead of asserting nothing.
+ *
+ * The lists are read out of the installed JavaScript as text rather than
+ * imported. Importing would need the `~/.npm/_npx/<hash>/` path inside a module
+ * graph vitest controls, and the hash changes on every server upgrade; reading
+ * the file is the same information with none of that coupling.
+ */
+/** One wording for both skip paths, so neither can be the quiet one. */
+const unverified = (why: string): string =>
+  `SKIPPED, PINNED LISTS UNVERIFIED IN THIS RUN: ${why}. The ` +
+  "EXECUTION_RECONCILIATION_CAUSES and CONVERSATION_ADAPTER_TYPES copies in " +
+  "scripts/paperclip-stranded-watch.ts were not compared against the server. Expected " +
+  "on any machine that does not run the control plane; a failure anywhere else.";
+
+describe("pinned server constants", () => {
+  const home = process.env.HOME ?? "";
+
+  /** The install the RUNNING server is executing, when it can be identified. */
+  const activeInstall = (): string | null => {
+    try {
+      const info = JSON.parse(
+        readFileSync(path.join(home, ".paperclip/instances/default/runtime-info.json"), "utf8")
+      ) as { pid?: number };
+      if (typeof info.pid !== "number") return null;
+      const out = spawnSync("ps", ["-o", "command=", "-p", String(info.pid)], {
+        encoding: "utf8",
+      }).stdout;
+      const match = /(.*_npx\/[0-9a-f]+)\/node_modules\//.exec(out ?? "");
+      return match ? match[1] : null;
+    } catch {
+      return null;
+    }
+  };
+
+  /** Every cached install, newest first, so a stale npx cache cannot win. */
+  const candidates = (): string[] => {
+    const root = path.join(home, ".npm/_npx");
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(root);
+    } catch {
+      return [];
+    }
+    return entries
+      .map((entry) => path.join(root, entry))
+      .filter((dir) => existsSync(path.join(dir, "node_modules/@paperclipai")))
+      .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+  };
+
+  const resolveInstall = (): string | null => {
+    const active = activeInstall();
+    if (active && existsSync(path.join(active, "node_modules/@paperclipai"))) return active;
+    return candidates()[0] ?? null;
+  };
+
+  /** Pulls one `export const NAME = [ ... ]` string array out of dist JS. */
+  const readList = (file: string, name: string): string[] => {
+    const text = readFileSync(file, "utf8");
+    const start = text.indexOf(`export const ${name} = [`);
+    expect(start, `${name} not found in ${file}`).toBeGreaterThanOrEqual(0);
+    const end = text.indexOf("];", start);
+    expect(end, `${name} literal is unterminated in ${file}`).toBeGreaterThan(start);
+    return [...text.slice(start, end).matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  };
+
+  it("every pinned value is a bare identifier, so SQL interpolation is safe", () => {
+    // The lateral interpolates these rather than binding them. That is only
+    // sound while nothing can carry a quote or a semicolon.
+    for (const value of [...EXECUTION_RECONCILIATION_CAUSES, ...CONVERSATION_ADAPTER_TYPES]) {
+      expect(value, `${value} is not a bare identifier`).toMatch(/^[a-z_]+$/);
+    }
+  });
+
+  it("matches the installed server's lists, or says why it could not look", (ctx) => {
+    const install = resolveInstall();
+    if (install === null) {
+      // Both channels on purpose. vitest swallows `console.warn` from a task
+      // that ends up skipped (measured: the message never reached the
+      // reporter), and `ctx.skip(note)` only shows the note on some reporters,
+      // so a direct stderr write is what makes this audible either way. A
+      // silent skip would be the exact failure this file exists to prevent.
+      process.stderr.write(`${unverified("no @paperclipai install under ~/.npm/_npx")}\n`);
+      ctx.skip(unverified("no @paperclipai install under ~/.npm/_npx"));
+      return;
+    }
+    const shared = path.join(
+      install,
+      "node_modules/@paperclipai/shared/dist/types/execution-projection.js"
+    );
+    const server = path.join(
+      install,
+      "node_modules/@paperclipai/server/dist/services/conversation-continuation.js"
+    );
+    if (!existsSync(shared) || !existsSync(server)) {
+      const why = `${install} has no execution-projection.js / conversation-continuation.js`;
+      process.stderr.write(`${unverified(why)}\n`);
+      ctx.skip(unverified(why));
+      return;
+    }
+    // Order matters as well as membership: the lateral emits them in order and
+    // a reordering is a sign the server list was rewritten, not appended to.
+    expect(readList(shared, "EXECUTION_RECONCILIATION_CAUSES")).toEqual([
+      ...EXECUTION_RECONCILIATION_CAUSES,
+    ]);
+    expect(readList(server, "CONVERSATION_ADAPTER_TYPES")).toEqual([...CONVERSATION_ADAPTER_TYPES]);
   });
 });
