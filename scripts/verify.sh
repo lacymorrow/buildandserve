@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
-# Local CI gate. Runs the same checks GitHub Actions would, on this machine,
-# and prints a Markdown summary to paste into the PR body.
+# Local CI gate. Runs typecheck, lint, tests, a production build and a route
+# smoke on this machine, and prints a Markdown summary for the PR body.
 #
-# Why: Actions minutes on private repos are billed, and automated upstream
-# syncs and agent-authored PRs were burning them on checks that had already
-# been run locally. Run this, paste the summary, and commit with "[skip ci]"
-# in the message. Add the "ci:full" label to a PR when you want GitHub to run
-# the full suite anyway.
+# Why: there is no per-PR workflow on this repo. Nothing on GitHub typechecks,
+# lints or tests a pull request, so this script is the gate. Run it, paste the
+# summary in the PR body. Do not bother with "[skip ci]" or a "ci:full" label:
+# neither does anything here (no per-PR Actions jobs exist, the repo has no
+# ci:full label, and the Vercel Ignored Build Step only skips dependabot
+# previews). See the "CI and Local Verification" section of CLAUDE.md, and
+# LAC-7038 for adding the workflow.
+#
+# Note: as of 2026-11-05 this script does not pass on main (1 typecheck error,
+# 7 failing unit test files). That is LAC-7035, not your change.
 #
 # Usage: scripts/verify.sh [--no-build] [--no-smoke] [--port 3040] [--routes "/ /blog /nope-404=404"]
 #   Routes are space separated; "=CODE" sets the expected status (default 200).
@@ -22,7 +27,7 @@ while [ $# -gt 0 ]; do
     --no-smoke) DO_SMOKE=0 ;;
     --port) PORT="$2"; shift ;;
     --routes) ROUTES="$2"; shift ;;
-    -h|--help) sed -n 2,13p "$0"; exit 0 ;;
+    -h|--help) sed -n 2,17p "$0"; exit 0 ;;
   esac
   shift
 done
@@ -76,4 +81,4 @@ if [ ${#SMOKE_ROWS[@]} -gt 0 ]; then
   printf '%s\n' "${SMOKE_ROWS[@]}"
 fi
 echo
-if [ "$FAILED" = 1 ]; then echo "Result: FAIL"; exit 1; else echo "Result: PASS. Commit with [skip ci] and paste this summary in the PR."; fi
+if [ "$FAILED" = 1 ]; then echo "Result: FAIL"; exit 1; else echo "Result: PASS. Paste this summary in the PR body."; fi
