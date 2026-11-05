@@ -35,6 +35,23 @@ Because Shipkit is the upstream for a number of downstream sites (e.g., `shipkit
 3. Follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `perf:`, `test:`).
 4. Fill in the PR template — especially the test plan.
 
+## Preview deployments are opt-in
+
+Pushing a branch won't build a Vercel preview. Previews were costing about 69 minutes of build time a week here, and 95 of the last 96 of them were automated branches nobody ever opened. Typecheck, lint and tests run on every pull request anyway, which was the other thing preview builds were good for.
+
+Want a preview URL? Put `[preview]` anywhere in the commit message:
+
+```sh
+git commit -m "feat(builder): new hero layout [preview]"
+```
+
+If you already pushed, an empty commit does it: `git commit --allow-empty -m "[preview]"`. The
+match is a plain substring, so a commit message that just mentions the marker will build too. Redeploying from the Vercel dashboard also works, since that skips the check entirely.
+
+Production isn't affected. Every merge to `main` still builds and deploys buildandserve.com.
+
+The policy lives in `scripts/vercel-ignore-step.sh`. That file is the authority, so edit it there. The Vercel dashboard has an "Ignored Build Step" field, but `vercel.json` overrides it and changing it won't do anything.
+
 ## Code style
 
 - **Server Components first.** Reach for `'use client'` only when you need browser-only APIs or interactivity.
