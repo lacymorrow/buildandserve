@@ -78,13 +78,13 @@ const MeetingIllustration = () => {
         <div className="absolute bottom-1.5 -left-1.5 rounded-md border-t border-red-700 bg-red-500 px-1 py-px text-[10px] font-medium text-white shadow-md shadow-red-500/35">
           PDF
         </div>
-        <div className="h-10 w-8 rounded-md border bg-gradient-to-b from-zinc-100 to-zinc-200"></div>
+        <div className="h-10 w-8 rounded-md border bg-gradient-to-b from-zinc-100 to-zinc-200" />
       </div>
       <div className="mb-0.5 text-sm font-semibold">Strategy Meeting</div>
       <div className="mb-4 flex gap-2 text-sm">
         <span className="text-muted-foreground">2:30 - 3:45 PM</span>
       </div>
-      <div className="mb-2 flex -space-x-1.5"></div>
+      <div className="mb-2 flex -space-x-1.5" />
       <div className="text-sm font-medium text-muted-foreground">Product Roadmap Discussion</div>
     </Card>
   );
@@ -98,16 +98,16 @@ const CodeReviewIllustration = () => {
         draggable={false}
       >
         <div className="mb-3 flex items-center gap-2">
-          <div className="size-6 rounded-full border bg-background p-0.5 shadow shadow-zinc-950/5"></div>
+          <div className="size-6 rounded-full border bg-background p-0.5 shadow shadow-zinc-950/5" />
           <span className="text-sm font-medium text-muted-foreground">Code Review</span>
 
           <span className="text-xs text-muted-foreground/75">2m</span>
         </div>
 
         <div className="ml-8 space-y-2">
-          <div className="h-2 rounded-full bg-foreground/10"></div>
-          <div className="h-2 w-3/5 rounded-full bg-foreground/10"></div>
-          <div className="h-2 w-1/2 rounded-full bg-foreground/10"></div>
+          <div className="h-2 rounded-full bg-foreground/10" />
+          <div className="h-2 w-3/5 rounded-full bg-foreground/10" />
+          <div className="h-2 w-1/2 rounded-full bg-foreground/10" />
         </div>
 
         <Signature className="mt-3 ml-8 size-5" />

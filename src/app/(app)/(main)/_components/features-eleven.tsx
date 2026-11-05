@@ -57,13 +57,13 @@ const AIAssistantIllustration = () => {
       <div className="w-fit">
         <Sparkles className="size-3.5 fill-purple-300 stroke-purple-300" />
         <p className="mt-2 line-clamp-2 text-sm">How can we help you grow your business?</p>
-        <ul role="list" className="mt-3 space-y-2 text-sm text-muted-foreground">
+        <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
           {[
             { value: "100%", emoji: "⭐️", label: "Satisfaction" },
             { value: "24/7", emoji: "👨🏽‍💻", label: "Support" },
             { value: "Always", emoji: "🦜", label: "On Time" },
-          ].map((stat, index) => (
-            <li key={index} className="-ml-0.5 flex items-center gap-2">
+          ].map((stat) => (
+            <li key={stat.label} className="-ml-0.5 flex items-center gap-2">
               <span>{stat.emoji}</span>
               <span className="font-medium text-foreground">{stat.value}</span> {stat.label}
             </li>
