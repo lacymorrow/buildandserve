@@ -16,7 +16,7 @@ file does not repeat them.
 | On box     | `/data/backups/projects/YYYYMMDD/` 7 days; `/data/backups/pgbackrest/` 14 days   |
 | On NAS     | `library:/mnt/user/backups/bas/{projects,pgbackrest}/`, dumps 60 days, repo 14   |
 | Credential | library's `bas/.ssh/pull_key`; the box holds **no** NAS credential               |
-| Watcher    | `fleet-health-check.sh` on graphite, `projects-db*` keys, every 15 min              |
+| Watcher    | `fleet-health-check.sh` on graphite, `projects-db*` keys, every 15 min           |
 
 ## Pull, not push
 
@@ -249,15 +249,15 @@ In `fleet-health-check.sh` on graphite, section 1b, gated on the same
 `~/.paperclip/fleet-health/bas-enabled` marker as the rest of the bas box. Tests are
 `test/lac5980-projects-db-test.sh`, 107 assertions.
 
-| Card                           | Fails when                                                  | First thing to look at                                                                                  |
-| ------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `projects-db`                  | a real project database does not answer `SELECT 1` over TLS | `docker logs --tail 50 projects-db`, then `df -h /`                                                     |
-| `projects-db-backup`           | the newest `*.dump` on the NAS is over 26h old              | `tail /mnt/user/backups/bas/pull.log` on library, then `journalctl -u projects-db-backup.service -n 50` |
-| `projects-db-pitr`             | the pgBackRest `backup.info` on the NAS is over 26h old     | the same pull log, then `projects-db-pitr.sh info`                                                      |
-| `projects-db-connections`      | client backends pass 60 of `max_connections=100`            | `pg_stat_activity` grouped by `usename`                                                                 |
-| `projects-db-role-connections` | any role is at 80% or more of its own `rolconnlimit`        | that app's pool cap                                                                                     |
+| Card                           | Fails when                                                      | First thing to look at                                                                                       |
+| ------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `projects-db`                  | a real project database does not answer `SELECT 1` over TLS     | `docker logs --tail 50 projects-db`, then `df -h /`                                                          |
+| `projects-db-backup`           | the newest `*.dump` on the NAS is over 26h old                  | `tail /mnt/user/backups/bas/pull.log` on library, then `journalctl -u projects-db-backup.service -n 50`      |
+| `projects-db-pitr`             | the pgBackRest `backup.info` on the NAS is over 26h old         | the same pull log, then `projects-db-pitr.sh info`                                                           |
+| `projects-db-connections`      | client backends pass 60 of `max_connections=100`                | `pg_stat_activity` grouped by `usename`                                                                      |
+| `projects-db-role-connections` | any role is at 80% or more of its own `rolconnlimit`            | that app's pool cap                                                                                          |
 | `projects-db-public`           | the public port `:26432` fails the way an app's connection does | [`bas-projects-db.md`](./bas-projects-db.md), "`fleet_monitor`: the one certificate that is not a project's" |
-| `projects-db-pooled`           | the pooled port `:26433` fails                              | [`bas-projects-db.md`](./bas-projects-db.md), "fleet-health's pooled-path card (LAC-6132)"              |
+| `projects-db-pooled`           | the pooled port `:26433` fails                                  | [`bas-projects-db.md`](./bas-projects-db.md), "fleet-health's pooled-path card (LAC-6132)"                   |
 
 Several keys and not one, because any one of them alone lies. A box that answers while
 its backups stopped a week ago reads healthy on reachability. A role at its own cap is

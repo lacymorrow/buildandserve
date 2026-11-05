@@ -38,20 +38,20 @@ evidence, then retry the original owner," and no board operator reads those.
 
 Measured on the live board over the 7 days to 2026-10-16:
 
-| Class | Created | Stranded | Rate |
-|---|---|---|---|
-| Routine slots | 57 | 12 | **21%** |
-| Manual issues | 308 | 15 | 4.9% |
+| Class         | Created | Stranded | Rate    |
+| ------------- | ------- | -------- | ------- |
+| Routine slots | 57      | 12       | **21%** |
+| Manual issues | 308     | 15       | 4.9%    |
 
 Routine slots strand 4.3x more often than manual work, and one cause dominates.
 8 of those 12 died `setup_failed`, and **15 of the 18 `setup_failed` runs in 14
 days carried this one error string**. Per routine:
 
-| Routine | Slots | Stranded |
-|---|---|---|
-| Lifeboard: draft daily plan | 7 | 3 (**43%**) |
-| Doug store watch (every 4h) | 25 | 3 |
-| 7 weekly routines | 1 each | 1 each |
+| Routine                     | Slots  | Stranded    |
+| --------------------------- | ------ | ----------- |
+| Lifeboard: draft daily plan | 7      | 3 (**43%**) |
+| Doug store watch (every 4h) | 25     | 3           |
+| 7 weekly routines           | 1 each | 1 each      |
 
 All 12 landed `owner_type: board` with `attempt_count: 1`. Not one resolved an
 agent owner. Of the 12, 10 ended `cancelled` and 2 `done`: the work never
@@ -90,17 +90,17 @@ would also catch lease failures that are not safe to blind-retry.
 Every reap is decided by `decide()`, ordered most permanent first so the log says
 whether a skip will ever clear:
 
-| Skip reason | Meaning | Clears on its own |
-|---|---|---|
-| `no_issue` | the run carries no issue id | no |
-| `issue_terminal` | the issue is `done` or `cancelled` | no |
-| `already_retried` | this run already has a retry, ours or the server's | no |
-| `superseded` | a later run already started on this issue | no |
-| `grace` | reaped under 3 minutes ago | yes |
-| `stale` | **requested** over 2 hours ago | no |
-| `operator_hold` | agent is `paused`, `terminated` or `pending_approval` | on the operator |
-| `agent_busy` | the agent has a queued or running run | yes |
-| `agent_retried_this_pass` | this pass already retried a reap for the agent | yes |
+| Skip reason               | Meaning                                               | Clears on its own |
+| ------------------------- | ----------------------------------------------------- | ----------------- |
+| `no_issue`                | the run carries no issue id                           | no                |
+| `issue_terminal`          | the issue is `done` or `cancelled`                    | no                |
+| `already_retried`         | this run already has a retry, ours or the server's    | no                |
+| `superseded`              | a later run already started on this issue             | no                |
+| `grace`                   | reaped under 3 minutes ago                            | yes               |
+| `stale`                   | **requested** over 2 hours ago                        | no                |
+| `operator_hold`           | agent is `paused`, `terminated` or `pending_approval` | on the operator   |
+| `agent_busy`              | the agent has a queued or running run                 | yes               |
+| `agent_retried_this_pass` | this pass already retried a reap for the agent        | yes               |
 
 Four of these carry the reasoning worth keeping:
 
@@ -115,12 +115,13 @@ Four of these carry the reasoning worth keeping:
   LAC-4210 was requested at 04:52:16Z and reaped at 06:52:32Z, two hours later;
   on the reap clock it reads 5 minutes old at its retry and a 2h cap stops
   nothing. The guard takes the older of the two ages, so the cap bounds how stale
-  the *work* is and keeps a full 2h of margin against the 4-hourly period. That
+  the _work_ is and keeps a full 2h of margin against the 4-hourly period. That
   margin was the whole argument for deleting the supersession check (LAC-4608).
 
   **Add a routine faster than 4-hourly and this has to come down with it.** The
   `MAX_AGE_HOURS < 4` test pins the cap against a hardcoded 4, so it cannot
   notice a 1-hourly routine appearing on the board later.
+
 - **`superseded` is not `already_retried`.** A later routine slot, a board
   comment or a reassignment starts a fresh run on the issue that is nobody's
   retry of anything. Either way the work is moving.

@@ -39,14 +39,7 @@ const projects = [
       "Building the future of distributed energy with advanced battery storage and solar solutions. Led development of customer-facing platforms and internal management tools.",
     image: "/static/swell-energy/swell-program.jpeg",
     href: "/work/swell-energy",
-    technologies: [
-      "React",
-      "Node.js",
-      "TypeScript",
-      "PostgreSQL",
-      "AWS",
-      "D3.js",
-    ],
+    technologies: ["React", "Node.js", "TypeScript", "PostgreSQL", "AWS", "D3.js"],
     duration: "2022-2023",
     scale: "10k+ Users",
     role: "Senior Frontend Lead",
@@ -59,14 +52,7 @@ const projects = [
       "Empowering millions of Americans to make financial progress. Built modern web applications for credit monitoring, financial products, and personalized recommendations.",
     image: "/static/credit-karma/credit-karma-1.png",
     href: "/work/credit-karma",
-    technologies: [
-      "React",
-      "Redux",
-      "TypeScript",
-      "Node.js",
-      "GraphQL",
-      "A/B Testing",
-    ],
+    technologies: ["React", "Redux", "TypeScript", "Node.js", "GraphQL", "A/B Testing"],
     duration: "2021-2022",
     scale: "120M+ Users",
     role: "Senior Frontend Engineer",
@@ -79,14 +65,7 @@ const projects = [
       "Building innovative communication tools and developer experiences with Twilio's APIs. Created hackathon projects and developer resources.",
     image: "/static/twilio/hackpack/hackpack.png",
     href: "/work/twilio",
-    technologies: [
-      "JavaScript",
-      "Node.js",
-      "Twilio API",
-      "WebRTC",
-      "Hardware",
-      "IoT",
-    ],
+    technologies: ["JavaScript", "Node.js", "Twilio API", "WebRTC", "Hardware", "IoT"],
     duration: "2020-2021",
     scale: "Developer",
     role: "Hackpack Creator",
@@ -99,14 +78,7 @@ const projects = [
       "Making personal finance fun through gamification. Built mobile-first experiences that turn saving money into an engaging game with real financial rewards.",
     image: "/static/long-game/longgame.png",
     href: "/work/longgame",
-    technologies: [
-      "React Native",
-      "TypeScript",
-      "Redux",
-      "Firebase",
-      "Stripe",
-      "Game Design",
-    ],
+    technologies: ["React Native", "TypeScript", "Redux", "Firebase", "Stripe", "Game Design"],
     duration: "2020-2021",
     scale: "100k+ Downloads",
     role: "Senior Mobile Engineer",
@@ -116,11 +88,11 @@ const projects = [
 
 export default function WorkPage() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="container mx-auto max-w-6xl px-4 py-8">
       <div className="mb-8">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+          className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Home
@@ -128,20 +100,19 @@ export default function WorkPage() {
 
         <div className="space-y-4">
           <h1 className="text-4xl font-bold">Work & Projects</h1>
-          <p className="text-xl text-muted-foreground leading-relaxed max-w-3xl">
-            Featured case studies showcasing expertise in React, TypeScript, and
-            modern web development. From fintech platforms serving millions to
-            innovative hardware projects.
+          <p className="max-w-3xl text-xl leading-relaxed text-muted-foreground">
+            Featured case studies showcasing expertise in React, TypeScript, and modern web
+            development. From fintech platforms serving millions to innovative hardware projects.
           </p>
         </div>
       </div>
 
       {/* Projects Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {projects.map((project) => (
           <Card
             key={project.id}
-            className="group hover:shadow-lg transition-all duration-300 overflow-hidden h-full flex flex-col gap-0 py-0"
+            className="group flex h-full flex-col gap-0 overflow-hidden py-0 transition-all duration-300 hover:shadow-lg"
           >
             <div className="relative">
               <Image
@@ -149,7 +120,7 @@ export default function WorkPage() {
                 alt={project.title}
                 width={600}
                 height={300}
-                className="w-full h-48 object-contain bg-muted/20 group-hover:scale-105 transition-transform duration-300"
+                className="h-48 w-full bg-muted/20 object-contain transition-transform duration-300 group-hover:scale-105"
               />
               <div className="absolute top-4 left-4">{project.icon}</div>
             </div>
@@ -180,17 +151,17 @@ export default function WorkPage() {
               {/* Metrics */}
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <Calendar className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                  <Calendar className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
                   <div className="text-sm font-medium">{project.duration}</div>
                   <div className="text-xs text-muted-foreground">Duration</div>
                 </div>
                 <div>
-                  <Users className="h-4 w-4 mx-auto mb-1 text-muted-foreground" />
+                  <Users className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
                   <div className="text-sm font-medium">{project.scale}</div>
                   <div className="text-xs text-muted-foreground">Scale</div>
                 </div>
                 <div>
-                  <div className="h-4 w-4 mx-auto mb-1 bg-primary/20 rounded-full" />
+                  <div className="mx-auto mb-1 h-4 w-4 rounded-full bg-primary/20" />
                   <div className="text-sm font-medium">{project.role}</div>
                   <div className="text-xs text-muted-foreground">Role</div>
                 </div>
@@ -198,10 +169,10 @@ export default function WorkPage() {
             </CardContent>
 
             <CardFooter className="mt-auto p-6 pt-0">
-              <Button asChild className="w-full group">
+              <Button asChild className="group w-full">
                 <Link href={project.href}>
                   View Case Study
-                  <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
               </Button>
             </CardFooter>
@@ -210,15 +181,13 @@ export default function WorkPage() {
       </div>
 
       {/* Call to Action */}
-      <div className="mt-16 text-center space-y-4">
-        <h2 className="text-2xl font-semibold">
-          Interested in working together?
-        </h2>
-        <p className="text-muted-foreground max-w-2xl mx-auto">
-          We&apos;re always excited to take on new challenges and build amazing
-          products. Let&apos;s discuss how we can bring your ideas to life.
+      <div className="mt-16 space-y-4 text-center">
+        <h2 className="text-2xl font-semibold">Interested in working together?</h2>
+        <p className="mx-auto max-w-2xl text-muted-foreground">
+          We&apos;re always excited to take on new challenges and build amazing products. Let&apos;s
+          discuss how we can bring your ideas to life.
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+        <div className="flex flex-col justify-center gap-4 pt-4 sm:flex-row">
           <Button asChild>
             <Link href="/contact">Get In Touch</Link>
           </Button>

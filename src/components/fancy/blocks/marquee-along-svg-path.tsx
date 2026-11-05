@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import React, { type RefObject, useCallback, useEffect, useId, useMemo, useRef } from "react"
+import React, { type RefObject, useCallback, useEffect, useId, useMemo, useRef } from "react";
 import {
   mix,
   motion,
@@ -13,15 +13,15 @@ import {
   useSpring,
   useTransform,
   useVelocity,
-} from "motion/react"
+} from "motion/react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 // Custom wrap function
 const wrap = (min: number, max: number, value: number): number => {
-  const range = max - min
-  return ((((value - min) % range) + range) % range) + min
-}
+  const range = max - min;
+  return ((((value - min) % range) + range) % range) + min;
+};
 
 type PreserveAspectRatioAlign =
   | "none"
@@ -33,126 +33,137 @@ type PreserveAspectRatioAlign =
   | "xMaxYMid"
   | "xMinYMax"
   | "xMidYMax"
-  | "xMaxYMax"
+  | "xMaxYMax";
 
 interface CSSVariableInterpolation {
-  property: string
-  from: number | string
-  to: number | string
+  property: string;
+  from: number | string;
+  to: number | string;
 }
 
-type PreserveAspectRatioMeetOrSlice = "meet" | "slice"
+type PreserveAspectRatioMeetOrSlice = "meet" | "slice";
 
 type PreserveAspectRatio =
   | PreserveAspectRatioAlign
-  | `${Exclude<PreserveAspectRatioAlign, "none">} ${PreserveAspectRatioMeetOrSlice}`
+  | `${Exclude<PreserveAspectRatioAlign, "none">} ${PreserveAspectRatioMeetOrSlice}`;
 
 interface MarqueeAlongSvgPathProps {
-  children: React.ReactNode
-  className?: string
+  children: React.ReactNode;
+  className?: string;
 
   // Path properties
-  path: string
-  pathId?: string
-  preserveAspectRatio?: PreserveAspectRatio
-  showPath?: boolean
+  path: string;
+  pathId?: string;
+  preserveAspectRatio?: PreserveAspectRatio;
+  showPath?: boolean;
 
   // SVG properties
-  width?: string | number
-  height?: string | number
-  viewBox?: string
+  width?: string | number;
+  height?: string | number;
+  viewBox?: string;
 
   // Marquee properties
-  baseVelocity?: number
-  direction?: "normal" | "reverse"
-  easing?: (value: number) => number
-  slowdownOnHover?: boolean
-  slowDownFactor?: number
-  slowDownSpringConfig?: SpringOptions
+  baseVelocity?: number;
+  direction?: "normal" | "reverse";
+  easing?: (value: number) => number;
+  slowdownOnHover?: boolean;
+  slowDownFactor?: number;
+  slowDownSpringConfig?: SpringOptions;
 
   // Scroll properties
-  useScrollVelocity?: boolean
-  scrollAwareDirection?: boolean
-  scrollSpringConfig?: SpringOptions
-  scrollContainer?: RefObject<HTMLElement> | HTMLElement | null
+  useScrollVelocity?: boolean;
+  scrollAwareDirection?: boolean;
+  scrollSpringConfig?: SpringOptions;
+  scrollContainer?: RefObject<HTMLElement> | HTMLElement | null;
 
   // Item repetition
-  repeat?: number
+  repeat?: number;
 
   // Drag properties
-  draggable?: boolean
-  dragSensitivity?: number
-  dragVelocityDecay?: number
-  dragAwareDirection?: boolean
-  grabCursor?: boolean
+  draggable?: boolean;
+  dragSensitivity?: number;
+  dragVelocityDecay?: number;
+  dragAwareDirection?: boolean;
+  grabCursor?: boolean;
 
   // Z-index properties
-  enableRollingZIndex?: boolean
-  zIndexBase?: number
-  zIndexRange?: number
+  enableRollingZIndex?: boolean;
+  zIndexBase?: number;
+  zIndexRange?: number;
 
-  cssVariableInterpolation?: CSSVariableInterpolation[]
+  cssVariableInterpolation?: CSSVariableInterpolation[];
 }
 
 interface MarqueeItemProps {
-  child: React.ReactNode
-  repeatIndex: number
-  itemIndex: number
-  itemCount: number
-  itemKey: string
-  baseOffset: MotionValue<number>
-  easing?: (value: number) => number
-  calculateZIndex: (value: number) => number | undefined
-  cssVariableInterpolation?: CSSVariableInterpolation[]
-  enableRollingZIndex?: boolean
-  path: string
-  draggable?: boolean
-  grabCursor?: boolean
-  itemRefs: RefObject<Map<string, HTMLDivElement>>
-  onHoverStart: () => void
-  onHoverEnd: () => void
+  child: React.ReactNode;
+  repeatIndex: number;
+  itemIndex: number;
+  itemCount: number;
+  itemKey: string;
+  baseOffset: MotionValue<number>;
+  easing?: (value: number) => number;
+  calculateZIndex: (value: number) => number | undefined;
+  cssVariableInterpolation?: CSSVariableInterpolation[];
+  enableRollingZIndex?: boolean;
+  path: string;
+  draggable?: boolean;
+  grabCursor?: boolean;
+  itemRefs: RefObject<Map<string, HTMLDivElement>>;
+  onHoverStart: () => void;
+  onHoverEnd: () => void;
 }
 
 // Stable default: an inline `= []` default param is a new array every render, which would
 // invalidate the useMemo in MarqueeItem and defeat the point of memoizing.
-const NO_CSS_VARIABLES: CSSVariableInterpolation[] = []
+const NO_CSS_VARIABLES: CSSVariableInterpolation[] = [];
 
 // Same mapping as useTransform(v, [0, 100], [from, to]), without a hook so it can run per entry.
 const interpolateCssVar = (v: number, from: string | number, to: string | number) =>
-  mix(from as never, to as never)(Math.min(Math.max(v, 0), 100) / 100)
+  mix(from as never, to as never)(Math.min(Math.max(v, 0), 100) / 100);
 
 // Own component so the per-item hooks sit at the top level of a component, not in a .map callback.
 const MarqueeItem = ({
-  child, repeatIndex, itemIndex, itemCount, itemKey: key, baseOffset, easing,
-  calculateZIndex, cssVariableInterpolation, enableRollingZIndex, path,
-  draggable, grabCursor, itemRefs, onHoverStart, onHoverEnd,
+  child,
+  repeatIndex,
+  itemIndex,
+  itemCount,
+  itemKey: key,
+  baseOffset,
+  easing,
+  calculateZIndex,
+  cssVariableInterpolation,
+  enableRollingZIndex,
+  path,
+  draggable,
+  grabCursor,
+  itemRefs,
+  onHoverStart,
+  onHoverEnd,
 }: MarqueeItemProps) => {
   // Create a unique offset transform for each item
   const itemOffset = useTransform(baseOffset, (v) => {
-    const position = (itemIndex * 100) / itemCount
-    const wrappedValue = wrap(0, 100, v + position)
-    return `${easing ? easing(wrappedValue / 100) * 100 : wrappedValue}%`
-  })
+    const position = (itemIndex * 100) / itemCount;
+    const wrappedValue = wrap(0, 100, v + position);
+    return `${easing ? easing(wrappedValue / 100) * 100 : wrappedValue}%`;
+  });
 
   // Create a motion value for the current offset distance
-  const currentOffsetDistance = useMotionValue(0)
+  const currentOffsetDistance = useMotionValue(0);
 
   // Update z-index when offset distance changes
-  const zIndex = useTransform(currentOffsetDistance, (value) =>
-    calculateZIndex(value)
-  )
+  const zIndex = useTransform(currentOffsetDistance, (value) => calculateZIndex(value));
 
   // Update current offset distance value when animation runs
   useEffect(() => {
     const unsubscribe = itemOffset.on("change", (value: string) => {
       // Parse percentage string to get numerical value
-      const match = /^([\d.]+)%$/.exec(value)
+      const match = /^([\d.]+)%$/.exec(value);
       if (match?.[1]) {
-        currentOffsetDistance.set(Number.parseFloat(match[1]))
+        currentOffsetDistance.set(Number.parseFloat(match[1]));
       }
-    })
-    return unsubscribe
-  }, [itemOffset, currentOffsetDistance])
+    });
+    return unsubscribe;
+  }, [itemOffset, currentOffsetDistance]);
 
   // Memoized: each transformValue() creates a MotionValue subscribed to currentOffsetDistance
   // that is never destroyed, so rebuilding this object per render leaks a subscriber per render.
@@ -167,17 +178,14 @@ const MarqueeItem = ({
         ])
       ),
     [cssVariableInterpolation, currentOffsetDistance]
-  )
+  );
 
   return (
     <motion.div
       ref={(el) => {
-        if (el) itemRefs.current.set(key, el)
+        if (el) itemRefs.current.set(key, el);
       }}
-      className={cn(
-        "absolute top-0 left-0",
-        draggable && grabCursor && "cursor-grab"
-      )}
+      className={cn("absolute top-0 left-0", draggable && grabCursor && "cursor-grab")}
       style={{
         offsetPath: `path('${path}')`,
         offsetDistance: itemOffset,
@@ -191,8 +199,8 @@ const MarqueeItem = ({
     >
       {child}
     </motion.div>
-  )
-}
+  );
+};
 
 const MarqueeAlongSvgPath = ({
   children,
@@ -240,70 +248,70 @@ const MarqueeAlongSvgPath = ({
 
   cssVariableInterpolation = NO_CSS_VARIABLES,
 }: MarqueeAlongSvgPathProps) => {
-  const container = useRef<HTMLDivElement>(null)
-  const baseOffset = useMotionValue(0)
+  const container = useRef<HTMLDivElement>(null);
+  const baseOffset = useMotionValue(0);
 
-  const pathRef = useRef<SVGPathElement>(null)
+  const pathRef = useRef<SVGPathElement>(null);
 
-  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Create an array of items outside of the render function
   const items = React.useMemo(() => {
-    const childrenArray = React.Children.toArray(children)
+    const childrenArray = React.Children.toArray(children);
 
     return childrenArray.flatMap((child, childIndex) =>
       Array.from({ length: repeat }, (_, repeatIndex) => {
-        const itemIndex = repeatIndex * childrenArray.length + childIndex
-        const key = `${childIndex}-${repeatIndex}`
+        const itemIndex = repeatIndex * childrenArray.length + childIndex;
+        const key = `${childIndex}-${repeatIndex}`;
         return {
           child,
           childIndex,
           repeatIndex,
           itemIndex,
           key,
-        }
+        };
       })
-    )
-  }, [children, repeat])
+    );
+  }, [children, repeat]);
 
   // Function to calculate z-index based on offset distance
   const calculateZIndex = useCallback(
     (offsetDistance: number) => {
       if (!enableRollingZIndex) {
-        return undefined
+        return undefined;
       }
 
       // Simple progress-based z-index
-      const normalizedDistance = offsetDistance / 100
-      return Math.floor(zIndexBase + normalizedDistance * zIndexRange)
+      const normalizedDistance = offsetDistance / 100;
+      return Math.floor(zIndexBase + normalizedDistance * zIndexRange);
     },
     [enableRollingZIndex, zIndexBase, zIndexRange]
-  )
+  );
 
   // Generate a deterministic, SSR-safe ID for the path if not provided
-  const reactId = useId()
-  const id = pathId ?? `marquee-path-${reactId}`
+  const reactId = useId();
+  const id = pathId ?? `marquee-path-${reactId}`;
 
   // Scroll tracking
   const { scrollY } = useScroll({
     container: (scrollContainer as RefObject<HTMLDivElement>) || container,
-  })
+  });
 
-  const scrollVelocity = useVelocity(scrollY)
-  const smoothVelocity = useSpring(scrollVelocity, scrollSpringConfig)
+  const scrollVelocity = useVelocity(scrollY);
+  const smoothVelocity = useSpring(scrollVelocity, scrollSpringConfig);
 
   // Hover and drag state tracking
-  const isHovered = useRef(false)
-  const isDragging = useRef(false)
-  const dragVelocity = useRef(0)
+  const isHovered = useRef(false);
+  const isDragging = useRef(false);
+  const dragVelocity = useRef(0);
 
   // Direction factor for changing direction based on scroll or drag
-  const directionFactor = useRef(direction === "normal" ? 1 : -1)
+  const directionFactor = useRef(direction === "normal" ? 1 : -1);
 
   // Motion values for animation
-  const hoverFactorValue = useMotionValue(1)
-  const defaultVelocity = useMotionValue(1)
-  const smoothHoverFactor = useSpring(hoverFactorValue, slowDownSpringConfig)
+  const hoverFactorValue = useMotionValue(1);
+  const defaultVelocity = useMotionValue(1);
+  const smoothHoverFactor = useSpring(hoverFactorValue, slowDownSpringConfig);
 
   // Transform scroll velocity into a factor that affects marquee speed
   const velocityFactor = useTransform(
@@ -311,115 +319,111 @@ const MarqueeAlongSvgPath = ({
     [0, 1000],
     [0, 5],
     { clamp: false }
-  )
+  );
 
   // Animation frame handler
   useAnimationFrame((_, delta) => {
     if (isDragging.current && draggable) {
-      baseOffset.set(baseOffset.get() + dragVelocity.current)
+      baseOffset.set(baseOffset.get() + dragVelocity.current);
 
       // Add decay to dragVelocity
-      dragVelocity.current *= 0.9
+      dragVelocity.current *= 0.9;
 
       // Stop completely if velocity is very small
       if (Math.abs(dragVelocity.current) < 0.01) {
-        dragVelocity.current = 0
+        dragVelocity.current = 0;
       }
 
-      return
+      return;
     }
 
     // Update hover factor
     if (isHovered.current) {
-      hoverFactorValue.set(slowdownOnHover ? slowDownFactor : 1)
+      hoverFactorValue.set(slowdownOnHover ? slowDownFactor : 1);
     } else {
-      hoverFactorValue.set(1)
+      hoverFactorValue.set(1);
     }
 
     // Calculate regular movement
-    let moveBy =
-      directionFactor.current *
-      baseVelocity *
-      (delta / 1000) *
-      smoothHoverFactor.get()
+    let moveBy = directionFactor.current * baseVelocity * (delta / 1000) * smoothHoverFactor.get();
 
     // Adjust movement based on scroll velocity if scrollAwareDirection is enabled
     if (scrollAwareDirection && !isDragging.current) {
       if (velocityFactor.get() < 0) {
-        directionFactor.current = -1
+        directionFactor.current = -1;
       } else if (velocityFactor.get() > 0) {
-        directionFactor.current = 1
+        directionFactor.current = 1;
       }
     }
 
-    moveBy += directionFactor.current * moveBy * velocityFactor.get()
+    moveBy += directionFactor.current * moveBy * velocityFactor.get();
 
     if (draggable) {
-      moveBy += dragVelocity.current
+      moveBy += dragVelocity.current;
 
       // Update direction based on drag direction if dragAwareDirection is true
       if (dragAwareDirection && Math.abs(dragVelocity.current) > 0.1) {
-        directionFactor.current = Math.sign(dragVelocity.current)
+        directionFactor.current = Math.sign(dragVelocity.current);
       }
 
       // Gradually decay drag velocity back to zero
       if (!isDragging.current && Math.abs(dragVelocity.current) > 0.01) {
-        dragVelocity.current *= dragVelocityDecay
+        dragVelocity.current *= dragVelocityDecay;
       } else if (!isDragging.current) {
-        dragVelocity.current = 0
+        dragVelocity.current = 0;
       }
     }
 
-    baseOffset.set(baseOffset.get() + moveBy)
-  })
+    baseOffset.set(baseOffset.get() + moveBy);
+  });
 
   // Pointer event handlers for dragging
-  const lastPointerPosition = useRef({ x: 0, y: 0 })
+  const lastPointerPosition = useRef({ x: 0, y: 0 });
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (!draggable) return
-      ; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    if (!draggable) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 
     if (grabCursor) {
-      ; (e.currentTarget as HTMLElement).style.cursor = "grabbing"
+      (e.currentTarget as HTMLElement).style.cursor = "grabbing";
     }
 
-    isDragging.current = true
-    lastPointerPosition.current = { x: e.clientX, y: e.clientY }
+    isDragging.current = true;
+    lastPointerPosition.current = { x: e.clientX, y: e.clientY };
 
     // Pause automatic animation by setting velocity to 0
-    dragVelocity.current = 0
-  }
+    dragVelocity.current = 0;
+  };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!draggable || !isDragging.current) return
+    if (!draggable || !isDragging.current) return;
 
-    const currentPosition = { x: e.clientX, y: e.clientY }
+    const currentPosition = { x: e.clientX, y: e.clientY };
 
     // Calculate movement delta - simplified for path movement
-    const deltaX = currentPosition.x - lastPointerPosition.current.x
-    const deltaY = currentPosition.y - lastPointerPosition.current.y
+    const deltaX = currentPosition.x - lastPointerPosition.current.x;
+    const deltaY = currentPosition.y - lastPointerPosition.current.y;
 
     // For path following, we use a simple magnitude of movement
-    const delta = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
-    const projectedDelta = deltaX > 0 ? delta : -delta
+    const delta = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const projectedDelta = deltaX > 0 ? delta : -delta;
 
     // Update drag velocity based on the projected movement
-    dragVelocity.current = projectedDelta * dragSensitivity
+    dragVelocity.current = projectedDelta * dragSensitivity;
 
     // Update last position
-    lastPointerPosition.current = currentPosition
-  }
+    lastPointerPosition.current = currentPosition;
+  };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (!draggable) return
-      ; (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
-    isDragging.current = false
+    if (!draggable) return;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    isDragging.current = false;
 
     if (grabCursor) {
-      ; (e.currentTarget as HTMLElement).style.cursor = "grab"
+      (e.currentTarget as HTMLElement).style.cursor = "grab";
     }
-  }
+  };
 
   return (
     <div
@@ -437,7 +441,7 @@ const MarqueeAlongSvgPath = ({
         height={height}
         viewBox={viewBox}
         preserveAspectRatio={preserveAspectRatio}
-        className="w-full h-full"
+        className="h-full w-full"
       >
         <path
           id={id}
@@ -466,15 +470,15 @@ const MarqueeAlongSvgPath = ({
           grabCursor={grabCursor}
           itemRefs={itemRefs}
           onHoverStart={() => {
-            isHovered.current = true
+            isHovered.current = true;
           }}
           onHoverEnd={() => {
-            isHovered.current = false
+            isHovered.current = false;
           }}
         />
       ))}
     </div>
-  )
-}
+  );
+};
 
-export default MarqueeAlongSvgPath
+export default MarqueeAlongSvgPath;

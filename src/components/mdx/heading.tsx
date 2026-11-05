@@ -9,18 +9,11 @@ interface HeadingProps {
   id?: string;
 }
 
-export const Heading = ({
-  level,
-  children,
-  className,
-  id,
-  ...props
-}: HeadingProps) => {
+export const Heading = ({ level, children, className, id, ...props }: HeadingProps) => {
   const Component = `h${level}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
   // Generate ID from children if not provided
-  const headingId =
-    id ?? (typeof children === "string" ? slugify(children) : "");
+  const headingId = id ?? (typeof children === "string" ? slugify(children) : "");
 
   const baseClasses = {
     1: "scroll-m-20 text-4xl font-bold tracking-tight lg:text-5xl",
@@ -38,7 +31,7 @@ export const Heading = ({
       className: cn(baseClasses[level], className),
       ...props,
     },
-    children,
+    children
   );
 };
 
