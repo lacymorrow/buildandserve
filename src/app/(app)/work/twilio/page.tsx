@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { Metadata } from "next";
 import { constructMetadata } from "@/config/metadata";
 import Image from "next/image";
 import { Link } from "@/components/primitives/link-with-transition";
@@ -27,8 +27,8 @@ export default function TwilioPage() {
             <h1 className="text-4xl font-bold">Twilio</h1>
           </div>
           <p className="text-xl leading-relaxed text-muted-foreground">
-            Building innovative communication tools and developer experiences with Twilio's APIs.
-            Created hackathon projects and developer resources that showcase the power of
+            Building innovative communication tools and developer experiences with Twilio&apos;s
+            APIs. Created hackathon projects and developer resources that showcase the power of
             programmable communications.
           </p>
 
@@ -82,7 +82,7 @@ export default function TwilioPage() {
             <p>
               Twilio empowers developers to build the future of communications with powerful APIs
               for voice, video, messaging, and more. I created innovative hackpack projects that
-              demonstrate creative applications of Twilio's communication platform.
+              demonstrate creative applications of Twilio&apos;s communication platform.
             </p>
 
             <h3>Key Contributions</h3>
@@ -111,8 +111,8 @@ export default function TwilioPage() {
             <div>
               <h4 className="mb-2 font-medium">API Integration</h4>
               <p className="text-sm text-muted-foreground">
-                Utilized Twilio's REST APIs for SMS, Voice, and Video communication. Implemented
-                webhook endpoints for real-time event processing and response.
+                Utilized Twilio&apos;s REST APIs for SMS, Voice, and Video communication.
+                Implemented webhook endpoints for real-time event processing and response.
               </p>
             </div>
             <div>

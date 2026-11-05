@@ -23,7 +23,7 @@ export default function FeaturesSection() {
         <div className="mx-auto w-full max-w-5xl px-6">
           <div>
             <h2 className="max-w-2xl text-4xl font-semibold text-balance text-foreground">
-              From idea to launch, we've got you covered
+              From idea to launch, we&apos;ve got you covered
             </h2>
           </div>
           <div className="mt-16 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -42,8 +42,8 @@ export default function FeaturesSection() {
               <CalendarCheck className="size-5 text-primary" />
               <h3 className="mt-5 text-lg font-semibold text-foreground">Development & Testing</h3>
               <p className="mt-3 text-balance text-muted-foreground">
-                Our expert developers build your product with the latest technologies, ensuring it's
-                fast, secure, and scalable. We test every aspect to ensure a flawless user
+                Our expert developers build your product with the latest technologies, ensuring
+                it&apos;s fast, secure, and scalable. We test every aspect to ensure a flawless user
                 experience.
               </p>
 
@@ -84,7 +84,7 @@ const MeetingIllustration = () => {
       <div className="mb-4 flex gap-2 text-sm">
         <span className="text-muted-foreground">2:30 - 3:45 PM</span>
       </div>
-      <div className="mb-2 flex -space-x-1.5"></div>
+      <div className="mb-2 flex -space-x-1.5" />
       <div className="text-sm font-medium text-muted-foreground">Product Roadmap Discussion</div>
     </Card>
   );
@@ -98,7 +98,7 @@ const CodeReviewIllustration = () => {
         draggable={false}
       >
         <div className="mb-3 flex items-center gap-2">
-          <div className="size-6 rounded-full border bg-background p-0.5 shadow shadow-zinc-950/5"></div>
+          <div className="size-6 rounded-full border bg-background p-0.5 shadow shadow-zinc-950/5" />
           <span className="text-sm font-medium text-muted-foreground">Code Review</span>
 
           <span className="text-xs text-muted-foreground/75">2m</span>
