@@ -122,5 +122,5 @@ export const withoutSslMode = (connectionString: string): string => {
   const parameters = new URLSearchParams(query);
   parameters.delete("sslmode");
   const rest = parameters.toString();
-  return rest ? `${base}?${rest}` : (base as string);
+  return rest ? `${base}?${rest}` : base!;
 };

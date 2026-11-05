@@ -23,7 +23,7 @@ export default function FeaturesSection() {
         <div className="mx-auto w-full max-w-5xl px-6">
           <div>
             <h2 className="max-w-2xl text-4xl font-semibold text-balance text-foreground">
-              From idea to launch, we've got you covered
+              From idea to launch, we&apos;ve got you covered
             </h2>
           </div>
           <div className="mt-16 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -42,8 +42,8 @@ export default function FeaturesSection() {
               <CalendarCheck className="size-5 text-primary" />
               <h3 className="mt-5 text-lg font-semibold text-foreground">Development & Testing</h3>
               <p className="mt-3 text-balance text-muted-foreground">
-                Our expert developers build your product with the latest technologies, ensuring it's
-                fast, secure, and scalable. We test every aspect to ensure a flawless user
+                Our expert developers build your product with the latest technologies, ensuring
+                it&apos;s fast, secure, and scalable. We test every aspect to ensure a flawless user
                 experience.
               </p>
 
@@ -78,7 +78,7 @@ const MeetingIllustration = () => {
         <div className="absolute bottom-1.5 -left-1.5 rounded-md border-t border-red-700 bg-red-500 px-1 py-px text-[10px] font-medium text-white shadow-md shadow-red-500/35">
           PDF
         </div>
-        <div className="h-10 w-8 rounded-md border bg-gradient-to-b from-zinc-100 to-zinc-200" />
+        <div className="h-10 w-8 rounded-md border bg-gradient-to-b from-zinc-100 to-zinc-200"></div>
       </div>
       <div className="mb-0.5 text-sm font-semibold">Strategy Meeting</div>
       <div className="mb-4 flex gap-2 text-sm">
@@ -105,9 +105,9 @@ const CodeReviewIllustration = () => {
         </div>
 
         <div className="ml-8 space-y-2">
-          <div className="h-2 rounded-full bg-foreground/10" />
-          <div className="h-2 w-3/5 rounded-full bg-foreground/10" />
-          <div className="h-2 w-1/2 rounded-full bg-foreground/10" />
+          <div className="h-2 rounded-full bg-foreground/10"></div>
+          <div className="h-2 w-3/5 rounded-full bg-foreground/10"></div>
+          <div className="h-2 w-1/2 rounded-full bg-foreground/10"></div>
         </div>
 
         <Signature className="mt-3 ml-8 size-5" />
