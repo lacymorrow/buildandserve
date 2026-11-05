@@ -184,3 +184,59 @@ window so a stale slot is never re-run. Runbook:
 [`paperclip-lease-loss-retry.md`](./paperclip-lease-loss-retry.md).
 
 It is a stopgap. It should be removed once fix 1 lands.
+
+## Second trigger of defect 2: an operator pause strands in-flight work (LAC-5079)
+
+Added 2026-10-20. Defect 1 is specific to lease loss. **Defect 2 is not** — any
+run that dies before handing control back produces the same undelivered
+board-owned action, and pausing an agent is the other common way to kill one.
+
+Pausing an agent cancels its in-flight run with `latestRunErrorCode:
+agent_paused`. The issue parks `blocked` under a `stranded_assigned_issue`
+recovery action with `owner_type: "board"` and `wake_policy.type:
+board_escalation`, which is the type nothing delivers. **The pause is reversible
+and this damage is not.** Lifting the hold restores the agent and leaves every
+park in place.
+
+Measured on the same board: Lacy paused 14 of 22 agents on 2026-10-18 between
+07:00:26Z and 07:00:38Z. Seven actions were filed in those twelve seconds. The
+hold was lifted the same day. Two days later, with nobody paused, all seven were
+still live and none of the seven issues had moved.
+
+This makes fix 2 ("deliver the board-owned action to somebody") the higher-value
+of the two: it covers every cause at once, where fix 1 covers one.
+
+A fourth fix belongs with it:
+
+4. **An operator pause should suspend in-flight work, not kill it.** Or, if
+   killing it is intended, resuming the agent should restore what the pause
+   parked. `return_owner_agent_id` and `preservesSourceAssignee: true` are
+   already on the action, so the information needed to put the work back is
+   recorded; nothing reads it. As it stands, "pause an agent for ten minutes" is
+   an irreversible operation on that agent's whole in-flight queue, which is not
+   what the control implies.
+
+### Query to reproduce
+
+```sql
+SELECT i.identifier, i.status, i.origin_kind,
+       ra.owner_type, ra.wake_policy ->> 'type' AS wake_type,
+       ra.evidence ->> 'latestRunErrorCode' AS run_error,
+       ra.evidence ->> 'previousStatus' AS parked_from,
+       ra.created_at
+  FROM issue_recovery_actions ra
+  JOIN issues i ON i.id = ra.source_issue_id
+ WHERE ra.cause = 'stranded_assigned_issue'
+   AND ra.status = 'active'
+ ORDER BY ra.created_at;
+```
+
+### Operator mitigation in place
+
+`scripts/paperclip-strand-restore.ts` in this repo, from
+`~/.paperclip/paperclip-sweep.sh` every 10 minutes. It restores parks whose owner
+is healthy again by writing the one status the platform's own dispatch picks up,
+rate-limited on owner queue depth so a 24-park backlog cannot wake-storm the
+board. Runbook: [`paperclip-strand-restore.md`](./paperclip-strand-restore.md).
+
+It is a stopgap. It should be removed once fixes 2 and 4 land.
