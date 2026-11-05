@@ -2,8 +2,9 @@
 
 One job: tell Lacy when fleet work has gone quiet and the platform did not say so.
 
-`scripts/paperclip-stranded-watch.ts`, run by launchd every 15 minutes, reads the
-Paperclip Postgres read-only and Slack-DMs one line per newly quiet issue.
+`scripts/paperclip-stranded-watch.ts`, run [once a day from the Paperclip
+sweep](#schedule), reads the Paperclip Postgres read-only and Slack-DMs one line
+per newly quiet issue.
 
 Two lanes, same failure in two tables:
 
@@ -144,7 +145,37 @@ invites two providers onto one workspace, which is a live defect of its own
 the issue, or re-filing the work on a fresh issue, which carries no hold because
 the hold is keyed to `source_issue_id`. Re-filing is measured: LAC-6894 was
 undeliverable for 31h, re-filed as LAC-6999, and its `issue_assigned` wake read
-`queued` with a run id 20 seconds later.
+`queued` with a run id 20 seconds later. The whole backlog of nine this check
+found on its first pass was drained that way on 2026-11-05 (LAC-7017), eight
+re-files, every replacement wake `claimed` or `completed` with a run id.
+
+Three things from that run, for whoever does the next one. Two are
+measurements; the third is a pointer:
+
+1. **Reassignment is not a repair.** It looks like one, because it raises a
+   fresh `issue_assigned` wake. That wake defers too: promotion is edge-triggered
+   on a run release, not on assignment. Tried on four issues (LAC-2809,
+   LAC-6973, LAC-7014, LAC-7016), deferred four times, leaving the original
+   strand plus a new one. Consistent with edge-triggered promotion; no run
+   released in between on any of the four, so the four observations do not by
+   themselves rule out a second explanation. The mechanism half is the part with
+   code behind it (`runReleaseDrain` above). Only a fresh issue id clears it.
+2. **Assert `HTTP 201` and a different identifier before cancelling the
+   original.** Observed 2026-11-05: a `POST /api/companies/{id}/issues` whose
+   title matched a non-terminal issue returned `HTTP 200` and that *existing*
+   issue's identifier; the same body returned `201` with a new identifier once
+   the original was `cancelled`. **The key was not isolated** - it could be
+   title, title+assignee, title+project, or a time window, and three same-title
+   re-files in the same batch got `201` against originals 1 to 4 months old,
+   which fits a window as well as it fits title. A code read for a create-time
+   title de-dupe found none, on a checkout that may predate the running build.
+   So treat the trigger as unproven and the hazard as real: a script that reads
+   only `issue.identifier` off a `200` will cancel the very issue it meant to
+   replace, which happened to three issues on that pass (recovered by
+   re-creating once the originals were terminal). The assertion is right
+   whatever the key turns out to be, and it makes either order safe.
+3. **Not every strand needs a repair, and one of them must not get one.** See
+   the supersession gap below.
 
 ## Run it by hand
 
@@ -160,6 +191,12 @@ something, `2` could not look (missing `PAPERCLIP_DB_URL`, database
 unreachable). `2` never consumes an alert, and a failure in either query is a
 `2`: half a board reported as healthy is the thing this file exists to prevent.
 
+A **standing** stale-deploy line (already reported, so nothing new to say) exits
+`0`, not `1`. The code means "something is parked", the sweep discards anything
+under `2`, and that path DMs nobody, so a `1` there would be a claim with no
+reader contradicting this table. A stale deploy that is *news* rides the `1`,
+because that run did tell someone.
+
 Both lanes share one state file and one DM. Two notifiers on one launchd tick
 would mean two Slack calls and two chances for one lane's outage to eat the
 other lane's alert.
@@ -170,19 +207,47 @@ Silence from a healthy board is the designed output, same contract as
 
 ## Schedule
 
-`~/Library/LaunchAgents/com.buildandserve.paperclip-stranded-watch.plist`,
-`StartInterval` 900, log at `~/.paperclip/logs/paperclip-stranded-watch.log`,
-state at `~/.paperclip/stranded-watch-state.json`.
+Once a day, from `~/.paperclip/paperclip-sweep.sh`, in the first 10-minute tick
+after 08:00 local. It has **no plist of its own**; the rule on this host is that
+a new Paperclip workaround gets a line in that script, never its own launchd
+agent. A day stamp at `~/.paperclip/logs/.stranded-watch-day` holds it to one run
+per day, log at `~/.paperclip/logs/paperclip-stranded-watch.log`, state at
+`~/.paperclip/stranded-watch-state.json`.
+
+To force today's run again (after a fix, or when the report looks wrong):
 
 ```bash
-launchctl bootout gui/$UID/com.buildandserve.paperclip-stranded-watch 2>/dev/null
-launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.buildandserve.paperclip-stranded-watch.plist
-launchctl kickstart -p gui/$UID/com.buildandserve.paperclip-stranded-watch
+rm -f ~/.paperclip/logs/.stranded-watch-day   # next sweep tick re-runs it, <=10 min
 ```
 
-Scheduled by launchd, not by a Paperclip routine, for the same reason as the
-freshness check: Paperclip is the thing that fails. It was down for two hours the
-morning this was written.
+Scheduled outside Paperclip, not by a Paperclip routine, for the same reason as
+the freshness check: Paperclip is the thing that fails. It was down for two hours
+the morning this was written.
+
+### Which copy runs, and why that is a check and not a detail
+
+The sweep runs it from **`~/repo/buildandserve-ops`**, a checkout that tracks
+`main` and nothing else, and pulls `--ff-only` before each run. That is the same
+shape as the four launchd watches on this host (`store-watch-freshness`,
+`paperclip-lease-loss-retry`, `fleet-power-watch`, `tailscale-watchdog`).
+
+It used to run from `~/repo/buildandserve`, the shared checkout sessions and
+agents actually work in. On 2026-11-05 that checkout was parked on branch
+`LAC-5692/brand-implementation` with a copy of this script dated 2026-10-17, so
+**both of this ticket's own merged fixes had never run**: PR #58 (the `owner_type`
+allowlist, merged 2026-11-04) and PR #108 (the deferred-wake lane, merged
+2026-11-05). The daily DM kept arriving on schedule, produced by pre-#58 logic.
+Nothing was broken in a way anyone could see, which is this script's own subject
+matter pointed at itself.
+
+So the script now reads its own checkout (`git rev-parse HEAD` vs
+`origin/main`, in the directory of `import.meta.path`, not the process cwd) and
+puts a line at the top of the report when they differ, or when git cannot be read
+at all. That line is deduped on the (running commit, `origin/main`) pair, so a
+stale deploy is reported once rather than every day. It depends on the
+invocation's `--ff-only` pull for a fresh `origin/main`: run by hand without one
+and a stale `origin/main` can read as a match, which is a false negative and
+never a false positive.
 
 ## Delete it when
 
@@ -195,6 +260,18 @@ three wait on the LAC-4482 decision about shipping platform patches.
 
 ## Known gaps
 
+- **A superseded strand is reported as a live one, forever.** The lane asks
+  whether a wake started, never whether the waiting agent got control some other
+  way. LAC-6939 is the worked case: its QA Engineer wake was deferred
+  2026-11-04 21:05Z and the QA Engineer commented a verdict on that same issue
+  at 21:07Z, so nothing was lost, yet it is still named on every tick. It must
+  not be re-filed either: it carries a live board `approval` stage
+  (`reviewAttention` responder `Board` since 21:17Z), and re-filing would
+  destroy the one path Lacy has to it on client-visible work. Two cheap
+  suppressors, either sufficient: a comment by `w.agent_id` on the issue later
+  than `w.requested_at`, and an issue whose only live review path is a board
+  approval, where nobody is waiting on an agent at all. Until one lands, this
+  row is a standing false positive and the alarm is that much easier to ignore.
 - Read-only on purpose. It never unparks anything. Unparking 100 issues at once
   would stampede the fleet, and the platform re-parks `configuration_incomplete`
   seconds after a write. This property is load-bearing and stays: an alarm that

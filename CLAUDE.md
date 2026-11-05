@@ -82,7 +82,7 @@ One table: feature, status (`on`, `waiting`, `off`), and the missing keys with a
 - **Tailwind CSS** - Utility-first styling
 - **Shadcn/UI** - Component library built on Radix UI
 - **Drizzle ORM** - Type-safe database operations
-- **Bun** - Package manager
+- **pnpm** - Package manager (`pnpm-lock.yaml`, `packageManager: pnpm@10.26.1`). Install with pnpm; never `bun install` here, it would write a second lockfile. `bun run <script>` is fine as a script runner, which is what the commands above use.
 
 ### Authentication & Authorization
 
@@ -193,13 +193,14 @@ Shipkit uses environment variables for feature toggles:
 - **Button-like links** - Use `<Link className={cn(buttonVariants(...))} ...>`
 - **Multi-zone navigation** - Use anchor tags (`<a>`) for cross-zone links
 
-### CI Minutes and Local Verification
+### CI and Local Verification
 
-GitHub Actions minutes are billed on this private repo, and automated upstream syncs and agent-authored PRs burn them on checks that were already run locally.
+GitHub Actions minutes are billed on this private repo, which is why there is no per-PR test workflow here. **Nothing on GitHub typechecks, lints or tests a pull request.** `bun run verify` on your own machine is the gate. Adding the missing workflow is tracked in LAC-7038.
 
 - **Run `bun run verify` before opening a PR** - `scripts/verify.sh` runs typecheck, lint, unit and node tests, a production build, and a `next start` smoke (`--routes "/ /blog /blog/nope-xyz=404 /nope-404=404"` to customize). Paste its Markdown summary in the PR body.
-- **Skip Actions when you verified locally** - put `[skip ci]` in the commit message (GitHub-native; also skips gitleaks, so run `gitleaks protect --staged` locally). Vercel still builds, and the Deployment Check smoke still runs because it triggers off the Vercel deployment.
-- **Cheap jobs run on every PR, expensive ones on demand** - `ci.yml` runs typecheck, lint, and unit tests on every PR; integration, production build, Playwright e2e, and the docs link check run on pushes to `main` and on PRs labeled `ci:full`. Add the label for changes to auth, payments, the build pipeline, or docs routing.
+- **`verify` does not pass on `main` today** - measured 2026-11-05 and tracked in LAC-7035: typecheck fails on one `next.config.ts` error, and 7 unit test files fail against modules that moved or were deleted. Compare your run against a clean `main` before reading any FAIL as yours.
+- **The only checks a PR gets come from Vercel** - a preview deployment, Preview Comments, and `Deployment Check | smoke-test`, which `deployment-check.yml` runs from a `repository_dispatch` Vercel fires once a deployment is ready. `db-neon-branch-on-pr.yaml` also triggers on PRs, but every job skips while the `NEON_PROJECT_ID` repo variable is unset. Everything else in `.github/workflows/` is `workflow_dispatch`, a schedule, or an `@claude` mention.
+- **`[skip ci]` and a `ci:full` label buy nothing here** - there are no per-PR Actions jobs to skip; the repo has no `ci:full` label and no workflow reads one; the Vercel Ignored Build Step on this project skips previews only on `dependabot/*` branches, so Vercel builds either way (`scripts/vercel-ignore-step.sh` would implement a `[skip ci]` preview skip but is wired to nothing); and gitleaks is not configured in this repo at all, so there is no gitleaks run to skip or to compensate for locally.
 - **Suspense and loading files** - never add `loading.tsx` or `<Suspense>` above a page that calls `notFound()`; the shell streams a 200 first (see `tests/node/app/no-loading-above-not-found.test.ts`).
 
 ### Database Best Practices

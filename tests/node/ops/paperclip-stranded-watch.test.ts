@@ -1,19 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   alertKey,
   type BlockedIssue,
   classify,
   classifyDeferred,
+  DEPLOY_KEY_PREFIX,
   type DeferredWake,
+  type DeployState,
   deferredKey,
+  deployKey,
   describeDeferred,
   formatAge,
   formatAlert,
   formatDeferredAlert,
+  formatDeployAlert,
   GRACE_MINUTES,
   MAX_NAMED,
   nextDeferredState,
   nextState,
+  readDeployState,
   stranded,
   unreported,
   unreportedDeferred,
@@ -435,5 +444,146 @@ describe("formatDeferredAlert", () => {
     expect(describeDeferred(wake({ identifier: "LAC-9", waiter: "" }), NOW)).toContain(
       "LAC-9 (unknown agent,"
     );
+  });
+});
+
+describe("formatDeployAlert", () => {
+  const state = (over: Partial<DeployState> = {}): DeployState => ({
+    head: "a".repeat(40),
+    originMain: "a".repeat(40),
+    branch: "main",
+    ...over,
+  });
+
+  it("says nothing when the running copy is origin/main", () => {
+    expect(formatDeployAlert(state())).toBeNull();
+  });
+
+  it("names the branch and both commits when the running copy is not origin/main", () => {
+    // The live 2026-11-05 case: the sweep ran this check from ~/repo/buildandserve,
+    // parked on a feature branch with a copy dated 2026-10-17, while two merged
+    // fixes to this very script sat on main unused.
+    const line = formatDeployAlert(
+      state({
+        head: "a1ca77e5aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        originMain: "9a9be939bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        branch: "LAC-5692/brand-implementation",
+      })
+    );
+    expect(line).toContain("a1ca77e5");
+    expect(line).toContain("9a9be939");
+    expect(line).toContain("LAC-5692/brand-implementation");
+    expect(line).toContain("not origin/main");
+  });
+
+  it("reports an unreadable checkout rather than assuming it is current", () => {
+    // Fail loud: "I cannot tell" must not read as "I am up to date", because the
+    // whole report below it is only as trustworthy as the copy producing it.
+    const line = formatDeployAlert(state({ head: null }));
+    expect(line).toContain("cannot tell which commit");
+    expect(formatDeployAlert(state({ originMain: null }))).toContain("cannot tell which commit");
+  });
+
+  it("still reports when the branch name is unavailable", () => {
+    const line = formatDeployAlert(
+      state({ head: "c".repeat(40), originMain: "d".repeat(40), branch: null })
+    );
+    expect(line).toContain("branch unknown");
+  });
+});
+
+describe("deployKey", () => {
+  it("is one key per (running commit, origin/main) pair, so it reports once", () => {
+    const a: DeployState = { head: "aa", originMain: "bb", branch: "x" };
+    const b: DeployState = { head: "aa", originMain: "bb", branch: "y" };
+    expect(deployKey(a)).toBe(deployKey(b));
+    expect(deployKey(a).startsWith(DEPLOY_KEY_PREFIX)).toBe(true);
+  });
+
+  it("changes when either side moves, so a new stale state is new news", () => {
+    const base: DeployState = { head: "aa", originMain: "bb", branch: "x" };
+    expect(deployKey({ ...base, head: "cc" })).not.toBe(deployKey(base));
+    expect(deployKey({ ...base, originMain: "cc" })).not.toBe(deployKey(base));
+  });
+
+  it("cannot collide with a park or a deferred key", () => {
+    const key = deployKey({ head: "aa", originMain: "bb", branch: null });
+    expect(key.startsWith("deferred:")).toBe(false);
+    expect(key).toContain(":");
+  });
+});
+
+/**
+ * The branch this whole feature exists for: the copy that is executing lives in
+ * a different repo from the process cwd. That is unreachable while `repo` is
+ * computed inside the function, which is why it is a parameter (LAC-7050 nit 1).
+ */
+describe("readDeployState", () => {
+  const git = (cwd: string, ...args: string[]) =>
+    spawnSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
+
+  let repo: string;
+  let elsewhere: string;
+  let originalCwd: string;
+
+  beforeAll(() => {
+    originalCwd = process.cwd();
+    repo = mkdtempSync(path.join(tmpdir(), "sw-repo-"));
+    elsewhere = mkdtempSync(path.join(tmpdir(), "sw-cwd-"));
+    git(repo, "init", "-q", "-b", "main");
+    git(repo, "config", "user.email", "me@lacymorrow.com");
+    git(repo, "config", "user.name", "Lacy Morrow");
+    writeFileSync(path.join(repo, "f"), "one\n");
+    git(repo, "add", "f");
+    git(repo, "commit", "-qm", "one");
+    // A local origin/main, so the comparison has both sides without a network.
+    git(repo, "update-ref", "refs/remotes/origin/main", "HEAD");
+  });
+
+  afterAll(() => {
+    process.chdir(originalCwd);
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(elsewhere, { recursive: true, force: true });
+  });
+
+  it("reads the repo it is given, not the cwd it is called from", async () => {
+    process.chdir(elsewhere);
+    const state = await readDeployState(repo);
+    const head = git(repo, "rev-parse", "HEAD").stdout.trim();
+    expect(state.head).toBe(head);
+    expect(state.originMain).toBe(head);
+    expect(state.branch).toBe("main");
+    // The point of the test: cwd is not a repo at all, so a cwd-based read
+    // would have produced nulls here.
+    expect(formatDeployAlert(state)).toBeNull();
+  });
+
+  it("reports a real divergence in the given repo while cwd is elsewhere", async () => {
+    process.chdir(elsewhere);
+    writeFileSync(path.join(repo, "f"), "two\n");
+    git(repo, "add", "f");
+    git(repo, "commit", "-qm", "two");
+    const state = await readDeployState(repo);
+    expect(state.head).not.toBe(state.originMain);
+    const alert = formatDeployAlert(state);
+    expect(alert).not.toBeNull();
+    expect(alert).toContain(state.head!.slice(0, 8));
+  });
+
+  /**
+   * A contract test, not a discriminating one: it returns nulls rather than
+   * throwing, and nulls read as "cannot tell". Recorded honestly because it
+   * does NOT redden under either mutant run for the two tests above (ignoring
+   * the `repo` parameter, or going back to `Bun.spawn`) -- both of those also
+   * produce nulls here, so this assert passes for the wrong reason under them.
+   * Its value is guarding against a future rewrite that throws instead.
+   */
+  it("fails loud rather than silent when the path is not a repo", async () => {
+    process.chdir(repo);
+    const state = await readDeployState(elsewhere);
+    expect(state.head).toBeNull();
+    expect(state.originMain).toBeNull();
+    // Null must never read as "the copy is current".
+    expect(formatDeployAlert(state)).toContain("cannot tell which commit it is running");
   });
 });

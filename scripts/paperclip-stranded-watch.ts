@@ -41,6 +41,7 @@
  * Silence means healthy, same contract as the watch and the freshness check.
  */
 
+import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import postgres from "postgres";
@@ -181,7 +182,18 @@ export function classify(
  *    'user'` and returns before calling `onBlocked` for anything else, which is
  *    why the saved receipt reads the generic default `execution_recovery`. An
  *    agent comment, an `issue_assigned`, an `issue_blockers_resolved` or a
- *    routine slot is saved and unstartable.
+ *    routine slot is saved and unstartable. Two more joined that list on
+ *    2026-11-05 (LAC-7022), both measured rather than read: a `todo` ->
+ *    `backlog` -> `todo` status flip, which on LAC-6825 and LAC-6924 at
+ *    14:51:37Z wrote one fresh `execution_reconciliation_required` / `skipped`
+ *    / runId-null row and left all 5 and all 2 saved wakes exactly where they
+ *    were (LAC-6924 then re-deferred an agent comment 30 minutes later, so the
+ *    hold outlived the flip by a measured margin); and an assignee change,
+ *    which on LAC-6976 produced a fresh `deferred_issue_execution` row at
+ *    15:57:29Z. The flip matters most, because it is the repair the
+ *    ORPHANWAKE rung in `paperclip-company/scripts/gateless-sweep.py`
+ *    prescribes -- that rung now recounts the saved rows instead of trusting
+ *    the fresh one, and hands a surviving hold here.
  * 4. The saved wake is itself why nothing escalates.
  *    `recovery/service.js:641 hasActiveExecutionPath` returns true when a
  *    deferred wake exists, and it gates `reconcileStrandedAssignedIssues` (4
@@ -199,6 +211,19 @@ export function classify(
  * 2026-11-03 12:44 local) and why review gates are the visible victim class:
  * all five of the held gates in the first live pass were `Code review:` or
  * `QA:` issues, whose only wake is the `backlog` -> `todo` flip or a comment.
+ *
+ * Asked and answered 2026-11-05 (LAC-7022, question 5): should the lane also
+ * report a strand that LEFT `deferred_issue_execution` for `cancelled` or
+ * `skipped` without ever running, rather than going quiet? No. The platform's
+ * own suppression is an existence query over that status
+ * (`recovery/service.js:651`, LIMIT 1, no ordering), so the moment the row
+ * leaves it `reconcileStrandedAssignedIssues` is un-muted and the board's own
+ * backstop covers the ISSUE again. The MESSAGE is still lost, and this lane
+ * could not recover it anyway -- there is no re-send. Holding a cursor over
+ * finished wakes would buy a line of history at the cost of a second state
+ * file, so the complication loses. What that leaves unanswered is whether the
+ * discard was reasonable, which is a question about the wake queue, not about
+ * strands.
  *
  * This lane reports and never writes, for a harder reason than the rest of the
  * file. The hold means "we could not verify the previous provider stopped".
@@ -388,6 +413,58 @@ export function nextState(current: BlockedIssue[]): string[] {
   return current.map(alertKey).sort();
 }
 
+/** What commit this script is actually running from. See `formatDeployAlert`. */
+export interface DeployState {
+  /** `git rev-parse HEAD` in the script's own checkout, null when git failed. */
+  head: string | null;
+  /** `git rev-parse origin/main`, null when git failed or the ref is missing. */
+  originMain: string | null;
+  branch: string | null;
+}
+
+export const DEPLOY_KEY_PREFIX = "deploy-stale:";
+
+/**
+ * One key per (running commit, origin/main) pair, so a stale deploy is reported
+ * once rather than every day until someone notices. A new commit on either side
+ * is a different situation and gets its own line.
+ */
+export function deployKey(state: DeployState): string {
+  return `${DEPLOY_KEY_PREFIX}${state.head ?? "unknown"}:${state.originMain ?? "unknown"}`;
+}
+
+/**
+ * A report produced by a copy that is not `origin/main` is not a report about
+ * the fleet, it is a report about an old script, and until 2026-11-05 nothing
+ * said so. The sweep ran this check from `~/repo/buildandserve`, a shared
+ * checkout other sessions work in, which was sitting on branch
+ * `LAC-5692/brand-implementation` with a copy dated 2026-10-17. Both of
+ * LAC-4568's own merged fixes -- PR #58 (the `owner_type` allowlist) and PR #108
+ * (the deferred-wake lane) -- were on main and had never run, and the daily DM
+ * kept arriving, produced by pre-#58 logic. A wrong report is worse than no
+ * report, because it is trusted.
+ *
+ * The invocation pulls `--ff-only` before each run, so `origin/main` is fresh
+ * when this is read. Run by hand without a pull and a stale `origin/main` can
+ * read as a match; that is a false negative, never a false positive.
+ *
+ * Returns null when the running copy IS `origin/main`, which is the normal case.
+ */
+export function formatDeployAlert(state: DeployState): string | null {
+  if (state.head === null || state.originMain === null) {
+    return (
+      "The stranded watch cannot tell which commit it is running: `git rev-parse` " +
+      "failed in its own checkout. Treat the rest of this report as unverified."
+    );
+  }
+  if (state.head === state.originMain) return null;
+  return (
+    `The stranded watch is running ${state.head.slice(0, 8)} on branch ` +
+    `${state.branch ?? "unknown"}, not origin/main (${state.originMain.slice(0, 8)}). ` +
+    "Everything below was produced by that copy, so a fix merged to main may not be in it."
+  );
+}
+
 const QUERY = `
   SELECT i.identifier,
          i.title,
@@ -425,16 +502,54 @@ const QUERY = `
  *   server's own "is execution active" test in
  *   `explicit-native-continuation.js`. A wake behind one of those is healthy:
  *   that run's release will drain it.
- * - The hold lateral is not filtered by cause. The six known causes all sit in
- *   `EXECUTION_RECONCILIATION_CAUSES`, but naming them here would make this
- *   query lie the first time the server adds a seventh, and the point of the
- *   column is to tell a reader whether a hold is present at all.
- * - It prefers a live hold over a resolved-but-replay-blocked one. The WHERE
- *   admits both shapes, so on an issue carrying one of each a plain
- *   `updated_at DESC` can name the resolved row and make a live hold read as
- *   cleared. No issue on the board has two distinct causes today (measured
- *   2026-11-05, LAC-7013 Q3), so this is a correctness guard rather than a
- *   bug fix, and it is why the sort key is the status predicate first.
+ * - The hold lateral IS filtered by cause, since LAC-7022. It was not until
+ *   then, on the reasoning that naming the causes "would make this query lie
+ *   the first time the server adds a seventh". That reasoning had it backwards:
+ *   omitting the filter does not degrade gracefully, it reports holds that are
+ *   not holds. `executionBlockerPredicate()` (`services/execution-blocker.js:12`)
+ *   is `cause IN EXECUTION_RECONCILIATION_CAUSES` AND (`active`/`escalated` OR
+ *   `replay = 'blocked'`), so the status half alone admits every other kind of
+ *   recovery action. Measured twice on the live board 2026-11-05, at 16:45Z and
+ *   again at 17:10Z before committing: 89 then 85 non-terminal issues matched
+ *   the unfiltered lateral, and the named cause was outside the 17-cause set on
+ *   55 then 49 of them. A 58-62% false-hold rate on the one column whose job is
+ *   to say whether a hold is present; the drift between the two reads is the
+ *   board moving, not the rate. The false causes are ordinary board
+ *   bookkeeping, nothing to do with execution: `stranded_assigned_issue` (32
+ *   issues), `deliberate_wait_without_target` (11), `issue_review_path_lost`
+ *   (3), `execution_review_participant_recovery` (2),
+ *   `workspace_validation_failed` (1). The list is pinned here with the server
+ *   constant named, so a seventeenth-plus cause shows up as a missing row
+ *   rather than as a silent false positive.
+ *   Scope the claim honestly: that rate is over all non-terminal issues, which
+ *   is the population strands are drawn FROM, not the lane's output on any one
+ *   run. On the 17:10Z run the lane reported a single row (LAC-6939) and it
+ *   carries no recovery action at all, so the filter changed nothing visible
+ *   today. This is a correctness guard against the next strand that happens to
+ *   also be carrying board bookkeeping, not a fix for a wrong line someone
+ *   read.
+ * - It does NOT replicate the predicate's `NOT conversationRecoveryActionPredicate()`
+ *   conjunct, and that omission is deliberate. That conjunct excludes a
+ *   `legacy_execution_requires_reconciliation` row whose run was
+ *   `runtime_mode = 'legacy'` and terminal. All 36 of the holds left after the
+ *   cause filter carry exactly that cause, and 35 of the 36 satisfy a partial
+ *   replication of the exists clause (run matches the issue, `legacy`, status in
+ *   `failed`/`timed_out`/`interrupted`/`cancelled`) -- partial is permissive, so
+ *   the real conjunct excludes at most those 35. Those issues are still held: it
+ *   is `getConversationOwnershipBlocker` that holds them, checked and returned
+ *   BEFORE the recovery-action read in `getExecutionBlocker` (line 31 vs 34), so
+ *   the wake is deferred either way. Replicating the exclusion would take this
+ *   column from 36 rows to at most 1 and hide every real hold on the board.
+ * - Ordering mirrors the server exactly: `updated_at DESC, id DESC`
+ *   (`execution-blocker.js:34`). A status-first key shipped in 4a5a9a23 and is
+ *   reverted here. Its premise was that a `resolved` row is stale, but the
+ *   whole reason the WHERE admits `resolved` is the branch documented two
+ *   paragraphs up: resolved bookkeeping carrying `replay = 'blocked'` is a LIVE
+ *   hold, and the server does not rank it below an `active` one. Preferring
+ *   `active` also promoted exactly the over-admitted class the cause filter
+ *   just removed. It changed the named cause on 0 of 85 issues either way (0 of
+ *   89 on the earlier read), so nothing on the board moves; the `id DESC` tie-break is new and makes the
+ *   row choice deterministic where two share an `updated_at`.
  */
 const DEFERRED_QUERY = `
   SELECT i.identifier,
@@ -453,10 +568,28 @@ const DEFERRED_QUERY = `
            SELECT ra.cause
              FROM issue_recovery_actions ra
             WHERE ra.source_issue_id = i.id
+              AND ra.cause IN (
+                    'uncertain_provider_action',
+                    'uncertain_external_action',
+                    'uncertain_control_plane_action',
+                    'completed_action_context_missing',
+                    'continuation_evidence_incomplete',
+                    'execution_finalization_deadline_exceeded',
+                    'execution_recovery_budget_exhausted',
+                    'provider_effect_inventory_unavailable',
+                    'provider_failure_meaning_unverified',
+                    'provider_ownership_unverified',
+                    'native_provider_terminal_failed',
+                    'native_event_replay_conflict',
+                    'native_session_cleanup_quarantined',
+                    'native_session_retry_exhausted',
+                    'native_restart_recovery_blocked',
+                    'native_continuation_requires_reconciliation',
+                    'legacy_execution_requires_reconciliation'
+                  )
               AND (ra.status IN ('active', 'escalated')
                    OR ra.evidence -> 'automaticRecovery' ->> 'replay' = 'blocked')
-            ORDER BY (ra.status IN ('active', 'escalated')) DESC,
-                     ra.updated_at DESC
+            ORDER BY ra.updated_at DESC, ra.id DESC
             LIMIT 1
          ) h ON true
    WHERE w.status = 'deferred_issue_execution'
@@ -513,6 +646,52 @@ async function readBoard(
   } finally {
     await sql.end({ timeout: 5 });
   }
+}
+
+/**
+ * Reads git in the script's OWN checkout, derived from `import.meta.path`, not
+ * from the process cwd: the point is which copy of this file is executing, and
+ * the invocation's cwd is the same thing only by convention.
+ *
+ * `repo` is a parameter rather than being computed inside, so a test can point
+ * it at a temp repo while cwd is somewhere else entirely. That is the one branch
+ * the whole function exists for, and it is unreachable from a test otherwise
+ * (LAC-7050 nit 1).
+ *
+ * git runs through `node:child_process`, not `Bun.spawn`. The unit suite runs
+ * under vitest on Node, where `Bun` is undefined, so a `Bun.spawn` here throws,
+ * is swallowed by the catch below and returns all-nulls -- which looks exactly
+ * like "not a repo" and made the first two tests of this function fail and the
+ * third pass for the wrong reason. `node:child_process` runs on both runtimes,
+ * so the test exercises the same code path production does (LAC-7050 nit 1).
+ *
+ * The default argument uses `import.meta.path`, which is Bun-only. Production
+ * runs under bun (shebang, and launchd invokes bun), so the default is right
+ * there; under Node it is undefined, the default throws, the catch returns
+ * all-nulls and `formatDeployAlert` says "cannot tell" -- loud, not silent,
+ * which is the safe direction. Tests must always pass `repo` explicitly.
+ */
+export function readDeployState(
+  repo: string = path.dirname(path.dirname(import.meta.path))
+): DeployState {
+  const run = (args: string[]): string | null => {
+    try {
+      const result = spawnSync("git", ["-C", repo, ...args], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      if (result.status !== 0) return null;
+      const out = (result.stdout ?? "").trim();
+      return out.length > 0 ? out : null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    head: run(["rev-parse", "HEAD"]),
+    originMain: run(["rev-parse", "origin/main"]),
+    branch: run(["rev-parse", "--abbrev-ref", "HEAD"]),
+  };
 }
 
 async function readSeenKeys(statePath: string): Promise<string[] | null> {
@@ -593,9 +772,26 @@ async function main() {
   const seenKeys = await readSeenKeys(statePath);
   const isBaseline = seenKeys === null;
 
-  if (current.length === 0 && currentDeferred.length === 0) {
-    // Healthy is silent. Record the empty set so a later park reads as new.
-    if (!isBaseline) await writeSeenKeys(statePath, []);
+  // Read before the silent exit below. A stale deploy on an empty board is the
+  // worst version of this: the report is silent AND the copy producing the
+  // silence is not the one that was merged.
+  const deployState = readDeployState();
+  const deployAlert = formatDeployAlert(deployState);
+  const deployIsNews =
+    deployAlert !== null && (isBaseline || !seenKeys!.includes(deployKey(deployState)));
+  const deployStateKeys = deployAlert === null ? [] : [deployKey(deployState)];
+
+  if (deployAlert !== null) console.log(deployAlert);
+
+  if (current.length === 0 && currentDeferred.length === 0 && !deployIsNews) {
+    // Healthy is silent. Record the empty set so a later park reads as new,
+    // keeping any deploy key so a stale copy is not re-reported every day.
+    if (!isBaseline) await writeSeenKeys(statePath, deployStateKeys);
+    // Exit 0 even on a standing stale deploy. The documented contract is
+    // "1 = something is parked", the sweep discards anything under 2, and this
+    // path told nobody -- so a 1 here is a claim no reader ever sees and the
+    // runbook's own exit table contradicts. The line is already on stdout.
+    // A deploy alert that IS news keeps the 1 below: that one did tell someone.
     process.exit(0);
   }
 
@@ -619,6 +815,8 @@ async function main() {
   // Slack calls, two failure modes and two chances for one lane's outage to
   // consume the other lane's alert.
   const blocks = [
+    // First, because it says whether to trust the rest.
+    ...(deployIsNews ? [deployAlert!] : []),
     ...(current.length > 0 && (isBaseline || fresh.length > 0)
       ? [formatAlert(verdict, fresh, now, isBaseline)]
       : []),
@@ -638,6 +836,7 @@ async function main() {
       await writeSeenKeys(statePath, [
         ...nextState(current),
         ...nextDeferredState(currentDeferred),
+        ...deployStateKeys,
       ]);
   }
 

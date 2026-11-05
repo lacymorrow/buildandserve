@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# NOT WIRED UP. Nothing calls this script. Read before you trust it: as of
+# 2026-11-05 the buildandserve Vercel project's Ignored Build Step is an inline
+# command that skips previews only on dependabot/* branches, so the [skip ci]
+# preview skip described below does not happen. Either wire this in or delete
+# it; that decision is LAC-7038.
+#
 # Vercel "Ignored Build Step". Exit 0 = skip the build, exit 1 = build.
 #
 # Production always builds: a skipped production build would leave the live
