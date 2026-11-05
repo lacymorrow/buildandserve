@@ -260,18 +260,38 @@ three wait on the LAC-4482 decision about shipping platform patches.
 
 ## Known gaps
 
-- **A superseded strand is reported as a live one, forever.** The lane asks
-  whether a wake started, never whether the waiting agent got control some other
-  way. LAC-6939 is the worked case: its QA Engineer wake was deferred
-  2026-11-04 21:05Z and the QA Engineer commented a verdict on that same issue
-  at 21:07Z, so nothing was lost, yet it is still named on every tick. It must
-  not be re-filed either: it carries a live board `approval` stage
-  (`reviewAttention` responder `Board` since 21:17Z), and re-filing would
-  destroy the one path Lacy has to it on client-visible work. Two cheap
-  suppressors, either sufficient: a comment by `w.agent_id` on the issue later
-  than `w.requested_at`, and an issue whose only live review path is a board
-  approval, where nobody is waiting on an agent at all. Until one lands, this
-  row is a standing false positive and the alarm is that much easier to ignore.
+- **The lane's one standing row, LAC-6939, is a TRUE positive. An earlier
+  version of this entry called it a false positive and prescribed two
+  suppressors for it. Both were wrong, and the retraction is the useful part.**
+  The wrong reasoning, kept so nobody re-derives it: its QA Engineer wake
+  deferred 2026-11-04 21:05Z, the QA Engineer commented a verdict on that same
+  issue at 21:07Z, so the waiting agent looked like it had got control another
+  way and nothing looked lost. What killed that reading, measured on LAC-7040 /
+  PR #110 (2026-11-05, Backend Engineer's trace of the server, reviewed):
+  - The 21:07Z comment came from run `b1461494`, **started 21:04:16Z, before
+    the 21:05:02Z wake**. No run on that issue started after the wake. So that
+    comment is not evidence the saved message was read; under the suppressor's
+    own rule the row stays.
+  - Promotion does not require the waiter to be the assignee.
+    `heartbeat.ts` 12812-12960 and 13037-13070 build a queued run for
+    `deferred.agentId` with no assignee check; the assignee guard is on the lock
+    update at 13069 only. The start gate at 9483 cancels `issue_assignee_changed`
+    only when `!isInteractionWake`, and 2669-2675 make this wake an interaction
+    wake (`wakeReason: issue_commented` with a comment id). LAC-6939 has no
+    assignee, and promotion would still have started QA on it. Nothing did.
+  - So the saved message is genuinely never-started, and a
+    waiter-is-not-assignee suppressor is rejected on its own terms: 5 of the 29
+    deferred wakes on the board have waiter != assignee and would be hidden.
+  Caveat carried from that trace, not independently checked: the `paperclip`
+  checkout read is dated 2026-10-20, so the running server could differ.
+  **Disposition: LAC-6939 is closed by hand by the board, never re-filed.**
+  Re-filing destroys the live board `approval` stage it carries
+  (`reviewAttention` responder `Board` since 21:17Z), which is the one path Lacy
+  has to it on client-visible work. PR #110 (the run-start suppressor) is sound
+  code with nothing live to exercise it and was closed unmerged under Rule 26;
+  LAC-7040 is cancelled as not-a-bug. The real gap the lane still has is the
+  general one in the bullet above it: a wake is promoted only on a run release,
+  never on a timer.
 - Read-only on purpose. It never unparks anything. Unparking 100 issues at once
   would stampede the fleet, and the platform re-parks `configuration_incomplete`
   seconds after a write. This property is load-bearing and stays: an alarm that
