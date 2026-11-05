@@ -42,6 +42,7 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import postgres from "postgres";
@@ -420,6 +421,12 @@ export interface DeployState {
   /** `git rev-parse origin/main`, null when git failed or the ref is missing. */
   originMain: string | null;
   branch: string | null;
+  /**
+   * mtime of the checkout's `FETCH_HEAD` in ms: when this copy last reached
+   * GitHub. Null when no fetch has ever landed in it, or git could not say
+   * where the file lives. See `formatFetchAlert` for why it is read at all.
+   */
+  lastFetchMs: number | null;
 }
 
 export const DEPLOY_KEY_PREFIX = "deploy-stale:";
@@ -444,9 +451,12 @@ export function deployKey(state: DeployState): string {
  * kept arriving, produced by pre-#58 logic. A wrong report is worse than no
  * report, because it is trusted.
  *
- * The invocation pulls `--ff-only` before each run, so `origin/main` is fresh
- * when this is read. Run by hand without a pull and a stale `origin/main` can
- * read as a match; that is a false negative, never a false positive.
+ * The invocation pulls `--ff-only` before each run, so `origin/main` is normally
+ * fresh when this is read. When that pull fails -- run by hand without one, or a
+ * host that cannot reach GitHub -- a stale `origin/main` can read as a match,
+ * which is a false negative and never a false positive. `formatFetchAlert` below
+ * covers that case by reading how old the last successful fetch is, so the
+ * silence here is no longer the only evidence.
  *
  * Returns null when the running copy IS `origin/main`, which is the normal case.
  */
@@ -462,6 +472,66 @@ export function formatDeployAlert(state: DeployState): string | null {
     `The stranded watch is running ${state.head.slice(0, 8)} on branch ` +
     `${state.branch ?? "unknown"}, not origin/main (${state.originMain.slice(0, 8)}). ` +
     "Everything below was produced by that copy, so a fix merged to main may not be in it."
+  );
+}
+
+/**
+ * A fetch older than this says the refresh is failing, not that it was skipped
+ * once.
+ *
+ * The sweep runs this check once a day, so a single failed pull puts the last
+ * successful fetch ~24h back and the next run's pull normally clears it. 36h is
+ * past that one blip and short of two consecutive failures (~48h), which is the
+ * shape worth saying out loud: the host has lost DNS for a stretch and
+ * `origin/main` has stopped moving. Lower and a slow network blip alarms;
+ * higher and two blind days pass unsaid.
+ */
+export const FETCH_STALE_HOURS = 36;
+
+export const FETCH_KEY_PREFIX = "fetch-stale:";
+
+/**
+ * One key per last-successful-fetch timestamp, same contract as `deployKey`: a
+ * refresh that is still failing tomorrow is the same situation, not new news,
+ * and it stays on stdout and in the launchd log either way. A pull that lands
+ * moves the mtime, which both clears the condition and retires the key.
+ */
+export function fetchKey(state: DeployState): string {
+  return `${FETCH_KEY_PREFIX}${state.lastFetchMs === null ? "never" : new Date(state.lastFetchMs).toISOString()}`;
+}
+
+/** Whole hours, because "1d" would cover anything from 24h to 47h here. */
+function formatFetchAge(sinceMs: number, nowMs: number): string {
+  return `${Math.floor((nowMs - sinceMs) / 3_600_000)}h`;
+}
+
+/**
+ * `formatDeployAlert` trusts the invocation's `git pull --ff-only` for a fresh
+ * `origin/main`, and the sweep swallows that pull's failure (`|| true`). On a
+ * host that cannot reach GitHub -- this Mac has gone fully DNS-blind twice in
+ * one day, which breaks git and leaves everything else looking healthy --
+ * `origin/main` stays where it was, `HEAD` matches it, and the deploy check says
+ * nothing. A false negative, silently, in the one check whose whole job is to
+ * say whether the rest of the report can be trusted (LAC-7050 nit 3).
+ *
+ * So the age of the last successful fetch is read directly instead of being
+ * inferred from the comparison. Returns null when the fetch is fresh, which is
+ * the normal case, including when `HEAD` and `origin/main` match.
+ */
+export function formatFetchAlert(state: DeployState, nowMs: number): string | null {
+  if (state.lastFetchMs === null) {
+    return (
+      "The stranded watch could not refresh origin/main (no successful fetch on " +
+      "record in its checkout), so the commit check below is comparing against a " +
+      "ref that may never have been updated."
+    );
+  }
+  if (nowMs - state.lastFetchMs < FETCH_STALE_HOURS * 3_600_000) return null;
+  return (
+    "The stranded watch could not refresh origin/main (last fetch " +
+    `${formatFetchAge(state.lastFetchMs, nowMs)} ago), so the commit check below ` +
+    "can read as a match against a stale ref. Check this host's network before " +
+    "trusting the rest of this report."
   );
 }
 
@@ -829,10 +899,47 @@ export function readDeployState(
       return null;
     }
   };
+  /**
+   * Two candidate paths, and the order is load-bearing: this checkout's OWN
+   * `FETCH_HEAD` first, the shared one only when it has none.
+   *
+   * `~/repo/buildandserve-ops`, the checkout the sweep runs this from, is not a
+   * plain clone -- it is a `git worktree` of `~/repo/buildandserve` (measured
+   * 2026-11-05). So `--git-path FETCH_HEAD` points into
+   * `.git/worktrees/buildandserve-ops/`, which its own pulls write, while
+   * `--git-common-dir` holds a second `FETCH_HEAD` that every other session's
+   * fetch in the main checkout touches. Preferring the newest of the two would
+   * let a sibling's healthy fetch mask this checkout's stale one, which is the
+   * false negative this whole function exists to close.
+   *
+   * The fallback still matters: a worktree that has never fetched on its own
+   * has no per-worktree file at all, and reading that as "never fetched" would
+   * alarm on a healthy by-hand run.
+   */
+  const fetchHeadMtime = (): number | null => {
+    const gitPath = run(["rev-parse", "--git-path", "FETCH_HEAD"]);
+    const commonDir = run(["rev-parse", "--git-common-dir"]);
+    const candidates = [gitPath, commonDir === null ? null : path.join(commonDir, "FETCH_HEAD")]
+      .filter((p): p is string => p !== null)
+      // `--git-path` answers relative to the repo in a plain clone and absolute
+      // inside a worktree.
+      .map((p) => (path.isAbsolute(p) ? p : path.join(repo, p)));
+    for (const file of candidates) {
+      try {
+        return statSync(file).mtimeMs;
+      } catch {
+        // Nothing at that path; try the next. Missing from both means no fetch
+        // has ever landed here, which `formatFetchAlert` reports rather than
+        // treating as fresh.
+      }
+    }
+    return null;
+  };
   return {
     head: run(["rev-parse", "HEAD"]),
     originMain: run(["rev-parse", "origin/main"]),
     branch: run(["rev-parse", "--abbrev-ref", "HEAD"]),
+    lastFetchMs: fetchHeadMtime(),
   };
 }
 
@@ -921,19 +1028,28 @@ async function main() {
   const deployAlert = formatDeployAlert(deployState);
   const deployIsNews =
     deployAlert !== null && (isBaseline || !seenKeys!.includes(deployKey(deployState)));
-  const deployStateKeys = deployAlert === null ? [] : [deployKey(deployState)];
+  const fetchAlert = formatFetchAlert(deployState, now);
+  const fetchIsNews =
+    fetchAlert !== null && (isBaseline || !seenKeys!.includes(fetchKey(deployState)));
+  const copyStateKeys = [
+    ...(deployAlert === null ? [] : [deployKey(deployState)]),
+    ...(fetchAlert === null ? [] : [fetchKey(deployState)]),
+  ];
 
+  // Fetch line first: it says whether the deploy comparison itself is reading a
+  // current `origin/main`.
+  if (fetchAlert !== null) console.log(fetchAlert);
   if (deployAlert !== null) console.log(deployAlert);
 
-  if (current.length === 0 && currentDeferred.length === 0 && !deployIsNews) {
+  if (current.length === 0 && currentDeferred.length === 0 && !deployIsNews && !fetchIsNews) {
     // Healthy is silent. Record the empty set so a later park reads as new,
-    // keeping any deploy key so a stale copy is not re-reported every day.
-    if (!isBaseline) await writeSeenKeys(statePath, deployStateKeys);
-    // Exit 0 even on a standing stale deploy. The documented contract is
+    // keeping the deploy and fetch keys so neither is re-reported every day.
+    if (!isBaseline) await writeSeenKeys(statePath, copyStateKeys);
+    // Exit 0 even on a standing stale deploy or stale fetch. The contract is
     // "1 = something is parked", the sweep discards anything under 2, and this
     // path told nobody -- so a 1 here is a claim no reader ever sees and the
     // runbook's own exit table contradicts. The line is already on stdout.
-    // A deploy alert that IS news keeps the 1 below: that one did tell someone.
+    // A trust line that IS news keeps the 1 below: that one did tell someone.
     process.exit(0);
   }
 
@@ -957,7 +1073,8 @@ async function main() {
   // Slack calls, two failure modes and two chances for one lane's outage to
   // consume the other lane's alert.
   const blocks = [
-    // First, because it says whether to trust the rest.
+    // First, because they say whether to trust the rest.
+    ...(fetchIsNews ? [fetchAlert!] : []),
     ...(deployIsNews ? [deployAlert!] : []),
     ...(current.length > 0 && (isBaseline || fresh.length > 0)
       ? [formatAlert(verdict, fresh, now, isBaseline)]
@@ -978,7 +1095,7 @@ async function main() {
       await writeSeenKeys(statePath, [
         ...nextState(current),
         ...nextDeferredState(currentDeferred),
-        ...deployStateKeys,
+        ...copyStateKeys,
       ]);
   }
 

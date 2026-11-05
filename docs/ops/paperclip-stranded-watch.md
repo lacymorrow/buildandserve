@@ -191,11 +191,48 @@ something, `2` could not look (missing `PAPERCLIP_DB_URL`, database
 unreachable). `2` never consumes an alert, and a failure in either query is a
 `2`: half a board reported as healthy is the thing this file exists to prevent.
 
-A **standing** stale-deploy line (already reported, so nothing new to say) exits
-`0`, not `1`. The code means "something is parked", the sweep discards anything
-under `2`, and that path DMs nobody, so a `1` there would be a claim with no
-reader contradicting this table. A stale deploy that is *news* rides the `1`,
-because that run did tell someone.
+A **standing** trust line (a stale deploy or a stale fetch, already reported, so
+nothing new to say) exits `0`, not `1`. The code means "something is parked", the
+sweep discards anything under `2`, and that path DMs nobody, so a `1` there would
+be a claim with no reader contradicting this table. A trust line that is *news*
+rides the `1`, because that run did tell someone.
+
+### The two trust lines, and the 36h threshold
+
+Either of these can sit above the lanes. They are printed first because they say
+whether the rest of the report can be believed at all.
+
+| Line | Fires when | Reported once per |
+|---|---|---|
+| `is running <sha> on branch <b>, not origin/main` | `HEAD` is not `origin/main`, or git cannot be read in the checkout | (running commit, `origin/main`) pair |
+| `could not refresh origin/main (last fetch Nh ago)` | `FETCH_HEAD` in the checkout is older than **36h** (`FETCH_STALE_HOURS`), or no fetch has ever landed in it | last successful fetch timestamp |
+
+The second one exists because the first one cannot catch its own blind spot. The
+sweep runs `git pull --ff-only -q || true` before each run, so a failed pull is
+swallowed: `origin/main` stays where it was, `HEAD` matches it, and the deploy
+line says nothing. That is a false negative in the one check whose job is to say
+whether to trust the report. It is a live shape on this host, not a hypothetical
+-- the Mac has gone fully DNS-blind twice in one day, which breaks git pushes and
+pulls while everything else looks healthy. See
+[the Tailscale watchdog](./tailscale-watchdog.md) for that host's resolver shape.
+
+The age comes from `FETCH_HEAD`, and **this checkout's own copy comes first**.
+`~/repo/buildandserve-ops` is not a plain clone: it is a `git worktree` of
+`~/repo/buildandserve`, so `--git-path FETCH_HEAD` points into
+`.git/worktrees/buildandserve-ops/` where its own pulls write, while the common
+dir holds a second `FETCH_HEAD` that every other session's fetch in the main
+checkout touches. Reading the newer of the two would let a sibling's healthy
+fetch mask this checkout's stale one, which is the false negative being closed.
+The common-dir copy is a fallback only, for a worktree that has never fetched on
+its own.
+
+**36h, not 1h**, because this runs once a day: one failed pull leaves the last
+successful fetch ~24h back and the next run's pull normally clears it, so a lower
+threshold would alarm on every network blip. 36h is past that single blip and
+short of two consecutive failures (~48h), which is the shape worth a line. The
+age is printed in whole hours, not the `1d`/`71d` form the parked lanes use:
+with a 36h floor every age would round to days and `36h` and `71h` would both
+read as `1d`.
 
 Both lanes share one state file and one DM. Two notifiers on one launchd tick
 would mean two Slack calls and two chances for one lane's outage to eat the
@@ -244,10 +281,12 @@ So the script now reads its own checkout (`git rev-parse HEAD` vs
 `origin/main`, in the directory of `import.meta.path`, not the process cwd) and
 puts a line at the top of the report when they differ, or when git cannot be read
 at all. That line is deduped on the (running commit, `origin/main`) pair, so a
-stale deploy is reported once rather than every day. It depends on the
-invocation's `--ff-only` pull for a fresh `origin/main`: run by hand without one
-and a stale `origin/main` can read as a match, which is a false negative and
-never a false positive.
+stale deploy is reported once rather than every day. When the invocation's
+`--ff-only` pull fails -- run by hand without one, or a host that cannot reach
+GitHub -- a stale `origin/main` can read as a match, which is a false negative
+and never a false positive. That gap is what the fetch-age line above covers:
+the age of the last successful fetch is read directly from `FETCH_HEAD` rather
+than inferred from the comparison.
 
 ## Delete it when
 

@@ -6,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,10 +25,14 @@ import {
   deployKey,
   describeDeferred,
   EXECUTION_RECONCILIATION_CAUSES,
+  FETCH_KEY_PREFIX,
+  FETCH_STALE_HOURS,
+  fetchKey,
   formatAge,
   formatAlert,
   formatDeferredAlert,
   formatDeployAlert,
+  formatFetchAlert,
   GRACE_MINUTES,
   MAX_NAMED,
   nextDeferredState,
@@ -39,6 +44,8 @@ import {
 } from "../../../scripts/paperclip-stranded-watch";
 
 const NOW = Date.parse("2026-10-16T18:00:00.000Z");
+/** 40h before NOW: past FETCH_STALE_HOURS, so the fetch line must fire. */
+const STALE_FETCH_AT = NOW - 40 * 3_600_000;
 const minutesAgo = (m: number) => NOW - m * 60_000;
 
 const issue = (over: Partial<BlockedIssue> & { identifier: string }): BlockedIssue => ({
@@ -462,6 +469,7 @@ describe("formatDeployAlert", () => {
     head: "a".repeat(40),
     originMain: "a".repeat(40),
     branch: "main",
+    lastFetchMs: NOW,
     ...over,
   });
 
@@ -504,22 +512,103 @@ describe("formatDeployAlert", () => {
 
 describe("deployKey", () => {
   it("is one key per (running commit, origin/main) pair, so it reports once", () => {
-    const a: DeployState = { head: "aa", originMain: "bb", branch: "x" };
-    const b: DeployState = { head: "aa", originMain: "bb", branch: "y" };
+    const a: DeployState = { head: "aa", originMain: "bb", branch: "x", lastFetchMs: NOW };
+    const b: DeployState = { head: "aa", originMain: "bb", branch: "y", lastFetchMs: NOW };
     expect(deployKey(a)).toBe(deployKey(b));
     expect(deployKey(a).startsWith(DEPLOY_KEY_PREFIX)).toBe(true);
   });
 
   it("changes when either side moves, so a new stale state is new news", () => {
-    const base: DeployState = { head: "aa", originMain: "bb", branch: "x" };
+    const base: DeployState = { head: "aa", originMain: "bb", branch: "x", lastFetchMs: NOW };
     expect(deployKey({ ...base, head: "cc" })).not.toBe(deployKey(base));
     expect(deployKey({ ...base, originMain: "cc" })).not.toBe(deployKey(base));
   });
 
   it("cannot collide with a park or a deferred key", () => {
-    const key = deployKey({ head: "aa", originMain: "bb", branch: null });
+    const key = deployKey({ head: "aa", originMain: "bb", branch: null, lastFetchMs: NOW });
     expect(key.startsWith("deferred:")).toBe(false);
     expect(key).toContain(":");
+  });
+});
+
+/**
+ * The sweep swallows its own `git pull` failure (`|| true`), so a host that
+ * cannot reach GitHub leaves `origin/main` where it was, `HEAD` matching it,
+ * and `formatDeployAlert` silent. These cover the line that reads the age of
+ * the last successful fetch instead (LAC-7050 nit 3).
+ */
+describe("formatFetchAlert", () => {
+  const hoursAgo = (h: number) => NOW - h * 3_600_000;
+  const state = (lastFetchMs: number | null): DeployState => ({
+    // Deliberately a clean match: the deploy check says nothing about this
+    // state, which is the whole false negative being closed.
+    head: "a".repeat(40),
+    originMain: "a".repeat(40),
+    branch: "main",
+    lastFetchMs,
+  });
+
+  it("says nothing when the fetch is fresh, with HEAD and origin/main matching", () => {
+    expect(formatFetchAlert(state(hoursAgo(1)), NOW)).toBeNull();
+    expect(formatDeployAlert(state(hoursAgo(1)))).toBeNull();
+  });
+
+  it("brackets the threshold at 36h: quiet at 35, loud at 37", () => {
+    // Absolute hours on purpose. Written as `FETCH_STALE_HOURS - 1` these
+    // would pass under every value of the constant and pin nothing.
+    // Mutants: 48 reddens the second assert, 24 the first.
+    expect(FETCH_STALE_HOURS).toBe(36);
+    expect(formatFetchAlert(state(hoursAgo(35)), NOW)).toBeNull();
+    const line = formatFetchAlert(state(hoursAgo(37)), NOW);
+    expect(line).toContain("could not refresh origin/main");
+    expect(line).toContain("last fetch 37h ago");
+  });
+
+  it("is quiet for a single missed daily pull and loud for two", () => {
+    // The reason for 36h rather than 1h: one failed pull leaves ~24h of age and
+    // the next run's pull clears it; two consecutive failures is ~48h.
+    // Mutants: FETCH_STALE_HOURS of 1 reddens the first assert, 48 the second.
+    expect(formatFetchAlert(state(hoursAgo(24)), NOW)).toBeNull();
+    expect(formatFetchAlert(state(hoursAgo(48)), NOW)).toContain("last fetch 48h ago");
+  });
+
+  it("reports a checkout that has never fetched rather than reading it as fresh", () => {
+    // Mutant: dropping the null guard returns null here, which is the silent
+    // direction this whole line exists to remove.
+    const line = formatFetchAlert(state(null), NOW);
+    expect(line).toContain("could not refresh origin/main");
+    expect(line).toContain("no successful fetch on record");
+  });
+
+  it("names hours, not days, so 36h and 71h do not both read as 1d", () => {
+    // Mutant: swapping in `formatAge` reddens both asserts.
+    expect(formatFetchAlert(state(hoursAgo(36)), NOW)).toContain("36h ago");
+    expect(formatFetchAlert(state(hoursAgo(71)), NOW)).toContain("71h ago");
+  });
+});
+
+describe("fetchKey", () => {
+  it("is one key per last successful fetch, so a standing failure says it once", () => {
+    const base: DeployState = {
+      head: "aa",
+      originMain: "aa",
+      branch: "main",
+      lastFetchMs: NOW - 40 * 3_600_000,
+    };
+    expect(fetchKey(base)).toBe(fetchKey({ ...base, branch: "other" }));
+    expect(fetchKey(base).startsWith(FETCH_KEY_PREFIX)).toBe(true);
+  });
+
+  it("changes when a pull lands, so the next staleness is new news", () => {
+    const base: DeployState = { head: "aa", originMain: "aa", branch: "main", lastFetchMs: 1_000 };
+    expect(fetchKey({ ...base, lastFetchMs: 2_000 })).not.toBe(fetchKey(base));
+    expect(fetchKey({ ...base, lastFetchMs: null })).not.toBe(fetchKey(base));
+  });
+
+  it("cannot collide with a deploy, park or deferred key", () => {
+    const key = fetchKey({ head: "aa", originMain: "bb", branch: null, lastFetchMs: 1_000 });
+    expect(key.startsWith(DEPLOY_KEY_PREFIX)).toBe(false);
+    expect(key.startsWith("deferred:")).toBe(false);
   });
 });
 
@@ -535,6 +624,13 @@ describe("readDeployState", () => {
   let repo: string;
   let elsewhere: string;
   let originalCwd: string;
+  /** Four more repos, so the FETCH_HEAD cases cannot depend on test order. */
+  let neverFetched: string;
+  let staleFetch: string;
+  let worktreeHost: string;
+  /** The production shape: a worktree with its own FETCH_HEAD, plus a fresher shared one. */
+  let precedenceHost: string;
+  let precedenceWorktree: string;
 
   beforeAll(() => {
     originalCwd = process.cwd();
@@ -548,12 +644,57 @@ describe("readDeployState", () => {
     git(repo, "commit", "-qm", "one");
     // A local origin/main, so the comparison has both sides without a network.
     git(repo, "update-ref", "refs/remotes/origin/main", "HEAD");
-  });
+
+    neverFetched = mkdtempSync(path.join(tmpdir(), "sw-nofetch-"));
+    staleFetch = mkdtempSync(path.join(tmpdir(), "sw-stale-"));
+    worktreeHost = mkdtempSync(path.join(tmpdir(), "sw-wthost-"));
+    precedenceHost = mkdtempSync(path.join(tmpdir(), "sw-prec-"));
+    for (const dir of [neverFetched, staleFetch, worktreeHost, precedenceHost]) {
+      git(dir, "init", "-q", "-b", "main");
+      git(dir, "config", "user.email", "me@lacymorrow.com");
+      git(dir, "config", "user.name", "Lacy Morrow");
+      writeFileSync(path.join(dir, "f"), "one\n");
+      git(dir, "add", "f");
+      git(dir, "commit", "-qm", "one");
+      git(dir, "update-ref", "refs/remotes/origin/main", "HEAD");
+    }
+    // `git clone` and `git init` write no FETCH_HEAD; only a fetch does. So
+    // `neverFetched` is left exactly as git made it.
+    for (const dir of [staleFetch, worktreeHost]) {
+      const fetchHead = path.join(dir, ".git", "FETCH_HEAD");
+      writeFileSync(fetchHead, "");
+      utimesSync(fetchHead, STALE_FETCH_AT / 1000, STALE_FETCH_AT / 1000);
+    }
+
+    // `~/repo/buildandserve-ops` in miniature: a worktree whose own pull has
+    // gone stale (40h) while a sibling session keeps the shared FETCH_HEAD
+    // fresh (1h). Both files exist, which is the production shape.
+    precedenceWorktree = `${precedenceHost}-wt`;
+    git(precedenceHost, "worktree", "add", "-q", "-b", "side", precedenceWorktree);
+    const sharedHead = path.join(precedenceHost, ".git", "FETCH_HEAD");
+    writeFileSync(sharedHead, "");
+    utimesSync(sharedHead, (NOW - 3_600_000) / 1000, (NOW - 3_600_000) / 1000);
+    const ownHead = spawnSync(
+      "git",
+      ["-C", precedenceWorktree, "rev-parse", "--git-path", "FETCH_HEAD"],
+      { encoding: "utf8" }
+    ).stdout.trim();
+    writeFileSync(ownHead, "");
+    utimesSync(ownHead, STALE_FETCH_AT / 1000, STALE_FETCH_AT / 1000);
+    // Five temp repos and two `git worktree add` calls; the 10s default is not
+    // enough on a cold filesystem cache.
+  }, 60_000);
 
   afterAll(() => {
     process.chdir(originalCwd);
     rmSync(repo, { recursive: true, force: true });
     rmSync(elsewhere, { recursive: true, force: true });
+    rmSync(neverFetched, { recursive: true, force: true });
+    rmSync(staleFetch, { recursive: true, force: true });
+    rmSync(`${worktreeHost}-wt`, { recursive: true, force: true });
+    rmSync(worktreeHost, { recursive: true, force: true });
+    rmSync(precedenceWorktree, { recursive: true, force: true });
+    rmSync(precedenceHost, { recursive: true, force: true });
   });
 
   it("reads the repo it is given, not the cwd it is called from", async () => {
@@ -595,6 +736,70 @@ describe("readDeployState", () => {
     expect(state.originMain).toBeNull();
     // Null must never read as "the copy is current".
     expect(formatDeployAlert(state)).toContain("cannot tell which commit it is running");
+  });
+
+  /**
+   * The path resolution is the part a pure-formatter test cannot reach:
+   * `--git-path` answers relative to the repo in a plain clone and absolute
+   * inside a worktree, and getting that wrong reads as "never fetched" on a
+   * perfectly healthy checkout.
+   */
+  it("reads the age of FETCH_HEAD in the repo it is given", async () => {
+    process.chdir(elsewhere);
+    const state = await readDeployState(staleFetch);
+    expect(state.lastFetchMs).not.toBeNull();
+    expect(Math.abs(Number(state.lastFetchMs) - STALE_FETCH_AT)).toBeLessThan(2_000);
+    // HEAD matches origin/main here, so the deploy line is silent and this is
+    // the only thing that says the copy may be blind. That is the whole nit.
+    expect(formatDeployAlert(state)).toBeNull();
+    expect(formatFetchAlert(state, NOW)).toContain("last fetch 40h ago");
+  });
+
+  /**
+   * The common-dir fallback, which nothing else reaches: in a worktree
+   * `--git-path FETCH_HEAD` answers with a per-worktree path that usually does
+   * not exist, while the fetch that actually happened wrote to the common dir.
+   * Without the fallback a healthy by-hand run from a worktree reads as "never
+   * fetched". Mutant: dropping the second candidate reddens this and nothing
+   * else in the file.
+   */
+  it("finds a fetch recorded in the common dir when run from a worktree", async () => {
+    process.chdir(elsewhere);
+    const wt = path.join(worktreeHost, "..", `${path.basename(worktreeHost)}-wt`);
+    git(worktreeHost, "worktree", "add", "-q", "-b", "side", wt);
+    // The per-worktree FETCH_HEAD does not exist; the common dir's does.
+    expect(
+      spawnSync("git", ["-C", wt, "rev-parse", "--git-path", "FETCH_HEAD"], {
+        encoding: "utf8",
+      }).stdout.trim()
+    ).toContain("worktrees");
+    const state = await readDeployState(wt);
+    expect(state.lastFetchMs).not.toBeNull();
+    expect(Math.abs(Number(state.lastFetchMs) - STALE_FETCH_AT)).toBeLessThan(2_000);
+    expect(formatFetchAlert(state, NOW)).toContain("last fetch 40h ago");
+  });
+
+  /**
+   * The production shape, and the reason the order is not "newest wins":
+   * `~/repo/buildandserve-ops` is a worktree of `~/repo/buildandserve`, so a
+   * sibling session's fetch keeps the shared FETCH_HEAD fresh while this
+   * checkout's own pull is failing. Mutant: taking the newest of the two
+   * candidates reddens this and nothing else.
+   */
+  it("prefers this checkout's own FETCH_HEAD over a fresher shared one", async () => {
+    process.chdir(elsewhere);
+    const state = await readDeployState(precedenceWorktree);
+    expect(Math.abs(Number(state.lastFetchMs) - STALE_FETCH_AT)).toBeLessThan(2_000);
+    expect(formatFetchAlert(state, NOW)).toContain("last fetch 40h ago");
+  });
+
+  it("reports a real repo that has never fetched as no fetch on record", async () => {
+    process.chdir(elsewhere);
+    const state = await readDeployState(neverFetched);
+    // Not the "not a repo" case: git answers fine here.
+    expect(state.head).not.toBeNull();
+    expect(state.lastFetchMs).toBeNull();
+    expect(formatFetchAlert(state, NOW)).toContain("no successful fetch on record");
   });
 });
 
