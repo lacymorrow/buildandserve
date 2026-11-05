@@ -5,26 +5,25 @@ import { Logo } from "@/components/assets/logo";
 import { Icon } from "@/components/assets/icon";
 export const BlogHero = () => {
   return (
-    <header className="py-12 px-4 sm:px-6 lg:px-8">
-      <div className="relative mx-auto max-w-[37.5rem] pt-20 text-center pb-20">
-        <div className="flex justify-center mb-8">
+    <header className="px-4 py-12 sm:px-6 lg:px-8">
+      <div className="relative mx-auto max-w-[37.5rem] pt-20 pb-20 text-center">
+        <div className="mb-8 flex justify-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Homepage
           </Link>
         </div>
         <div className="flex items-center justify-center space-x-3">
-          <Icon name="logo" className="w-10 h-10" />
+          <Icon name="logo" className="h-10 w-10" />
           <h1 className="text-4xl font-extrabold tracking-tight text-primary/90 sm:text-5xl">
             {siteConfig.name} Blog
           </h1>
         </div>
         <p className="mt-4 text-base leading-7 text-muted-foreground">
-          Notes from Build and Serve on building and shipping software. Follow
-          us on{" "}
+          Notes from Build and Serve on building and shipping software. Follow us on{" "}
           <Link
             href={siteConfig.links.x}
             className="text-primary underline hover:text-primary/70"

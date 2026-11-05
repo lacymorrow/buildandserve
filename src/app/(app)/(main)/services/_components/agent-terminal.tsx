@@ -17,20 +17,17 @@ export function AgentTerminal() {
         </div>
         <div className="space-y-1 text-neutral-500">
           <p>
-            <span className="text-emerald-400/80">&#x2714;</span> Agent
-            topology validated (3 agents, 1 orchestrator)
+            <span className="text-emerald-400/80">&#x2714;</span> Agent topology validated (3
+            agents, 1 orchestrator)
           </p>
           <p>
-            <span className="text-emerald-400/80">&#x2714;</span> Security
-            model applied
+            <span className="text-emerald-400/80">&#x2714;</span> Security model applied
           </p>
           <p>
-            <span className="text-emerald-400/80">&#x2714;</span> Monitoring
-            endpoints configured
+            <span className="text-emerald-400/80">&#x2714;</span> Monitoring endpoints configured
           </p>
           <p>
-            <span className="text-emerald-400/80">&#x2714;</span> Deployed to
-            production
+            <span className="text-emerald-400/80">&#x2714;</span> Deployed to production
           </p>
         </div>
         <div className="border-t border-white/[0.04] pt-3">

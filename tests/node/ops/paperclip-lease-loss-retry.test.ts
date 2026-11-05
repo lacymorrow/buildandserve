@@ -142,16 +142,15 @@ describe("decide", () => {
     });
   });
 
-  it.each([
-    "paused",
-    "terminated",
-    "pending_approval",
-  ])("respects the %s operator hold", (agentStatus) => {
-    expect(decide(reaped({ agentStatus }), NOW)).toMatchObject({
-      action: "skip",
-      reason: "operator_hold",
-    });
-  });
+  it.each(["paused", "terminated", "pending_approval"])(
+    "respects the %s operator hold",
+    (agentStatus) => {
+      expect(decide(reaped({ agentStatus }), NOW)).toMatchObject({
+        action: "skip",
+        reason: "operator_hold",
+      });
+    }
+  );
 
   it.each(["idle", "active", "running", "error"])("still retries for a %s agent", (agentStatus) => {
     // `error` is invokable in Paperclip, and a lease loss is a common way for an

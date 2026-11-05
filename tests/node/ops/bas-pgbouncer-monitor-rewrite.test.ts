@@ -56,7 +56,7 @@ drop_monitor
 `;
   return run("bash", ["-c", harness]).then(
     (r) => ({ code: 0, stderr: r.stderr }),
-    (e: { code: number; stderr: string }) => ({ code: e.code, stderr: e.stderr }),
+    (e: { code: number; stderr: string }) => ({ code: e.code, stderr: e.stderr })
   );
 }
 
@@ -123,7 +123,7 @@ echo pw | add_monitor
 `;
   return run("bash", ["-c", harness]).then(
     (r) => ({ code: 0, stderr: r.stderr }),
-    (e: { code: number; stderr: string }) => ({ code: e.code, stderr: e.stderr }),
+    (e: { code: number; stderr: string }) => ({ code: e.code, stderr: e.stderr })
   );
 }
 

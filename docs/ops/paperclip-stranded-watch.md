@@ -34,11 +34,11 @@ days.
 An issue counts as parked when it is `blocked` and has no unresolved first-class
 blocker. Three outcomes:
 
-| Class | Meaning | Alerted |
-|---|---|---|
-| escalated | an active recovery action owns it, nobody was told | yes |
-| orphaned | no recovery action, no declared wait, nothing will wake it | yes |
-| declared wait | `unblock_descriptor` names the owner and the thing, and no action or an agent-owned one | no |
+| Class         | Meaning                                                                                 | Alerted |
+| ------------- | --------------------------------------------------------------------------------------- | ------- |
+| escalated     | an active recovery action owns it, nobody was told                                      | yes     |
+| orphaned      | no recovery action, no declared wait, nothing will wake it                              | yes     |
+| declared wait | `unblock_descriptor` names the owner and the thing, and no action or an agent-owned one | no      |
 
 A declared wait is a person parking work on purpose. Alerting on it would bury
 the hundred cases where nobody chose anything.
@@ -162,7 +162,7 @@ measurements; the third is a pointer:
    code behind it (`runReleaseDrain` above). Only a fresh issue id clears it.
 2. **Assert `HTTP 201` and a different identifier before cancelling the
    original.** Observed 2026-11-05: a `POST /api/companies/{id}/issues` whose
-   title matched a non-terminal issue returned `HTTP 200` and that *existing*
+   title matched a non-terminal issue returned `HTTP 200` and that _existing_
    issue's identifier; the same body returned `201` with a new identifier once
    the original was `cancelled`. **The key was not isolated** - it could be
    title, title+assignee, title+project, or a time window, and three same-title
@@ -194,7 +194,7 @@ unreachable). `2` never consumes an alert, and a failure in either query is a
 A **standing** trust line (a stale deploy or a stale fetch, already reported, so
 nothing new to say) exits `0`, not `1`. The code means "something is parked", the
 sweep discards anything under `2`, and that path DMs nobody, so a `1` there would
-be a claim with no reader contradicting this table. A trust line that is *news*
+be a claim with no reader contradicting this table. A trust line that is _news_
 rides the `1`, because that run did tell someone.
 
 ### The two trust lines, and the 36h threshold
@@ -202,10 +202,10 @@ rides the `1`, because that run did tell someone.
 Either of these can sit above the lanes. They are printed first because they say
 whether the rest of the report can be believed at all.
 
-| Line | Fires when | Reported once per |
-|---|---|---|
-| `is running <sha> on branch <b>, not origin/main` | `HEAD` is not `origin/main`, or git cannot be read in the checkout | (running commit, `origin/main`) pair |
-| `could not refresh origin/main (last fetch Nh ago)` | `FETCH_HEAD` in the checkout is older than **36h** (`FETCH_STALE_HOURS`), or no fetch has ever landed in it | last successful fetch timestamp |
+| Line                                                | Fires when                                                                                                  | Reported once per                    |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `is running <sha> on branch <b>, not origin/main`   | `HEAD` is not `origin/main`, or git cannot be read in the checkout                                          | (running commit, `origin/main`) pair |
+| `could not refresh origin/main (last fetch Nh ago)` | `FETCH_HEAD` in the checkout is older than **36h** (`FETCH_STALE_HOURS`), or no fetch has ever landed in it | last successful fetch timestamp      |
 
 The second one exists because the first one cannot catch its own blind spot. The
 sweep runs `git pull --ff-only -q || true` before each run, so a failed pull is
@@ -321,29 +321,29 @@ three wait on the LAC-4482 decision about shipping platform patches.
   - So the saved message is genuinely never-started, and a
     waiter-is-not-assignee suppressor is rejected on its own terms: 5 of the 29
     deferred wakes on the board have waiter != assignee and would be hidden.
-  Caveat, partly settled 2026-11-05 against the running server (`paperclipai`
-  2026.1023.0 under `~/.npm/_npx/0aa74679bec75e15`, started 2026-11-04). The
-  line numbers above are from the 2026-10-20 `paperclip` source checkout and do
-  not apply to the running build, which is compiled and split into modules. What
-  carries over: `modules/run-dispatch/domain/policy.js` `decideIssueOwnership`
-  returns `current_owner` for any `isInteractionWake`, so the assignee guard does
-  not cancel this wake. Not re-read in the running build: the promotion path
-  (`deferred.agentId` queued with no assignee check) and the 5-of-29 count (a
-  database measurement, not source).
-  **Disposition: the row clears when LAC-6939 reaches `done` or `cancelled`
-  (the lane filters `i.status NOT IN ('done','cancelled')`), and that is not an
-  agent's write.** Resolving the board approval is the likely route, but whether
-  approve or reject moves the issue terminal, rather than leaving it `in_review`
-  or sending it back to `in_progress`, was not tested; if it does not, the row
-  persists after the decision. Until then it is a correct alarm about a real
-  waiting message, and it must never be re-filed.
-  Re-filing destroys the live board `approval` stage it carries
-  (`reviewAttention` responder `Board` since 21:17Z), which is the one path Lacy
-  has to it on client-visible work. PR #110 (the run-start suppressor) is sound
-  code with nothing live to exercise it and was closed unmerged under Rule 26;
-  LAC-7040 is cancelled as not-a-bug. The real gap the lane still has is the
-  general one in the bullet above it: a wake is promoted only on a run release,
-  never on a timer.
+    Caveat, partly settled 2026-11-05 against the running server (`paperclipai`
+    2026.1023.0 under `~/.npm/_npx/0aa74679bec75e15`, started 2026-11-04). The
+    line numbers above are from the 2026-10-20 `paperclip` source checkout and do
+    not apply to the running build, which is compiled and split into modules. What
+    carries over: `modules/run-dispatch/domain/policy.js` `decideIssueOwnership`
+    returns `current_owner` for any `isInteractionWake`, so the assignee guard does
+    not cancel this wake. Not re-read in the running build: the promotion path
+    (`deferred.agentId` queued with no assignee check) and the 5-of-29 count (a
+    database measurement, not source).
+    **Disposition: the row clears when LAC-6939 reaches `done` or `cancelled`
+    (the lane filters `i.status NOT IN ('done','cancelled')`), and that is not an
+    agent's write.** Resolving the board approval is the likely route, but whether
+    approve or reject moves the issue terminal, rather than leaving it `in_review`
+    or sending it back to `in_progress`, was not tested; if it does not, the row
+    persists after the decision. Until then it is a correct alarm about a real
+    waiting message, and it must never be re-filed.
+    Re-filing destroys the live board `approval` stage it carries
+    (`reviewAttention` responder `Board` since 21:17Z), which is the one path Lacy
+    has to it on client-visible work. PR #110 (the run-start suppressor) is sound
+    code with nothing live to exercise it and was closed unmerged under Rule 26;
+    LAC-7040 is cancelled as not-a-bug. The real gap the lane still has is the
+    general one in the bullet above it: a wake is promoted only on a run release,
+    never on a timer.
 - Read-only on purpose. It never unparks anything. Unparking 100 issues at once
   would stampede the fleet, and the platform re-parks `configuration_incomplete`
   seconds after a write. This property is load-bearing and stays: an alarm that

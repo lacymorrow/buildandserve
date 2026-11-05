@@ -15,14 +15,12 @@ export async function generateSitemapEntries(): Promise<SitemapEntry[]> {
   const entries: SitemapEntry[] = [];
 
   // High priority static routes
-  const highPriorityRoutes = [routes.home, routes.docs, routes.pricing].map(
-    (route) => ({
-      url: `${siteConfig.url}${route}`,
-      lastModified: new Date().toISOString(),
-      changeFrequency: "daily" as const,
-      priority: 1,
-    })
-  );
+  const highPriorityRoutes = [routes.home, routes.docs, routes.pricing].map((route) => ({
+    url: `${siteConfig.url}${route}`,
+    lastModified: new Date().toISOString(),
+    changeFrequency: "daily" as const,
+    priority: 1,
+  }));
 
   // Medium priority static routes
   const mediumPriorityRoutes = [routes.faq, routes.download].map((route) => ({

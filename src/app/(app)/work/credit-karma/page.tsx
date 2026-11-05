@@ -2,13 +2,7 @@ import type { Metadata } from "next";
 import { constructMetadata } from "@/config/metadata";
 import Image from "next/image";
 import { Link } from "@/components/primitives/link-with-transition";
-import {
-  ArrowLeft,
-  ExternalLink,
-  Calendar,
-  Users,
-  CreditCard,
-} from "lucide-react";
+import { ArrowLeft, ExternalLink, Calendar, Users, CreditCard } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +17,7 @@ export const metadata: Metadata = constructMetadata({
 
 export default function CreditKarmaPage() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className="container mx-auto max-w-4xl px-4 py-8">
       <BackNavigation />
 
       <div className="space-y-8">
@@ -33,10 +27,10 @@ export default function CreditKarmaPage() {
             <CreditCard className="h-8 w-8 text-blue-600" />
             <h1 className="text-4xl font-bold">Credit Karma</h1>
           </div>
-          <p className="text-xl text-muted-foreground leading-relaxed">
-            Empowering millions of Americans to make financial progress. Built
-            modern web applications for credit monitoring, financial products,
-            and personalized recommendations.
+          <p className="text-xl leading-relaxed text-muted-foreground">
+            Empowering millions of Americans to make financial progress. Built modern web
+            applications for credit monitoring, financial products, and personalized
+            recommendations.
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -50,25 +44,21 @@ export default function CreditKarmaPage() {
         </div>
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-6 border-y">
+        <div className="grid grid-cols-1 gap-6 border-y py-6 md:grid-cols-3">
           <div className="text-center">
-            <Calendar className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+            <Calendar className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
             <div className="text-2xl font-bold">2021-2022</div>
             <div className="text-sm text-muted-foreground">Duration</div>
           </div>
           <div className="text-center">
-            <Users className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+            <Users className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
             <div className="text-2xl font-bold">120M+</div>
-            <div className="text-sm text-muted-foreground">
-              Registered Users
-            </div>
+            <div className="text-sm text-muted-foreground">Registered Users</div>
           </div>
           <div className="text-center">
-            <CreditCard className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+            <CreditCard className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
             <div className="text-2xl font-bold">Senior</div>
-            <div className="text-sm text-muted-foreground">
-              Frontend Engineer
-            </div>
+            <div className="text-sm text-muted-foreground">Frontend Engineer</div>
           </div>
         </div>
 
@@ -81,47 +71,29 @@ export default function CreditKarmaPage() {
             height={500}
             className="w-full rounded-lg shadow-lg"
           />
-          <p className="text-sm text-muted-foreground text-center">
-            Main dashboard showing credit score monitoring and financial
-            insights
+          <p className="text-center text-sm text-muted-foreground">
+            Main dashboard showing credit score monitoring and financial insights
           </p>
         </div>
 
         {/* Project Overview */}
         <div className="space-y-6">
           <h2 className="text-2xl font-semibold">Project Overview</h2>
-          <div className="prose prose-gray dark:prose-invert max-w-none">
+          <div className="prose max-w-none prose-gray dark:prose-invert">
             <p>
-              Credit Karma provides free credit scores, reports, and
-              personalized financial insights to over 120 million members. As a
-              Senior Frontend Engineer, I contributed to core user experiences
-              and helped scale the platform for millions of daily active users.
+              Credit Karma provides free credit scores, reports, and personalized financial insights
+              to over 120 million members. As a Senior Frontend Engineer, I contributed to core user
+              experiences and helped scale the platform for millions of daily active users.
             </p>
 
             <h3>Key Contributions</h3>
             <ul>
-              <li>
-                Built responsive credit monitoring dashboards with real-time
-                score updates
-              </li>
-              <li>
-                Developed personalized financial product recommendation engines
-              </li>
-              <li>
-                Implemented A/B testing framework improving conversion rates by
-                25%
-              </li>
-              <li>
-                Created accessible mobile-first interfaces serving 70M+ mobile
-                users
-              </li>
-              <li>
-                Led performance optimization reducing page load times by 40%
-              </li>
-              <li>
-                Mentored junior developers and established frontend code
-                standards
-              </li>
+              <li>Built responsive credit monitoring dashboards with real-time score updates</li>
+              <li>Developed personalized financial product recommendation engines</li>
+              <li>Implemented A/B testing framework improving conversion rates by 25%</li>
+              <li>Created accessible mobile-first interfaces serving 70M+ mobile users</li>
+              <li>Led performance optimization reducing page load times by 40%</li>
+              <li>Mentored junior developers and established frontend code standards</li>
             </ul>
           </div>
         </div>
@@ -129,7 +101,7 @@ export default function CreditKarmaPage() {
         {/* Screenshots Grid */}
         <div className="space-y-4">
           <h3 className="text-xl font-semibold">Platform Screenshots</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <Image
                 src="/static/credit-karma/credit-karma-5.png"
@@ -160,29 +132,26 @@ export default function CreditKarmaPage() {
         {/* Technical Details */}
         <div className="space-y-4">
           <h3 className="text-xl font-semibold">Technical Implementation</h3>
-          <div className="bg-muted/50 rounded-lg p-6 space-y-4">
+          <div className="space-y-4 rounded-lg bg-muted/50 p-6">
             <div>
-              <h4 className="font-medium mb-2">Frontend Architecture</h4>
+              <h4 className="mb-2 font-medium">Frontend Architecture</h4>
               <p className="text-sm text-muted-foreground">
-                Built with React, Redux for state management, and TypeScript for
-                type safety. Implemented component library used across 20+
-                product teams.
+                Built with React, Redux for state management, and TypeScript for type safety.
+                Implemented component library used across 20+ product teams.
               </p>
             </div>
             <div>
-              <h4 className="font-medium mb-2">Performance & Scale</h4>
+              <h4 className="mb-2 font-medium">Performance & Scale</h4>
               <p className="text-sm text-muted-foreground">
-                Optimized for high traffic with code splitting, lazy loading,
-                and CDN integration. Maintained 95+ Lighthouse scores while
-                serving millions of daily users.
+                Optimized for high traffic with code splitting, lazy loading, and CDN integration.
+                Maintained 95+ Lighthouse scores while serving millions of daily users.
               </p>
             </div>
             <div>
-              <h4 className="font-medium mb-2">A/B Testing & Analytics</h4>
+              <h4 className="mb-2 font-medium">A/B Testing & Analytics</h4>
               <p className="text-sm text-muted-foreground">
-                Implemented robust experimentation framework with feature flags,
-                user segmentation, and detailed conversion tracking across the
-                entire user journey.
+                Implemented robust experimentation framework with feature flags, user segmentation,
+                and detailed conversion tracking across the entire user journey.
               </p>
             </div>
           </div>
@@ -191,12 +160,8 @@ export default function CreditKarmaPage() {
         {/* CTA */}
         <div className="flex gap-4 pt-6">
           <Button asChild>
-            <Link
-              href="https://creditkarma.com"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
+            <Link href="https://creditkarma.com" target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="mr-2 h-4 w-4" />
               Visit Credit Karma
             </Link>
           </Button>

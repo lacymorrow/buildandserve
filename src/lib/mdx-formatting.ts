@@ -1,91 +1,91 @@
 import { languages } from "monaco-editor";
 
 export function configureMDXFormatting(monaco: any) {
-	monaco.languages.registerDocumentFormattingEditProvider("mdx", {
-		provideDocumentFormattingEdits(model: any) {
-			const text = model.getValue();
-			const formatted = formatMDXContent(text);
+  monaco.languages.registerDocumentFormattingEditProvider("mdx", {
+    provideDocumentFormattingEdits(model: any) {
+      const text = model.getValue();
+      const formatted = formatMDXContent(text);
 
-			return [
-				{
-					range: model.getFullModelRange(),
-					text: formatted,
-				},
-			];
-		},
-	});
+      return [
+        {
+          range: model.getFullModelRange(),
+          text: formatted,
+        },
+      ];
+    },
+  });
 }
 
 function formatMDXContent(content: string): string {
-	const lines = content.split("\n");
-	let inCodeBlock = false;
-	let inFrontmatter = false;
-	const formattedLines: string[] = [];
+  const lines = content.split("\n");
+  let inCodeBlock = false;
+  let inFrontmatter = false;
+  const formattedLines: string[] = [];
 
-	for (const rawLine of lines) {
-		let line = rawLine;
+  for (const rawLine of lines) {
+    let line = rawLine;
 
-		// Handle frontmatter
-		if (line.trim() === "---") {
-			inFrontmatter = !inFrontmatter;
-			formattedLines.push(line);
-			continue;
-		}
+    // Handle frontmatter
+    if (line.trim() === "---") {
+      inFrontmatter = !inFrontmatter;
+      formattedLines.push(line);
+      continue;
+    }
 
-		// Handle code blocks
-		if (line.startsWith("```")) {
-			inCodeBlock = !inCodeBlock;
-			formattedLines.push(line);
-			continue;
-		}
+    // Handle code blocks
+    if (line.startsWith("```")) {
+      inCodeBlock = !inCodeBlock;
+      formattedLines.push(line);
+      continue;
+    }
 
-		if (inCodeBlock || inFrontmatter) {
-			formattedLines.push(line);
-			continue;
-		}
+    if (inCodeBlock || inFrontmatter) {
+      formattedLines.push(line);
+      continue;
+    }
 
-		// Format JSX/TSX content
-		if (line.includes("<") && line.includes(">")) {
-			line = formatJSXLine(line);
-		}
+    // Format JSX/TSX content
+    if (line.includes("<") && line.includes(">")) {
+      line = formatJSXLine(line);
+    }
 
-		// Format lists
-		if (line.match(/^[\s]*[-*+]\s/)) {
-			line = line.replace(/^(\s*)[-*+]\s+/, "$1- ");
-		}
+    // Format lists
+    if (line.match(/^[\s]*[-*+]\s/)) {
+      line = line.replace(/^(\s*)[-*+]\s+/, "$1- ");
+    }
 
-		// Format headings
-		if (line.match(/^#+\s/)) {
-			line = line.replace(/^(#+)\s*/, "$1 ");
-		}
+    // Format headings
+    if (line.match(/^#+\s/)) {
+      line = line.replace(/^(#+)\s*/, "$1 ");
+    }
 
-		// Format blockquotes
-		if (line.match(/^>\s/)) {
-			line = line.replace(/^>\s*/, "> ");
-		}
+    // Format blockquotes
+    if (line.match(/^>\s/)) {
+      line = line.replace(/^>\s*/, "> ");
+    }
 
-		// Format links and images
-		line = line.replace(/\[\s*([^\]]+)\s*\]\(\s*([^)]+)\s*\)/g, "[$1]($2)");
-		line = line.replace(/!\[\s*([^\]]*)\s*\]\(\s*([^)]+)\s*\)/g, "![$1]($2)");
+    // Format links and images
+    line = line.replace(/\[\s*([^\]]+)\s*\]\(\s*([^)]+)\s*\)/g, "[$1]($2)");
+    line = line.replace(/!\[\s*([^\]]*)\s*\]\(\s*([^)]+)\s*\)/g, "![$1]($2)");
 
-		formattedLines.push(line);
-	}
+    formattedLines.push(line);
+  }
 
-	return formattedLines.join("\n");
+  return formattedLines.join("\n");
 }
 
 export function formatJSXLine(input: string): string {
-	let line = input;
-	// Basic JSX formatting
-	line = line.replace(/\s*=\s*{\s*([^}]*?)\s*}/g, "={$1}");
-	line = line.replace(/}\s+/g, "} ");
-	line = line.replace(/<\/\s+/g, "</");
-	line = line.replace(/\s+>/g, ">");
-	// Space before a closing tag, but not directly after another tag's ">"
-	line = line.replace(/([^\s>])<\//g, "$1 </");
+  let line = input;
+  // Basic JSX formatting
+  line = line.replace(/\s*=\s*{\s*([^}]*?)\s*}/g, "={$1}");
+  line = line.replace(/}\s+/g, "} ");
+  line = line.replace(/<\/\s+/g, "</");
+  line = line.replace(/\s+>/g, ">");
+  // Space before a closing tag, but not directly after another tag's ">"
+  line = line.replace(/([^\s>])<\//g, "$1 </");
 
-	// Format self-closing tags
-	line = line.replace(/\s+\/>/g, " />");
+  // Format self-closing tags
+  line = line.replace(/\s+\/>/g, " />");
 
-	return line;
+  return line;
 }

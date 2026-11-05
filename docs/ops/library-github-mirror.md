@@ -79,16 +79,16 @@ A DM costs a **change of state**, not a run. Before LACA-2947 the daily cron
 DMed on every run, so one expired token announced itself seven times a week for
 fifteen weeks in the channel Lacy also uses for approval cards.
 
-| Event | DM |
-| --- | --- |
-| First run of an outage | yes |
-| Same outage, same run key | no, logged only |
-| Same outage, a week since the last DM | yes, one reminder |
-| A **different** failure than the one on record | yes |
-| First run that succeeds again | yes, one recovery line |
-| Healthy run | no |
-| Token expiry inside the warning window | yes, then weekly |
-| A DM Slack refuses | nothing is recorded; the next run says it again |
+| Event                                          | DM                                              |
+| ---------------------------------------------- | ----------------------------------------------- |
+| First run of an outage                         | yes                                             |
+| Same outage, same run key                      | no, logged only                                 |
+| Same outage, a week since the last DM          | yes, one reminder                               |
+| A **different** failure than the one on record | yes                                             |
+| First run that succeeds again                  | yes, one recovery line                          |
+| Healthy run                                    | no                                              |
+| Token expiry inside the warning window         | yes, then weekly                                |
+| A DM Slack refuses                             | nothing is recorded; the next run says it again |
 
 The ledger is `/mnt/cachex/appdata/github-mirror/notify-state`, one line:
 
