@@ -144,7 +144,27 @@ invites two providers onto one workspace, which is a live defect of its own
 the issue, or re-filing the work on a fresh issue, which carries no hold because
 the hold is keyed to `source_issue_id`. Re-filing is measured: LAC-6894 was
 undeliverable for 31h, re-filed as LAC-6999, and its `issue_assigned` wake read
-`queued` with a run id 20 seconds later.
+`queued` with a run id 20 seconds later. The whole backlog of nine this check
+found on its first pass was drained that way on 2026-11-05 (LAC-7017), eight
+re-files, every replacement wake `claimed` or `completed` with a run id.
+
+Three things that run measured, for whoever does the next one:
+
+1. **Reassignment is not a repair.** It looks like one, because it raises a
+   fresh `issue_assigned` wake. That wake defers too: promotion is edge-triggered
+   on a run release, not on assignment. Tried on four issues (LAC-2809,
+   LAC-6973, LAC-7014, LAC-7016), deferred four times, leaving the original
+   strand plus a new one. Only a fresh issue id clears it.
+2. **Assert `HTTP 201` and a different identifier before cancelling the
+   original.** `POST /api/companies/{id}/issues` de-duplicates on an identical
+   title and returns the *existing* issue with `HTTP 200`, and a script that
+   reads only `issue.identifier` off that body will cancel the very issue it
+   meant to replace. That happened to three issues on the 2026-11-05 pass
+   (recovered by re-creating once the originals were terminal). The de-dupe only
+   fires while the original is non-terminal, so cancel-then-create also works;
+   the assertion is what makes either order safe.
+3. **Not every strand needs a repair, and one of them must not get one.** See
+   the supersession gap below.
 
 ## Run it by hand
 
@@ -195,6 +215,18 @@ three wait on the LAC-4482 decision about shipping platform patches.
 
 ## Known gaps
 
+- **A superseded strand is reported as a live one, forever.** The lane asks
+  whether a wake started, never whether the waiting agent got control some other
+  way. LAC-6939 is the worked case: its QA Engineer wake was deferred
+  2026-11-04 21:05Z and the QA Engineer commented a verdict on that same issue
+  at 21:07Z, so nothing was lost, yet it is still named on every tick. It must
+  not be re-filed either: it carries a live board `approval` stage
+  (`reviewAttention` responder `Board` since 21:17Z), and re-filing would
+  destroy the one path Lacy has to it on client-visible work. Two cheap
+  suppressors, either sufficient: a comment by `w.agent_id` on the issue later
+  than `w.requested_at`, and an issue whose only live review path is a board
+  approval, where nobody is waiting on an agent at all. Until one lands, this
+  row is a standing false positive and the alarm is that much easier to ignore.
 - Read-only on purpose. It never unparks anything. Unparking 100 issues at once
   would stampede the fleet, and the platform re-parks `configuration_incomplete`
   seconds after a write. This property is load-bearing and stays: an alarm that
