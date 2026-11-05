@@ -767,7 +767,7 @@ describe("readDeployState", () => {
     expect(state.head).not.toBe(state.originMain);
     const alert = formatDeployAlert(state);
     expect(alert).not.toBeNull();
-    expect(alert).toContain(state.head!.slice(0, 8));
+    expect(alert).toContain(state.head?.slice(0, 8));
   });
 
   /**
