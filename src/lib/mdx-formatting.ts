@@ -74,12 +74,15 @@ function formatMDXContent(content: string): string {
 	return formattedLines.join("\n");
 }
 
-export function formatJSXLine(line: string): string {
+export function formatJSXLine(input: string): string {
+	let line = input;
 	// Basic JSX formatting
-	line = line.replace(/\s*=\s*{/g, "={");
+	line = line.replace(/\s*=\s*{\s*([^}]*?)\s*}/g, "={$1}");
 	line = line.replace(/}\s+/g, "} ");
+	line = line.replace(/<\/\s+/g, "</");
 	line = line.replace(/\s+>/g, ">");
-	line = line.replace(/(\S)<\//g, "$1 </");
+	// Space before a closing tag, but not directly after another tag's ">"
+	line = line.replace(/([^\s>])<\//g, "$1 </");
 
 	// Format self-closing tags
 	line = line.replace(/\s+\/>/g, " />");

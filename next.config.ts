@@ -274,7 +274,7 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: FILE_UPLOAD_MAX_SIZE,
     },
-    webVitalsAttribution: ["CLS", "LCP", "TTFB", "FCP", "FID"],
+    webVitalsAttribution: ["CLS", "LCP", "TTFB", "FCP", "INP"],
 
     // Optimized prefetching
     optimisticClientCache: true,
