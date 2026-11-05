@@ -2,13 +2,10 @@
 # Local CI gate. Runs typecheck, lint, tests, a production build and a route
 # smoke on this machine, and prints a Markdown summary for the PR body.
 #
-# Why: there is no per-PR workflow on this repo. Nothing on GitHub typechecks,
-# lints or tests a pull request, so this script is the gate. Run it, paste the
-# summary in the PR body. Do not bother with "[skip ci]" or a "ci:full" label:
-# neither does anything here (no per-PR Actions jobs exist, the repo has no
-# ci:full label, and the Vercel Ignored Build Step only skips dependabot
-# previews). See the "CI and Local Verification" section of CLAUDE.md, and
-# LAC-7038 for adding the workflow.
+# Why: ci.yml on GitHub only runs the cheap half (typecheck, lint, unit tests).
+# This script is the full gate, including the production build and route smoke.
+# Run it, paste the summary in the PR body. "[skip ci]" and a "ci:full" label
+# do nothing here. See the "CI and Local Verification" section of CLAUDE.md.
 #
 # Note: as of 2026-11-05 this script does not pass on main (1 typecheck error,
 # 7 failing unit test files). That is LAC-7035, not your change.
