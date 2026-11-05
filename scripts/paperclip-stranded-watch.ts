@@ -246,8 +246,14 @@ export interface DeferredWake {
   oldestMs: number;
   /** `executionWait.reason`, or "" when the wake was deferred behind a live run. */
   waitReason: string;
-  /** `cause` of the recovery action still holding the issue, or "" if none. */
+  /**
+   * What the server would report as the execution blocker, or "" if nothing
+   * holds: the `cause` of a recovery action, or `execution_owner_active` when
+   * the ownership arm holds first. See `ownershipHold` for why both.
+   */
   holdCause: string;
+  /** Which ownership arm held and what to clear. "" for a recovery action. */
+  holdNote: string;
 }
 
 export interface DeferredVerdict {
@@ -297,7 +303,7 @@ export function describeDeferred(wake: DeferredWake, nowMs: number): string {
   // re-file; without one, the drain simply never ran and the strand is a bug
   // in promotion rather than a stuck lock.
   const why = wake.holdCause
-    ? `held by ${wake.holdCause}`
+    ? `held by ${wake.holdCause}${wake.holdNote ? ` (${wake.holdNote})` : ""}`
     : wake.waitReason
       ? `${wake.waitReason}, hold already gone`
       : "deferred behind a run that never released";
@@ -708,20 +714,20 @@ const ADAPTERS_SQL = sqlList(CONVERSATION_ADAPTER_TYPES, ", ");
  *     as returning a blocker. Probed all 931 ownership-candidate runs on 310
  *     non-terminal issues: 6 have a live PID, and all 6 are PID recycling
  *     (`locationd`, WebKit, Chrome, `feedbackd`), which the server rejects by
- *     comparing `process_started_at`. So there are 0 ownership holds on the
- *     board, `getExecutionBlocker` reaches line 34, and the 34 held issues are
- *     held by the recovery action after all -- the right answer, reached by the
- *     wrong argument.
- * - Two conjuncts are still NOT replicated, named here so the next reader does
- *   not have to rediscover them:
- *   - The ownership arm itself. The server checks it FIRST and it can hold an
- *     issue that has no recovery action at all, which this column would read as
- *     "no hold". It is a false negative with 0 current occurrences, and a
- *     faithful version needs the `ps -o lstart=` recycled-PID comparison (the 6
- *     live PIDs above are exactly what a liveness-only arm would report as
- *     holds), the lease join, and the remote-termination-receipt check. Too much
- *     to smuggle into this commit; tracked as its own issue (LAC-7073),
- *     which carries the probe numbers.
+ *     comparing `process_started_at`.
+ *   - **"So there are 0 ownership holds on the board" followed, and it was
+ *     wrong.** That probe covered the PID arm only. The server holds on a live
+ *     process GROUP too and applies no recycled-id check to one, so the 4
+ *     holds LAC-7073 went on to measure were invisible to it. Corrected in
+ *     `ownershipHold` below, which carries the numbers and the independent
+ *     host verification. Recorded rather than deleted, because the mistake is
+ *     the instructive part: a probe of one arm got written up as a result
+ *     about the whole predicate -- in a paragraph whose own subject is two
+ *     people making that exact error in opposite directions.
+ * - The ownership arm IS replicated as of LAC-7073, in `ownershipHold`, which
+ *   is why this column no longer reads "no hold" on an issue the server holds
+ *   with no recovery action at all. One conjunct is still not replicated,
+ *   named here so the next reader does not have to rediscover it:
  *   - `getExecutionBlocker`'s conversation-boundary conjunct, which drops
  *     actions created before an issue's `conversation_boundary_comment_id`.
  *     Measured: 0 non-terminal issues on either company have a conversation
@@ -818,6 +824,310 @@ const DEFERRED_QUERY = `
 `;
 
 /**
+ * The OTHER half of `getExecutionBlocker`, and the half the hold column could
+ * not see until LAC-7073.
+ *
+ * `execution-blocker.js:31` calls `getConversationOwnershipBlocker` BEFORE it
+ * looks for a recovery action, and returns its blocker directly. So an issue
+ * with no recovery action at all can still be held, and a hold column built
+ * only on `issue_recovery_actions` reads it as "no hold" -- which in this
+ * lane prints as "deferred behind a run that never released", the wrong
+ * reason and the wrong repair.
+ *
+ * The server holds (`conversation-continuation.js:83-129`) when, for any
+ * terminal legacy conversation run on the issue carrying a PID, a process
+ * group, a held lease or a retained-workspace recovery schema:
+ *
+ * 1. the run has a required workspace recovery and its retained remote leases
+ *    have not all produced a termination receipt; or
+ * 2. its recorded PID is alive and not recycled; or
+ * 3. its recorded process GROUP is alive; or
+ * 4. it still holds an environment lease.
+ *
+ * ## Why this needed its own issue, and what the measurement actually said
+ *
+ * LAC-7022's docstring claimed "there are 0 ownership holds on the board".
+ * That claim is wrong, and the way it is wrong is the whole content of this
+ * change. It was reached by probing arm 2 only: 931 candidate runs, 6 with a
+ * live PID, all 6 recycled, therefore 0. Arm 3 was never probed, and the
+ * server applies **no recycled-id comparison to a process group** -- the
+ * `process_started_at` check at `conversation-continuation.js:113-118` guards
+ * `pidAlive` and nothing else. A recycled group id is therefore a permanent
+ * hold that no evidence can retire.
+ *
+ * Re-measured 2026-11-05 ~19:00Z, 885 candidate runs on 290 non-terminal
+ * issues (the earlier 931/310 shrank as issues closed), every arm probed:
+ *
+ * - Arm 1: **0 rows**. No candidate carries the recovery schema at all.
+ * - Arm 4: **0 rows**. 0 candidates hold a lease. (9 unreleased leases exist
+ *   board-wide; none belongs to a candidate run on a non-terminal issue.)
+ * - Arm 2: 5 live PIDs, all 5 recycled by `ps -o lstart=`, so **0 holds** --
+ *   the LAC-7022 number, reproduced.
+ * - Arm 3: **4 holds**, on LAC-4931, LAC-5194, LAC-5986 and LAC-6321. Each
+ *   run recorded pid == pgid (the adapter is its own group leader), the pid
+ *   arm correctly rejects it as recycled, and the group arm then reinstates
+ *   the hold with no recycle guard available to it. Verified against the host
+ *   independently of `kill(-pgid, 0)`: `ps -A -o pgid=` shows exactly one
+ *   process in each group, and all four are unrelated system daemons --
+ *   `locationd` (591), `BiomeAgent` (961), a WebKit content process (1878),
+ *   `secinitd` (29835).
+ *
+ * All four held issues carry **zero** recovery actions, which is precisely the
+ * false negative this arm closes. None is currently in this lane (0 deferred
+ * wakes each), so like the cause filter in LAC-7022 this changes no line
+ * anyone read today; it is a correctness guard against the next strand that
+ * lands on an issue the server is already holding for a reason the column
+ * could not name.
+ *
+ * ## Two deliberate divergences, both toward reporting a hold
+ *
+ * - `hasRequiredWorkspaceRecovery` needs `workspaceRestoreFailure` to be one
+ *   of `WORKSPACE_RESTORE_FAILURE_CODES`. Pinning a third list here buys a
+ *   third drift test for a branch with 0 rows, so the SQL asks only that the
+ *   key be present. Strictly more permissive, so it can only add a hold.
+ * - The host probe is the server's, not an improvement on it. A recycled
+ *   process group reports as a hold because the server holds on it. Teaching
+ *   this column to be cleverer than `getExecutionBlocker` would make it
+ *   disagree with the thing it exists to report.
+ */
+export interface OwnershipCandidate {
+  /** Issue identifier, so rows can be grouped per issue as the server does. */
+  identifier: string;
+  runId: string;
+  processPid: number | null;
+  processGroupId: number | null;
+  /** Recorded process start, epoch ms. Null when the run never wrote one. */
+  processStartedAtMs: number | null;
+  /** A lease on this run that is unreleased, `pending_cleanup` or failed. */
+  leaseHeld: boolean;
+  /** `workspaceRestoreRecovery.schema` matched and a restore failure is set. */
+  workspaceRecovery: boolean;
+  /** `workspaceRestoreRecovery.leaseIds`, the leases the run asked to keep. */
+  retainedLeaseIds: string[];
+  /** Every non-`local` lease on this run. */
+  remoteLeaseIds: string[];
+  /** Those of them carrying a complete `paperclip.remote-termination.v1`. */
+  receiptLeaseIds: string[];
+  /** True when at least one lease on the run has provider exactly `local`. */
+  hasLocalLease: boolean;
+}
+
+/**
+ * Injected so the decision is testable without a live process. Without this
+ * the arm would be net harmful: a liveness-only version reports the 5 recycled
+ * PIDs above as holds, which is worse than the gap it closes.
+ */
+export interface ProcessProbe {
+  /** `process.kill(target, 0)`: true unless `ESRCH`. `EPERM` means alive. */
+  mayBeAlive(target: number): boolean;
+  /** Observed start, epoch ms, or null when it cannot be read. */
+  startedAtMs(pid: number): number | null;
+}
+
+export interface OwnershipHold {
+  /** The run whose authority was never confirmed to have ended. */
+  runId: string;
+  /** The server's own cause string for this blocker. */
+  cause: "execution_owner_active";
+  /** Which arm held, in the words an operator needs to clear it. */
+  note: string;
+}
+
+/**
+ * `getConversationOwnershipBlocker` for one issue's candidates, in the
+ * server's order. Candidates must arrive `created_at DESC, id DESC`; the first
+ * one that holds wins, exactly as the server's loop returns early.
+ */
+export function ownershipHold(
+  candidates: OwnershipCandidate[],
+  probe: ProcessProbe
+): OwnershipHold | null {
+  for (const candidate of candidates) {
+    if (candidate.workspaceRecovery) {
+      // Faithful to the server: a retained set must be non-empty, every
+      // retained id must be a remote lease with a receipt, and every remote
+      // lease must have one. An empty `leaseIds` therefore holds.
+      const receipts = new Set(candidate.receiptLeaseIds);
+      const remoteStopped =
+        candidate.retainedLeaseIds.length > 0 &&
+        candidate.retainedLeaseIds.every((id) => receipts.has(id)) &&
+        candidate.remoteLeaseIds.every((id) => receipts.has(id));
+      if (!remoteStopped) {
+        return {
+          runId: candidate.runId,
+          cause: "execution_owner_active",
+          note: "retained remote workspace has not confirmed it stopped",
+        };
+      }
+      // Those PIDs came from the sandbox, so a match on this host is somebody
+      // else. The server skips the process checks unless a local lease exists.
+      if (!candidate.hasLocalLease) continue;
+    }
+
+    let pidAlive = candidate.processPid !== null && probe.mayBeAlive(candidate.processPid);
+    let recycled = false;
+    if (pidAlive && candidate.processStartedAtMs !== null) {
+      // An unreadable identity stays conservative: the original process may
+      // still own execution, so the hold survives a null here.
+      const observed = probe.startedAtMs(candidate.processPid as number);
+      if (observed !== null && observed !== candidate.processStartedAtMs) {
+        pidAlive = false;
+        recycled = true;
+      }
+    }
+    const groupAlive =
+      candidate.processGroupId !== null && probe.mayBeAlive(-candidate.processGroupId);
+
+    if (pidAlive || groupAlive || candidate.leaseHeld) {
+      const notes: string[] = [];
+      if (pidAlive) notes.push(`pid ${candidate.processPid} alive`);
+      if (groupAlive) {
+        notes.push(
+          recycled
+            ? `process group ${candidate.processGroupId} alive, recorded pid ${candidate.processPid} is recycled`
+            : `process group ${candidate.processGroupId} alive`
+        );
+      }
+      if (candidate.leaseHeld) notes.push("environment lease not released");
+      return { runId: candidate.runId, cause: "execution_owner_active", note: notes.join("; ") };
+    }
+  }
+  return null;
+}
+
+/**
+ * The real probe. `spawnSync` rather than the server's `execFile` because this
+ * script is synchronous at this point and the cost is one `ps` per live PID --
+ * 5 of 885 candidates on the measured board.
+ */
+export function hostProcessProbe(): ProcessProbe {
+  return {
+    mayBeAlive(target: number): boolean {
+      try {
+        process.kill(target, 0);
+        return true;
+      } catch (error) {
+        return (error as NodeJS.ErrnoException).code !== "ESRCH";
+      }
+    },
+    startedAtMs(pid: number): number | null {
+      const result = spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], {
+        encoding: "utf8",
+        timeout: 1_500,
+      });
+      if (result.status !== 0 || typeof result.stdout !== "string") return null;
+      const parsed = Date.parse(result.stdout.trim());
+      return Number.isFinite(parsed) ? parsed : null;
+    },
+  };
+}
+
+/**
+ * Ownership candidates for a named set of issues, `$2` as a text[] of
+ * identifiers. Scoped to the lane's own rows rather than the whole board so a
+ * healthy run (an empty lane) costs nothing: `readBoard` skips the query.
+ *
+ * The candidate WHERE is `getConversationOwnershipBlocker`'s own, including the
+ * schema-only arm of its `or(...)` -- the restore-failure half is applied per
+ * row as `workspace_recovery`, where the server applies it, inside the loop.
+ */
+const OWNERSHIP_QUERY = `
+  SELECT i.identifier,
+         r.id::text AS run_id,
+         r.process_pid,
+         r.process_group_id,
+         (extract(epoch FROM r.process_started_at) * 1000)::bigint AS process_started_at_ms,
+         EXISTS (
+           SELECT 1 FROM environment_leases el
+            WHERE el.company_id = r.company_id
+              AND el.heartbeat_run_id = r.id
+              AND (el.released_at IS NULL
+                   OR el.status = 'pending_cleanup'
+                   OR el.cleanup_status = 'failed')
+         ) AS lease_held,
+         (r.result_json ->> 'workspaceRestoreFailure' IS NOT NULL
+          AND r.result_json -> 'workspaceRestoreRecovery' ->> 'schema'
+              = 'paperclip.workspace-restore-recovery.v1') AS workspace_recovery,
+         coalesce((
+           SELECT array_agg(v)
+             FROM jsonb_array_elements_text(
+                    CASE WHEN jsonb_typeof(r.result_json -> 'workspaceRestoreRecovery'
+                                             -> 'leaseIds') = 'array'
+                         THEN r.result_json -> 'workspaceRestoreRecovery' -> 'leaseIds'
+                         ELSE '[]'::jsonb END) AS v
+         ), '{}') AS retained_lease_ids,
+         coalesce((
+           SELECT array_agg(el.id::text)
+             FROM environment_leases el
+            WHERE el.company_id = r.company_id
+              AND el.heartbeat_run_id = r.id
+              AND coalesce(el.provider, '') <> 'local'
+         ), '{}') AS remote_lease_ids,
+         coalesce((
+           SELECT array_agg(el.id::text)
+             FROM environment_leases el
+            WHERE el.company_id = r.company_id
+              AND el.heartbeat_run_id = r.id
+              AND el.provider IS NOT NULL
+              AND el.provider <> 'local'
+              AND el.provider_lease_id IS NOT NULL
+              AND el.released_at IS NOT NULL
+              AND el.cleanup_status = 'success'
+              AND el.status IN ('released', 'expired', 'failed')
+              AND el.metadata -> 'remoteExecutionTermination' ->> 'schema'
+                  = 'paperclip.remote-termination.v1'
+              AND el.metadata -> 'remoteExecutionTermination' ->> 'companyId'
+                  = el.company_id::text
+              AND el.metadata -> 'remoteExecutionTermination' ->> 'runId'
+                  = el.heartbeat_run_id::text
+              AND el.metadata -> 'remoteExecutionTermination' ->> 'leaseId' = el.id::text
+              AND el.metadata -> 'remoteExecutionTermination' ->> 'provider' = el.provider
+              AND el.metadata -> 'remoteExecutionTermination' ->> 'providerLeaseId'
+                  = el.provider_lease_id
+              AND el.metadata -> 'remoteExecutionTermination' ->> 'state'
+                  IN ('stopped', 'destroyed')
+         ), '{}') AS receipt_lease_ids,
+         EXISTS (
+           SELECT 1 FROM environment_leases el
+            WHERE el.company_id = r.company_id
+              AND el.heartbeat_run_id = r.id
+              AND el.provider = 'local'
+         ) AS has_local_lease
+    FROM issues i
+    JOIN heartbeat_runs r
+      ON r.company_id = i.company_id
+     AND coalesce(r.native_issue_id::text, r.context_snapshot ->> 'issueId') = i.id::text
+   WHERE i.company_id <> $1
+     AND i.identifier = ANY($2)
+     AND r.runtime_mode = 'legacy'
+     AND r.status IN ('failed', 'timed_out', 'interrupted', 'cancelled')
+     AND (r.runner_profile_json -> 'adapterDispatch' ->> 'adapterType'
+            IN (${ADAPTERS_SQL})
+          OR r.result_json ->> 'conversationContinuation' = 'continue_conversation_v1'
+          OR EXISTS (
+               SELECT 1
+                 FROM heartbeat_run_events e
+                WHERE e.company_id = r.company_id
+                  AND e.run_id = r.id
+                  AND e.event_type = 'adapter.invoke'
+                  AND e.payload ->> 'adapterType' IN (${ADAPTERS_SQL})
+             ))
+     AND (r.process_pid IS NOT NULL
+          OR r.process_group_id IS NOT NULL
+          OR r.result_json -> 'workspaceRestoreRecovery' ->> 'schema'
+             = 'paperclip.workspace-restore-recovery.v1'
+          OR EXISTS (
+               SELECT 1 FROM environment_leases el
+                WHERE el.company_id = r.company_id
+                  AND el.heartbeat_run_id = r.id
+                  AND (el.released_at IS NULL
+                       OR el.status = 'pending_cleanup'
+                       OR el.cleanup_status = 'failed')
+             ))
+   ORDER BY i.identifier, r.created_at DESC, r.id DESC
+`;
+
+/**
  * Read the board straight from Postgres. The URL is required rather than
  * defaulted so this file holds no credential, and so a typo fails loudly
  * instead of quietly watching the wrong database.
@@ -834,6 +1144,40 @@ async function readBoard(
     // fail the whole check (exit 2) rather than report half a board as healthy.
     const blockedRows = (await sql.unsafe(QUERY, [GHOST_COMPANY_ID])) as unknown as Row[];
     const deferredRows = (await sql.unsafe(DEFERRED_QUERY, [GHOST_COMPANY_ID])) as unknown as Row[];
+
+    // The ownership arm runs only over the lane's own issues, so the usual
+    // healthy board (an empty lane) pays nothing for it. Grouped per issue
+    // because the server's blocker is per issue, and left in query order so
+    // the first candidate that holds is the one the server would have named.
+    const identifiers = [...new Set(deferredRows.map((row) => String(row.identifier)))];
+    const candidates = new Map<string, OwnershipCandidate[]>();
+    if (identifiers.length > 0) {
+      const rows = (await sql.unsafe(OWNERSHIP_QUERY, [
+        GHOST_COMPANY_ID,
+        identifiers,
+      ])) as unknown as Row[];
+      for (const row of rows) {
+        const identifier = String(row.identifier);
+        const list = candidates.get(identifier) ?? [];
+        list.push({
+          identifier,
+          runId: String(row.run_id),
+          processPid: row.process_pid === null ? null : Number(row.process_pid),
+          processGroupId: row.process_group_id === null ? null : Number(row.process_group_id),
+          processStartedAtMs:
+            row.process_started_at_ms === null ? null : Number(row.process_started_at_ms),
+          leaseHeld: row.lease_held === true,
+          workspaceRecovery: row.workspace_recovery === true,
+          retainedLeaseIds: (row.retained_lease_ids as string[] | null) ?? [],
+          remoteLeaseIds: (row.remote_lease_ids as string[] | null) ?? [],
+          receiptLeaseIds: (row.receipt_lease_ids as string[] | null) ?? [],
+          hasLocalLease: row.has_local_lease === true,
+        });
+        candidates.set(identifier, list);
+      }
+    }
+    const probe = hostProcessProbe();
+
     return {
       blocked: blockedRows.map((row) => ({
         identifier: String(row.identifier),
@@ -844,16 +1188,24 @@ async function readBoard(
         recoveryOwner: String(row.recovery_owner ?? ""),
         hasDescriptor: row.has_descriptor === true,
       })),
-      deferred: deferredRows.map((row) => ({
-        identifier: String(row.identifier),
-        title: String(row.title),
-        assignee: String(row.assignee ?? ""),
-        waiter: String(row.waiter ?? ""),
-        savedCount: Number(row.saved_count),
-        oldestMs: Number(row.oldest_ms),
-        waitReason: String(row.wait_reason ?? ""),
-        holdCause: String(row.hold_cause ?? ""),
-      })),
+      deferred: deferredRows.map((row) => {
+        const identifier = String(row.identifier);
+        // Ownership first, because `getExecutionBlocker` checks it first and
+        // returns it directly: when both are present the recovery action is
+        // not the blocker the server would report.
+        const hold = ownershipHold(candidates.get(identifier) ?? [], probe);
+        return {
+          identifier,
+          title: String(row.title),
+          assignee: String(row.assignee ?? ""),
+          waiter: String(row.waiter ?? ""),
+          savedCount: Number(row.saved_count),
+          oldestMs: Number(row.oldest_ms),
+          waitReason: String(row.wait_reason ?? ""),
+          holdCause: hold ? hold.cause : String(row.hold_cause ?? ""),
+          holdNote: hold ? hold.note : "",
+        };
+      }),
     };
   } finally {
     await sql.end({ timeout: 5 });
