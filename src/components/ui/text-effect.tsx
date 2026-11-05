@@ -171,6 +171,12 @@ const splitText = (text: string, per: PerType) => {
   return text.split(/(\s+)/);
 };
 
+const getVisibleTransition = (variants?: { container?: Variants }): Transition | undefined => {
+  const visible = variants?.container?.visible;
+  if (!visible || typeof visible === 'function') return undefined;
+  return (visible as TargetAndTransition).transition as Transition | undefined;
+};
+
 const hasTransition = (
   variant?: Variant
 ): variant is TargetAndTransition & { transition?: Transition } => {
@@ -242,15 +248,9 @@ export function TextEffect({
 
   const baseDuration = 0.3 / speedSegment;
 
-  const customStagger = hasTransition(variants?.container?.visible ?? {})
-    ? (variants?.container?.visible as TargetAndTransition).transition
-        ?.staggerChildren
-    : undefined;
+  const customStagger = getVisibleTransition(variants)?.staggerChildren;
 
-  const customDelay = hasTransition(variants?.container?.visible ?? {})
-    ? (variants?.container?.visible as TargetAndTransition).transition
-        ?.delayChildren
-    : undefined;
+  const customDelay = getVisibleTransition(variants)?.delayChildren;
 
   const computedVariants = {
     container: createVariantsWithTransition(

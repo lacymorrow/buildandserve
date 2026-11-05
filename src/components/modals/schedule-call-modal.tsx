@@ -21,6 +21,7 @@ const CalEmbed = dynamic(() => import('@calcom/embed-react'), {
             <Skeleton className="h-8 w-48" />
             <div className="grid grid-cols-7 gap-2 w-full max-w-md">
                 {Array.from({ length: 35 }).map((_, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length skeleton placeholders, never reordered
                     <Skeleton key={i} className="h-10 w-full rounded-md" />
                 ))}
             </div>
@@ -62,6 +63,7 @@ export function ScheduleCallModal({ trigger }: { trigger: React.ReactNode }) {
                             <Skeleton className="h-8 w-48" />
                             <div className="grid grid-cols-7 gap-2 w-full max-w-md">
                                 {Array.from({ length: 35 }).map((_, i) => (
+                                    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length skeleton placeholders, never reordered
                                     <Skeleton key={i} className="h-10 w-full rounded-md" />
                                 ))}
                             </div>

@@ -1,9 +1,12 @@
 "use client"
 
-import React, { RefObject, useCallback, useEffect, useId, useRef } from "react"
+import React, { type RefObject, useCallback, useEffect, useId, useRef } from "react"
 import {
+  mix,
   motion,
-  SpringOptions,
+  type MotionValue,
+  type SpringOptions,
+  transformValue,
   useAnimationFrame,
   useMotionValue,
   useScroll,
@@ -89,6 +92,95 @@ interface MarqueeAlongSvgPathProps {
   zIndexRange?: number
 
   cssVariableInterpolation?: CSSVariableInterpolation[]
+}
+
+interface MarqueeItemProps {
+  child: React.ReactNode
+  repeatIndex: number
+  itemIndex: number
+  itemCount: number
+  itemKey: string
+  baseOffset: MotionValue<number>
+  easing?: (value: number) => number
+  calculateZIndex: (value: number) => number | undefined
+  cssVariableInterpolation?: CSSVariableInterpolation[]
+  enableRollingZIndex?: boolean
+  path: string
+  draggable?: boolean
+  grabCursor?: boolean
+  itemRefs: RefObject<Map<string, HTMLDivElement>>
+  onHoverStart: () => void
+  onHoverEnd: () => void
+}
+
+// Same mapping as useTransform(v, [0, 100], [from, to]), without a hook so it can run per entry.
+const interpolateCssVar = (v: number, from: string | number, to: string | number) =>
+  mix(from as never, to as never)(Math.min(Math.max(v, 0), 100) / 100)
+
+// Own component so the per-item hooks sit at the top level of a component, not in a .map callback.
+const MarqueeItem = ({
+  child, repeatIndex, itemIndex, itemCount, itemKey: key, baseOffset, easing,
+  calculateZIndex, cssVariableInterpolation, enableRollingZIndex, path,
+  draggable, grabCursor, itemRefs, onHoverStart, onHoverEnd,
+}: MarqueeItemProps) => {
+  // Create a unique offset transform for each item
+  const itemOffset = useTransform(baseOffset, (v) => {
+    const position = (itemIndex * 100) / itemCount
+    const wrappedValue = wrap(0, 100, v + position)
+    return `${easing ? easing(wrappedValue / 100) * 100 : wrappedValue}%`
+  })
+
+  // Create a motion value for the current offset distance
+  const currentOffsetDistance = useMotionValue(0)
+
+  // Update z-index when offset distance changes
+  const zIndex = useTransform(currentOffsetDistance, (value) =>
+    calculateZIndex(value)
+  )
+
+  // Update current offset distance value when animation runs
+  useEffect(() => {
+    const unsubscribe = itemOffset.on("change", (value: string) => {
+      // Parse percentage string to get numerical value
+      const match = /^([\d.]+)%$/.exec(value)
+      if (match?.[1]) {
+        currentOffsetDistance.set(Number.parseFloat(match[1]))
+      }
+    })
+    return unsubscribe
+  }, [itemOffset, currentOffsetDistance])
+
+  const cssVariables = Object.fromEntries(
+    (cssVariableInterpolation ?? []).map(({ property, from, to }) => [
+      property,
+      transformValue(() => interpolateCssVar(currentOffsetDistance.get(), from, to)),
+    ])
+  )
+
+  return (
+    <motion.div
+      key={key}
+      ref={(el) => {
+        if (el) itemRefs.current.set(key, el)
+      }}
+      className={cn(
+        "absolute top-0 left-0",
+        draggable && grabCursor && "cursor-grab"
+      )}
+      style={{
+        offsetPath: `path('${path}')`,
+        offsetDistance: itemOffset,
+        zIndex: enableRollingZIndex ? zIndex : undefined,
+        ...cssVariables,
+      }}
+      draggable={false}
+      aria-hidden={repeatIndex > 0}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
+    >
+      {child}
+    </motion.div>
+  )
 }
 
 const MarqueeAlongSvgPath = ({
@@ -179,7 +271,7 @@ const MarqueeAlongSvgPath = ({
 
   // Generate a deterministic, SSR-safe ID for the path if not provided
   const reactId = useId()
-  const id = pathId || `marquee-path-${reactId}`
+  const id = pathId ?? `marquee-path-${reactId}`
 
   // Scroll tracking
   const { scrollY } = useScroll({
@@ -345,66 +437,31 @@ const MarqueeAlongSvgPath = ({
         />
       </svg>
 
-      {items.map(({ child, repeatIndex, itemIndex, key }) => {
-        // Create a unique offset transform for each item
-        const itemOffset = useTransform(baseOffset, (v) => {
-          const position = (itemIndex * 100) / items.length
-          const wrappedValue = wrap(0, 100, v + position)
-          return `${easing ? easing(wrappedValue / 100) * 100 : wrappedValue}%`
-        })
-
-        // Create a motion value for the current offset distance
-        const currentOffsetDistance = useMotionValue(0)
-
-        // Update z-index when offset distance changes
-        const zIndex = useTransform(currentOffsetDistance, (value) =>
-          calculateZIndex(value)
-        )
-
-        // Update current offset distance value when animation runs
-        useEffect(() => {
-          const unsubscribe = itemOffset.on("change", (value: string) => {
-            // Parse percentage string to get numerical value
-            const match = value.match(/^([\d.]+)%$/)
-            if (match && match[1]) {
-              currentOffsetDistance.set(parseFloat(match[1]))
-            }
-          })
-          return unsubscribe
-        }, [itemOffset, currentOffsetDistance])
-
-        const cssVariables = Object.fromEntries(
-          (cssVariableInterpolation || []).map(({ property, from, to }) => [
-            property,
-            useTransform(currentOffsetDistance, [0, 100], [from, to]),
-          ])
-        )
-
-        return (
-          <motion.div
-            key={key}
-            ref={(el) => {
-              if (el) itemRefs.current.set(key, el)
-            }}
-            className={cn(
-              "absolute top-0 left-0",
-              draggable && grabCursor && "cursor-grab"
-            )}
-            style={{
-              offsetPath: `path('${path}')`,
-              offsetDistance: itemOffset,
-              zIndex: enableRollingZIndex ? zIndex : undefined,
-              ...cssVariables,
-            }}
-            draggable={false}
-            aria-hidden={repeatIndex > 0}
-            onMouseEnter={() => (isHovered.current = true)}
-            onMouseLeave={() => (isHovered.current = false)}
-          >
-            {child}
-          </motion.div>
-        )
-      })}
+      {items.map(({ child, repeatIndex, itemIndex, key }) => (
+        <MarqueeItem
+          key={key}
+          itemKey={key}
+          child={child}
+          repeatIndex={repeatIndex}
+          itemIndex={itemIndex}
+          itemCount={items.length}
+          baseOffset={baseOffset}
+          easing={easing}
+          calculateZIndex={calculateZIndex}
+          cssVariableInterpolation={cssVariableInterpolation}
+          enableRollingZIndex={enableRollingZIndex}
+          path={path}
+          draggable={draggable}
+          grabCursor={grabCursor}
+          itemRefs={itemRefs}
+          onHoverStart={() => {
+            isHovered.current = true
+          }}
+          onHoverEnd={() => {
+            isHovered.current = false
+          }}
+        />
+      ))}
     </div>
   )
 }

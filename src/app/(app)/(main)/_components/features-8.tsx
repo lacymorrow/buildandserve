@@ -195,9 +195,9 @@ export default function FeaturesSection() {
                                 </div>
                                 <div className="rounded-tl-(--radius) relative -mb-6 -mr-6 mt-6 h-fit border-l border-t p-6 py-6 sm:ml-6">
                                     <div className="absolute left-3 top-2 flex gap-1">
-                                        <span className="block size-2 rounded-full border dark:border-white/10 dark:bg-white/10"></span>
-                                        <span className="block size-2 rounded-full border dark:border-white/10 dark:bg-white/10"></span>
-                                        <span className="block size-2 rounded-full border dark:border-white/10 dark:bg-white/10"></span>
+                                        <span className="block size-2 rounded-full border dark:border-white/10 dark:bg-white/10" />
+                                        <span className="block size-2 rounded-full border dark:border-white/10 dark:bg-white/10" />
+                                        <span className="block size-2 rounded-full border dark:border-white/10 dark:bg-white/10" />
                                     </div>
                                     <svg
                                         className="w-full sm:w-[150%]"

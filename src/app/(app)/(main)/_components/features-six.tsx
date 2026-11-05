@@ -57,7 +57,7 @@ const MeetingIllustration = () => {
             className="gap-0 mt-9 aspect-video p-4 transition-transform duration-200 ease-in-out group-hover:-translate-y-1 group-hover:rotate-1">
             <div className="relative hidden h-fit">
                 <div className="absolute -left-1.5 bottom-1.5 rounded-md border-t border-red-700 bg-red-500 px-1 py-px text-[10px] font-medium text-white shadow-md shadow-red-500/35">PDF</div>
-                <div className="h-10 w-8 rounded-md border bg-gradient-to-b from-zinc-100 to-zinc-200"></div>
+                <div className="h-10 w-8 rounded-md border bg-gradient-to-b from-zinc-100 to-zinc-200" />
             </div>
             <div className="mb-0.5 text-sm font-semibold">Strategy Meeting</div>
             <div className="mb-4 flex gap-2 text-sm">
@@ -85,9 +85,9 @@ const CodeReviewIllustration = () => {
                 </div>
 
                 <div className="ml-8 space-y-2">
-                    <div className="bg-foreground/10 h-2 rounded-full"></div>
-                    <div className="bg-foreground/10 h-2 w-3/5 rounded-full"></div>
-                    <div className="bg-foreground/10 h-2 w-1/2 rounded-full"></div>
+                    <div className="bg-foreground/10 h-2 rounded-full" />
+                    <div className="bg-foreground/10 h-2 w-3/5 rounded-full" />
+                    <div className="bg-foreground/10 h-2 w-1/2 rounded-full" />
                 </div>
 
                 <Signature className="ml-8 mt-3 size-5" />

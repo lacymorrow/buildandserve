@@ -22,7 +22,7 @@ export function InfiniteSlider({ children, gap = 16, speed = 100, speedOnHover, 
     const [key, setKey] = useState(0)
 
     useEffect(() => {
-        let controls
+        let controls: ReturnType<typeof animate> | undefined
         const size = direction === 'horizontal' ? width : height
         const contentSize = size + gap
         const from = reverse ? -contentSize / 2 : 0
@@ -47,7 +47,7 @@ export function InfiniteSlider({ children, gap = 16, speed = 100, speedOnHover, 
             controls = animate(translation, [from, to], {
                 ease: 'linear',
                 duration: duration,
-                repeat: Infinity,
+                repeat: Number.POSITIVE_INFINITY,
                 repeatType: 'loop',
                 repeatDelay: 0,
                 onRepeat: () => {
