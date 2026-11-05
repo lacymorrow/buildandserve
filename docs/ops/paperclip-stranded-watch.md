@@ -149,21 +149,31 @@ undeliverable for 31h, re-filed as LAC-6999, and its `issue_assigned` wake read
 found on its first pass was drained that way on 2026-11-05 (LAC-7017), eight
 re-files, every replacement wake `claimed` or `completed` with a run id.
 
-Three things that run measured, for whoever does the next one:
+Three things from that run, for whoever does the next one. Two are
+measurements; the third is a pointer:
 
 1. **Reassignment is not a repair.** It looks like one, because it raises a
    fresh `issue_assigned` wake. That wake defers too: promotion is edge-triggered
    on a run release, not on assignment. Tried on four issues (LAC-2809,
    LAC-6973, LAC-7014, LAC-7016), deferred four times, leaving the original
-   strand plus a new one. Only a fresh issue id clears it.
+   strand plus a new one. Consistent with edge-triggered promotion; no run
+   released in between on any of the four, so the four observations do not by
+   themselves rule out a second explanation. The mechanism half is the part with
+   code behind it (`runReleaseDrain` above). Only a fresh issue id clears it.
 2. **Assert `HTTP 201` and a different identifier before cancelling the
-   original.** `POST /api/companies/{id}/issues` de-duplicates on an identical
-   title and returns the *existing* issue with `HTTP 200`, and a script that
-   reads only `issue.identifier` off that body will cancel the very issue it
-   meant to replace. That happened to three issues on the 2026-11-05 pass
-   (recovered by re-creating once the originals were terminal). The de-dupe only
-   fires while the original is non-terminal, so cancel-then-create also works;
-   the assertion is what makes either order safe.
+   original.** Observed 2026-11-05: a `POST /api/companies/{id}/issues` whose
+   title matched a non-terminal issue returned `HTTP 200` and that *existing*
+   issue's identifier; the same body returned `201` with a new identifier once
+   the original was `cancelled`. **The key was not isolated** - it could be
+   title, title+assignee, title+project, or a time window, and three same-title
+   re-files in the same batch got `201` against originals 1 to 4 months old,
+   which fits a window as well as it fits title. A code read for a create-time
+   title de-dupe found none, on a checkout that may predate the running build.
+   So treat the trigger as unproven and the hazard as real: a script that reads
+   only `issue.identifier` off a `200` will cancel the very issue it meant to
+   replace, which happened to three issues on that pass (recovered by
+   re-creating once the originals were terminal). The assertion is right
+   whatever the key turns out to be, and it makes either order safe.
 3. **Not every strand needs a repair, and one of them must not get one.** See
    the supersession gap below.
 
