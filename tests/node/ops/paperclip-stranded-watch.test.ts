@@ -3,13 +3,20 @@ import {
   alertKey,
   type BlockedIssue,
   classify,
+  classifyDeferred,
+  type DeferredWake,
+  deferredKey,
+  describeDeferred,
   formatAge,
   formatAlert,
+  formatDeferredAlert,
   GRACE_MINUTES,
   MAX_NAMED,
+  nextDeferredState,
   nextState,
   stranded,
   unreported,
+  unreportedDeferred,
 } from "../../../scripts/paperclip-stranded-watch";
 
 const NOW = Date.parse("2026-10-16T18:00:00.000Z");
@@ -266,5 +273,167 @@ describe("formatAge", () => {
 describe("GRACE_MINUTES", () => {
   it("is far past any transient park and far inside the slowest cadence watched", () => {
     expect(GRACE_MINUTES).toBe(30);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The deferred-wake lane (LAC-6995). A wake recorded `deferred_issue_execution`
+// tells its author the message is saved, and nothing ever starts it. Every row
+// below is a real strand measured on the control plane on 2026-11-05.
+// ---------------------------------------------------------------------------
+
+const wake = (over: Partial<DeferredWake> & { identifier: string }): DeferredWake => ({
+  title: "a task",
+  assignee: "Founding Engineer",
+  waiter: "Founding Engineer",
+  savedCount: 1,
+  oldestMs: minutesAgo(120),
+  waitReason: "execution_recovery",
+  holdCause: "legacy_execution_requires_reconciliation",
+  ...over,
+});
+
+/** The real LAC-6825: five saved messages, 22.8h, held by a resolved action. */
+const heldStrand = wake({
+  identifier: "LAC-6825",
+  savedCount: 5,
+  oldestMs: NOW - Math.round(22.8 * 3_600_000),
+});
+
+/**
+ * The real LAC-2809: no execution blocker since 2026-10-17, a run on the issue
+ * released at 2026-11-05 10:05Z, and the 2026-11-03 wake was still deferred
+ * 40.5h later. Proof that promotion is edge-triggered and not even reliable
+ * on the edge, so "hold already gone" has to stay reportable.
+ */
+const drainNeverRan = wake({
+  identifier: "LAC-2809",
+  assignee: "Marketing Lead",
+  waiter: "Video Producer",
+  holdCause: "",
+  oldestMs: NOW - Math.round(40.5 * 3_600_000),
+});
+
+describe("classifyDeferred", () => {
+  it("reports a strand past the grace and holds one that is still settling", () => {
+    const verdict = classifyDeferred(
+      [heldStrand, wake({ identifier: "LAC-6973", oldestMs: minutesAgo(5) })],
+      NOW
+    );
+    expect(verdict.stranded.map((w) => w.identifier)).toEqual(["LAC-6825"]);
+    expect(verdict.young).toBe(1);
+  });
+
+  it("uses the same grace as the park lane", () => {
+    expect(
+      classifyDeferred(
+        [wake({ identifier: "LAC-1", oldestMs: minutesAgo(GRACE_MINUTES + 1) })],
+        NOW
+      ).stranded
+    ).toHaveLength(1);
+    expect(
+      classifyDeferred(
+        [wake({ identifier: "LAC-1", oldestMs: minutesAgo(GRACE_MINUTES - 1) })],
+        NOW
+      ).stranded
+    ).toHaveLength(0);
+  });
+
+  it("reports a strand whose hold has already cleared", () => {
+    // The drain is reached from exactly one caller, a run release. A cleared
+    // hold does not start anything by itself, so this must not be filtered out
+    // as healthy.
+    expect(classifyDeferred([drainNeverRan], NOW).stranded.map((w) => w.identifier)).toEqual([
+      "LAC-2809",
+    ]);
+  });
+
+  it("puts the oldest strand first, because that is the one to answer", () => {
+    const verdict = classifyDeferred([heldStrand, drainNeverRan], NOW);
+    expect(verdict.stranded.map((w) => w.identifier)).toEqual(["LAC-2809", "LAC-6825"]);
+  });
+});
+
+describe("deferredKey", () => {
+  it("cannot collide with a park key for the same issue", () => {
+    const parked = issue({ identifier: "LAC-6825", strandedSinceMs: heldStrand.oldestMs });
+    expect(deferredKey(heldStrand)).not.toBe(alertKey(parked));
+  });
+
+  it("does not buy a second DM when another message piles onto a known strand", () => {
+    // LAC-6825 went from 1 saved message to 5 over 22h. The strand is the
+    // problem, so the key is the oldest wake and the count is only prose.
+    expect(deferredKey({ ...heldStrand, savedCount: 9 })).toBe(deferredKey(heldStrand));
+    expect(
+      unreportedDeferred([{ ...heldStrand, savedCount: 9 }], nextDeferredState([heldStrand]))
+    ).toEqual([]);
+  });
+
+  it("separates two agents waiting on the same issue", () => {
+    // LAC-2809's saved wake belongs to the Video Producer while the issue is
+    // assigned to the Marketing Lead. Two waiters are two strands.
+    expect(deferredKey({ ...drainNeverRan, waiter: "Marketing Lead" })).not.toBe(
+      deferredKey(drainNeverRan)
+    );
+  });
+
+  it("re-reports the same issue after it strands a second time", () => {
+    const later = { ...heldStrand, oldestMs: heldStrand.oldestMs + 60_000 };
+    expect(unreportedDeferred([later], nextDeferredState([heldStrand]))).toEqual([later]);
+  });
+});
+
+describe("describeDeferred", () => {
+  it("names the hold, because clearing it is the action", () => {
+    expect(describeDeferred(heldStrand, NOW)).toBe(
+      "LAC-6825 (Founding Engineer, 22.8h, 5 messages saved, held by legacy_execution_requires_reconciliation): a task"
+    );
+  });
+
+  it("says so when the hold is gone and the drain simply never ran", () => {
+    expect(describeDeferred(drainNeverRan, NOW)).toContain(
+      // 40.5h renders as 1d: past a day, the day count is the readable unit.
+      "LAC-2809 (Video Producer, 1d, 1 message saved, execution_recovery, hold already gone)"
+    );
+  });
+
+  it("distinguishes a wake deferred behind a run that died without releasing", () => {
+    // The other producer: no `executionWait` key at all, because at deferral
+    // time a live run existed and was expected to drain it. LAC-6250, LAC-6939.
+    expect(
+      describeDeferred(wake({ identifier: "LAC-6250", waitReason: "", holdCause: "" }), NOW)
+    ).toContain("deferred behind a run that never released");
+  });
+});
+
+describe("formatDeferredAlert", () => {
+  it("counts the backlog on the first run instead of listing it", () => {
+    const verdict = classifyDeferred([heldStrand, drainNeverRan], NOW);
+    const line = formatDeferredAlert(verdict, verdict.stranded, NOW, true);
+    expect(line).toContain("saved and never started: 2");
+    expect(line).toContain("1 behind an execution hold");
+    expect(line).toContain("1 behind a run that never released");
+    expect(line).not.toContain("LAC-6825");
+  });
+
+  it("names the new strands and keeps the running total", () => {
+    const verdict = classifyDeferred([heldStrand, drainNeverRan], NOW);
+    const line = formatDeferredAlert(verdict, [heldStrand], NOW, false);
+    expect(line).toContain("1 agent message was saved and will never start:");
+    expect(line).toContain("LAC-6825 (Founding Engineer, 22.8h");
+    expect(line).toContain("Saved and unstarted in total: 2.");
+  });
+
+  it("stops naming them past the readable limit", () => {
+    const many = Array.from({ length: MAX_NAMED + 3 }, (_, i) => wake({ identifier: `LAC-${i}` }));
+    const line = formatDeferredAlert(classifyDeferred(many, NOW), many, NOW, false);
+    expect(line).toContain(`${MAX_NAMED + 3} agent messages were saved`);
+    expect(line).toContain("+3 more");
+  });
+
+  it("names an unknown waiter rather than printing a blank", () => {
+    expect(describeDeferred(wake({ identifier: "LAC-9", waiter: "" }), NOW)).toContain(
+      "LAC-9 (unknown agent,"
+    );
   });
 });
