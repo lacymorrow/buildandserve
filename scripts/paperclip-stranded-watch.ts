@@ -429,6 +429,12 @@ const QUERY = `
  *   `EXECUTION_RECONCILIATION_CAUSES`, but naming them here would make this
  *   query lie the first time the server adds a seventh, and the point of the
  *   column is to tell a reader whether a hold is present at all.
+ * - It prefers a live hold over a resolved-but-replay-blocked one. The WHERE
+ *   admits both shapes, so on an issue carrying one of each a plain
+ *   `updated_at DESC` can name the resolved row and make a live hold read as
+ *   cleared. No issue on the board has two distinct causes today (measured
+ *   2026-11-05, LAC-7013 Q3), so this is a correctness guard rather than a
+ *   bug fix, and it is why the sort key is the status predicate first.
  */
 const DEFERRED_QUERY = `
   SELECT i.identifier,
@@ -449,7 +455,8 @@ const DEFERRED_QUERY = `
             WHERE ra.source_issue_id = i.id
               AND (ra.status IN ('active', 'escalated')
                    OR ra.evidence -> 'automaticRecovery' ->> 'replay' = 'blocked')
-            ORDER BY ra.updated_at DESC
+            ORDER BY (ra.status IN ('active', 'escalated')) DESC,
+                     ra.updated_at DESC
             LIMIT 1
          ) h ON true
    WHERE w.status = 'deferred_issue_execution'
