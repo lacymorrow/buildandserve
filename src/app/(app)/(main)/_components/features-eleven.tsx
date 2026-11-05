@@ -30,7 +30,7 @@ export default function FeaturesSection() {
                             </div>
                             <div className="space-y-2">
                                 <h3 className="text-xl font-medium">Ongoing Support</h3>
-                                <p className="text-muted-foreground">We're here to help you with any questions or issues that arise.</p>
+                                <p className="text-muted-foreground">We&apos;re here to help you with any questions or issues that arise.</p>
                             </div>
                             <div className="space-y-2">
                                 <h3 className="text-xl font-medium">Scalable Architecture</h3>

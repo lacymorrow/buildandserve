@@ -13,7 +13,7 @@ export default function FeaturesSection() {
             <div className="py-24">
                 <div className="mx-auto w-full max-w-5xl px-6">
                     <div>
-                        <h2 className="text-foreground max-w-2xl text-balance text-4xl font-semibold">From idea to launch, we've got you covered</h2>
+                        <h2 className="text-foreground max-w-2xl text-balance text-4xl font-semibold">From idea to launch, we&apos;ve got you covered</h2>
                     </div>
                     <div className="mt-16 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                         <Card
@@ -29,7 +29,7 @@ export default function FeaturesSection() {
                             className="gap-0 group overflow-hidden pb-0 px-6 pt-6">
                             <CalendarCheck className="text-primary size-5" />
                             <h3 className="text-foreground mt-5 text-lg font-semibold">Development & Testing</h3>
-                            <p className="text-muted-foreground mt-3 text-balance">Our expert developers build your product with the latest technologies, ensuring it's fast, secure, and scalable. We test every aspect to ensure a flawless user experience.</p>
+                            <p className="text-muted-foreground mt-3 text-balance">Our expert developers build your product with the latest technologies, ensuring it&apos;s fast, secure, and scalable. We test every aspect to ensure a flawless user experience.</p>
 
                             <CodeReviewIllustration />
                         </Card>
