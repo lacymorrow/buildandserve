@@ -55,6 +55,15 @@ import postgres from "postgres";
  */
 export const GRACE_MINUTES = 30;
 
+/**
+ * Exit codes. 1 is a report (something is parked); 2 means the watch could not
+ * look. They must stay distinct: a caller that treats 2 like 0 reads a blind
+ * watch as a healthy board, which is how LAC-6096 sat parked six days (LAC-6580).
+ */
+export const EXIT_QUIET = 0;
+export const EXIT_PARKED = 1;
+export const EXIT_COULD_NOT_LOOK = 2;
+
 /** Named in the DM. Past this the list stops being readable and becomes a wall. */
 export const MAX_NAMED = 5;
 
@@ -386,6 +395,14 @@ export function formatDeferredAlert(
   const named = fresh.slice(0, MAX_NAMED).map((wake) => describeDeferred(wake, nowMs));
   const rest = fresh.length > MAX_NAMED ? [`+${fresh.length - MAX_NAMED} more`] : [];
   return [head, ...named, ...rest, `Saved and unstarted in total: ${total}.`].join("\n");
+}
+
+/**
+ * The watch could not look. Said out loud, because a monitor that fails into a
+ * log nobody reads looks exactly like a healthy board.
+ */
+export function formatBlindAlert(reason: string): string {
+  return `Stranded-work watch could not look, so nothing parked is being reported: ${reason}`;
 }
 
 /** Only ever the parks this state file has not already reported. */
@@ -999,10 +1016,29 @@ async function main() {
     return stateArg ? path.resolve(stateArg) : DEFAULT_STATE_PATH;
   })();
 
+  // Exit 2 is "could not look". With --notify it is also said out loud, once a
+  // day at most, so a broken watch cannot pass for a quiet board.
+  const blind = async (reason: string): Promise<never> => {
+    console.error(reason);
+    if (argv.includes("--notify")) {
+      const marker = `${statePath}.blind-day`;
+      const today = new Date().toISOString().slice(0, 10);
+      const last = await readFile(marker, "utf8").catch(() => "");
+      if (last.trim() !== today) {
+        const failure = await slackDm(formatBlindAlert(reason));
+        if (failure) console.error(failure);
+        else {
+          await mkdir(path.dirname(marker), { recursive: true });
+          await writeFile(marker, `${today}\n`).catch(() => undefined);
+        }
+      }
+    }
+    process.exit(EXIT_COULD_NOT_LOOK);
+  };
+
   const url = process.env.PAPERCLIP_DB_URL;
   if (!url) {
-    console.error("PAPERCLIP_DB_URL must be set (postgres://... for the Paperclip control plane)");
-    process.exit(2);
+    return blind("PAPERCLIP_DB_URL must be set (postgres://... for the Paperclip control plane)");
   }
 
   let issues: BlockedIssue[];
@@ -1012,10 +1048,9 @@ async function main() {
     issues = board.blocked;
     deferredWakes = board.deferred;
   } catch (error) {
-    // Exit 2, not 1. "Could not look" must never be logged as "nothing is
-    // parked", and it must not consume the one alert a real park would get.
-    console.error(`could not read the Paperclip database: ${(error as Error).message}`);
-    process.exit(2);
+    // "Could not look" must never be logged as "nothing is parked", and it must
+    // not consume the one alert a real park would get.
+    return blind(`could not read the Paperclip database: ${(error as Error).message}`);
   }
 
   const now = Date.now();
@@ -1055,7 +1090,7 @@ async function main() {
     // path told nobody -- so a 1 here is a claim no reader ever sees and the
     // runbook's own exit table contradicts. The line is already on stdout.
     // A trust line that IS news keeps the 1 below: that one did tell someone.
-    process.exit(0);
+    process.exit(EXIT_QUIET);
   }
 
   const fresh = isBaseline ? current : unreported(current, seenKeys);
@@ -1104,14 +1139,17 @@ async function main() {
       ]);
   }
 
-  process.exit(1);
+  process.exit(EXIT_PARKED);
 }
 
 // Guarded so the pure helpers above can be imported by tests without touching
 // Postgres, the filesystem or Slack.
 if (import.meta.main) {
   main().catch((error) => {
+    // Same class as the two `blind` paths: the watch did not look. Not routed
+    // through `blind` because this catch is outside `main`'s scope, so an
+    // unexpected throw is still only a log line (LAC-6580 follow-up).
     console.error("stranded watch failed:", error);
-    process.exit(2);
+    process.exit(EXIT_COULD_NOT_LOOK);
   });
 }

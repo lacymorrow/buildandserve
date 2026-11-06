@@ -25,11 +25,15 @@ import {
   deployKey,
   describeDeferred,
   EXECUTION_RECONCILIATION_CAUSES,
+  EXIT_COULD_NOT_LOOK,
+  EXIT_PARKED,
+  EXIT_QUIET,
   FETCH_KEY_PREFIX,
   FETCH_STALE_HOURS,
   fetchKey,
   formatAge,
   formatAlert,
+  formatBlindAlert,
   formatDeferredAlert,
   formatDeployAlert,
   formatFetchAlert,
@@ -917,5 +921,79 @@ describe("pinned server constants", () => {
       ...EXECUTION_RECONCILIATION_CAUSES,
     ]);
     expect(readList(server, "CONVERSATION_ADAPTER_TYPES")).toEqual([...CONVERSATION_ADAPTER_TYPES]);
+  });
+});
+
+describe("exit-code contract (LAC-6580)", () => {
+  const script = path.resolve(__dirname, "../../../scripts/paperclip-stranded-watch.ts");
+  const run = ({
+    RUN_ARGS,
+    STATE_PATH,
+    ...env
+  }: Record<string, string> & { RUN_ARGS?: string; STATE_PATH?: string }) => {
+    const clean = { ...process.env, ...env };
+    if (!("PAPERCLIP_DB_URL" in env)) delete clean.PAPERCLIP_DB_URL;
+    // Unconfigured on purpose: a notify attempt must fail locally, never post.
+    delete clean.STRANDED_WATCH_SLACK_TOKEN;
+    delete clean.STRANDED_WATCH_SLACK_CHANNEL;
+    const statePath =
+      STATE_PATH ?? path.join(mkdtempSync(path.join(tmpdir(), "stranded-exit-")), "state.json");
+    return spawnSync("bun", [script, "--state", statePath, ...(RUN_ARGS ? [RUN_ARGS] : [])], {
+      env: clean,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+  };
+
+  it("keeps quiet, parked and could-not-look as three different codes", () => {
+    expect(new Set([EXIT_QUIET, EXIT_PARKED, EXIT_COULD_NOT_LOOK]).size).toBe(3);
+    expect(EXIT_COULD_NOT_LOOK).toBe(2);
+  });
+
+  it("exits 2, not 0, when PAPERCLIP_DB_URL is missing", () => {
+    const result = run({});
+    expect(result.status).toBe(EXIT_COULD_NOT_LOOK);
+    expect(result.stderr).toContain("PAPERCLIP_DB_URL must be set");
+  });
+
+  it("exits 2, not 0 or 1, when the database is unreachable", () => {
+    const result = run({ PAPERCLIP_DB_URL: "postgres://x:x@127.0.0.1:1/x" });
+    expect(result.status).toBe(EXIT_COULD_NOT_LOOK);
+    expect(result.stderr).toContain("could not read the Paperclip database");
+  });
+
+  // The exit code alone was never the defect: unfixed, a blind run already
+  // exited 2 and said nothing a person would see. These two assert the half
+  // that actually failed -- that 2 is spoken out loud, and that a delivery
+  // failure cannot swallow it (LAC-6580).
+  it("tries to tell someone when it could not look", () => {
+    const result = run({ RUN_ARGS: "--notify" });
+    expect(result.status).toBe(EXIT_COULD_NOT_LOOK);
+    // Slack is unconfigured here, so no network call happens: the rejection
+    // itself is the proof the notify path was entered at all.
+    expect(result.stderr).toContain("must both be set to notify");
+  });
+
+  it("does not try to notify without --notify", () => {
+    const result = run({});
+    expect(result.status).toBe(EXIT_COULD_NOT_LOOK);
+    expect(result.stderr).not.toContain("must both be set to notify");
+  });
+
+  it("writes no blind-day stamp when the DM was not delivered, so it retries", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "stranded-blind-"));
+    const statePath = path.join(dir, "state.json");
+    const result = run({ RUN_ARGS: "--notify", STATE_PATH: statePath });
+    expect(result.status).toBe(EXIT_COULD_NOT_LOOK);
+    expect(existsSync(`${statePath}.blind-day`)).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("formatBlindAlert", () => {
+  it("says the watch is blind, not that the board is quiet", () => {
+    const text = formatBlindAlert("PAPERCLIP_DB_URL must be set");
+    expect(text).toContain("could not look");
+    expect(text).toContain("PAPERCLIP_DB_URL must be set");
   });
 });

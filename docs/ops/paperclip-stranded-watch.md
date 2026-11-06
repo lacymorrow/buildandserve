@@ -191,6 +191,12 @@ something, `2` could not look (missing `PAPERCLIP_DB_URL`, database
 unreachable). `2` never consumes an alert, and a failure in either query is a
 `2`: half a board reported as healthy is the thing this file exists to prevent.
 
+`2` is also **said out loud**: with `--notify`, a run that could not look DMs
+`Stranded-work watch could not look...` once per calendar day, deduped on
+`<state>.blind-day` and written only after Slack accepts it, so an outage retries
+instead of swallowing the notice. A watch that fails into a log nobody reads is
+indistinguishable from a healthy board (LAC-6580).
+
 A **standing** trust line (a stale deploy or a stale fetch, already reported, so
 nothing new to say) exits `0`, not `1`. The code means "something is parked", the
 sweep discards anything under `2`, and that path DMs nobody, so a `1` there would
@@ -250,6 +256,13 @@ a new Paperclip workaround gets a line in that script, never its own launchd
 agent. A day stamp at `~/.paperclip/logs/.stranded-watch-day` holds it to one run
 per day, log at `~/.paperclip/logs/paperclip-stranded-watch.log`, state at
 `~/.paperclip/stranded-watch-state.json`.
+
+The invocation must set `PAPERCLIP_DB_URL`, derived from `pc-psql.sh`
+(`PC_PSQL_URL=1 sh ~/.paperclip/pc-psql.sh` prints it) so the coordinates keep
+one home. It did not after the LAC-5342 migration, so from 2026-10-24 every
+daily run exited `2` into the log behind a `|| true` and LAC-6096 sat parked six
+days unseen. That is why the exit `2` above is now loud and why the sweep writes
+a `>=2` exit to `paperclip-sweep.err` (LAC-6580).
 
 To force today's run again (after a fix, or when the report looks wrong):
 
