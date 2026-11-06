@@ -241,6 +241,7 @@ export const SearchAi = ({
   );
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- isClient flag gates client-only UI after hydration
     setIsClient(true);
   }, []);
 

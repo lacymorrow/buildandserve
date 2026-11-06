@@ -69,6 +69,7 @@ export function PolarProductStatus({
   const [error, setError] = useState<string | null>(null);
 
   // Memoize the check function to prevent unnecessary re-renders
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- compiler infers a wider dep than session?.user?.id; the manual deps are correct, the compiler just skips this component
   const checkPurchaseStatus = useCallback(async () => {
     if (!session?.user?.id) {
       setIsLoading(false);
@@ -112,6 +113,7 @@ export function PolarProductStatus({
   // Check if user has purchased this product
   useEffect(() => {
     if (session?.user?.id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- effect starts an async check; the setState calls live in that checker
       checkPurchaseStatus();
     }
   }, [session?.user?.id, productId, checkPurchaseStatus]);

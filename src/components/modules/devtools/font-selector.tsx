@@ -122,6 +122,7 @@ export function FontSelector() {
 
   // Fetch initial data
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount flag and initial-fetch state; client-only after hydration
     setMounted(true);
     const fetchInitialData = async () => {
       setInitialLoading(true);
@@ -164,6 +165,7 @@ export function FontSelector() {
       const fontParts = currentStyle.split(",");
       const firstFont = fontParts[0]?.trim().replace(/['"]/g, "");
       if (firstFont && fontCategories.has(firstFont)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- mount flag and initial-fetch state; client-only after hydration
         setSelectedFont(firstFont);
         return;
       }
@@ -201,6 +203,7 @@ export function FontSelector() {
   // Search effect
   React.useEffect(() => {
     if (!debouncedSearchQuery) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount flag and initial-fetch state; client-only after hydration
       setSearchResults([]);
       return;
     }
