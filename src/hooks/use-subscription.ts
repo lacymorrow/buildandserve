@@ -43,6 +43,7 @@ export function useSubscription(provider?: SubscriptionProvider) {
   const [error, setError] = useState<string | null>(null);
 
   // Memoize the check function to prevent unnecessary re-renders
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- compiler infers a wider dep than session?.user?.id; the manual deps are correct, the compiler just skips this component
   const checkSubscription = useCallback(async () => {
     if (status === "loading") return;
 
@@ -104,6 +105,7 @@ export function useSubscription(provider?: SubscriptionProvider) {
   useEffect(() => {
     // Only run if we have a stable user ID and status is not loading
     if (status !== "loading" && session?.user?.id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- effect starts an async check and resets state on sign-out
       checkSubscription();
     } else if (status === "unauthenticated") {
       // Clear state when user is not authenticated

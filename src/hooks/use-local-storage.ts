@@ -43,6 +43,7 @@ export function useLocalStorage<T>(
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- re-reads storage when key changes; the useState initializer cannot see the new key
     setStoredValue(readValue());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);

@@ -65,13 +65,8 @@ const eslintConfig = [
 		rules: {
 			...pluginReactHooks.configs.recommended.rules,
 			// React Compiler rules shipped as errors in eslint-plugin-react-hooks 7.
-			// 23 existing call sites (mount flags, matchMedia/localStorage reads,
-			// polling hooks) trip them. Rewriting working effects to satisfy a
-			// lint is a behavior change, so they stay visible as warnings until
-			// each hook is reworked on its own. Tracked in LAC-7090.
-			"react-hooks/set-state-in-effect": "warn",
-			"react-hooks/refs": "warn",
-			"react-hooks/preserve-manual-memoization": "warn",
+			// set-state-in-effect, refs and preserve-manual-memoization are errors again
+			// (LAC-7306). Remaining sites carry a line-scoped disable plus a reason.
 		},
 	},
 

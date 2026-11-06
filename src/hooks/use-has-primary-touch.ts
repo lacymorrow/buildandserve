@@ -1,21 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+const QUERY = "(pointer: coarse)";
+
+const subscribe = (onChange: () => void) => {
+  const mq = window.matchMedia(QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+};
+
+const getSnapshot = () => window.matchMedia(QUERY).matches;
+
+// Server and hydration render false, same as the old effect-based hook.
+const getServerSnapshot = () => false;
 
 /**
  * Detects if the primary input device is touch-based.
  */
 export function useTouchPrimary(): boolean {
-  const [isTouch, setIsTouch] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(pointer: coarse)");
-    setIsTouch(mq.matches);
-
-    const handler = (e: MediaQueryListEvent) => setIsTouch(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
-  return isTouch;
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
