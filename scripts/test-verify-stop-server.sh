@@ -34,6 +34,9 @@ done
 [ -z "$(holder)" ] || { echo "SKIP: port $PORT is already in use"; exit 0; }
 
 eval "$(sed -n '/^stop_server() {/,/^}/p' "$ROOT/scripts/verify.sh")"
+eval "$(sed -n '/^port_busy() {/,/^}/p' "$ROOT/scripts/verify.sh")"
+type port_busy >/dev/null 2>&1 || {
+  echo "FAIL: could not extract port_busy() from scripts/verify.sh"; exit 1; }
 type stop_server >/dev/null 2>&1 || {
   echo "FAIL: could not extract stop_server() from scripts/verify.sh"; exit 1; }
 
@@ -111,6 +114,17 @@ if start_fake_server stubborn; then
   [ -z "$(holder)" ] && ok "port $PORT released by the watchdog" || bad "port $PORT still held"
   [ "$ELAPSED" -le 8 ] && ok "returned in ${ELAPSED}s instead of blocking forever" \
                        || bad "took ${ELAPSED}s, the wait is not bounded"
+  cleanup
+else
+  bad "could not start the fake server"
+fi
+
+echo "4. port_busy refuses a held port, names the pid, and passes a free one (LAC-7308)"
+if port_busy >/dev/null; then bad "port_busy reported a free port as busy"; else ok "free port reported free"; fi
+if start_fake_server polite; then
+  OUT=$(port_busy); RC=$?
+  [ "$RC" = 0 ] && ok "held port reported busy" || bad "held port reported free"
+  case "$OUT" in *"$(holder | head -1)"*) ok "output names the holding pid";; *) bad "output '$OUT' lacks the holder pid";; esac
   cleanup
 else
   bad "could not start the fake server"
