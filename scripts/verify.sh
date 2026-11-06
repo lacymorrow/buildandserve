@@ -2,13 +2,10 @@
 # Local CI gate. Runs typecheck, lint, tests, a production build and a route
 # smoke on this machine, and prints a Markdown summary for the PR body.
 #
-# Why: there is no per-PR workflow on this repo. Nothing on GitHub typechecks,
-# lints or tests a pull request, so this script is the gate. Run it, paste the
-# summary in the PR body. Do not bother with "[skip ci]" or a "ci:full" label:
-# neither does anything here (no per-PR Actions jobs exist, the repo has no
-# ci:full label, and the Vercel Ignored Build Step only skips dependabot
-# previews). See the "CI and Local Verification" section of CLAUDE.md, and
-# LAC-7038 for adding the workflow.
+# Why: ci.yml on GitHub only runs the cheap half (typecheck, lint, unit tests).
+# This script is the full gate, including the production build and route smoke.
+# Run it, paste the summary in the PR body. "[skip ci]" and a "ci:full" label
+# do nothing here. See the "CI and Local Verification" section of CLAUDE.md.
 #
 # Note: as of 2026-11-05 this script does not pass on main (1 typecheck error,
 # 7 failing unit test files). That is LAC-7035, not your change.
@@ -57,6 +54,15 @@ has_script typecheck && step "typecheck" $PM typecheck
 has_script lint && step "lint" $PM lint
 has_script test && step "unit tests" $PM test
 has_script test:node && step "node tests" $PM test:node
+# The regression suite for the guard that decides whether Vercel builds a
+# commit. This arm is the only thing that runs it on a private repo, where
+# every Actions job is gated off (LAC-4925); .github/workflows/vercel-ignore-step.yml
+# covers it where minutes exist. Pure bash, no dependencies, well under a
+# second, so it is not worth a path filter here (LAC-6905).
+if [ -f scripts/test-vercel-ignore-step.sh ]; then
+  step "vercel ignore step" bash scripts/test-vercel-ignore-step.sh
+fi
+
 if [ "$DO_BUILD" = 1 ] && has_script build; then step "build" $PM build; fi
 
 SMOKE_ROWS=()

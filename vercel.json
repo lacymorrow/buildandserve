@@ -23,6 +23,7 @@
       "permanent": true
     }
   ],
+  "ignoreCommand": "bash scripts/vercel-ignore-step.sh",
   "buildCommand": "pnpm run build:vercel",
   "devCommand": "pnpm run dev",
   "installCommand": "pnpm install",
