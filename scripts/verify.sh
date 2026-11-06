@@ -7,9 +7,6 @@
 # Run it, paste the summary in the PR body. "[skip ci]" and a "ci:full" label
 # do nothing here. See the "CI and Local Verification" section of CLAUDE.md.
 #
-# Note: as of 2026-11-05 this script does not pass on main (1 typecheck error,
-# 7 failing unit test files). That is LAC-7035, not your change.
-#
 # Usage: scripts/verify.sh [--no-build] [--no-smoke] [--port 3040] [--routes "/ /blog /nope-404=404"]
 #   Routes are space separated; "=CODE" sets the expected status (default 200).
 set -u
@@ -50,6 +47,14 @@ step() {
 # environment wins.
 export APP_SECRET="${APP_SECRET:-verify-$(openssl rand -hex 16)}"
 
+# typecheck imports two generated content manifests (src/lib/generated/, which is
+# gitignored) that only scripts/prebuild-content.mjs writes. `pnpm install` runs
+# it from postinstall, but an install with --ignore-scripts does not, and then
+# typecheck fails on 4 errors in src/lib/blog.ts and src/lib/changelog.ts that
+# have nothing to do with the change under test. The build stage regenerates
+# them anyway, so doing it first costs ~0s and removes a false FAIL (LAC-7078).
+if [ -f scripts/prebuild-content.mjs ]; then step "content manifests" node scripts/prebuild-content.mjs; fi
+
 has_script typecheck && step "typecheck" $PM typecheck
 has_script lint && step "lint" $PM lint
 has_script test && step "unit tests" $PM test
@@ -63,7 +68,34 @@ if [ -f scripts/test-vercel-ignore-step.sh ]; then
   step "vercel ignore step" bash scripts/test-vercel-ignore-step.sh
 fi
 
+# Regression suite for stop_server() below. The smoke stage only runs when every
+# earlier check is green, so the teardown line it guards had never executed, and
+# the bug there cost 12 minutes per run in silence. This suite models the same
+# process shape with a subshell wrapper and a grandchild on a throwaway port, so
+# it needs no Next build and takes about 6s (LAC-7078).
+if [ -f scripts/test-verify-stop-server.sh ]; then
+  step "verify teardown" bash scripts/test-verify-stop-server.sh
+fi
+
 if [ "$DO_BUILD" = 1 ] && has_script build; then step "build" $PM build; fi
+
+# Tearing the smoke server down is not just `kill $SERVER`. $SERVER is the
+# package manager's wrapper process, and pnpm does not forward SIGTERM to the
+# `next start` grandchild, so the wrapper outlives the signal, the port stays
+# held, and a bare `wait $SERVER` blocks forever. Measured 2026-11-06
+# (LAC-7078): this script sat here for 12 minutes with both smoke routes
+# already green, which is why it had never printed PASS. Kill whatever holds
+# the port first, then the wrapper, with a watchdog so the wait is bounded.
+stop_server() {
+  local pids=""
+  command -v lsof >/dev/null 2>&1 && pids=$(lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null)
+  [ -n "$pids" ] && kill $pids 2>/dev/null
+  kill "$SERVER" 2>/dev/null
+  ( sleep "${STOP_SERVER_GRACE:-15}"; [ -n "$pids" ] && kill -9 $pids 2>/dev/null; kill -9 "$SERVER" 2>/dev/null ) >/dev/null 2>&1 &
+  local watchdog=$!
+  wait "$SERVER" 2>/dev/null
+  kill "$watchdog" 2>/dev/null
+}
 
 SMOKE_ROWS=()
 if [ "$DO_SMOKE" = 1 ] && [ "$DO_BUILD" = 1 ] && [ "$FAILED" = 0 ] && has_script start; then
@@ -76,7 +108,7 @@ if [ "$DO_SMOKE" = 1 ] && [ "$DO_BUILD" = 1 ] && [ "$FAILED" = 0 ] && has_script
     got=$(curl -s -o /dev/null -m 60 -w "%{http_code}" "http://localhost:$PORT$path")
     if [ "$got" = "$want" ]; then SMOKE_ROWS+=("| \`$path\` | $got | pass |"); else SMOKE_ROWS+=("| \`$path\` | $got (want $want) | **FAIL** |"); FAILED=1; fi
   done
-  kill $SERVER 2>/dev/null; wait $SERVER 2>/dev/null
+  stop_server
 fi
 
 echo
