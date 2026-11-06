@@ -99,16 +99,30 @@ stop_server() {
 
 SMOKE_ROWS=()
 if [ "$DO_SMOKE" = 1 ] && [ "$DO_BUILD" = 1 ] && [ "$FAILED" = 0 ] && has_script start; then
-  PORT=$PORT $PM start > /tmp/verify-start.log 2>&1 &
-  SERVER=$!
-  for _ in $(seq 1 40); do curl -s -o /dev/null -m 3 "http://localhost:$PORT/" && break; sleep 2; done
-  if [ -z "$ROUTES" ]; then ROUTES="/ /nope-404=404"; fi
-  for spec in $ROUTES; do
-    path="${spec%%=*}"; want="${spec#*=}"; [ "$want" = "$spec" ] && want=200
-    got=$(curl -s -o /dev/null -m 60 -w "%{http_code}" "http://localhost:$PORT$path")
-    if [ "$got" = "$want" ]; then SMOKE_ROWS+=("| \`$path\` | $got | pass |"); else SMOKE_ROWS+=("| \`$path\` | $got (want $want) | **FAIL** |"); FAILED=1; fi
-  done
-  stop_server
+  # A listener already on $PORT would answer the smoke routes in place of the
+  # fresh build, and stop_server() would then kill it. Refuse to start (LAC-7308).
+  BUSY=""
+  if command -v lsof >/dev/null 2>&1; then
+    BUSY=$(lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null | tr '\n' ' ')
+  elif curl -s -o /dev/null -m 2 "http://localhost:$PORT/"; then
+    BUSY="unknown (lsof not installed)"
+  fi
+  if [ -n "$BUSY" ]; then
+    echo "verify: port $PORT is already in use (pid: $BUSY). Stop it or pass --port <free port>. Smoke not run." >&2
+    SMOKE_ROWS+=("| (smoke not run) | port $PORT in use | **FAIL** |")
+    FAILED=1
+  else
+    PORT=$PORT $PM start > /tmp/verify-start.log 2>&1 &
+    SERVER=$!
+    for _ in $(seq 1 40); do curl -s -o /dev/null -m 3 "http://localhost:$PORT/" && break; sleep 2; done
+    if [ -z "$ROUTES" ]; then ROUTES="/ /nope-404=404"; fi
+    for spec in $ROUTES; do
+      path="${spec%%=*}"; want="${spec#*=}"; [ "$want" = "$spec" ] && want=200
+      got=$(curl -s -o /dev/null -m 60 -w "%{http_code}" "http://localhost:$PORT$path")
+      if [ "$got" = "$want" ]; then SMOKE_ROWS+=("| \`$path\` | $got | pass |"); else SMOKE_ROWS+=("| \`$path\` | $got (want $want) | **FAIL** |"); FAILED=1; fi
+    done
+    stop_server
+  fi
 fi
 
 echo
