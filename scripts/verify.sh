@@ -79,6 +79,22 @@ fi
 
 if [ "$DO_BUILD" = 1 ] && has_script build; then step "build" $PM build; fi
 
+# Prints what holds $PORT and returns 0 when something does; prints nothing and
+# returns 1 when it is free. lsof names the pid. Without lsof, a bash /dev/tcp
+# connect still catches any TCP listener, not only HTTP ones (LAC-7308).
+port_busy() {
+  local pids=""
+  if command -v lsof >/dev/null 2>&1; then
+    pids=$(lsof -nP -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null | tr '\n' ' ')
+    [ -n "$pids" ] && { echo "$pids"; return 0; }
+    return 1
+  fi
+  if (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; then
+    echo "unknown (lsof not installed)"; return 0
+  fi
+  return 1
+}
+
 # Tearing the smoke server down is not just `kill $SERVER`. $SERVER is the
 # package manager's wrapper process, and pnpm does not forward SIGTERM to the
 # `next start` grandchild, so the wrapper outlives the signal, the port stays
@@ -99,16 +115,25 @@ stop_server() {
 
 SMOKE_ROWS=()
 if [ "$DO_SMOKE" = 1 ] && [ "$DO_BUILD" = 1 ] && [ "$FAILED" = 0 ] && has_script start; then
-  PORT=$PORT $PM start > /tmp/verify-start.log 2>&1 &
-  SERVER=$!
-  for _ in $(seq 1 40); do curl -s -o /dev/null -m 3 "http://localhost:$PORT/" && break; sleep 2; done
-  if [ -z "$ROUTES" ]; then ROUTES="/ /nope-404=404"; fi
-  for spec in $ROUTES; do
-    path="${spec%%=*}"; want="${spec#*=}"; [ "$want" = "$spec" ] && want=200
-    got=$(curl -s -o /dev/null -m 60 -w "%{http_code}" "http://localhost:$PORT$path")
-    if [ "$got" = "$want" ]; then SMOKE_ROWS+=("| \`$path\` | $got | pass |"); else SMOKE_ROWS+=("| \`$path\` | $got (want $want) | **FAIL** |"); FAILED=1; fi
-  done
-  stop_server
+  # A listener already on $PORT would answer the smoke routes in place of the
+  # fresh build, and stop_server() would then kill it. Refuse to start (LAC-7308).
+  BUSY=$(port_busy)
+  if [ -n "$BUSY" ]; then
+    echo "verify: port $PORT is already in use (pid: $BUSY). Stop it or pass --port <free port>. Smoke not run." >&2
+    SMOKE_ROWS+=("| (smoke not run) | port $PORT in use | **FAIL** |")
+    FAILED=1
+  else
+    PORT=$PORT $PM start > /tmp/verify-start.log 2>&1 &
+    SERVER=$!
+    for _ in $(seq 1 40); do curl -s -o /dev/null -m 3 "http://localhost:$PORT/" && break; sleep 2; done
+    if [ -z "$ROUTES" ]; then ROUTES="/ /nope-404=404"; fi
+    for spec in $ROUTES; do
+      path="${spec%%=*}"; want="${spec#*=}"; [ "$want" = "$spec" ] && want=200
+      got=$(curl -s -o /dev/null -m 60 -w "%{http_code}" "http://localhost:$PORT$path")
+      if [ "$got" = "$want" ]; then SMOKE_ROWS+=("| \`$path\` | $got | pass |"); else SMOKE_ROWS+=("| \`$path\` | $got (want $want) | **FAIL** |"); FAILED=1; fi
+    done
+    stop_server
+  fi
 fi
 
 echo
