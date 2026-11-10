@@ -13,16 +13,9 @@ export function isWebGPUAvailable(): boolean {
   return !!window.navigator?.gpu?.requestAdapter;
 }
 
+const subscribeNever = () => () => undefined;
+
 export function useWebGPUAvailability(): boolean {
-  const [isAvailable, setIsAvailable] = React.useState<boolean>(false);
-  const [hasChecked, setHasChecked] = React.useState<boolean>(false);
-
-  React.useEffect(() => {
-    if (!hasChecked) {
-      setIsAvailable(isWebGPUAvailable());
-      setHasChecked(true);
-    }
-  }, [hasChecked]);
-
-  return isAvailable;
+  // Server and hydration render false; the client re-reads after hydration.
+  return React.useSyncExternalStore(subscribeNever, isWebGPUAvailable, () => false);
 }
