@@ -67,6 +67,21 @@ start_fake_server() {
   return 1
 }
 
+# Run stop_server with a hard deadline. A regressed stop_server (kill + wait,
+# or no watchdog) blocks forever on `wait`, which would hang verify with no FAIL
+# line. wait only works on this shell's own children, so stop_server must stay in
+# the foreground; instead a guard SIGKILLs the tree at $1 seconds, which releases
+# the wait and lets the elapsed-time assertion report the regression. Sets ELAPSED.
+run_stop_bounded() {
+  local deadline=$1 guard start
+  ( sleep "$deadline"; p=$(holder); [ -n "$p" ] && kill -9 $p; kill -9 "$SERVER" ) >/dev/null 2>&1 &
+  guard=$!
+  start=$(date +%s)
+  stop_server
+  ELAPSED=$(( $(date +%s) - start ))
+  kill "$guard" 2>/dev/null; wait "$guard" 2>/dev/null
+}
+
 cleanup() {
   local p
   p=$(holder); [ -n "$p" ] && kill -9 $p 2>/dev/null
@@ -92,10 +107,11 @@ fi
 
 echo "2. stop_server releases the port promptly when the listener honours SIGTERM"
 if start_fake_server polite; then
-  START=$(date +%s)
-  stop_server
-  ELAPSED=$(( $(date +%s) - START ))
-  [ -z "$(holder)" ] && ok "port $PORT released" || bad "port $PORT still held"
+  run_stop_bounded 10
+  # Says "free", not who freed it: on a regression the deadline guard in
+  # run_stop_bounded is what SIGKILLed the tree, and the elapsed assertion
+  # below is the line that reports that.
+  [ -z "$(holder)" ] && ok "port $PORT free after stop_server returned" || bad "port $PORT still held"
   [ "$ELAPSED" -le 5 ] && ok "returned in ${ELAPSED}s, no watchdog needed" \
                        || bad "took ${ELAPSED}s, expected 5s or less on the graceful path"
   cleanup; sleep 1
@@ -108,10 +124,8 @@ echo "3. stop_server is still bounded when nothing in the tree honours SIGTERM"
 # SIGKILL. Shorten it here so the test proves the watchdog exists without
 # paying 15s on every verify run.
 if start_fake_server stubborn; then
-  START=$(date +%s)
-  STOP_SERVER_GRACE=2 stop_server
-  ELAPSED=$(( $(date +%s) - START ))
-  [ -z "$(holder)" ] && ok "port $PORT released by the watchdog" || bad "port $PORT still held"
+  STOP_SERVER_GRACE=2 run_stop_bounded 12
+  [ -z "$(holder)" ] && ok "port $PORT free after stop_server returned" || bad "port $PORT still held"
   [ "$ELAPSED" -le 8 ] && ok "returned in ${ELAPSED}s instead of blocking forever" \
                        || bad "took ${ELAPSED}s, the wait is not bounded"
   cleanup
