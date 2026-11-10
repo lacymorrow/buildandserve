@@ -105,7 +105,10 @@ fi
 echo "2. stop_server releases the port promptly when the listener honours SIGTERM"
 if start_fake_server polite; then
   run_stop_bounded 10
-  [ -z "$(holder)" ] && ok "port $PORT released" || bad "port $PORT still held"
+  # Says "free", not who freed it: on a regression the deadline guard in
+  # run_stop_bounded is what SIGKILLed the tree, and the elapsed assertion
+  # below is the line that reports that.
+  [ -z "$(holder)" ] && ok "port $PORT free after stop_server returned" || bad "port $PORT still held"
   [ "$ELAPSED" -le 5 ] && ok "returned in ${ELAPSED}s, no watchdog needed" \
                        || bad "took ${ELAPSED}s, expected 5s or less on the graceful path"
   cleanup; sleep 1
@@ -119,7 +122,7 @@ echo "3. stop_server is still bounded when nothing in the tree honours SIGTERM"
 # paying 15s on every verify run.
 if start_fake_server stubborn; then
   STOP_SERVER_GRACE=2 run_stop_bounded 12
-  [ -z "$(holder)" ] && ok "port $PORT released by the watchdog" || bad "port $PORT still held"
+  [ -z "$(holder)" ] && ok "port $PORT free after stop_server returned" || bad "port $PORT still held"
   [ "$ELAPSED" -le 8 ] && ok "returned in ${ELAPSED}s instead of blocking forever" \
                        || bad "took ${ELAPSED}s, the wait is not bounded"
   cleanup
