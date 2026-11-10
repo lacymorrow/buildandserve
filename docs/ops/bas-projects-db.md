@@ -261,9 +261,9 @@ anything below 21 means the renewal path has been failing for weeks.
 The pooled port is checked over ssh instead, by
 `bas-projects-db.sh pooler-cert-check`, which the watch runs in the same block
 as `client-cert-check`. Over ssh rather than over the public internet for a dull
-reason: `tcp/26433` was closed at the Hetzner firewall when this was written; it is open
-now (see "Opening the port"), and the ssh route stayed because it also sees the
-pooler's own view of its server. It compares the certificate the pooler
+reason: `tcp/26433` is closed at the Hetzner firewall (LAC-7492, "Opening the port"),
+so there is no public route to dial, and the ssh route also sees the pooler's own
+view of its server. It compares the certificate the pooler
 serves to the one on disk and checks the name on it, and it is silent and exit 0
 when the pooler is healthy **or absent**. A box with no pooler is a supported
 shape, not a finding. An unreachable box or a box whose installed script predates
@@ -889,8 +889,8 @@ The `projects-db-public` card classifies all seven, because they have different
 owners and nobody reading one card at 2am should have to rediscover which.
 `fleet-health/test/lac6096-projects-db-public-test.sh` is the harness; the
 messages in it are these measured ones and not invented. The `:26433` row was
-measured before LAC-6076; PgBouncer listens there now, and the dial still times
-out only because the Hetzner firewall does not open that port.
+measured before LAC-6076; PgBouncer listens there now, and the dial times
+out because the Hetzner firewall does not open that port (closed again, LAC-7492).
 
 #### This card does not cover the pooled port
 
@@ -1520,7 +1520,7 @@ many instances Vercel happens to warm.
 | Auth      | client certificate only: chain against the private CA, `CN` bound to the role    |
 | Script    | `scripts/bas-pgbouncer.sh`, installed at `/usr/local/sbin/bas-pgbouncer.sh`      |
 | Secrets   | `/data/pgbouncer/secret/userlist.txt`, **plaintext role passwords**, `600 70:70` |
-| Firewall  | `tcp/26433` is **not** open at the Hetzner firewall yet (see "Opening the port") |
+| Firewall  | `tcp/26433` is **closed** at the Hetzner firewall: tailnet-only (LAC-7492)       |
 
 Measured on 2026-10-28 against `gracefully_imagined_preview`, 12 concurrent
 clients each running a short-transaction loop, identical traffic both ways:
@@ -1601,8 +1601,8 @@ it _before_ `DATABASE_URL` moves:
 # password travels over ssh stdin; it must not be expanded on the box
 printf '%s' "$FLEET_MONITOR_PASSWORD" | ssh root@bas.hyrax-boga.ts.net 'bas-pgbouncer.sh add-monitor'
 ssh root@bas.hyrax-boga.ts.net 'bas-projects-db.sh allow-monitor-pooler'
-# then, on each fleet-health host, after tcp/26433 opens at the Hetzner firewall:
-PROJECTS_DB_MONITOR_POOLED_URL=postgresql://fleet_monitor@projects-db.cloud0.dev:26433/fleet_monitor?sslmode=verify-full&sslrootcert=system
+# then, on each fleet-health host (tcp/26433 is closed publicly since LAC-7492, so tailnet):
+PROJECTS_DB_MONITOR_POOLED_URL=postgresql://fleet_monitor@bas.hyrax-boga.ts.net:26433/fleet_monitor?sslmode=require
 ```
 
 The URL has no password: the pooled path is cert-only, and the pooler keeps
@@ -1736,15 +1736,36 @@ URL, or use `psql`, which does honour it.
 
 ### Opening the port
 
-`tcp/26433` is **open to `0.0.0.0/0` and `::/0`** on the Hetzner firewall
-(`bas-automation`, id 11789519), as of 2026-10-29. Vercel egress has no fixed IP
-range, so this is the only shape that works, and it is the same decision LAC-6056
-made for `:26432`. What makes it tolerable is the rate limit: the second
-`--ctorigdstport 26433` jump into `PROJECTSDB` lives in
-`projects-db-ratelimit.service` (`docs/ops/projects-db-ratelimit.service`), which
-runs `install` with no `PORT` and so covers both ports, and which `PartOf=docker.service`
-reapplies after a daemon restart. Re-installing `bas-projects-db-ratelimit.sh`
-from an old checkout removes it, so install all three scripts from the same commit.
+`tcp/26433` is **closed to the internet** on the Hetzner firewall
+(`bas-automation`, id 11789519), as of 2026-11-10 (LAC-7492). The pooler is
+tailnet-only, which is what LAC-6076 decided on 2026-11-01 and LAC-6570 re-defaulted
+to on 2026-11-10. The rule `in tcp 26433 ['0.0.0.0/0', '::/0']`, described
+"projects-db PgBouncer pooler (TLS client cert)", was the only thing keeping it open:
+no docker publish, `DOCKER-USER` or PgBouncer change was involved.
+
+**`tcp/26432` is untouched and stays open to `0.0.0.0/0`.** LAC-6056's ruling stands:
+Vercel egress has no fixed IP range, a Vercel function can join neither a tailnet nor
+a TCP tunnel, and Static IPs are $100/mo per project. All ten project secret files dial
+`:26432`; none dials `:26433`. The in-box `PROJECTSDB` rate limit keeps covering both
+ports, which is belt-and-braces behind a closed cloud port and was not edited.
+
+Rollback is one API call and no restart: `PUT /v1/firewalls/11789519/actions/set_rules`
+with the current array plus
+`{"description":"projects-db PgBouncer pooler (TLS client cert)","direction":"in","port":"26433","protocol":"tcp","source_ips":["0.0.0.0/0","::/0"]}`.
+Read the live rule set first; the call replaces the whole array.
+
+**The sixth fleet-health arm now dials the tailnet.**
+`PROJECTS_DB_MONITOR_POOLED_URL` is
+`postgresql://fleet_monitor@bas.hyrax-boga.ts.net:26433/fleet_monitor?sslmode=require`.
+`verify-full` cannot pass on the tailnet name (the served certificate's CN is the
+public name), so the arm accepts `sslmode=require` for a `*.ts.net` or `100.x` host
+only; a public host must still say `verify-full`. The pooler is `auth_type=hba`
+method `cert`, so the client certificate is still required on the tailnet path.
+Measured 2026-11-10: with the certificate, `select current_user` returns
+`fleet_monitor`; without it, `tlsv13 alert certificate required`.
+
+If the pooler is ever exposed publicly again, re-file the cert-only vs
+`scram-sha-256` question (LAC-6571, cancelled).
 
 ### Rolling one project over
 
