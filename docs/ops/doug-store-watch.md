@@ -212,6 +212,13 @@ git worktree (`.paperclip/worktrees/<issue>/`) and evidence written there dies
 with the worktree (LAC-4300). Pass `--out <dir>` to override; an explicit
 `--out` is used as given.
 
+The Playwright browser cache (`~/Library/Caches/ms-playwright`) lives outside
+every repo and is shared host-wide, so anything that cleans caches used to end
+the run at exit 3 with nothing verified. The script now borrows the newest
+Chromium already in the cache and, if there is none, downloads the pinned
+headless shell once (~100MB) and carries on. `PLAYWRIGHT_CHROMIUM_PATH` still
+overrides both.
+
 Each run prunes evidence older than 30 days, so the directory stays bounded
 without anyone tending it.
 

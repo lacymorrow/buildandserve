@@ -28,8 +28,11 @@
  * adaptation, 3 = harness error.
  */
 
+import { spawnSync } from "node:child_process";
 import { promises as dns } from "node:dns";
-import { access, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import tls from "node:tls";
@@ -711,6 +714,57 @@ async function walkPurchasePath(
 }
 
 /**
+ * How to recover from a Chromium launch that failed because the pinned build is
+ * not in the shared Playwright cache: borrow the newest neighbouring build that
+ * is actually on disk, or download. Pure, so the download decision is testable
+ * without a download — before LAC-7793 an empty cache threw instead.
+ */
+export function chromiumRecoveryPlan(
+  cacheDir: string,
+  entries: string[],
+  isExecutable: (p: string) => boolean
+): { kind: "borrow"; executablePath: string } | { kind: "install" } {
+  const candidate = entries
+    .filter((e) => e.startsWith("chromium_headless_shell-") || e.startsWith("chromium-"))
+    .sort((a, b) => Number(b.split("-").pop() ?? 0) - Number(a.split("-").pop() ?? 0))
+    .flatMap((e) => [
+      path.join(cacheDir, e, "chrome-headless-shell-mac-arm64/chrome-headless-shell"),
+      path.join(cacheDir, e, "chrome-mac/Chromium.app/Contents/MacOS/Chromium"),
+    ])
+    .find(isExecutable);
+
+  return candidate ? { kind: "borrow", executablePath: candidate } : { kind: "install" };
+}
+
+/**
+ * Download the pinned Chromium headless shell. The browser cache lives outside
+ * every repo (`~/Library/Caches/ms-playwright`, `~/.cache/ms-playwright` on
+ * Linux) and is shared host-wide, so anything that cleans caches takes this job
+ * offline until a human reinstalls by hand. On 2026-11-12 the whole directory
+ * was gone and the run exited 3 having verified nothing (LAC-7793). One bounded
+ * ~100MB download beats a lost run. Resolved from this script's own dependency
+ * chain so it works from a worktree with no node_modules of its own.
+ */
+async function installChromium(): Promise<boolean> {
+  let cli: string;
+  try {
+    // Resolve the package root, not "playwright/cli.js": the package's exports
+    // map does not expose that subpath, so resolving it directly throws.
+    const root = path.dirname(createRequire(import.meta.url).resolve("playwright/package.json"));
+    cli = path.join(root, "cli.js");
+    if (!existsSync(cli)) return false;
+  } catch {
+    return false;
+  }
+
+  console.warn("playwright: no usable Chromium in the cache, downloading the pinned build");
+  const result = spawnSync(process.execPath, [cli, "install", "chromium", "--only-shell"], {
+    stdio: "inherit",
+  });
+  return result.status === 0;
+}
+
+/**
  * Launch Chromium, tolerating a Playwright browser cache that does not match the
  * installed Playwright version. The cache is shared across every repo on the BAS
  * host, so the exact pinned build is often absent while a perfectly usable
@@ -725,25 +779,14 @@ async function launchBrowser(): Promise<Browser> {
   } catch (error) {
     const cache = path.join(os.homedir(), "Library/Caches/ms-playwright");
     const entries = await readdir(cache).catch(() => [] as string[]);
-    const candidates = entries
-      .filter((e) => e.startsWith("chromium_headless_shell-") || e.startsWith("chromium-"))
-      .sort((a, b) => Number(b.split("-").pop() ?? 0) - Number(a.split("-").pop() ?? 0))
-      .flatMap((e) => [
-        path.join(cache, e, "chrome-headless-shell-mac-arm64/chrome-headless-shell"),
-        path.join(cache, e, "chrome-mac/Chromium.app/Contents/MacOS/Chromium"),
-      ]);
+    const plan = chromiumRecoveryPlan(cache, entries, existsSync);
 
-    for (const executablePath of candidates) {
-      if (
-        await access(executablePath).then(
-          () => true,
-          () => false
-        )
-      ) {
-        console.warn(`playwright: pinned build missing, falling back to ${executablePath}`);
-        return chromium.launch({ headless: true, executablePath });
-      }
+    if (plan.kind === "borrow") {
+      console.warn(`playwright: pinned build missing, falling back to ${plan.executablePath}`);
+      return chromium.launch({ headless: true, executablePath: plan.executablePath });
     }
+
+    if (await installChromium()) return chromium.launch({ headless: true });
     throw error;
   }
 }
