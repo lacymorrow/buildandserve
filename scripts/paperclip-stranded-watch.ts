@@ -91,6 +91,16 @@ export interface BlockedIssue {
   recoveryOwner: string;
   /** True when the issue declares who it is waiting on and what for. */
   hasDescriptor: boolean;
+  /**
+   * `cause` of the execution hold still on the issue, or "" if none.
+   *
+   * Distinct from `recoveryCause`, which is the ACTIVE recovery action and
+   * is "" on all 37 held issues measured 2026-11-12: the hold these carry
+   * lives in a RESOLVED row whose evidence says `replay = 'blocked'`. The
+   * two columns answer different questions and an issue can have either,
+   * both, or neither.
+   */
+  holdCause: string;
 }
 
 export interface Verdict {
@@ -330,7 +340,16 @@ export function formatAge(sinceMs: number, nowMs: number): string {
 }
 
 function describe(issue: BlockedIssue, nowMs: number): string {
-  const why = issue.recoveryCause || "no wake path";
+  // Hold first, and ahead of `recoveryCause`, because it changes WHO can act.
+  // A park with no hold is repaired by whoever owns the issue flipping its
+  // status. A park with one is not repairable that way at all -- the watchdog
+  // re-parks the flip in ~40s and writes another blocked-replay row -- and the
+  // route that does repair it answers 403 to every agent key. Printing the
+  // same "no wake path" for both sends the reader down the path that cannot
+  // work and makes the row harder to fix on the way (LAC-7846).
+  const why = issue.holdCause
+    ? `held by ${issue.holdCause}, board resolve only`
+    : issue.recoveryCause || "no wake path";
   return `${issue.identifier} (${issue.assignee || "unassigned"}, ${formatAge(issue.strandedSinceMs, nowMs)}, ${why}): ${issue.title}`;
 }
 
@@ -552,30 +571,6 @@ export function formatFetchAlert(state: DeployState, nowMs: number): string | nu
   );
 }
 
-const QUERY = `
-  SELECT i.identifier,
-         i.title,
-         coalesce(a.name, '') AS assignee,
-         (extract(epoch FROM coalesce(i.blocked_transition_at, i.updated_at)) * 1000)::bigint AS stranded_since_ms,
-         coalesce(ra.cause, '') AS recovery_cause,
-         coalesce(ra.owner_type, '') AS recovery_owner,
-         (i.unblock_descriptor IS NOT NULL) AS has_descriptor
-    FROM issues i
-    LEFT JOIN agents a ON a.id = i.assignee_agent_id
-    LEFT JOIN issue_recovery_actions ra
-           ON ra.source_issue_id = i.id AND ra.status = 'active'
-   WHERE i.status = 'blocked'
-     AND i.company_id <> $1
-     AND NOT EXISTS (
-           SELECT 1
-             FROM issue_relations ir
-             JOIN issues b ON b.id = ir.issue_id
-            WHERE ir.related_issue_id = i.id
-              AND ir.type = 'blocks'
-              AND b.status NOT IN ('done', 'cancelled')
-         )
-`;
-
 /**
  * `EXECUTION_RECONCILIATION_CAUSES`, pinned, from `@paperclipai/shared`
  * `dist/types/execution-projection.js`. The hold lateral below needs it in SQL
@@ -649,6 +644,74 @@ const sqlList = (values: readonly string[], separator: string): string =>
 
 const CAUSES_SQL = sqlList(EXECUTION_RECONCILIATION_CAUSES, ",\n                    ");
 const ADAPTERS_SQL = sqlList(CONVERSATION_ADAPTER_TYPES, ", ");
+
+/**
+ * The execution hold, as one SQL fragment used by BOTH lanes.
+ *
+ * This is `executionBlockerPredicate()` from the server's
+ * `services/execution-blocker.js`, replicated. The long comment on
+ * `DEFERRED_QUERY` below is the record of what each conjunct is for, which
+ * two are deliberately not replicated, and the measurements behind both
+ * decisions; read it before changing a line here.
+ *
+ * It is a shared constant rather than two copies because LAC-7846 added the
+ * second caller, and the whole value of the column is that it says exactly
+ * what the server says. Two copies drift and the drift is silent.
+ *
+ * Both lanes alias it `h`, so both select `h.cause`.
+ */
+const HOLD_LATERAL = `    LEFT JOIN LATERAL (
+           SELECT ra.cause
+             FROM issue_recovery_actions ra
+            WHERE ra.source_issue_id = i.id
+              AND ra.cause IN (
+                    ${CAUSES_SQL}
+                  )
+              AND (ra.status IN ('active', 'escalated')
+                   OR ra.evidence -> 'automaticRecovery' ->> 'replay' = 'blocked')
+              AND NOT (
+                    ra.cause = 'legacy_execution_requires_reconciliation'
+                AND EXISTS (
+                      SELECT 1
+                        FROM heartbeat_runs r
+                       WHERE r.company_id = ra.company_id
+                         AND r.id::text = ra.evidence ->> 'runId'
+                         AND coalesce(r.native_issue_id::text,
+                                      r.context_snapshot ->> 'issueId')
+                             = ra.source_issue_id::text
+                         AND r.runtime_mode = 'legacy'
+                         AND r.status IN ('failed', 'timed_out', 'interrupted', 'cancelled')
+                         AND coalesce(r.result_json ->> 'workspaceRestoreFailure', '')
+                             <> 'restore_unsafe_archive'
+                         AND coalesce(r.result_json -> 'workspaceRestoreRecovery' ->> 'schema', '')
+                             <> 'paperclip.workspace-restore-recovery.v1'
+                         AND (r.runner_profile_json -> 'adapterDispatch' ->> 'adapterType'
+                                IN (${ADAPTERS_SQL})
+                              OR r.result_json ->> 'conversationContinuation'
+                                 = 'continue_conversation_v1'
+                              OR EXISTS (
+                                   SELECT 1
+                                     FROM heartbeat_run_events e
+                                    WHERE e.company_id = r.company_id
+                                      AND e.run_id = r.id
+                                      AND e.event_type = 'adapter.invoke'
+                                      AND e.payload ->> 'adapterType'
+                                          IN (${ADAPTERS_SQL})
+                                 ))
+                         AND (r.result_json ->> 'conversationContinuation'
+                                = 'continue_conversation_v1'
+                              OR r.status = 'interrupted'
+                              OR r.error_code IN ('process_lost',
+                                                  'server_shutdown_interrupted',
+                                                  'execution_reconciliation_required')
+                              OR (r.status = 'cancelled'
+                                  AND r.result_json -> 'executionCancellation' ->> 'state'
+                                      = 'acknowledged'))
+                    )
+                  )
+            ORDER BY ra.updated_at DESC, ra.id DESC
+            LIMIT 1
+         ) h ON true`;
 
 /**
  * Saved wakes with nothing left that could start them, grouped by issue and
@@ -769,58 +832,7 @@ const DEFERRED_QUERY = `
     JOIN issues i ON i.id::text = w.payload ->> 'issueId'
     LEFT JOIN agents ia ON ia.id = i.assignee_agent_id
     LEFT JOIN agents wa ON wa.id = w.agent_id
-    LEFT JOIN LATERAL (
-           SELECT ra.cause
-             FROM issue_recovery_actions ra
-            WHERE ra.source_issue_id = i.id
-              AND ra.cause IN (
-                    ${CAUSES_SQL}
-                  )
-              AND (ra.status IN ('active', 'escalated')
-                   OR ra.evidence -> 'automaticRecovery' ->> 'replay' = 'blocked')
-              AND NOT (
-                    ra.cause = 'legacy_execution_requires_reconciliation'
-                AND EXISTS (
-                      SELECT 1
-                        FROM heartbeat_runs r
-                       WHERE r.company_id = ra.company_id
-                         AND r.id::text = ra.evidence ->> 'runId'
-                         AND coalesce(r.native_issue_id::text,
-                                      r.context_snapshot ->> 'issueId')
-                             = ra.source_issue_id::text
-                         AND r.runtime_mode = 'legacy'
-                         AND r.status IN ('failed', 'timed_out', 'interrupted', 'cancelled')
-                         AND coalesce(r.result_json ->> 'workspaceRestoreFailure', '')
-                             <> 'restore_unsafe_archive'
-                         AND coalesce(r.result_json -> 'workspaceRestoreRecovery' ->> 'schema', '')
-                             <> 'paperclip.workspace-restore-recovery.v1'
-                         AND (r.runner_profile_json -> 'adapterDispatch' ->> 'adapterType'
-                                IN (${ADAPTERS_SQL})
-                              OR r.result_json ->> 'conversationContinuation'
-                                 = 'continue_conversation_v1'
-                              OR EXISTS (
-                                   SELECT 1
-                                     FROM heartbeat_run_events e
-                                    WHERE e.company_id = r.company_id
-                                      AND e.run_id = r.id
-                                      AND e.event_type = 'adapter.invoke'
-                                      AND e.payload ->> 'adapterType'
-                                          IN (${ADAPTERS_SQL})
-                                 ))
-                         AND (r.result_json ->> 'conversationContinuation'
-                                = 'continue_conversation_v1'
-                              OR r.status = 'interrupted'
-                              OR r.error_code IN ('process_lost',
-                                                  'server_shutdown_interrupted',
-                                                  'execution_reconciliation_required')
-                              OR (r.status = 'cancelled'
-                                  AND r.result_json -> 'executionCancellation' ->> 'state'
-                                      = 'acknowledged'))
-                    )
-                  )
-            ORDER BY ra.updated_at DESC, ra.id DESC
-            LIMIT 1
-         ) h ON true
+${HOLD_LATERAL}
    WHERE w.status = 'deferred_issue_execution'
      AND i.company_id <> $1
      AND i.status NOT IN ('done', 'cancelled')
@@ -832,6 +844,53 @@ const DEFERRED_QUERY = `
               AND r.status IN ('running', 'queued', 'scheduled_retry')
          )
    GROUP BY i.identifier, i.title, ia.name, wa.name
+`;
+
+/**
+ * The park lane. Defined after `HOLD_LATERAL` because it interpolates it;
+ * it reads first in the DM and last in this file.
+ *
+ * The hold column is the LAC-7846 half. Without it this lane printed the
+ * same `no wake path` for two opposite situations: an issue nothing will
+ * ever wake, where a status flip is the repair, and an issue carrying an
+ * execution hold, where a status flip is reverted by the watchdog within
+ * ~40s and mints another `replay = 'blocked'` row on the way out. Measured
+ * 2026-11-12 on LAC-7846: 37 non-terminal issues carried the hold and only
+ * 2 of them had a saved wake, so the deferred lane -- the only lane that
+ * had this column -- could see 2. LAC-5591 was being named by THIS lane, in
+ * the 2026-11-12 DM, as `16d, no wake path`, while the thing holding it was
+ * `legacy_execution_requires_reconciliation`.
+ *
+ * Naming the hold is the whole fix. The repair for one is board-only
+ * (`POST /api/issues/:id/recovery-actions/resolve`, 403 `Board access
+ * required` for an agent key, measured) and needs recorded evidence of what
+ * the stopped run actually did, so a reader who cannot tell the two apart
+ * does the wrong thing by default.
+ */
+const QUERY = `
+  SELECT i.identifier,
+         i.title,
+         coalesce(a.name, '') AS assignee,
+         (extract(epoch FROM coalesce(i.blocked_transition_at, i.updated_at)) * 1000)::bigint AS stranded_since_ms,
+         coalesce(ra.cause, '') AS recovery_cause,
+         coalesce(ra.owner_type, '') AS recovery_owner,
+         (i.unblock_descriptor IS NOT NULL) AS has_descriptor,
+         coalesce(h.cause, '') AS hold_cause
+    FROM issues i
+    LEFT JOIN agents a ON a.id = i.assignee_agent_id
+    LEFT JOIN issue_recovery_actions ra
+           ON ra.source_issue_id = i.id AND ra.status = 'active'
+${HOLD_LATERAL}
+   WHERE i.status = 'blocked'
+     AND i.company_id <> $1
+     AND NOT EXISTS (
+           SELECT 1
+             FROM issue_relations ir
+             JOIN issues b ON b.id = ir.issue_id
+            WHERE ir.related_issue_id = i.id
+              AND ir.type = 'blocks'
+              AND b.status NOT IN ('done', 'cancelled')
+         )
 `;
 
 /**
@@ -860,6 +919,7 @@ async function readBoard(
         recoveryCause: String(row.recovery_cause ?? ""),
         recoveryOwner: String(row.recovery_owner ?? ""),
         hasDescriptor: row.has_descriptor === true,
+        holdCause: String(row.hold_cause ?? ""),
       })),
       deferred: deferredRows.map((row) => ({
         identifier: String(row.identifier),

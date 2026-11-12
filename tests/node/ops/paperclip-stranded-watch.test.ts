@@ -59,6 +59,7 @@ const issue = (over: Partial<BlockedIssue> & { identifier: string }): BlockedIss
   recoveryCause: "",
   recoveryOwner: "",
   hasDescriptor: false,
+  holdCause: "",
   ...over,
 });
 
@@ -285,6 +286,59 @@ describe("formatAlert", () => {
   it("names an unassigned issue as unassigned rather than printing a blank", () => {
     const nobody = classify([issue({ identifier: "LAC-9", assignee: "" })], NOW);
     expect(formatAlert(nobody, stranded(nobody), NOW, false)).toContain("LAC-9 (unassigned,");
+  });
+
+  // LAC-7846. The real LAC-5591: this lane printed it as "16d, no wake path"
+  // on 2026-11-12 while an execution hold was what held it. The two want
+  // opposite actions -- a status flip repairs the first and is reverted in
+  // ~40s on the second, minting another blocked-replay row -- so one wording
+  // for both sends the reader down the path that cannot work.
+  it("says a held issue is held, and that only the board can clear it", () => {
+    const held = classify(
+      [
+        issue({
+          identifier: "LAC-5591",
+          assignee: "Frontend Engineer",
+          holdCause: "legacy_execution_requires_reconciliation",
+        }),
+      ],
+      NOW
+    );
+    expect(formatAlert(held, stranded(held), NOW, false)).toContain(
+      "LAC-5591 (Frontend Engineer, 2h, held by legacy_execution_requires_reconciliation, " +
+        "board resolve only): a task"
+    );
+  });
+
+  // The hold and the active recovery action are different rows answering
+  // different questions, and on all 37 held issues measured 2026-11-12 the
+  // active one was absent. Where both exist the hold wins the line, because it
+  // is the one that decides whether the named owner can act at all.
+  it("prefers the hold over an active recovery action when an issue has both", () => {
+    const both = classify(
+      [
+        issue({
+          identifier: "LAC-7800",
+          recoveryCause: "stranded_assigned_issue",
+          recoveryOwner: "board",
+          holdCause: "legacy_execution_requires_reconciliation",
+        }),
+      ],
+      NOW
+    );
+    const line = formatAlert(both, stranded(both), NOW, false);
+    expect(line).toContain("held by legacy_execution_requires_reconciliation, board resolve only");
+    expect(line).not.toContain("LAC-7800 (Founding Engineer, 2h, stranded_assigned_issue)");
+  });
+
+  // Negative control for the two above: with no hold the wording must not
+  // change, or they would pass against a describe() that said "held by" for
+  // every row.
+  it("leaves an unheld park worded exactly as before", () => {
+    const plain = classify([issue({ identifier: "LAC-3612", assignee: "CTO" })], NOW);
+    const line = formatAlert(plain, stranded(plain), NOW, false);
+    expect(line).toContain("LAC-3612 (CTO, 2h, no wake path): a task");
+    expect(line).not.toContain("board resolve only");
   });
 });
 
@@ -921,6 +975,41 @@ describe("pinned server constants", () => {
       ...EXECUTION_RECONCILIATION_CAUSES,
     ]);
     expect(readList(server, "CONVERSATION_ADAPTER_TYPES")).toEqual([...CONVERSATION_ADAPTER_TYPES]);
+  });
+});
+
+describe("hold lateral is shared, not copied (LAC-7846)", () => {
+  const source = readFileSync(
+    path.resolve(__dirname, "../../../scripts/paperclip-stranded-watch.ts"),
+    "utf8"
+  );
+
+  // The park lane and the deferred lane must answer "is there a hold?" with
+  // the same SQL. They did not before LAC-7846 -- only the deferred lane had
+  // the column -- and the obvious way to add it is to paste the lateral a
+  // second time. Two copies of a 17-cause predicate replicated from the
+  // server drift silently, and the column's whole value is that it says
+  // exactly what the server says. One definition, two interpolations.
+  it("defines the lateral once and interpolates it in both queries", () => {
+    expect(source.match(/LEFT JOIN LATERAL \(/g) ?? []).toHaveLength(1);
+    expect(source.match(/\$\{HOLD_LATERAL\}/g) ?? []).toHaveLength(2);
+  });
+
+  it("selects the hold column in both queries", () => {
+    expect(source).toContain("coalesce(h.cause, '') AS hold_cause");
+    expect(source).toContain("coalesce(max(h.cause), '') AS hold_cause");
+  });
+
+  // The lateral is the server's `executionBlockerPredicate()`. Both arms it
+  // turns on have to survive any edit: the status half admits an action still
+  // open, and the evidence half admits a RESOLVED row whose automatic
+  // recovery refused to replay. That second arm is the one that matters here
+  // -- on all 37 held issues measured 2026-11-12 the action was `resolved`
+  // and `activeRecoveryAction` read null, so a status-only lateral would have
+  // reported zero holds while 37 issues sat unreachable.
+  it("keeps both arms of the server predicate", () => {
+    expect(source).toContain("ra.status IN ('active', 'escalated')");
+    expect(source).toContain("ra.evidence -> 'automaticRecovery' ->> 'replay' = 'blocked'");
   });
 });
 
