@@ -571,7 +571,6 @@ export function formatFetchAlert(state: DeployState, nowMs: number): string | nu
   );
 }
 
-
 /**
  * `EXECUTION_RECONCILIATION_CAUSES`, pinned, from `@paperclipai/shared`
  * `dist/types/execution-projection.js`. The hold lateral below needs it in SQL
@@ -713,7 +712,6 @@ const HOLD_LATERAL = `    LEFT JOIN LATERAL (
             ORDER BY ra.updated_at DESC, ra.id DESC
             LIMIT 1
          ) h ON true`;
-
 
 /**
  * Saved wakes with nothing left that could start them, grouped by issue and
