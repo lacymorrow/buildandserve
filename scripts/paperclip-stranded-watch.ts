@@ -642,9 +642,10 @@ const ADAPTERS_SQL = sqlList(CONVERSATION_ADAPTER_TYPES, ", ");
  *     alive, a process group is alive, a lease is held, or a retained remote
  *     workspace has not confirmed it stopped. Returning early is not the same
  *     as returning a blocker. Probed all 931 ownership-candidate runs on 310
- *     non-terminal issues: 6 have a live PID, and all 6 are PID recycling
- *     (`locationd`, WebKit, Chrome, `feedbackd`), which the server rejects by
- *     comparing `process_started_at`.
+ *     non-terminal issues: 6 have a live PID, and all 6 are unrelated system
+ *     processes (`locationd`, WebKit, Chrome, `feedbackd`) -- but see the
+ *     resolution note in `ownershipHold`: the server's rejection of them is
+ *     a start-time inequality that would hold for a genuine agent PID too.
  *   - **"So there are 0 ownership holds on the board" followed, and it was
  *     wrong.** That probe covered the PID arm only. The server holds on a live
  *     process GROUP too and applies no recycled-id check to one, so the 4
@@ -770,7 +771,7 @@ const DEFERRED_QUERY = `
  *
  * 1. the run has a required workspace recovery and its retained remote leases
  *    have not all produced a termination receipt; or
- * 2. its recorded PID is alive and not recycled; or
+ * 2. its recorded PID is alive and its start time equals the recorded one; or
  * 3. its recorded process GROUP is alive; or
  * 4. it still holds an environment lease.
  *
@@ -779,7 +780,7 @@ const DEFERRED_QUERY = `
  * LAC-7022's docstring claimed "there are 0 ownership holds on the board".
  * That claim is wrong, and the way it is wrong is the whole content of this
  * change. It was reached by probing arm 2 only: 931 candidate runs, 6 with a
- * live PID, all 6 recycled, therefore 0. Arm 3 was never probed, and the
+ * live PID, all 6 rejected on start time, therefore 0. Arm 3 was never probed, and the
  * server applies **no recycled-id comparison to a process group** -- the
  * `process_started_at` check at `conversation-continuation.js:113-118` guards
  * `pidAlive` and nothing else. A recycled group id is therefore a permanent
@@ -791,16 +792,36 @@ const DEFERRED_QUERY = `
  * - Arm 1: **0 rows**. No candidate carries the recovery schema at all.
  * - Arm 4: **0 rows**. 0 candidates hold a lease. (9 unreleased leases exist
  *   board-wide; none belongs to a candidate run on a non-terminal issue.)
- * - Arm 2: 5 live PIDs, all 5 recycled by `ps -o lstart=`, so **0 holds** --
- *   the LAC-7022 number, reproduced.
+ * - Arm 2: 5 live PIDs, all 5 rejected by the start-time comparison, so
+ *   **0 holds** -- the LAC-7022 number, reproduced. The PIDs genuinely belong
+ *   to unrelated processes, but the comparison cannot tell that from a live
+ *   agent; see "Why the PID arm is dead by construction" below.
  * - Arm 3: **4 holds**, on LAC-4931, LAC-5194, LAC-5986 and LAC-6321. Each
  *   run recorded pid == pgid (the adapter is its own group leader), the pid
- *   arm correctly rejects it as recycled, and the group arm then reinstates
- *   the hold with no recycle guard available to it. Verified against the host
+ *   arm rejects it (start times differ), and the group arm then reinstates
+ *   the hold with no start-time check available to it. Verified against the host
  *   independently of `kill(-pgid, 0)`: `ps -A -o pgid=` shows exactly one
  *   process in each group, and all four are unrelated system daemons --
  *   `locationd` (591), `BiomeAgent` (961), a WebKit content process (1878),
  *   `secinitd` (29835).
+ *
+ * ## Why the PID arm is dead by construction
+ *
+ * The start-time comparison cannot succeed for a live process. The writer is
+ * `packages/adapter-utils/src/server-utils.ts:3005`, which records
+ * `new Date().toISOString()` at spawn (passed through `onSpawn` to
+ * `persistRunProcessMetadata`, `server/src/services/heartbeat.ts:7339`): a
+ * **millisecond** value. The server compares it by exact equality with
+ * `ps -o lstart=` (`conversation-continuation.js:116`), which has **second**
+ * resolution. The two are equal only when the spawn happened on an exact
+ * second, about 1 in 1000. So the server treats nearly every live PID as
+ * "recycled", including a genuine agent process, and the replicated check here
+ * does the same because it replicates the predicate. The 5 PIDs above happened
+ * to be unrelated processes (verified with `ps`), so the board number stands;
+ * the stated reason for it does not. An earlier version of this paragraph
+ * called them "PID recycling", which is the right count with the wrong cause.
+ * The server losing the pid hold for a really-live process is its own defect
+ * and is tracked separately, not fixed here.
  *
  * All four held issues carry **zero** recovery actions, which is precisely the
  * false negative this arm closes. None is currently in this lane (0 deferred
@@ -844,7 +865,7 @@ export interface OwnershipCandidate {
 
 /**
  * Injected so the decision is testable without a live process. Without this
- * the arm would be net harmful: a liveness-only version reports the 5 recycled
+ * the arm would be net harmful: a liveness-only version reports the 5 rejected
  * PIDs above as holds, which is worse than the gap it closes.
  */
 export interface ProcessProbe {
@@ -895,14 +916,15 @@ export function ownershipHold(
     }
 
     let pidAlive = candidate.processPid !== null && probe.mayBeAlive(candidate.processPid);
-    let recycled = false;
+    let startDiffers = false;
     if (pidAlive && candidate.processStartedAtMs !== null) {
       // An unreadable identity stays conservative: the original process may
-      // still own execution, so the hold survives a null here.
+      // still own execution, so the hold survives a null here. Inequality is
+      // NOT proof of recycling: recorded is ms, observed is whole seconds.
       const observed = probe.startedAtMs(candidate.processPid as number);
       if (observed !== null && observed !== candidate.processStartedAtMs) {
         pidAlive = false;
-        recycled = true;
+        startDiffers = true;
       }
     }
     const groupAlive =
@@ -912,10 +934,14 @@ export function ownershipHold(
       const notes: string[] = [];
       if (pidAlive) notes.push(`pid ${candidate.processPid} alive`);
       if (groupAlive) {
+        // The group id may now belong to an unrelated process, and nothing
+        // here can tell. Say what was observed, and who must check.
         notes.push(
-          recycled
-            ? `process group ${candidate.processGroupId} alive, recorded pid ${candidate.processPid} is recycled`
-            : `process group ${candidate.processGroupId} alive`
+          `process group ${candidate.processGroupId} alive` +
+            (startDiffers
+              ? `, recorded pid ${candidate.processPid} start time differs (recorded vs observed, sub-second resolution not distinguishable)`
+              : "") +
+            "; verify with ps -A -o pid,pgid,comm before stopping anything"
         );
       }
       if (candidate.leaseHeld) notes.push("environment lease not released");
