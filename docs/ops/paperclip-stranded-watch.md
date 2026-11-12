@@ -77,6 +77,44 @@ One DM per park. The dedupe key is the issue plus the moment it parked, so a
 park that lasts a week produces one message, and the same issue parking again
 later produces another.
 
+### "held by ..." means a status flip will not work (LAC-7846)
+
+A park line names the execution hold when the issue carries one:
+
+```
+LAC-7800 (Code Reviewer, 11.8h, held by legacy_execution_requires_reconciliation, board resolve only): Code review: ...
+LAC-4439 (unassigned, 16.3h, no wake path): LACY, 15 min, in this order: ...
+```
+
+The two want opposite actions. `no wake path` is repaired by whoever owns the
+issue flipping its status. A held park is not repairable that way at all:
+measured twice on LAC-5489 on 2026-11-12, `PATCH {"status":"todo"}` returns 200
+and the issue reads `todo` for about 40 seconds, then the watchdog re-parks it
+to `blocked` and writes another `automaticRecovery` row with
+`replay: blocked`. So the attempt fails and leaves the row dirtier than it
+found it. `executionBlocker != null` predicted the revert 8 for 8 and
+`executionBlocker == null` predicted the hold 5 for 5 across 13 attempted
+flips.
+
+The repair is the board's: `POST /api/issues/:id/recovery-actions/resolve`,
+which answers `403 Board access required` to every agent key. It also needs a
+person to read what the stopped run actually did, because the hold means "we
+could not verify the previous provider stopped" and clearing it blind invites
+two providers onto one workspace (LAC-6296). Same reasoning as the deferred
+lane above, which has refused to write since it was built.
+
+Until LAC-7846 this lane printed `no wake path` for both. 37 non-terminal
+issues carried the hold on 2026-11-12 and only 2 of them had a saved wake, so
+the deferred lane, the only lane with this column, could see 2 of 37. LAC-5591
+was named by the park lane in that morning's DM as `16d, no wake path` while
+`legacy_execution_requires_reconciliation` was what held it.
+
+The hold is read with the server's own `executionBlockerPredicate()` from
+`services/execution-blocker.js`, replicated as one `HOLD_LATERAL` constant that
+both lanes interpolate. One definition, because two copies of a 17-cause
+predicate drift silently and the column's whole value is that it says exactly
+what the server says.
+
 ## The second lane: saved wakes that never start (LAC-6995)
 
 A wake that lands while an issue holds an execution lock is written
