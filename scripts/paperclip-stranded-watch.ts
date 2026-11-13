@@ -1305,6 +1305,64 @@ ${HOLD_LATERAL}
 `;
 
 /**
+ * Both lanes' rows plus the ownership candidates in, the two verdict inputs
+ * out. Pure and synchronous so the lane wiring is testable without Postgres
+ * (LAC-8086): `readBoard` used to hold this inline, and the tests asserted on
+ * the source text, which a prettier rewrap broke.
+ *
+ * The probe is per issue and both lanes ask the same question of it, so it is
+ * memoised: an issue named by both lanes must get one answer, and
+ * `ownershipHold` shells out to `ps` for every live pid it meets.
+ */
+export function shapeBoard(
+  blockedRows: Record<string, unknown>[],
+  deferredRows: Record<string, unknown>[],
+  candidates: Map<string, OwnershipCandidate[]>,
+  probe: ProcessProbe
+): { blocked: BlockedIssue[]; deferred: DeferredWake[] } {
+  const holds = new Map<string, OwnershipHold | null>();
+  const holdFor = (identifier: string): OwnershipHold | null => {
+    if (!holds.has(identifier)) {
+      holds.set(identifier, ownershipHold(candidates.get(identifier) ?? [], probe));
+    }
+    return holds.get(identifier) ?? null;
+  };
+
+  return {
+    blocked: blockedRows.map((row) => {
+      const identifier = String(row.identifier);
+      const hold = mergeHold(String(row.hold_cause ?? ""), holdFor(identifier));
+      return {
+        identifier,
+        title: String(row.title),
+        assignee: String(row.assignee ?? ""),
+        strandedSinceMs: Number(row.stranded_since_ms),
+        recoveryCause: String(row.recovery_cause ?? ""),
+        recoveryOwner: String(row.recovery_owner ?? ""),
+        hasDescriptor: row.has_descriptor === true,
+        holdCause: hold.cause,
+        holdNote: hold.note,
+      };
+    }),
+    deferred: deferredRows.map((row) => {
+      const identifier = String(row.identifier);
+      const hold = mergeHold(String(row.hold_cause ?? ""), holdFor(identifier));
+      return {
+        identifier,
+        title: String(row.title),
+        assignee: String(row.assignee ?? ""),
+        waiter: String(row.waiter ?? ""),
+        savedCount: Number(row.saved_count),
+        oldestMs: Number(row.oldest_ms),
+        waitReason: String(row.wait_reason ?? ""),
+        holdCause: hold.cause,
+        holdNote: hold.note,
+      };
+    }),
+  };
+}
+
+/**
  * Read the board straight from Postgres. The URL is required rather than
  * defaulted so this file holds no credential, and so a typo fails loudly
  * instead of quietly watching the wrong database.
@@ -1363,51 +1421,7 @@ async function readBoard(
         candidates.set(identifier, list);
       }
     }
-    const probe = hostProcessProbe();
-
-    // The probe is per issue and both lanes ask the same question of it, so it
-    // is memoised: an issue named by both lanes must not get two answers, and
-    // `ownershipHold` shells out to `ps` for every live pid it meets.
-    const holds = new Map<string, OwnershipHold | null>();
-    const holdFor = (identifier: string): OwnershipHold | null => {
-      if (!holds.has(identifier)) {
-        holds.set(identifier, ownershipHold(candidates.get(identifier) ?? [], probe));
-      }
-      return holds.get(identifier) ?? null;
-    };
-
-    return {
-      blocked: blockedRows.map((row) => {
-        const identifier = String(row.identifier);
-        const hold = mergeHold(String(row.hold_cause ?? ""), holdFor(identifier));
-        return {
-          identifier,
-          title: String(row.title),
-          assignee: String(row.assignee ?? ""),
-          strandedSinceMs: Number(row.stranded_since_ms),
-          recoveryCause: String(row.recovery_cause ?? ""),
-          recoveryOwner: String(row.recovery_owner ?? ""),
-          hasDescriptor: row.has_descriptor === true,
-          holdCause: hold.cause,
-          holdNote: hold.note,
-        };
-      }),
-      deferred: deferredRows.map((row) => {
-        const identifier = String(row.identifier);
-        const hold = mergeHold(String(row.hold_cause ?? ""), holdFor(identifier));
-        return {
-          identifier,
-          title: String(row.title),
-          assignee: String(row.assignee ?? ""),
-          waiter: String(row.waiter ?? ""),
-          savedCount: Number(row.saved_count),
-          oldestMs: Number(row.oldest_ms),
-          waitReason: String(row.wait_reason ?? ""),
-          holdCause: hold.cause,
-          holdNote: hold.note,
-        };
-      }),
-    };
+    return shapeBoard(blockedRows, deferredRows, candidates, hostProcessProbe());
   } finally {
     await sql.end({ timeout: 5 });
   }
