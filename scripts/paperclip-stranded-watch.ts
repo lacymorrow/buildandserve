@@ -99,8 +99,17 @@ export interface BlockedIssue {
    * lives in a RESOLVED row whose evidence says `replay = 'blocked'`. The
    * two columns answer different questions and an issue can have either,
    * both, or neither.
+   *
+   * Since LAC-8030 this is the MERGED hold: `execution_owner_active` when the
+   * ownership arm holds, the recovery action's cause otherwise, in the server's
+   * own precedence. See `mergeHold`.
    */
   holdCause: string;
+  /**
+   * Which ownership arm held and what to check before clearing it. "" for a
+   * recovery-action hold, whose repair is a board resolve and needs no note.
+   */
+  holdNote: string;
 }
 
 export interface Verdict {
@@ -353,8 +362,18 @@ function describe(issue: BlockedIssue, nowMs: number): string {
   // route that does repair it answers 403 to every agent key. Printing the
   // same "no wake path" for both sends the reader down the path that cannot
   // work and makes the row harder to fix on the way (LAC-7846).
+  //
+  // The two kinds of hold want different hands, which is why they are worded
+  // apart (LAC-8030). A recovery-action hold is retired by a board resolve and
+  // nothing else. An ownership hold has no action row TO resolve: the server
+  // holds because a process, process group or lease from the previous run was
+  // never confirmed dead, so the note says which arm held and what to check.
+  // Telling a reader to "board resolve" a hold with no action row is an
+  // instruction that cannot be carried out.
   const why = issue.holdCause
-    ? `held by ${issue.holdCause}, board resolve only`
+    ? `held by ${issue.holdCause}${
+        issue.holdNote ? ` (${issue.holdNote})` : ", board resolve only"
+      }`
     : issue.recoveryCause || "no wake path";
   return `${issue.identifier} (${issue.assignee || "unassigned"}, ${formatAge(issue.strandedSinceMs, nowMs)}, ${why}): ${issue.title}`;
 }
@@ -1075,6 +1094,28 @@ export function ownershipHold(
 }
 
 /**
+ * The precedence between the two holds, as one pure function both lanes call.
+ *
+ * `getExecutionBlocker` (`execution-blocker.js:31`) calls
+ * `getConversationOwnershipBlocker` FIRST and returns its blocker directly, so
+ * when both are present the recovery action is not the blocker the server would
+ * report. An issue can carry either, both, or neither.
+ *
+ * This existed only as two lines inside `readBoard`'s deferred mapper until
+ * LAC-8030. It is lifted out for two reasons: the park lane needs the same
+ * precedence, and inline in a mapper that needs a live Postgres connection the
+ * rule was untestable -- which is how the park lane went a release without it
+ * and nothing failed (LAC-7101 seeded question 1).
+ */
+export function mergeHold(
+  sqlHoldCause: string,
+  ownership: OwnershipHold | null
+): { cause: string; note: string } {
+  if (ownership) return { cause: ownership.cause, note: ownership.note };
+  return { cause: sqlHoldCause, note: "" };
+}
+
+/**
  * The real probe. `spawnSync` rather than the server's `execFile` because this
  * script is synchronous at this point and the cost is one `ps` per live PID --
  * 5 of 885 candidates on the measured board.
@@ -1103,8 +1144,11 @@ export function hostProcessProbe(): ProcessProbe {
 
 /**
  * Ownership candidates for a named set of issues, `$2` as a text[] of
- * identifiers. Scoped to the lane's own rows rather than the whole board so a
- * healthy run (an empty lane) costs nothing: `readBoard` skips the query.
+ * identifiers. Scoped to the rows the two lanes named rather than the whole
+ * board so a quiet run (both lanes empty) costs nothing: `readBoard` skips the
+ * query. Since LAC-8030 the set is the UNION of both lanes, not just the
+ * deferred one -- the park lane needs the same answer and `$2` is the only
+ * thing that has to change for it to get one.
  *
  * The candidate WHERE is `getConversationOwnershipBlocker`'s own, including the
  * schema-only arm of its `or(...)` -- the restore-failure half is applied per
@@ -1226,6 +1270,13 @@ const OWNERSHIP_QUERY = `
  * required` for an agent key, measured) and needs recorded evidence of what
  * the stopped run actually did, so a reader who cannot tell the two apart
  * does the wrong thing by default.
+ *
+ * This column is only half the hold, and the half that is here is the one the
+ * server checks SECOND. `h.cause` reads `issue_recovery_actions`; the ownership
+ * arm is a different table and `readBoard` merges it in (`mergeHold`,
+ * LAC-8030). Before that merge this lane printed `no wake path` for an issue
+ * the server holds as `execution_owner_active` -- the same false negative
+ * LAC-7846 closed for recovery actions, in the arm it did not reach.
  */
 const QUERY = `
   SELECT i.identifier,
@@ -1271,11 +1322,21 @@ async function readBoard(
     const blockedRows = (await sql.unsafe(QUERY, [GHOST_COMPANY_ID])) as unknown as Row[];
     const deferredRows = (await sql.unsafe(DEFERRED_QUERY, [GHOST_COMPANY_ID])) as unknown as Row[];
 
-    // The ownership arm runs only over the lane's own issues, so the usual
-    // healthy board (an empty lane) pays nothing for it. Grouped per issue
-    // because the server's blocker is per issue, and left in query order so
-    // the first candidate that holds is the one the server would have named.
-    const identifiers = [...new Set(deferredRows.map((row) => String(row.identifier)))];
+    // The ownership arm runs only over the issues the two lanes actually named,
+    // so a quiet board (both lanes empty) pays nothing for it. One query over
+    // the union rather than one per lane: the two lanes overlap by design -- a
+    // parked issue is exactly the kind that also has saved wakes -- and two
+    // queries would probe the same runs twice and could disagree about the
+    // hold on an issue in both (LAC-8030). Grouped per issue because the
+    // server's blocker is per issue, and left in query order so the first
+    // candidate that holds is the one the server would have named.
+    //
+    // Measured 2026-11-13: 43 park rows + 0 deferred -> 53 candidate runs on 16
+    // issues, ~11s. The watch runs once a day (`paperclip-sweep.sh`), so the
+    // cost is bounded and paid where the answer is wrong without it.
+    const identifiers = [
+      ...new Set([...blockedRows, ...deferredRows].map((row) => String(row.identifier))),
+    ];
     const candidates = new Map<string, OwnershipCandidate[]>();
     if (identifiers.length > 0) {
       const rows = (await sql.unsafe(OWNERSHIP_QUERY, [
@@ -1304,23 +1365,36 @@ async function readBoard(
     }
     const probe = hostProcessProbe();
 
+    // The probe is per issue and both lanes ask the same question of it, so it
+    // is memoised: an issue named by both lanes must not get two answers, and
+    // `ownershipHold` shells out to `ps` for every live pid it meets.
+    const holds = new Map<string, OwnershipHold | null>();
+    const holdFor = (identifier: string): OwnershipHold | null => {
+      if (!holds.has(identifier)) {
+        holds.set(identifier, ownershipHold(candidates.get(identifier) ?? [], probe));
+      }
+      return holds.get(identifier) ?? null;
+    };
+
     return {
-      blocked: blockedRows.map((row) => ({
-        identifier: String(row.identifier),
-        title: String(row.title),
-        assignee: String(row.assignee ?? ""),
-        strandedSinceMs: Number(row.stranded_since_ms),
-        recoveryCause: String(row.recovery_cause ?? ""),
-        recoveryOwner: String(row.recovery_owner ?? ""),
-        hasDescriptor: row.has_descriptor === true,
-        holdCause: String(row.hold_cause ?? ""),
-      })),
+      blocked: blockedRows.map((row) => {
+        const identifier = String(row.identifier);
+        const hold = mergeHold(String(row.hold_cause ?? ""), holdFor(identifier));
+        return {
+          identifier,
+          title: String(row.title),
+          assignee: String(row.assignee ?? ""),
+          strandedSinceMs: Number(row.stranded_since_ms),
+          recoveryCause: String(row.recovery_cause ?? ""),
+          recoveryOwner: String(row.recovery_owner ?? ""),
+          hasDescriptor: row.has_descriptor === true,
+          holdCause: hold.cause,
+          holdNote: hold.note,
+        };
+      }),
       deferred: deferredRows.map((row) => {
         const identifier = String(row.identifier);
-        // Ownership first, because `getExecutionBlocker` checks it first and
-        // returns it directly: when both are present the recovery action is
-        // not the blocker the server would report.
-        const hold = ownershipHold(candidates.get(identifier) ?? [], probe);
+        const hold = mergeHold(String(row.hold_cause ?? ""), holdFor(identifier));
         return {
           identifier,
           title: String(row.title),
@@ -1329,8 +1403,8 @@ async function readBoard(
           savedCount: Number(row.saved_count),
           oldestMs: Number(row.oldest_ms),
           waitReason: String(row.wait_reason ?? ""),
-          holdCause: hold ? hold.cause : String(row.hold_cause ?? ""),
-          holdNote: hold ? hold.note : "",
+          holdCause: hold.cause,
+          holdNote: hold.note,
         };
       }),
     };
