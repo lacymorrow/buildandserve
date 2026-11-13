@@ -41,6 +41,9 @@ import {
   MAX_NAMED,
   nextDeferredState,
   nextState,
+  type OwnershipCandidate,
+  ownershipHold,
+  type ProcessProbe,
   readDeployState,
   stranded,
   unreported,
@@ -374,6 +377,7 @@ const wake = (over: Partial<DeferredWake> & { identifier: string }): DeferredWak
   oldestMs: minutesAgo(120),
   waitReason: "execution_recovery",
   holdCause: "legacy_execution_requires_reconciliation",
+  holdNote: "",
   ...over,
 });
 
@@ -474,6 +478,21 @@ describe("describeDeferred", () => {
     );
   });
 
+  it("names which ownership arm is holding, because that is a different repair", () => {
+    const line = describeDeferred(
+      wake({
+        identifier: "LAC-6321",
+        holdCause: "execution_owner_active",
+        holdNote:
+          "process group 591 alive, recorded pid 591 is recycled; verify with ps -A -o pid,pgid,comm before stopping anything",
+      }),
+      NOW
+    );
+    expect(line).toContain(
+      "held by execution_owner_active (process group 591 alive, recorded pid 591 is recycled; verify with ps -A -o pid,pgid,comm before stopping anything)"
+    );
+  });
+
   it("says so when the hold is gone and the drain simply never ran", () => {
     expect(describeDeferred(drainNeverRan, NOW)).toContain(
       // 40.5h renders as 1d: past a day, the day count is the readable unit.
@@ -487,6 +506,180 @@ describe("describeDeferred", () => {
     expect(
       describeDeferred(wake({ identifier: "LAC-6250", waitReason: "", holdCause: "" }), NOW)
     ).toContain("deferred behind a run that never released");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The ownership arm (LAC-7073). `getExecutionBlocker` checks this BEFORE it
+// looks for a recovery action, so it can hold an issue that carries none --
+// which the hold column used to print as "deferred behind a run that never
+// released". Every branch below is one branch of
+// `getConversationOwnershipBlocker` (`conversation-continuation.js:83-129`).
+// ---------------------------------------------------------------------------
+
+const candidate = (over: Partial<OwnershipCandidate> = {}): OwnershipCandidate => ({
+  identifier: "LAC-4931",
+  runId: "run-a",
+  processPid: null,
+  processGroupId: null,
+  processStartedAtMs: null,
+  leaseHeld: false,
+  workspaceRecovery: false,
+  retainedLeaseIds: [],
+  remoteLeaseIds: [],
+  receiptLeaseIds: [],
+  hasLocalLease: false,
+  ...over,
+});
+
+/**
+ * `alive` holds the exact targets `process.kill` would be called with, so a
+ * group probe has to pass `-pgid` to match. That sign is the difference
+ * between the two arms and nothing else in the test can catch it.
+ */
+const probeOf = (alive: number[], observed: Record<number, number | null> = {}): ProcessProbe => ({
+  mayBeAlive: (target) => alive.includes(target),
+  startedAtMs: (pid) => observed[pid] ?? null,
+});
+
+const RECORDED = Date.parse("2026-11-03T08:40:36.000Z");
+
+describe("ownershipHold", () => {
+  it("holds on a live PID whose recorded start still matches the host", () => {
+    const hold = ownershipHold(
+      [candidate({ processPid: 4242, processStartedAtMs: RECORDED })],
+      probeOf([4242], { 4242: RECORDED })
+    );
+    expect(hold).toEqual({
+      runId: "run-a",
+      cause: "execution_owner_active",
+      note: "pid 4242 alive",
+    });
+  });
+
+  it("lets a dead PID go, because a gone process owns nothing", () => {
+    expect(
+      ownershipHold([candidate({ processPid: 4242, processStartedAtMs: RECORDED })], probeOf([]))
+    ).toBeNull();
+  });
+
+  it("rejects a recycled PID instead of holding the issue forever", () => {
+    expect(
+      ownershipHold(
+        [candidate({ processPid: 591, processStartedAtMs: RECORDED })],
+        probeOf([591], { 591: Date.parse("2026-11-04T11:01:21.000Z") })
+      )
+    ).toBeNull();
+  });
+
+  /**
+   * The real LAC-6321, and the case that made this issue worth building. Its
+   * run recorded pid == pgid == 591, `locationd` holds that group id today,
+   * the PID arm correctly calls it recycled -- and the GROUP arm has no
+   * recycled-id check available to it, so the server holds anyway. LAC-7022
+   * probed the PID arm only and concluded "0 ownership holds on the board".
+   */
+  it("still holds on the process group when the same recycled id is the group leader", () => {
+    const hold = ownershipHold(
+      [candidate({ processPid: 591, processGroupId: 591, processStartedAtMs: RECORDED })],
+      probeOf([591, -591], { 591: Date.parse("2026-11-04T11:01:21.000Z") })
+    );
+    expect(hold?.cause).toBe("execution_owner_active");
+    expect(hold?.note).toBe(
+      "process group 591 alive, recorded pid 591 is recycled; verify with ps -A -o pid,pgid,comm before stopping anything"
+    );
+  });
+
+  it("stays conservative when the host start time cannot be read at all", () => {
+    const hold = ownershipHold(
+      [candidate({ processPid: 4242, processStartedAtMs: RECORDED })],
+      probeOf([4242], { 4242: null })
+    );
+    expect(hold?.note).toBe("pid 4242 alive");
+  });
+
+  it("holds on a lease that was never released, with no process in sight", () => {
+    const hold = ownershipHold([candidate({ leaseHeld: true })], probeOf([]));
+    expect(hold?.note).toBe("environment lease not released");
+  });
+
+  it("says nothing about a candidate carrying none of the four signals", () => {
+    expect(ownershipHold([candidate({ processPid: 4242 })], probeOf([]))).toBeNull();
+    expect(ownershipHold([], probeOf([4242]))).toBeNull();
+  });
+
+  it("holds a retained workspace before it looks at any process", () => {
+    // A live PID is present on purpose: if the workspace branch fell through,
+    // the note would name the process instead.
+    const hold = ownershipHold(
+      [candidate({ workspaceRecovery: true, processPid: 4242 })],
+      probeOf([4242])
+    );
+    expect(hold?.note).toBe("retained remote workspace has not confirmed it stopped");
+  });
+
+  it("holds a retained workspace whose remote lease has no termination receipt", () => {
+    const hold = ownershipHold(
+      [
+        candidate({
+          workspaceRecovery: true,
+          retainedLeaseIds: ["lease-1"],
+          remoteLeaseIds: ["lease-1", "lease-2"],
+          receiptLeaseIds: ["lease-1"],
+        }),
+      ],
+      probeOf([])
+    );
+    expect(hold?.note).toBe("retained remote workspace has not confirmed it stopped");
+  });
+
+  it("skips a confirmed sandbox run rather than blaming this host's processes", () => {
+    // Every remote lease produced a receipt and no local lease exists, so the
+    // recorded PID came from the sandbox and a match here is somebody else.
+    const sandbox = candidate({
+      runId: "run-sandbox",
+      workspaceRecovery: true,
+      retainedLeaseIds: ["lease-1"],
+      remoteLeaseIds: ["lease-1"],
+      receiptLeaseIds: ["lease-1"],
+      hasLocalLease: false,
+      processPid: 4242,
+    });
+    expect(ownershipHold([sandbox], probeOf([4242]))).toBeNull();
+    // ...and the loop carries on to the next candidate, which does hold.
+    const hold = ownershipHold(
+      [sandbox, candidate({ runId: "run-b", leaseHeld: true })],
+      probeOf([4242])
+    );
+    expect(hold?.runId).toBe("run-b");
+  });
+
+  it("keeps checking this host when a confirmed run also held a local lease", () => {
+    const hold = ownershipHold(
+      [
+        candidate({
+          workspaceRecovery: true,
+          retainedLeaseIds: ["lease-1"],
+          remoteLeaseIds: ["lease-1"],
+          receiptLeaseIds: ["lease-1"],
+          hasLocalLease: true,
+          processPid: 4242,
+        }),
+      ],
+      probeOf([4242])
+    );
+    expect(hold?.note).toBe("pid 4242 alive");
+  });
+
+  it("reports the first candidate that holds, which is the newest run", () => {
+    const hold = ownershipHold(
+      [
+        candidate({ runId: "newest", processGroupId: 961 }),
+        candidate({ runId: "older", processGroupId: 1878 }),
+      ],
+      probeOf([-961, -1878])
+    );
+    expect(hold?.runId).toBe("newest");
   });
 });
 
@@ -776,7 +969,7 @@ describe("readDeployState", () => {
     expect(state.head).not.toBe(state.originMain);
     const alert = formatDeployAlert(state);
     expect(alert).not.toBeNull();
-    expect(alert).toContain(state.head!.slice(0, 8));
+    expect(alert).toContain(state.head?.slice(0, 8));
   });
 
   /**
