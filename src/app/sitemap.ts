@@ -3,6 +3,7 @@ import { readdir, stat } from "fs/promises";
 import type { MetadataRoute } from "next";
 import { join } from "path";
 import { routes } from "@/config/routes";
+import { offerings } from "@/config/service-offerings";
 import { siteConfig } from "@/config/site-config";
 
 interface ContentFile {
@@ -88,6 +89,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
+  // Targeted service landing pages (LAC-8096), one per offering in the config
+  const offeringRoutes = offerings.map((o) => ({
+    url: `${siteConfig.url}${routes.services}/${o.slug}`,
+    lastModified: new Date(o.publishedAt),
+    changeFrequency: "monthly" as const,
+    priority: o.pillar ? 0.85 : 0.8,
+  }));
+
   // Case studies (no route constants — these pages live only under /work)
   const workRoutes = [
     "/work",
@@ -164,6 +173,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...marketingRoutes,
+    ...offeringRoutes,
     ...workRoutes,
     ...contentIndexRoutes,
     ...supportRoutes,
