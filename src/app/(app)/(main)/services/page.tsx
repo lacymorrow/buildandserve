@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { constructMetadata } from "@/config/metadata";
 import { routes } from "@/config/routes";
+import { offerings } from "@/config/service-offerings";
 import { ServicesFaq } from "./_components/services-faq";
 
 export const metadata: Metadata = constructMetadata({
@@ -261,6 +262,43 @@ export default function ServicesPage() {
         </div>
       </section>
 
+      {/* Targeted offerings: pillars first, children indented under them */}
+      <section className="border-t py-20 md:py-28">
+        <div className="mx-auto max-w-5xl px-6">
+          <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
+            What we build
+          </p>
+          <div className="mt-12 grid gap-12 md:grid-cols-3">
+            {offerings
+              .filter((o) => o.pillar)
+              .map((pillar) => (
+                <div key={pillar.slug}>
+                  <Link
+                    href={`${routes.services}/${pillar.slug}`}
+                    className="text-xl font-medium underline-offset-4 hover:underline"
+                  >
+                    {pillar.title}
+                  </Link>
+                  <ul className="mt-4 space-y-3">
+                    {offerings
+                      .filter((o) => o.parent === pillar.slug)
+                      .map((child) => (
+                        <li key={child.slug}>
+                          <Link
+                            href={`${routes.services}/${child.slug}`}
+                            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                          >
+                            {child.title}
+                          </Link>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ))}
+          </div>
+        </div>
+      </section>
+
       {/* Selected Work */}
       <section className="border-t py-20 md:py-28">
         <div className="mx-auto max-w-5xl px-6">
@@ -269,7 +307,7 @@ export default function ServicesPage() {
           </p>
           <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-3">
             {caseStudies.map((study) => (
-              <div key={study.id} className="flex flex-col bg-card p-8 md:p-10">
+              <div key={study.id} id={study.id} className="flex flex-col bg-card p-8 md:p-10">
                 <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
                   {study.subtitle}
                 </p>
