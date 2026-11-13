@@ -39,9 +39,11 @@ import {
   formatFetchAlert,
   GRACE_MINUTES,
   MAX_NAMED,
+  mergeHold,
   nextDeferredState,
   nextState,
   type OwnershipCandidate,
+  type OwnershipHold,
   ownershipHold,
   type ProcessProbe,
   readDeployState,
@@ -63,6 +65,7 @@ const issue = (over: Partial<BlockedIssue> & { identifier: string }): BlockedIss
   recoveryOwner: "",
   hasDescriptor: false,
   holdCause: "",
+  holdNote: "",
   ...over,
 });
 
@@ -332,6 +335,50 @@ describe("formatAlert", () => {
     const line = formatAlert(both, stranded(both), NOW, false);
     expect(line).toContain("held by legacy_execution_requires_reconciliation, board resolve only");
     expect(line).not.toContain("LAC-7800 (Founding Engineer, 2h, stranded_assigned_issue)");
+  });
+
+  // The park lane's hold column reads `issue_recovery_actions` only, and the
+  // server checks that table SECOND. An issue held by the ownership arm has no
+  // action row at all, so before LAC-8030 this lane printed `no wake path` for
+  // an issue the server holds -- the LAC-7846 false negative surviving in the
+  // arm LAC-7846 did not reach.
+  it("names an ownership hold in the park lane instead of 'no wake path'", () => {
+    const owned = classify(
+      [
+        issue({
+          identifier: "LAC-5194",
+          assignee: "Test Writer",
+          holdCause: "execution_owner_active",
+          holdNote:
+            "process group 4242 alive; verify with ps -A -o pid,pgid,comm before stopping anything",
+        }),
+      ],
+      NOW
+    );
+    const line = formatAlert(owned, stranded(owned), NOW, false);
+    expect(line).toContain(
+      "LAC-5194 (Test Writer, 2h, held by execution_owner_active (process group 4242 alive; " +
+        "verify with ps -A -o pid,pgid,comm before stopping anything)): a task"
+    );
+    expect(line).not.toContain("no wake path");
+  });
+
+  // The two holds want different hands. A recovery-action hold is retired by a
+  // board resolve; an ownership hold has no action row to resolve, so pointing
+  // its reader at `recovery-actions/resolve` is an instruction that cannot be
+  // carried out. The wording is the only thing that separates them in the DM.
+  it("does not tell an ownership hold to board-resolve a row that does not exist", () => {
+    const owned = classify(
+      [
+        issue({
+          identifier: "LAC-6321",
+          holdCause: "execution_owner_active",
+          holdNote: "pid 4242 alive",
+        }),
+      ],
+      NOW
+    );
+    expect(formatAlert(owned, stranded(owned), NOW, false)).not.toContain("board resolve only");
   });
 
   // Negative control for the two above: with no hold the wording must not
@@ -680,6 +727,78 @@ describe("ownershipHold", () => {
       probeOf([-961, -1878])
     );
     expect(hold?.runId).toBe("newest");
+  });
+});
+
+/**
+ * The precedence the two lanes share (LAC-8030). It lived inside `readBoard`'s
+ * deferred mapper, which needs a live Postgres connection, so nothing could
+ * assert it -- and the park lane shipped a release without it while every test
+ * stayed green.
+ */
+describe("mergeHold", () => {
+  const owned: OwnershipHold = {
+    runId: "run-1",
+    cause: "execution_owner_active",
+    note: "process group 4242 alive",
+  };
+
+  // `getExecutionBlocker` calls `getConversationOwnershipBlocker` first and
+  // returns its blocker directly, so with both present the recovery action is
+  // NOT what the server would report. Getting this backwards names the wrong
+  // cause and sends the reader to a board resolve that would not clear it.
+  it("reports the ownership hold when an issue carries both", () => {
+    expect(mergeHold("legacy_execution_requires_reconciliation", owned)).toEqual({
+      cause: "execution_owner_active",
+      note: "process group 4242 alive",
+    });
+  });
+
+  it("falls back to the recovery-action cause when nothing owns execution", () => {
+    expect(mergeHold("legacy_execution_requires_reconciliation", null)).toEqual({
+      cause: "legacy_execution_requires_reconciliation",
+      note: "",
+    });
+  });
+
+  it("reports the ownership hold on an issue with no recovery action at all", () => {
+    expect(mergeHold("", owned).cause).toBe("execution_owner_active");
+  });
+
+  // The "no hold" answer has to stay empty in both fields, because an empty
+  // cause is what `describe` reads as "no wake path" and a note without a cause
+  // would print nowhere.
+  it("says nothing when neither arm holds", () => {
+    expect(mergeHold("", null)).toEqual({ cause: "", note: "" });
+  });
+});
+
+/**
+ * Source-level guard for the half of LAC-8030 that no unit test can reach:
+ * `readBoard` needs a live control plane, so the wiring is asserted as text.
+ * The defect it closes was not a wrong line of logic but a lane that never
+ * called the logic at all.
+ */
+describe("both lanes are wired to the ownership arm (LAC-8030)", () => {
+  const source = readFileSync(
+    path.resolve(__dirname, "../../../scripts/paperclip-stranded-watch.ts"),
+    "utf8"
+  );
+
+  it("merges the two holds through one function, once per lane", () => {
+    expect(source.match(/mergeHold\(/g) ?? []).toHaveLength(3); // definition + 2 lanes
+  });
+
+  it("probes ownership over both lanes' identifiers, not just the deferred one", () => {
+    expect(source).toContain(
+      "[...blockedRows, ...deferredRows].map((row) => String(row.identifier))"
+    );
+  });
+
+  it("calls ownershipHold in one place, so the two lanes cannot disagree", () => {
+    // Memoised per issue in `holdFor`: an issue both lanes name must get one
+    // answer, and the probe shells out to `ps` for every live pid it meets.
+    expect(source.match(/ownershipHold\(candidates\.get/g) ?? []).toHaveLength(1);
   });
 });
 
