@@ -642,10 +642,10 @@ const ADAPTERS_SQL = sqlList(CONVERSATION_ADAPTER_TYPES, ", ");
  *     alive, a process group is alive, a lease is held, or a retained remote
  *     workspace has not confirmed it stopped. Returning early is not the same
  *     as returning a blocker. Probed all 931 ownership-candidate runs on 310
- *     non-terminal issues: 6 have a live PID, and all 6 are unrelated system
- *     processes (`locationd`, WebKit, Chrome, `feedbackd`) -- but see the
- *     resolution note in `ownershipHold`: the server's rejection of them is
- *     a start-time inequality that would hold for a genuine agent PID too.
+ *     non-terminal issues: 6 have a live PID, and all 6 are PID recycling
+ *     (`locationd`, WebKit, Chrome, `feedbackd`), which the server rejects by
+ *     comparing `process_started_at`. That rejection is sound, not an
+ *     artifact: see "The start-time comparison works" below.
  *   - **"So there are 0 ownership holds on the board" followed, and it was
  *     wrong.** That probe covered the PID arm only. The server holds on a live
  *     process GROUP too and applies no recycled-id check to one, so the 4
@@ -780,7 +780,7 @@ const DEFERRED_QUERY = `
  * LAC-7022's docstring claimed "there are 0 ownership holds on the board".
  * That claim is wrong, and the way it is wrong is the whole content of this
  * change. It was reached by probing arm 2 only: 931 candidate runs, 6 with a
- * live PID, all 6 rejected on start time, therefore 0. Arm 3 was never probed, and the
+ * live PID, all 6 recycled, therefore 0. Arm 3 was never probed, and the
  * server applies **no recycled-id comparison to a process group** -- the
  * `process_started_at` check at `conversation-continuation.js:113-118` guards
  * `pidAlive` and nothing else. A recycled group id is therefore a permanent
@@ -792,36 +792,60 @@ const DEFERRED_QUERY = `
  * - Arm 1: **0 rows**. No candidate carries the recovery schema at all.
  * - Arm 4: **0 rows**. 0 candidates hold a lease. (9 unreleased leases exist
  *   board-wide; none belongs to a candidate run on a non-terminal issue.)
- * - Arm 2: 5 live PIDs, all 5 rejected by the start-time comparison, so
- *   **0 holds** -- the LAC-7022 number, reproduced. The PIDs genuinely belong
- *   to unrelated processes, but the comparison cannot tell that from a live
- *   agent; see "Why the PID arm is dead by construction" below.
+ * - Arm 2: 5 live PIDs, all 5 recycled by `ps -o lstart=`, so **0 holds** --
+ *   the LAC-7022 number, reproduced. The rejection is sound: see "The
+ *   start-time comparison works" below.
  * - Arm 3: **4 holds**, on LAC-4931, LAC-5194, LAC-5986 and LAC-6321. Each
  *   run recorded pid == pgid (the adapter is its own group leader), the pid
- *   arm rejects it (start times differ), and the group arm then reinstates
- *   the hold with no start-time check available to it. Verified against the host
+ *   arm correctly rejects it as recycled, and the group arm then reinstates
+ *   the hold with no recycle guard available to it. Verified against the host
  *   independently of `kill(-pgid, 0)`: `ps -A -o pgid=` shows exactly one
  *   process in each group, and all four are unrelated system daemons --
  *   `locationd` (591), `BiomeAgent` (961), a WebKit content process (1878),
  *   `secinitd` (29835).
  *
- * ## Why the PID arm is dead by construction
+ * ## The start-time comparison works, and the writer nobody opens is why
  *
- * The start-time comparison cannot succeed for a live process. The writer is
- * `packages/adapter-utils/src/server-utils.ts:3005`, which records
- * `new Date().toISOString()` at spawn (passed through `onSpawn` to
- * `persistRunProcessMetadata`, `server/src/services/heartbeat.ts:7339`): a
- * **millisecond** value. The server compares it by exact equality with
- * `ps -o lstart=` (`conversation-continuation.js:116`), which has **second**
- * resolution. The two are equal only when the spawn happened on an exact
- * second, about 1 in 1000. So the server treats nearly every live PID as
- * "recycled", including a genuine agent process, and the replicated check here
- * does the same because it replicates the predicate. The 5 PIDs above happened
- * to be unrelated processes (verified with `ps`), so the board number stands;
- * the stated reason for it does not. An earlier version of this paragraph
- * called them "PID recycling", which is the right count with the wrong cause.
- * The server losing the pid hold for a really-live process is its own defect
- * and is tracked separately, not fixed here.
+ * The obvious reading of the server source says this arm cannot fire, and it
+ * is wrong. That reading: the spawn site records `new Date().toISOString()`
+ * (`adapter-utils/src/server-utils.ts`), a **millisecond** value, and the
+ * compare site tests it for exact equality against `ps -o lstart=`
+ * (`conversation-continuation.js:116`), which has **second** resolution, so
+ * they agree only when the spawn fell on an exact second -- about 1 in 1000,
+ * making the pid hold dead by construction. Two files, both real, and the
+ * conclusion still does not follow, because the value in the column is not
+ * the one the adapter recorded. `persistHeartbeatRunProcessMetadata`
+ * (`server/dist/services/heartbeat/run-lifecycle.js:264`) reads the OS itself
+ * -- `readProcessStartedAt(meta.pid)` -- and keeps the adapter's timestamp
+ * only as a fallback for a remote target or an unreadable PID. Both sides of
+ * the compare therefore come from `ps`, at second resolution, and exact
+ * equality is the correct test.
+ *
+ * Measured 2026-11-12 against the live instance (server `2026.1106.0`,
+ * upstream commit `d69631b0`), three ways:
+ * - `heartbeat_runs.process_started_at` carries zero milliseconds on
+ *   **1455/1455** rows created in October and **1305/1305** in November.
+ *   September is the transition month (173/565), and April-August are
+ *   **8 of 7850** -- a rate of 1 in 981, which is the "1 in 1000"
+ *   coincidence the paragraph above predicts, and the proof that the old
+ *   writer really did behave that way. The OS-preferring writer landed
+ *   upstream in `7b094724e6` (#12845, 2026-09-04), exactly where the data
+ *   turns over.
+ * - All 4 runs that were `running` during the probe match `ps -o lstart=` to
+ *   the second, including this agent's own run.
+ * - The server's predicate, run verbatim against those 4 pids, calls none of
+ *   them recycled.
+ *
+ * One residual, named so that it is not rediscovered as the main case: when
+ * the fallback does fire (remote target, or `ps` fails inside its 1.5s
+ * timeout) the stored value keeps its milliseconds, can never equal a later
+ * `ps` read, and that run's pid hold is lost. Incidence on this instance:
+ * **0 of 2760** local terminal rows since 2026-10-01. The upstream fix is the
+ * one-second tolerance already written for the native path
+ * (`definitivelyDifferentProcessStart` in `native-restart-recovery.ts`, whose
+ * comment names this exact macOS whole-second problem) and not used by the
+ * legacy path. Deliberately not replicated here: this script mirrors the
+ * server, and the server compares exactly.
  *
  * All four held issues carry **zero** recovery actions, which is precisely the
  * false negative this arm closes. None is currently in this lane (0 deferred
@@ -865,7 +889,7 @@ export interface OwnershipCandidate {
 
 /**
  * Injected so the decision is testable without a live process. Without this
- * the arm would be net harmful: a liveness-only version reports the 5 rejected
+ * the arm would be net harmful: a liveness-only version reports the 5 recycled
  * PIDs above as holds, which is worse than the gap it closes.
  */
 export interface ProcessProbe {
@@ -916,15 +940,17 @@ export function ownershipHold(
     }
 
     let pidAlive = candidate.processPid !== null && probe.mayBeAlive(candidate.processPid);
-    let startDiffers = false;
+    let recycled = false;
     if (pidAlive && candidate.processStartedAtMs !== null) {
       // An unreadable identity stays conservative: the original process may
-      // still own execution, so the hold survives a null here. Inequality is
-      // NOT proof of recycling: recorded is ms, observed is whole seconds.
+      // still own execution, so the hold survives a null here. Inequality IS
+      // recycling evidence: the server stores the OS start time, not the
+      // adapter's millisecond one, so both sides are whole seconds. See "The
+      // start-time comparison works" above, including the one fallback case.
       const observed = probe.startedAtMs(candidate.processPid as number);
       if (observed !== null && observed !== candidate.processStartedAtMs) {
         pidAlive = false;
-        startDiffers = true;
+        recycled = true;
       }
     }
     const groupAlive =
@@ -934,13 +960,11 @@ export function ownershipHold(
       const notes: string[] = [];
       if (pidAlive) notes.push(`pid ${candidate.processPid} alive`);
       if (groupAlive) {
-        // The group id may now belong to an unrelated process, and nothing
-        // here can tell. Say what was observed, and who must check.
+        // The server has no recycle guard on a group, so the group id may now
+        // belong to an unrelated process. Say so, and who must check.
         notes.push(
           `process group ${candidate.processGroupId} alive` +
-            (startDiffers
-              ? `, recorded pid ${candidate.processPid} start time differs (recorded vs observed, sub-second resolution not distinguishable)`
-              : "") +
+            (recycled ? `, recorded pid ${candidate.processPid} is recycled` : "") +
             "; verify with ps -A -o pid,pgid,comm before stopping anything"
         );
       }

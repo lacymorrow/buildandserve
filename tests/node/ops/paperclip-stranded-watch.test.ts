@@ -419,12 +419,12 @@ describe("describeDeferred", () => {
         identifier: "LAC-6321",
         holdCause: "execution_owner_active",
         holdNote:
-          "process group 591 alive, recorded pid 591 start time differs (recorded vs observed, sub-second resolution not distinguishable); verify with ps -A -o pid,pgid,comm before stopping anything",
+          "process group 591 alive, recorded pid 591 is recycled; verify with ps -A -o pid,pgid,comm before stopping anything",
       }),
       NOW
     );
     expect(line).toContain(
-      "held by execution_owner_active (process group 591 alive, recorded pid 591 start time differs (recorded vs observed, sub-second resolution not distinguishable); verify with ps -A -o pid,pgid,comm before stopping anything)"
+      "held by execution_owner_active (process group 591 alive, recorded pid 591 is recycled; verify with ps -A -o pid,pgid,comm before stopping anything)"
     );
   });
 
@@ -498,7 +498,7 @@ describe("ownershipHold", () => {
     ).toBeNull();
   });
 
-  it("rejects a PID whose start time differs instead of holding the issue forever", () => {
+  it("rejects a recycled PID instead of holding the issue forever", () => {
     expect(
       ownershipHold(
         [candidate({ processPid: 591, processStartedAtMs: RECORDED })],
@@ -510,18 +510,18 @@ describe("ownershipHold", () => {
   /**
    * The real LAC-6321, and the case that made this issue worth building. Its
    * run recorded pid == pgid == 591, `locationd` holds that group id today,
-   * the PID arm rejects it on start time -- and the GROUP arm has no
+   * the PID arm correctly calls it recycled -- and the GROUP arm has no
    * recycled-id check available to it, so the server holds anyway. LAC-7022
    * probed the PID arm only and concluded "0 ownership holds on the board".
    */
-  it("still holds on the process group when the same differing-start id is the group leader", () => {
+  it("still holds on the process group when the same recycled id is the group leader", () => {
     const hold = ownershipHold(
       [candidate({ processPid: 591, processGroupId: 591, processStartedAtMs: RECORDED })],
       probeOf([591, -591], { 591: Date.parse("2026-11-04T11:01:21.000Z") })
     );
     expect(hold?.cause).toBe("execution_owner_active");
     expect(hold?.note).toBe(
-      "process group 591 alive, recorded pid 591 start time differs (recorded vs observed, sub-second resolution not distinguishable); verify with ps -A -o pid,pgid,comm before stopping anything"
+      "process group 591 alive, recorded pid 591 is recycled; verify with ps -A -o pid,pgid,comm before stopping anything"
     );
   });
 
