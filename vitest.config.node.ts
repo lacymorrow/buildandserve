@@ -19,6 +19,11 @@ export default defineConfig({
     setupFiles: ["./tests/setup-env.ts", "./tests/setup.ts"],
     include: ["tests/node/**/*.test.{ts,tsx}"],
     watch: false,
+    // A timeout is a hang guard, not a speed assertion. The ops suite spawns real
+    // git worktrees and shell scripts; under local load they measured 7.4s against
+    // the 5s default and flaked (LAC-8066). Passing tests pay nothing for headroom.
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
