@@ -150,6 +150,7 @@ export default function FileInput() {
                 </div>
                 <button
                   type="button"
+                  // eslint-disable-next-line react-hooks/refs -- fileInputRef is only read inside the onClick handler, not during render
                   onClick={() => removeFile(index)}
                   className="text-muted-foreground hover:text-foreground"
                   aria-label={`Remove ${(file as File).name}`}

@@ -6,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,10 +25,18 @@ import {
   deployKey,
   describeDeferred,
   EXECUTION_RECONCILIATION_CAUSES,
+  EXIT_COULD_NOT_LOOK,
+  EXIT_PARKED,
+  EXIT_QUIET,
+  FETCH_KEY_PREFIX,
+  FETCH_STALE_HOURS,
+  fetchKey,
   formatAge,
   formatAlert,
+  formatBlindAlert,
   formatDeferredAlert,
   formatDeployAlert,
+  formatFetchAlert,
   GRACE_MINUTES,
   MAX_NAMED,
   nextDeferredState,
@@ -42,6 +51,8 @@ import {
 } from "../../../scripts/paperclip-stranded-watch";
 
 const NOW = Date.parse("2026-10-16T18:00:00.000Z");
+/** 40h before NOW: past FETCH_STALE_HOURS, so the fetch line must fire. */
+const STALE_FETCH_AT = NOW - 40 * 3_600_000;
 const minutesAgo = (m: number) => NOW - m * 60_000;
 
 const issue = (over: Partial<BlockedIssue> & { identifier: string }): BlockedIssue => ({
@@ -51,6 +62,7 @@ const issue = (over: Partial<BlockedIssue> & { identifier: string }): BlockedIss
   recoveryCause: "",
   recoveryOwner: "",
   hasDescriptor: false,
+  holdCause: "",
   ...over,
 });
 
@@ -277,6 +289,59 @@ describe("formatAlert", () => {
   it("names an unassigned issue as unassigned rather than printing a blank", () => {
     const nobody = classify([issue({ identifier: "LAC-9", assignee: "" })], NOW);
     expect(formatAlert(nobody, stranded(nobody), NOW, false)).toContain("LAC-9 (unassigned,");
+  });
+
+  // LAC-7846. The real LAC-5591: this lane printed it as "16d, no wake path"
+  // on 2026-11-12 while an execution hold was what held it. The two want
+  // opposite actions -- a status flip repairs the first and is reverted in
+  // ~40s on the second, minting another blocked-replay row -- so one wording
+  // for both sends the reader down the path that cannot work.
+  it("says a held issue is held, and that only the board can clear it", () => {
+    const held = classify(
+      [
+        issue({
+          identifier: "LAC-5591",
+          assignee: "Frontend Engineer",
+          holdCause: "legacy_execution_requires_reconciliation",
+        }),
+      ],
+      NOW
+    );
+    expect(formatAlert(held, stranded(held), NOW, false)).toContain(
+      "LAC-5591 (Frontend Engineer, 2h, held by legacy_execution_requires_reconciliation, " +
+        "board resolve only): a task"
+    );
+  });
+
+  // The hold and the active recovery action are different rows answering
+  // different questions, and on all 37 held issues measured 2026-11-12 the
+  // active one was absent. Where both exist the hold wins the line, because it
+  // is the one that decides whether the named owner can act at all.
+  it("prefers the hold over an active recovery action when an issue has both", () => {
+    const both = classify(
+      [
+        issue({
+          identifier: "LAC-7800",
+          recoveryCause: "stranded_assigned_issue",
+          recoveryOwner: "board",
+          holdCause: "legacy_execution_requires_reconciliation",
+        }),
+      ],
+      NOW
+    );
+    const line = formatAlert(both, stranded(both), NOW, false);
+    expect(line).toContain("held by legacy_execution_requires_reconciliation, board resolve only");
+    expect(line).not.toContain("LAC-7800 (Founding Engineer, 2h, stranded_assigned_issue)");
+  });
+
+  // Negative control for the two above: with no hold the wording must not
+  // change, or they would pass against a describe() that said "held by" for
+  // every row.
+  it("leaves an unheld park worded exactly as before", () => {
+    const plain = classify([issue({ identifier: "LAC-3612", assignee: "CTO" })], NOW);
+    const line = formatAlert(plain, stranded(plain), NOW, false);
+    expect(line).toContain("LAC-3612 (CTO, 2h, no wake path): a task");
+    expect(line).not.toContain("board resolve only");
   });
 });
 
@@ -655,6 +720,7 @@ describe("formatDeployAlert", () => {
     head: "a".repeat(40),
     originMain: "a".repeat(40),
     branch: "main",
+    lastFetchMs: NOW,
     ...over,
   });
 
@@ -697,22 +763,103 @@ describe("formatDeployAlert", () => {
 
 describe("deployKey", () => {
   it("is one key per (running commit, origin/main) pair, so it reports once", () => {
-    const a: DeployState = { head: "aa", originMain: "bb", branch: "x" };
-    const b: DeployState = { head: "aa", originMain: "bb", branch: "y" };
+    const a: DeployState = { head: "aa", originMain: "bb", branch: "x", lastFetchMs: NOW };
+    const b: DeployState = { head: "aa", originMain: "bb", branch: "y", lastFetchMs: NOW };
     expect(deployKey(a)).toBe(deployKey(b));
     expect(deployKey(a).startsWith(DEPLOY_KEY_PREFIX)).toBe(true);
   });
 
   it("changes when either side moves, so a new stale state is new news", () => {
-    const base: DeployState = { head: "aa", originMain: "bb", branch: "x" };
+    const base: DeployState = { head: "aa", originMain: "bb", branch: "x", lastFetchMs: NOW };
     expect(deployKey({ ...base, head: "cc" })).not.toBe(deployKey(base));
     expect(deployKey({ ...base, originMain: "cc" })).not.toBe(deployKey(base));
   });
 
   it("cannot collide with a park or a deferred key", () => {
-    const key = deployKey({ head: "aa", originMain: "bb", branch: null });
+    const key = deployKey({ head: "aa", originMain: "bb", branch: null, lastFetchMs: NOW });
     expect(key.startsWith("deferred:")).toBe(false);
     expect(key).toContain(":");
+  });
+});
+
+/**
+ * The sweep swallows its own `git pull` failure (`|| true`), so a host that
+ * cannot reach GitHub leaves `origin/main` where it was, `HEAD` matching it,
+ * and `formatDeployAlert` silent. These cover the line that reads the age of
+ * the last successful fetch instead (LAC-7050 nit 3).
+ */
+describe("formatFetchAlert", () => {
+  const hoursAgo = (h: number) => NOW - h * 3_600_000;
+  const state = (lastFetchMs: number | null): DeployState => ({
+    // Deliberately a clean match: the deploy check says nothing about this
+    // state, which is the whole false negative being closed.
+    head: "a".repeat(40),
+    originMain: "a".repeat(40),
+    branch: "main",
+    lastFetchMs,
+  });
+
+  it("says nothing when the fetch is fresh, with HEAD and origin/main matching", () => {
+    expect(formatFetchAlert(state(hoursAgo(1)), NOW)).toBeNull();
+    expect(formatDeployAlert(state(hoursAgo(1)))).toBeNull();
+  });
+
+  it("brackets the threshold at 36h: quiet at 35, loud at 37", () => {
+    // Absolute hours on purpose. Written as `FETCH_STALE_HOURS - 1` these
+    // would pass under every value of the constant and pin nothing.
+    // Mutants: 48 reddens the second assert, 24 the first.
+    expect(FETCH_STALE_HOURS).toBe(36);
+    expect(formatFetchAlert(state(hoursAgo(35)), NOW)).toBeNull();
+    const line = formatFetchAlert(state(hoursAgo(37)), NOW);
+    expect(line).toContain("could not refresh origin/main");
+    expect(line).toContain("last fetch 37h ago");
+  });
+
+  it("is quiet for a single missed daily pull and loud for two", () => {
+    // The reason for 36h rather than 1h: one failed pull leaves ~24h of age and
+    // the next run's pull clears it; two consecutive failures is ~48h.
+    // Mutants: FETCH_STALE_HOURS of 1 reddens the first assert, 48 the second.
+    expect(formatFetchAlert(state(hoursAgo(24)), NOW)).toBeNull();
+    expect(formatFetchAlert(state(hoursAgo(48)), NOW)).toContain("last fetch 48h ago");
+  });
+
+  it("reports a checkout that has never fetched rather than reading it as fresh", () => {
+    // Mutant: dropping the null guard returns null here, which is the silent
+    // direction this whole line exists to remove.
+    const line = formatFetchAlert(state(null), NOW);
+    expect(line).toContain("could not refresh origin/main");
+    expect(line).toContain("no successful fetch on record");
+  });
+
+  it("names hours, not days, so 36h and 71h do not both read as 1d", () => {
+    // Mutant: swapping in `formatAge` reddens both asserts.
+    expect(formatFetchAlert(state(hoursAgo(36)), NOW)).toContain("36h ago");
+    expect(formatFetchAlert(state(hoursAgo(71)), NOW)).toContain("71h ago");
+  });
+});
+
+describe("fetchKey", () => {
+  it("is one key per last successful fetch, so a standing failure says it once", () => {
+    const base: DeployState = {
+      head: "aa",
+      originMain: "aa",
+      branch: "main",
+      lastFetchMs: NOW - 40 * 3_600_000,
+    };
+    expect(fetchKey(base)).toBe(fetchKey({ ...base, branch: "other" }));
+    expect(fetchKey(base).startsWith(FETCH_KEY_PREFIX)).toBe(true);
+  });
+
+  it("changes when a pull lands, so the next staleness is new news", () => {
+    const base: DeployState = { head: "aa", originMain: "aa", branch: "main", lastFetchMs: 1_000 };
+    expect(fetchKey({ ...base, lastFetchMs: 2_000 })).not.toBe(fetchKey(base));
+    expect(fetchKey({ ...base, lastFetchMs: null })).not.toBe(fetchKey(base));
+  });
+
+  it("cannot collide with a deploy, park or deferred key", () => {
+    const key = fetchKey({ head: "aa", originMain: "bb", branch: null, lastFetchMs: 1_000 });
+    expect(key.startsWith(DEPLOY_KEY_PREFIX)).toBe(false);
+    expect(key.startsWith("deferred:")).toBe(false);
   });
 });
 
@@ -728,6 +875,13 @@ describe("readDeployState", () => {
   let repo: string;
   let elsewhere: string;
   let originalCwd: string;
+  /** Four more repos, so the FETCH_HEAD cases cannot depend on test order. */
+  let neverFetched: string;
+  let staleFetch: string;
+  let worktreeHost: string;
+  /** The production shape: a worktree with its own FETCH_HEAD, plus a fresher shared one. */
+  let precedenceHost: string;
+  let precedenceWorktree: string;
 
   beforeAll(() => {
     originalCwd = process.cwd();
@@ -741,12 +895,57 @@ describe("readDeployState", () => {
     git(repo, "commit", "-qm", "one");
     // A local origin/main, so the comparison has both sides without a network.
     git(repo, "update-ref", "refs/remotes/origin/main", "HEAD");
-  });
+
+    neverFetched = mkdtempSync(path.join(tmpdir(), "sw-nofetch-"));
+    staleFetch = mkdtempSync(path.join(tmpdir(), "sw-stale-"));
+    worktreeHost = mkdtempSync(path.join(tmpdir(), "sw-wthost-"));
+    precedenceHost = mkdtempSync(path.join(tmpdir(), "sw-prec-"));
+    for (const dir of [neverFetched, staleFetch, worktreeHost, precedenceHost]) {
+      git(dir, "init", "-q", "-b", "main");
+      git(dir, "config", "user.email", "me@lacymorrow.com");
+      git(dir, "config", "user.name", "Lacy Morrow");
+      writeFileSync(path.join(dir, "f"), "one\n");
+      git(dir, "add", "f");
+      git(dir, "commit", "-qm", "one");
+      git(dir, "update-ref", "refs/remotes/origin/main", "HEAD");
+    }
+    // `git clone` and `git init` write no FETCH_HEAD; only a fetch does. So
+    // `neverFetched` is left exactly as git made it.
+    for (const dir of [staleFetch, worktreeHost]) {
+      const fetchHead = path.join(dir, ".git", "FETCH_HEAD");
+      writeFileSync(fetchHead, "");
+      utimesSync(fetchHead, STALE_FETCH_AT / 1000, STALE_FETCH_AT / 1000);
+    }
+
+    // `~/repo/buildandserve-ops` in miniature: a worktree whose own pull has
+    // gone stale (40h) while a sibling session keeps the shared FETCH_HEAD
+    // fresh (1h). Both files exist, which is the production shape.
+    precedenceWorktree = `${precedenceHost}-wt`;
+    git(precedenceHost, "worktree", "add", "-q", "-b", "side", precedenceWorktree);
+    const sharedHead = path.join(precedenceHost, ".git", "FETCH_HEAD");
+    writeFileSync(sharedHead, "");
+    utimesSync(sharedHead, (NOW - 3_600_000) / 1000, (NOW - 3_600_000) / 1000);
+    const ownHead = spawnSync(
+      "git",
+      ["-C", precedenceWorktree, "rev-parse", "--git-path", "FETCH_HEAD"],
+      { encoding: "utf8" }
+    ).stdout.trim();
+    writeFileSync(ownHead, "");
+    utimesSync(ownHead, STALE_FETCH_AT / 1000, STALE_FETCH_AT / 1000);
+    // Five temp repos and two `git worktree add` calls; the 10s default is not
+    // enough on a cold filesystem cache.
+  }, 60_000);
 
   afterAll(() => {
     process.chdir(originalCwd);
     rmSync(repo, { recursive: true, force: true });
     rmSync(elsewhere, { recursive: true, force: true });
+    rmSync(neverFetched, { recursive: true, force: true });
+    rmSync(staleFetch, { recursive: true, force: true });
+    rmSync(`${worktreeHost}-wt`, { recursive: true, force: true });
+    rmSync(worktreeHost, { recursive: true, force: true });
+    rmSync(precedenceWorktree, { recursive: true, force: true });
+    rmSync(precedenceHost, { recursive: true, force: true });
   });
 
   it("reads the repo it is given, not the cwd it is called from", async () => {
@@ -788,6 +987,70 @@ describe("readDeployState", () => {
     expect(state.originMain).toBeNull();
     // Null must never read as "the copy is current".
     expect(formatDeployAlert(state)).toContain("cannot tell which commit it is running");
+  });
+
+  /**
+   * The path resolution is the part a pure-formatter test cannot reach:
+   * `--git-path` answers relative to the repo in a plain clone and absolute
+   * inside a worktree, and getting that wrong reads as "never fetched" on a
+   * perfectly healthy checkout.
+   */
+  it("reads the age of FETCH_HEAD in the repo it is given", async () => {
+    process.chdir(elsewhere);
+    const state = await readDeployState(staleFetch);
+    expect(state.lastFetchMs).not.toBeNull();
+    expect(Math.abs(Number(state.lastFetchMs) - STALE_FETCH_AT)).toBeLessThan(2_000);
+    // HEAD matches origin/main here, so the deploy line is silent and this is
+    // the only thing that says the copy may be blind. That is the whole nit.
+    expect(formatDeployAlert(state)).toBeNull();
+    expect(formatFetchAlert(state, NOW)).toContain("last fetch 40h ago");
+  });
+
+  /**
+   * The common-dir fallback, which nothing else reaches: in a worktree
+   * `--git-path FETCH_HEAD` answers with a per-worktree path that usually does
+   * not exist, while the fetch that actually happened wrote to the common dir.
+   * Without the fallback a healthy by-hand run from a worktree reads as "never
+   * fetched". Mutant: dropping the second candidate reddens this and nothing
+   * else in the file.
+   */
+  it("finds a fetch recorded in the common dir when run from a worktree", async () => {
+    process.chdir(elsewhere);
+    const wt = path.join(worktreeHost, "..", `${path.basename(worktreeHost)}-wt`);
+    git(worktreeHost, "worktree", "add", "-q", "-b", "side", wt);
+    // The per-worktree FETCH_HEAD does not exist; the common dir's does.
+    expect(
+      spawnSync("git", ["-C", wt, "rev-parse", "--git-path", "FETCH_HEAD"], {
+        encoding: "utf8",
+      }).stdout.trim()
+    ).toContain("worktrees");
+    const state = await readDeployState(wt);
+    expect(state.lastFetchMs).not.toBeNull();
+    expect(Math.abs(Number(state.lastFetchMs) - STALE_FETCH_AT)).toBeLessThan(2_000);
+    expect(formatFetchAlert(state, NOW)).toContain("last fetch 40h ago");
+  });
+
+  /**
+   * The production shape, and the reason the order is not "newest wins":
+   * `~/repo/buildandserve-ops` is a worktree of `~/repo/buildandserve`, so a
+   * sibling session's fetch keeps the shared FETCH_HEAD fresh while this
+   * checkout's own pull is failing. Mutant: taking the newest of the two
+   * candidates reddens this and nothing else.
+   */
+  it("prefers this checkout's own FETCH_HEAD over a fresher shared one", async () => {
+    process.chdir(elsewhere);
+    const state = await readDeployState(precedenceWorktree);
+    expect(Math.abs(Number(state.lastFetchMs) - STALE_FETCH_AT)).toBeLessThan(2_000);
+    expect(formatFetchAlert(state, NOW)).toContain("last fetch 40h ago");
+  });
+
+  it("reports a real repo that has never fetched as no fetch on record", async () => {
+    process.chdir(elsewhere);
+    const state = await readDeployState(neverFetched);
+    // Not the "not a repo" case: git answers fine here.
+    expect(state.head).not.toBeNull();
+    expect(state.lastFetchMs).toBeNull();
+    expect(formatFetchAlert(state, NOW)).toContain("no successful fetch on record");
   });
 });
 
@@ -905,5 +1168,114 @@ describe("pinned server constants", () => {
       ...EXECUTION_RECONCILIATION_CAUSES,
     ]);
     expect(readList(server, "CONVERSATION_ADAPTER_TYPES")).toEqual([...CONVERSATION_ADAPTER_TYPES]);
+  });
+});
+
+describe("hold lateral is shared, not copied (LAC-7846)", () => {
+  const source = readFileSync(
+    path.resolve(__dirname, "../../../scripts/paperclip-stranded-watch.ts"),
+    "utf8"
+  );
+
+  // The park lane and the deferred lane must answer "is there a hold?" with
+  // the same SQL. They did not before LAC-7846 -- only the deferred lane had
+  // the column -- and the obvious way to add it is to paste the lateral a
+  // second time. Two copies of a 17-cause predicate replicated from the
+  // server drift silently, and the column's whole value is that it says
+  // exactly what the server says. One definition, two interpolations.
+  it("defines the lateral once and interpolates it in both queries", () => {
+    expect(source.match(/LEFT JOIN LATERAL \(/g) ?? []).toHaveLength(1);
+    expect(source.match(/\$\{HOLD_LATERAL\}/g) ?? []).toHaveLength(2);
+  });
+
+  it("selects the hold column in both queries", () => {
+    expect(source).toContain("coalesce(h.cause, '') AS hold_cause");
+    expect(source).toContain("coalesce(max(h.cause), '') AS hold_cause");
+  });
+
+  // The lateral is the server's `executionBlockerPredicate()`. Both arms it
+  // turns on have to survive any edit: the status half admits an action still
+  // open, and the evidence half admits a RESOLVED row whose automatic
+  // recovery refused to replay. That second arm is the one that matters here
+  // -- on all 37 held issues measured 2026-11-12 the action was `resolved`
+  // and `activeRecoveryAction` read null, so a status-only lateral would have
+  // reported zero holds while 37 issues sat unreachable.
+  it("keeps both arms of the server predicate", () => {
+    expect(source).toContain("ra.status IN ('active', 'escalated')");
+    expect(source).toContain("ra.evidence -> 'automaticRecovery' ->> 'replay' = 'blocked'");
+  });
+});
+
+describe("exit-code contract (LAC-6580)", () => {
+  const script = path.resolve(__dirname, "../../../scripts/paperclip-stranded-watch.ts");
+  const run = ({
+    RUN_ARGS,
+    STATE_PATH,
+    ...env
+  }: Record<string, string> & { RUN_ARGS?: string; STATE_PATH?: string }) => {
+    const clean = { ...process.env, ...env };
+    if (!("PAPERCLIP_DB_URL" in env)) delete clean.PAPERCLIP_DB_URL;
+    // Unconfigured on purpose: a notify attempt must fail locally, never post.
+    delete clean.STRANDED_WATCH_SLACK_TOKEN;
+    delete clean.STRANDED_WATCH_SLACK_CHANNEL;
+    const statePath =
+      STATE_PATH ?? path.join(mkdtempSync(path.join(tmpdir(), "stranded-exit-")), "state.json");
+    return spawnSync("bun", [script, "--state", statePath, ...(RUN_ARGS ? [RUN_ARGS] : [])], {
+      env: clean,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+  };
+
+  it("keeps quiet, parked and could-not-look as three different codes", () => {
+    expect(new Set([EXIT_QUIET, EXIT_PARKED, EXIT_COULD_NOT_LOOK]).size).toBe(3);
+    expect(EXIT_COULD_NOT_LOOK).toBe(2);
+  });
+
+  it("exits 2, not 0, when PAPERCLIP_DB_URL is missing", () => {
+    const result = run({});
+    expect(result.status).toBe(EXIT_COULD_NOT_LOOK);
+    expect(result.stderr).toContain("PAPERCLIP_DB_URL must be set");
+  });
+
+  it("exits 2, not 0 or 1, when the database is unreachable", () => {
+    const result = run({ PAPERCLIP_DB_URL: "postgres://x:x@127.0.0.1:1/x" });
+    expect(result.status).toBe(EXIT_COULD_NOT_LOOK);
+    expect(result.stderr).toContain("could not read the Paperclip database");
+  });
+
+  // The exit code alone was never the defect: unfixed, a blind run already
+  // exited 2 and said nothing a person would see. These two assert the half
+  // that actually failed -- that 2 is spoken out loud, and that a delivery
+  // failure cannot swallow it (LAC-6580).
+  it("tries to tell someone when it could not look", () => {
+    const result = run({ RUN_ARGS: "--notify" });
+    expect(result.status).toBe(EXIT_COULD_NOT_LOOK);
+    // Slack is unconfigured here, so no network call happens: the rejection
+    // itself is the proof the notify path was entered at all.
+    expect(result.stderr).toContain("must both be set to notify");
+  });
+
+  it("does not try to notify without --notify", () => {
+    const result = run({});
+    expect(result.status).toBe(EXIT_COULD_NOT_LOOK);
+    expect(result.stderr).not.toContain("must both be set to notify");
+  });
+
+  it("writes no blind-day stamp when the DM was not delivered, so it retries", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "stranded-blind-"));
+    const statePath = path.join(dir, "state.json");
+    const result = run({ RUN_ARGS: "--notify", STATE_PATH: statePath });
+    expect(result.status).toBe(EXIT_COULD_NOT_LOOK);
+    expect(existsSync(`${statePath}.blind-day`)).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("formatBlindAlert", () => {
+  it("says the watch is blind, not that the board is quiet", () => {
+    const text = formatBlindAlert("PAPERCLIP_DB_URL must be set");
+    expect(text).toContain("could not look");
+    expect(text).toContain("PAPERCLIP_DB_URL must be set");
   });
 });

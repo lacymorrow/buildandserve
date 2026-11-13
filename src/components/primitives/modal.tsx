@@ -62,6 +62,7 @@ export function Modal({
 
   // Sync isOpen state with open prop when it changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mirrors the open prop into local state so close animations can finish
     setIsOpen(open);
   }, [open]);
 

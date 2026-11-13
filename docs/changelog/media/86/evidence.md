@@ -1,6 +1,7 @@
 # LAC-6059 evidence, measured 2026-10-28 from zero against the live bas box
 
 ## 1. Hetzner firewall 11789519, before
+
 ```
 tcp   22      0.0.0.0/0,::/0         ssh (admin access; tailscale is joined over this before lockdown)
 udp   41641   0.0.0.0/0,::/0         tailscale direct wireguard; without it traffic falls back to DERP relays
@@ -10,6 +11,7 @@ tcp   80      0.0.0.0/0,::/0         LAC-6054 certbot HTTP-01 for projects-db.cl
 ```
 
 ## 2. Hetzner firewall 11789519, after
+
 ```
 tcp   22      178.156.130.157/32     ssh: tailnet only, which needs no rule (wireguard arrives on udp/41641). This one source is the build-and-serve box's off-tailnet dead-man check for Doug's shipping run, forced-command key only. LAC-6059
 udp   41641   0.0.0.0/0,::/0         tailscale direct wireguard; without it traffic falls back to DERP relays
@@ -23,6 +25,7 @@ and tcp/26432 lost `::/0` because IPv6 reached postgres through userspace
 docker-proxy and bypassed the rate limit entirely.
 
 ## 3. pg_settings, before and after
+
 ```
 name                           before        after
 authentication_timeout         60s/default   10s/command line
@@ -30,7 +33,9 @@ max_connections                100           100     (deliberately not raised)
 superuser_reserved_connections 3             3
 log_connections                on            on
 ```
+
 Live, now:
+
 ```
 authentication_timeout|10|s|command line
 log_connections|on||command line
@@ -39,6 +44,7 @@ superuser_reserved_connections|3||default
 ```
 
 ## 4. Container: log cap and the IPv4-only publish
+
 ```
 # before
 LogConfig = {"Type":"json-file","Config":{}}        <- uncapped, on a 75 GB disk
@@ -51,6 +57,7 @@ LogConfig = {"Type":"json-file","Config":{"max-file":"5","max-size":"10m"}}
 ```
 
 ## 5. The nft rules and their counters
+
 ```
 table ip filter {
 	chain DOCKER-USER { # handle 44
@@ -93,6 +100,7 @@ target=100.117.119.81:26432 attempted=40 elapsed=4.77s
 
 Counters after those two runs. 20 rejects on the concurrency rule from the
 public source, and the tailnet RETURN absorbing the other run:
+
 ```
 	chain PROJECTSDB { # handle 83
 		ip saddr 100.64.0.0/10 counter packets 160 bytes 8800 return # handle 85
@@ -105,6 +113,7 @@ public source, and the tailnet RETURN absorbing the other run:
 
 The rate rule sits behind the concurrency rule, so it is shown on its own
 with the concurrency cap lifted for the length of the test:
+
 ```
 $ CONCURRENT=200 bas-projects-db-ratelimit.sh install   # on the box, temporarily
 $ python3 rate2.py projects-db.cloud0.dev 26432 80
@@ -139,6 +148,7 @@ genuinely did not use the public port. No `PGSSLROOTCERT` was needed.
 
 Four deliberate failures from zero's public IP, and five more over the
 tailnet that the watch is supposed to ignore:
+
 ```
 $ AUTH_FAIL_THRESHOLD=0 scripts/bas-projects-db-watch.sh --auth-only
 projects-db problem on projects-db.cloud0.dev:

@@ -47,7 +47,7 @@ export function ServicesFaq() {
     <section className="py-16 md:py-24">
       <div className="mx-auto max-w-5xl px-6">
         <div className="mx-auto max-w-xl text-center">
-          <h2 className="text-balance text-3xl font-bold md:text-4xl">
+          <h2 className="text-3xl font-bold text-balance md:text-4xl">
             Frequently asked questions
           </h2>
         </div>
@@ -55,7 +55,7 @@ export function ServicesFaq() {
           <Accordion
             type="single"
             collapsible
-            className="bg-card ring-muted w-full rounded-2xl border px-8 py-3 shadow-sm ring-4 dark:ring-0"
+            className="w-full rounded-2xl border bg-card px-8 py-3 shadow-sm ring-4 ring-muted dark:ring-0"
           >
             {faqs.map((item) => (
               <AccordionItem key={item.id} value={item.id} className="border-dashed">

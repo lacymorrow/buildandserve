@@ -7,13 +7,7 @@ interface ProseProps extends React.HTMLAttributes<HTMLDivElement> {
 /** Prose wrapper for MDX content. */
 export function Prose({ children, className, ...props }: ProseProps) {
   return (
-    <div
-      className={cn(
-        "prose prose-neutral dark:prose-invert max-w-none",
-        className
-      )}
-      {...props}
-    >
+    <div className={cn("prose max-w-none prose-neutral dark:prose-invert", className)} {...props}>
       {children}
     </div>
   );

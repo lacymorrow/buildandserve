@@ -261,9 +261,9 @@ anything below 21 means the renewal path has been failing for weeks.
 The pooled port is checked over ssh instead, by
 `bas-projects-db.sh pooler-cert-check`, which the watch runs in the same block
 as `client-cert-check`. Over ssh rather than over the public internet for a dull
-reason: `tcp/26433` was closed at the Hetzner firewall when this was written; it is open
-now (see "Opening the port"), and the ssh route stayed because it also sees the
-pooler's own view of its server. It compares the certificate the pooler
+reason: `tcp/26433` is closed at the Hetzner firewall (LAC-7492, "Opening the port"),
+so there is no public route to dial, and the ssh route also sees the pooler's own
+view of its server. It compares the certificate the pooler
 serves to the one on disk and checks the name on it, and it is silent and exit 0
 when the pooler is healthy **or absent**. A box with no pooler is a supported
 shape, not a finding. An unreachable box or a box whose installed script predates
@@ -580,7 +580,7 @@ expired CRL locks every certificate client out at once, which is the exact
 failure this design is built to avoid, re-introduced with a short fuse. Not
 worth it for a lever that is slower than the one we already have.
 
-#### On the pooled port the certificate *is* the credential
+#### On the pooled port the certificate _is_ the credential
 
 The paragraph above holds on `:26432` and does not hold on `:26433`, and the
 difference is the whole of LAC-6122 F6.
@@ -874,23 +874,23 @@ thing that would stop anyone believing it the second time.
 
 #### Measured 2026-10-28 from zero, against the live box
 
-| Probe                                    | Result                                                        |
-| ---------------------------------------- | ------------------------------------------------------------- |
+| Probe                                     | Result                                                               |
+| ----------------------------------------- | -------------------------------------------------------------------- |
 | public name, `verify-full`, with the cert | `fleet_monitor gracefully_imagined 107.141.224.67 /CN=fleet_monitor` |
-| the same without the cert                | `FATAL: connection requires a valid client certificate`        |
-| tailnet name, no cert (ops path)         | still works, `100.86.145.8`                                    |
-| a certificate the CA never signed        | `SSL error: tlsv1 alert unknown ca`                            |
-| dialed by IP, so the name cannot match   | `verify-full` fails on the server certificate                  |
-| `:26433`, closed at the Hetzner firewall | `Operation timed out`                                          |
-| a hostname with no A record              | `could not translate host name`                                |
-| `SSL_CERT_FILE=/dev/null`, i.e. no roots | filed as this host's trust store, not as the box               |
+| the same without the cert                 | `FATAL: connection requires a valid client certificate`              |
+| tailnet name, no cert (ops path)          | still works, `100.86.145.8`                                          |
+| a certificate the CA never signed         | `SSL error: tlsv1 alert unknown ca`                                  |
+| dialed by IP, so the name cannot match    | `verify-full` fails on the server certificate                        |
+| `:26433`, closed at the Hetzner firewall  | `Operation timed out`                                                |
+| a hostname with no A record               | `could not translate host name`                                      |
+| `SSL_CERT_FILE=/dev/null`, i.e. no roots  | filed as this host's trust store, not as the box                     |
 
 The `projects-db-public` card classifies all seven, because they have different
 owners and nobody reading one card at 2am should have to rediscover which.
 `fleet-health/test/lac6096-projects-db-public-test.sh` is the harness; the
 messages in it are these measured ones and not invented. The `:26433` row was
-measured before LAC-6076; PgBouncer listens there now, and the dial still times
-out only because the Hetzner firewall does not open that port.
+measured before LAC-6076; PgBouncer listens there now, and the dial times
+out because the Hetzner firewall does not open that port (closed again, LAC-7492).
 
 #### This card does not cover the pooled port
 
@@ -1139,11 +1139,11 @@ internet and will say so if the box is genuinely gone.
 The watch's third check, and the cheapest one. Three patterns under
 `~/.paperclip/secrets`, and every file matching one of them must be mode `600`:
 
-| Pattern                | What it is                                            |
-| ---------------------- | ----------------------------------------------------- |
-| `*-db.env*`            | the per-project credentials, and their backup copies   |
-| `projects-db-*.env*`   | the superuser password and the monitor's               |
-| `projects-db-*.key`    | client private keys, currently `fleet_monitor`'s       |
+| Pattern              | What it is                                           |
+| -------------------- | ---------------------------------------------------- |
+| `*-db.env*`          | the per-project credentials, and their backup copies |
+| `projects-db-*.env*` | the superuser password and the monitor's             |
+| `projects-db-*.key`  | client private keys, currently `fleet_monitor`'s     |
 
 These hold either a plaintext password or a client private key for a database on
 a port open to `0.0.0.0/0`, so the mode is the whole protection. libpq also
@@ -1508,31 +1508,31 @@ curl -X POST -H "Authorization: Bearer $(cat ~/.paperclip/secrets/hetzner-cloud-
 ## The pooled port, and what it costs
 
 LAC-6076. `projects-db.cloud0.dev:26433` is PgBouncer in transaction pooling
-mode. It exists so the number of *server* connections stops depending on how
+mode. It exists so the number of _server_ connections stops depending on how
 many instances Vercel happens to warm.
 
-|            |                                                                                 |
-| ---------- | ------------------------------------------------------------------------------- |
-| Pooled     | `projects-db.cloud0.dev:26433` → `DATABASE_URL`, the app                        |
-| Direct     | `projects-db.cloud0.dev:26432` → `DATABASE_URL_UNPOOLED`, migrations and ops    |
-| Container  | `projects-db-pooler`, `edoburu/pgbouncer` pinned by digest, PgBouncer 1.26.1    |
-| Network    | `projects-db-pool`, private bridge, Postgres pinned at `172.31.0.2`             |
-| Auth       | client certificate only: chain against the private CA, `CN` bound to the role   |
-| Script     | `scripts/bas-pgbouncer.sh`, installed at `/usr/local/sbin/bas-pgbouncer.sh`     |
-| Secrets    | `/data/pgbouncer/secret/userlist.txt`, **plaintext role passwords**, `600 70:70` |
-| Firewall   | `tcp/26433` is **not** open at the Hetzner firewall yet (see "Opening the port") |
+|           |                                                                                  |
+| --------- | -------------------------------------------------------------------------------- |
+| Pooled    | `projects-db.cloud0.dev:26433` → `DATABASE_URL`, the app                         |
+| Direct    | `projects-db.cloud0.dev:26432` → `DATABASE_URL_UNPOOLED`, migrations and ops     |
+| Container | `projects-db-pooler`, `edoburu/pgbouncer` pinned by digest, PgBouncer 1.26.1     |
+| Network   | `projects-db-pool`, private bridge, Postgres pinned at `172.31.0.2`              |
+| Auth      | client certificate only: chain against the private CA, `CN` bound to the role    |
+| Script    | `scripts/bas-pgbouncer.sh`, installed at `/usr/local/sbin/bas-pgbouncer.sh`      |
+| Secrets   | `/data/pgbouncer/secret/userlist.txt`, **plaintext role passwords**, `600 70:70` |
+| Firewall  | `tcp/26433` is **closed** at the Hetzner firewall: tailnet-only (LAC-7492)       |
 
 Measured on 2026-10-28 against `gracefully_imagined_preview`, 12 concurrent
 clients each running a short-transaction loop, identical traffic both ways:
 
-| Same 12 clients        | Direct `:26432`               | Pooled `:26433`      |
-| ---------------------- | ----------------------------- | -------------------- |
-| clients served         | 4 of 12                       | **12 of 12**         |
-| the other 8            | `too many connections for role` | queued, then served |
-| `pg_stat_activity`     | 5, all **idle**               | **3, all active**    |
+| Same 12 clients    | Direct `:26432`                 | Pooled `:26433`     |
+| ------------------ | ------------------------------- | ------------------- |
+| clients served     | 4 of 12                         | **12 of 12**        |
+| the other 8        | `too many connections for role` | queued, then served |
+| `pg_stat_activity` | 5, all **idle**                 | **3, all active**   |
 
 That is the whole ticket in one table. The direct port does not run out of
-capacity, it runs out of *slots held idle by instances that are not using them*.
+capacity, it runs out of _slots held idle by instances that are not using them_.
 
 ### PgBouncer terminates TLS, and that nearly removed LAC-6060 silently
 
@@ -1550,8 +1550,8 @@ auth_type = hba                    # + method `cert` per line: binds CN to the r
 The ticket proposed `client_tls_sslmode=verify-full` plus `client_tls_ca_file`
 and called that sufficient. **It is not, and the gap is invisible.** PgBouncer's
 `verify-full` is documented as "Same as verify-ca": it checks the chain and never
-looks at the common name. On its own it accepts *any* certificate this CA ever
-issued for *any* role, so a `shipkit_www` certificate would open `keepsake`.
+looks at the common name. On its own it accepts _any_ certificate this CA ever
+issued for _any_ role, so a `shipkit_www` certificate would open `keepsake`.
 Only the `cert` method in `auth_hba_file` takes the user name from the CN.
 
 The reverse is also true: a `cert` line without `client_tls_sslmode` at
@@ -1567,20 +1567,20 @@ So the pooled path is cert-only, single-factor, by necessity rather than choice.
 
 Measured 2026-10-28 from zero over the tailnet, all four:
 
-| Attempt at `:26433`                                   | Result                                       |
-| ----------------------------------------------------- | -------------------------------------------- |
-| `gracefully_imagined_preview` cert, matching role      | connects, `inet_server_port` = 5432          |
-| no client certificate at all                           | `SSL error: tlsv13 alert certificate required` |
-| `keepsake` cert presented for the preview role         | `FATAL: certificate authentication failed`   |
-| preview cert asking for the `keepsake` database        | `FATAL: no authentication method is found`   |
+| Attempt at `:26433`                               | Result                                         |
+| ------------------------------------------------- | ---------------------------------------------- |
+| `gracefully_imagined_preview` cert, matching role | connects, `inet_server_port` = 5432            |
+| no client certificate at all                      | `SSL error: tlsv13 alert certificate required` |
+| `keepsake` cert presented for the preview role    | `FATAL: certificate authentication failed`     |
+| preview cert asking for the `keepsake` database   | `FATAL: no authentication method is found`     |
 
 The second one is refused during the TLS handshake, before a password is ever
 read. The third is the LAC-6060 guarantee surviving the hop.
 
-**What is genuinely weaker than the direct port.** A leaked certificate *and*
+**What is genuinely weaker than the direct port.** A leaked certificate _and_
 private key, with no password, now opens that database; on `:26432` it would
 still be refused. The threat LAC-6060 was built for still fails closed, because
-that one (LAC-6032) is a leaked *password*, and a password alone opens nothing
+that one (LAC-6032) is a leaked _password_, and a password alone opens nothing
 on either port. In practice both halves live in the same Vercel environment and
 leak together, which is why this was judged an acceptable trade rather than a
 free one.
@@ -1595,14 +1595,14 @@ production once `DATABASE_URL` moves to the pooler. The sixth card,
 Install order matters. The card is a logged SKIP until
 `PROJECTS_DB_MONITOR_POOLED_URL` exists in `projects-db-monitor.env`, so it can
 ship before the port opens without alarming on a port closed on purpose. Install
-it *before* `DATABASE_URL` moves:
+it _before_ `DATABASE_URL` moves:
 
 ```
 # password travels over ssh stdin; it must not be expanded on the box
 printf '%s' "$FLEET_MONITOR_PASSWORD" | ssh root@bas.hyrax-boga.ts.net 'bas-pgbouncer.sh add-monitor'
 ssh root@bas.hyrax-boga.ts.net 'bas-projects-db.sh allow-monitor-pooler'
-# then, on each fleet-health host, after tcp/26433 opens at the Hetzner firewall:
-PROJECTS_DB_MONITOR_POOLED_URL=postgresql://fleet_monitor@projects-db.cloud0.dev:26433/fleet_monitor?sslmode=verify-full&sslrootcert=system
+# then, on each fleet-health host (tcp/26433 is closed publicly since LAC-7492, so tailnet):
+PROJECTS_DB_MONITOR_POOLED_URL=postgresql://fleet_monitor@bas.hyrax-boga.ts.net:26433/fleet_monitor?sslmode=require
 ```
 
 The URL has no password: the pooled path is cert-only, and the pooler keeps
@@ -1639,14 +1639,14 @@ fine for this card.
 directory, outside every mount Postgres can see.
 
 It cannot be avoided. PgBouncer still has to open the server connection itself,
-and it can only reuse a stored SCRAM secret for that if the *client* also
+and it can only reuse a stored SCRAM secret for that if the _client_ also
 authenticated with SCRAM. With client auth set to `cert`, it cannot, so a
 plaintext password is the only thing that works.
 
 The marginal exposure is smaller than it first reads: root on this box already
 reaches every database with no password at all through the `local all all trust`
 line, by way of `docker exec`. What this file adds is a credential that works
-*from somewhere else*. Treat it as equivalent to the whole box.
+_from somewhere else_. Treat it as equivalent to the whole box.
 
 The pooler holds **one** certificate globally, so it could never satisfy
 `clientcert=verify-full` for more than a single role no matter how it were
@@ -1685,7 +1685,7 @@ anything that outlives a transaction is gone. Put it on `:26432`:
 - **advisory locks** generally, for the same reason.
 - **`SET` meant to outlive a statement**, including `SET ROLE`.
 - **SQL-level `PREPARE` / `EXECUTE` / `DEALLOCATE`.** PgBouncer tracks
-  *protocol-level* prepared statements and explicitly does not track these.
+  _protocol-level_ prepared statements and explicitly does not track these.
 
 `search_path` is deliberately **not** in `ignore_startup_parameters`. A silently
 dropped `search_path` under transaction pooling means queries landing in the
@@ -1736,15 +1736,36 @@ URL, or use `psql`, which does honour it.
 
 ### Opening the port
 
-`tcp/26433` is **open to `0.0.0.0/0` and `::/0`** on the Hetzner firewall
-(`bas-automation`, id 11789519), as of 2026-10-29. Vercel egress has no fixed IP
-range, so this is the only shape that works, and it is the same decision LAC-6056
-made for `:26432`. What makes it tolerable is the rate limit: the second
-`--ctorigdstport 26433` jump into `PROJECTSDB` lives in
-`projects-db-ratelimit.service` (`docs/ops/projects-db-ratelimit.service`), which
-runs `install` with no `PORT` and so covers both ports, and which `PartOf=docker.service`
-reapplies after a daemon restart. Re-installing `bas-projects-db-ratelimit.sh`
-from an old checkout removes it, so install all three scripts from the same commit.
+`tcp/26433` is **closed to the internet** on the Hetzner firewall
+(`bas-automation`, id 11789519), as of 2026-11-10 (LAC-7492). The pooler is
+tailnet-only, which is what LAC-6076 decided on 2026-11-01 and LAC-6570 re-defaulted
+to on 2026-11-10. The rule `in tcp 26433 ['0.0.0.0/0', '::/0']`, described
+"projects-db PgBouncer pooler (TLS client cert)", was the only thing keeping it open:
+no docker publish, `DOCKER-USER` or PgBouncer change was involved.
+
+**`tcp/26432` is untouched and stays open to `0.0.0.0/0`.** LAC-6056's ruling stands:
+Vercel egress has no fixed IP range, a Vercel function can join neither a tailnet nor
+a TCP tunnel, and Static IPs are $100/mo per project. All ten project secret files dial
+`:26432`; none dials `:26433`. The in-box `PROJECTSDB` rate limit keeps covering both
+ports, which is belt-and-braces behind a closed cloud port and was not edited.
+
+Rollback is one API call and no restart: `PUT /v1/firewalls/11789519/actions/set_rules`
+with the current array plus
+`{"description":"projects-db PgBouncer pooler (TLS client cert)","direction":"in","port":"26433","protocol":"tcp","source_ips":["0.0.0.0/0","::/0"]}`.
+Read the live rule set first; the call replaces the whole array.
+
+**The sixth fleet-health arm now dials the tailnet.**
+`PROJECTS_DB_MONITOR_POOLED_URL` is
+`postgresql://fleet_monitor@bas.hyrax-boga.ts.net:26433/fleet_monitor?sslmode=require`.
+`verify-full` cannot pass on the tailnet name (the served certificate's CN is the
+public name), so the arm accepts `sslmode=require` for a `*.ts.net` or `100.x` host
+only; a public host must still say `verify-full`. The pooler is `auth_type=hba`
+method `cert`, so the client certificate is still required on the tailnet path.
+Measured 2026-11-10: with the certificate, `select current_user` returns
+`fleet_monitor`; without it, `tlsv13 alert certificate required`.
+
+If the pooler is ever exposed publicly again, re-file the cert-only vs
+`scram-sha-256` question (LAC-6571, cancelled).
 
 ### Rolling one project over
 
@@ -1796,7 +1817,7 @@ being checked and the role binding is not.
 **Revoking a leaked certificate.** There is no CRL. PgBouncer has no CRL setting,
 and `bas-projects-db.sh` sets no `ssl_crl_file` on the Postgres side either. On
 the direct port a leaked cert survives only until the password is rotated, because
-the password is a second factor. On the pooled port the certificate *is* the
+the password is a second factor. On the pooled port the certificate _is_ the
 credential, so the one lever that ends a leaked one is
 `bas-pgbouncer.sh drop-project <role>`, and revocation and an outage of that
 project are the same action. Then mint a fresh pair with `client-cert` and re-add
@@ -1858,7 +1879,7 @@ server-connection budget: 5 of 85 used
 The belt underneath is `max_db_connections = 15` in the generated config, so no
 single database can open more server connections than one production pair is
 allowed whatever a hand-edited `databases.d` line asks for. PgBouncer has no
-*global* server-connection limit, which is why the sum has to be enforced at
+_global_ server-connection limit, which is why the sum has to be enforced at
 configuration time rather than by the pooler.
 
 If the budget is genuinely in the way, the order to try is: drop an unused

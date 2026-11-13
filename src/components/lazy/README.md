@@ -17,6 +17,7 @@ import { Charts01 } from "@/components/lazy";
 ## Available Components
 
 ### Chart Components
+
 - `Charts01` - Main charts showcase
 - `ChartLine` - Line chart component
 - `ChartArea` - Area chart component
@@ -24,19 +25,23 @@ import { Charts01 } from "@/components/lazy";
 - `ChartBar` - Bar chart component
 
 ### 3D/WebGL Components
+
 - `Globe` - Three.js globe component
 - `CanvasRevealEffect` - Canvas-based reveal effect
 
 ### Dashboard Components
+
 - `Dashboard01` through `Dashboard07` - Large dashboard layouts
 
 ### UI Components
+
 - `DatetimePicker` - Complex datetime picker
 - `MultipleSelector` - Multi-select component
 - `FileUpload` - File upload with preview
 - `SearchAI` - AI-powered search
 
 ### Animation Components
+
 - `WavyLine` - Animated wavy line
 - `Vortex` - Vortex animation
 - `ShootingStars` - Shooting stars effect
@@ -44,6 +49,7 @@ import { Charts01 } from "@/components/lazy";
 - `Confetti` - Confetti animation
 
 ### Data Components
+
 - `DataTable` - Complex data table
 - `EnhancedLogDataTable` - Enhanced logging table
 - `MonacoEditor` - Monaco code editor
@@ -55,13 +61,10 @@ Use the `lazyLoad` utility for custom components:
 ```tsx
 import { lazyLoad } from "@/components/lazy";
 
-const MyHeavyComponent = lazyLoad(
-  () => import("@/components/my-heavy-component"),
-  {
-    ssr: false,
-    loading: () => <div>Loading...</div>
-  }
-);
+const MyHeavyComponent = lazyLoad(() => import("@/components/my-heavy-component"), {
+  ssr: false,
+  loading: () => <div>Loading...</div>,
+});
 ```
 
 ## Performance Impact

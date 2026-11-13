@@ -32,10 +32,10 @@ Measured on one live board over the 7 days to 2026-10-16.
 **Strand rate.** Routine-generated issues strand 4.3x more often than manual
 ones, because a routine slot is more likely to be mid-run when the machine sleeps:
 
-| `origin_kind` | Created | Stranded | Rate |
-|---|---|---|---|
-| `routine_execution` | 57 | 12 | 21% |
-| `manual` | 308 | 15 | 4.9% |
+| `origin_kind`       | Created | Stranded | Rate |
+| ------------------- | ------- | -------- | ---- |
+| `routine_execution` | 57      | 12       | 21%  |
+| `manual`            | 308     | 15       | 4.9% |
 
 **One cause dominates.** 8 of those 12 died `setup_failed`, and 15 of the 18
 `setup_failed` runs in 14 days carried the identical error string:
@@ -54,20 +54,24 @@ SELECT r.error, count(*)
 slots. Its output is a human's morning plan, so each lost slot is a day that plan
 did not exist and nobody was told:
 
-| Routine | Slots | Stranded |
-|---|---|---|
-| Lifeboard: draft daily plan | 7 | 3 (43%) |
-| Doug store watch (every 4h) | 25 | 3 |
-| 7 distinct weekly routines | 1 each | 1 each |
+| Routine                     | Slots  | Stranded |
+| --------------------------- | ------ | -------- |
+| Lifeboard: draft daily plan | 7      | 3 (43%)  |
+| Doug store watch (every 4h) | 25     | 3        |
+| 7 distinct weekly routines  | 1 each | 1 each   |
 
 **No agent owner ever resolved.** All 12 landed:
 
 ```json
-{"owner_type": "board",
- "attempt_count": 1,
- "wake_policy": {"type": "board_escalation",
-                 "reason": "stranded_assigned_issue",
-                 "preservesSourceAssignee": true}}
+{
+  "owner_type": "board",
+  "attempt_count": 1,
+  "wake_policy": {
+    "type": "board_escalation",
+    "reason": "stranded_assigned_issue",
+    "preservesSourceAssignee": true
+  }
+}
 ```
 
 This is not a configuration problem on our side. The same board resolved an
@@ -79,13 +83,13 @@ The board-owned path is the one with no delivery.
 
 **The clean single case.** Issue LAC-4564, a 4-hourly read-only store check:
 
-| | |
-|---|---|
-| run `9742cd51-bebc-4aef-87d2-ae5f59c9e0aa` | started `2026-10-16 08:00:20Z` |
-| reaped | `2026-10-16 09:29:17Z`, `setup_failed: Legacy controller lease lost` |
-| runs on that issue afterwards | **none, ever** |
-| issue status | `blocked`, with a board-owned `stranded_assigned_issue` action |
-| discovered | 9.5 hours later, by a human reading the database |
+|                                            |                                                                      |
+| ------------------------------------------ | -------------------------------------------------------------------- |
+| run `9742cd51-bebc-4aef-87d2-ae5f59c9e0aa` | started `2026-10-16 08:00:20Z`                                       |
+| reaped                                     | `2026-10-16 09:29:17Z`, `setup_failed: Legacy controller lease lost` |
+| runs on that issue afterwards              | **none, ever**                                                       |
+| issue status                               | `blocked`, with a board-owned `stranded_assigned_issue` action       |
+| discovered                                 | 9.5 hours later, by a human reading the database                     |
 
 Host sleep log for the same window, confirming the trigger:
 

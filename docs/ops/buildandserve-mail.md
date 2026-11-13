@@ -14,29 +14,29 @@ LACA-2287 (`support@`), LACA-694 and LACA-1913 (the DMARC ramp programme).
 
 ## The setup
 
-| Piece | Reality |
-|---|---|
-| DNS | Cloudflare |
-| Inbound | Cloudflare Email Routing (`route1-3.mx.cloudflare.net`) forwarding into Gmail (gojukebox) |
-| Google Workspace | **None.** This domain has no Workspace subscription |
-| `admin@buildandserve.com` | A Google account with **no Gmail mailbox at all** (the Gmail API returns `400 failedPrecondition`). It exists to hold a Calendar |
-| `lacy@buildandserve.com` | A Gmail send-as alias, routed through `smtp.resend.com:465`, `treatAsAlias: true`, verification `accepted`. **Aligns, and that is observed, not inferred** (see "Observed mail") |
-| `support@buildandserve.com` | A Gmail send-as alias still on `smtp.gmail.com:587`, `treatAsAlias` absent. **Cannot align.** Client-facing. LACA-2287 |
-| Outbound that can align | Resend, and only Resend. Not every send-as is on it, see `support@` above |
+| Piece                       | Reality                                                                                                                                                                          |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DNS                         | Cloudflare                                                                                                                                                                       |
+| Inbound                     | Cloudflare Email Routing (`route1-3.mx.cloudflare.net`) forwarding into Gmail (gojukebox)                                                                                        |
+| Google Workspace            | **None.** This domain has no Workspace subscription                                                                                                                              |
+| `admin@buildandserve.com`   | A Google account with **no Gmail mailbox at all** (the Gmail API returns `400 failedPrecondition`). It exists to hold a Calendar                                                 |
+| `lacy@buildandserve.com`    | A Gmail send-as alias, routed through `smtp.resend.com:465`, `treatAsAlias: true`, verification `accepted`. **Aligns, and that is observed, not inferred** (see "Observed mail") |
+| `support@buildandserve.com` | A Gmail send-as alias still on `smtp.gmail.com:587`, `treatAsAlias` absent. **Cannot align.** Client-facing. LACA-2287                                                           |
+| Outbound that can align     | Resend, and only Resend. Not every send-as is on it, see `support@` above                                                                                                        |
 
 ### Every send-as row, so nobody reasons from two of them
 
 All ten rows on gojukebox@gmail.com, read 2026-10-17:
 
-| Send-as | SMTP relay | Port | Mode |
-|---|---|---|---|
-| `gojukebox@gmail.com` | (primary, none) | | |
-| `lacy@shipkit.io` | `smtp.resend.com` | 465 | ssl |
-| `lacy@buildandserve.com` | `smtp.resend.com` | 465 | ssl |
-| `me@lacymorrow.com` | `smtp.resend.com` | 465 | ssl |
-| `spin@spinrc.com` | `server21.abstractdns.com` | 465 | ssl |
-| **`support@buildandserve.com`** | **`smtp.gmail.com`** | **587** | **starttls** |
-| 4 consumer/edu addresses | (none, correct for them) | | |
+| Send-as                         | SMTP relay                 | Port    | Mode         |
+| ------------------------------- | -------------------------- | ------- | ------------ |
+| `gojukebox@gmail.com`           | (primary, none)            |         |              |
+| `lacy@shipkit.io`               | `smtp.resend.com`          | 465     | ssl          |
+| `lacy@buildandserve.com`        | `smtp.resend.com`          | 465     | ssl          |
+| `me@lacymorrow.com`             | `smtp.resend.com`          | 465     | ssl          |
+| `spin@spinrc.com`               | `server21.abstractdns.com` | 465     | ssl          |
+| **`support@buildandserve.com`** | **`smtp.gmail.com`**       | **587** | **starttls** |
+| 4 consumer/edu addresses        | (none, correct for them)   |         |              |
 
 `support@` is the only address on a domain we own that is routed through
 Google's own SMTP. That is the whole defect, and the table is the argument.
@@ -155,13 +155,13 @@ another round of DNS inference.
 Twenty days of `rua`, 2026-09-25 to 2026-10-15, 45 reports, 34 messages,
 reparsed from the raw XML for `auth_results` (LACA-2286, LAC-4673):
 
-| Path | Msgs | Aligned | Disposition |
-|---|---|---|---|
-| Resend via SES (`54.240.11.x`, `54.240.48.x`, selector `resend`) | 25 | pass | none |
-| Cloudflare inbound forward (`104.30.x`, `cf2024-1`) | 5 | pass | none |
-| Google relay of a Resend-signed message | 2 | DKIM pass | none |
-| **Google, no DKIM at all, envelope `gmail.com`** | **1** | **fail** | **reject** |
-| `sanofi.com` forward, not ours | 1 | fail | quarantine |
+| Path                                                             | Msgs  | Aligned   | Disposition |
+| ---------------------------------------------------------------- | ----- | --------- | ----------- |
+| Resend via SES (`54.240.11.x`, `54.240.48.x`, selector `resend`) | 25    | pass      | none        |
+| Cloudflare inbound forward (`104.30.x`, `cf2024-1`)              | 5     | pass      | none        |
+| Google relay of a Resend-signed message                          | 2     | DKIM pass | none        |
+| **Google, no DKIM at all, envelope `gmail.com`**                 | **1** | **fail**  | **reject**  |
+| `sanofi.com` forward, not ours                                   | 1     | fail      | quarantine  |
 
 **32 of 33 of our messages aligned-pass.** Two recipient-side
 `Authentication-Results` headers show `dmarc=pass header.from=buildandserve.com`
@@ -198,13 +198,13 @@ curl -s -H "Authorization: Bearer $RESEND_API_KEY" \
 
 63 messages logged, 2026-09-21 to 2026-10-17. By sender:
 
-| From | Msgs |
-|---|---|
-| `invoice@buildandserve.com` | 21 |
-| `notify@buildandserve.com` | 28 |
-| **`lacy@buildandserve.com`** | **10** |
-| `support@buildandserve.com` | 2 (the LACA-2287 tests) |
-| `noreply@buildandserve.com` | 2 (contact form) |
+| From                         | Msgs                    |
+| ---------------------------- | ----------------------- |
+| `invoice@buildandserve.com`  | 21                      |
+| `notify@buildandserve.com`   | 28                      |
+| **`lacy@buildandserve.com`** | **10**                  |
+| `support@buildandserve.com`  | 2 (the LACA-2287 tests) |
+| `noreply@buildandserve.com`  | 2 (contact form)        |
 
 All ten `lacy@` messages show `last_event: delivered`. They are ordinary
 correspondence to named clients, dated 2026-09-25 through 2026-10-17: a

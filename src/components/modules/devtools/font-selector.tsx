@@ -122,6 +122,7 @@ export function FontSelector() {
 
   // Fetch initial data
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount flag plus initial-fetch state; setMounted(true) must run post-hydration so SSR markup matches
     setMounted(true);
     const fetchInitialData = async () => {
       setInitialLoading(true);
@@ -164,6 +165,7 @@ export function FontSelector() {
       const fontParts = currentStyle.split(",");
       const firstFont = fontParts[0]?.trim().replace(/['"]/g, "");
       if (firstFont && fontCategories.has(firstFont)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot seed of selectedFont from document.body.style.fontFamily, a DOM value unreadable during render or SSR
         setSelectedFont(firstFont);
         return;
       }
@@ -201,6 +203,7 @@ export function FontSelector() {
   // Search effect
   React.useEffect(() => {
     if (!debouncedSearchQuery) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clears stale results when the debounced query empties; same effect also fetches, so the reset stays beside it
       setSearchResults([]);
       return;
     }

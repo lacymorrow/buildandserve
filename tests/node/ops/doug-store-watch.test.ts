@@ -3,6 +3,7 @@ import {
   type AddToCartOutcome,
   addToCartAdaptDetail,
   briefError,
+  chromiumRecoveryPlan,
   clickAddToCart,
   closeQuietly,
   exitCodeFor,
@@ -326,6 +327,51 @@ describe("addToCartAdaptDetail", () => {
 
   it("gives the two failure modes different text", () => {
     expect(addToCartAdaptDetail(clicked, URL)).not.toBe(addToCartAdaptDetail(missing, URL));
+  });
+});
+
+describe("chromiumRecoveryPlan", () => {
+  const CACHE = "/Users/x/Library/Caches/ms-playwright";
+  const shell = (build: string) =>
+    `${CACHE}/${build}/chrome-headless-shell-mac-arm64/chrome-headless-shell`;
+
+  it("downloads when the browser cache is empty or gone", () => {
+    // The 2026-11-12 exit 3 (LAC-7793): the whole cache directory was missing,
+    // so readdir yielded nothing, there was no build to borrow, and the run
+    // died having verified nothing about either store.
+    expect(chromiumRecoveryPlan(CACHE, [], () => false)).toEqual({ kind: "install" });
+  });
+
+  it("downloads when the cache holds no Chromium at all", () => {
+    const entries = ["ffmpeg-1013", "webkit-2210", "firefox-1489"];
+    expect(chromiumRecoveryPlan(CACHE, entries, () => true)).toEqual({ kind: "install" });
+  });
+
+  it("downloads when a Chromium directory exists but its binary does not", () => {
+    expect(chromiumRecoveryPlan(CACHE, ["chromium_headless_shell-1248"], () => false)).toEqual({
+      kind: "install",
+    });
+  });
+
+  it("borrows the newest usable build instead of downloading", () => {
+    const entries = ["chromium_headless_shell-1200", "chromium-1248"];
+    expect(chromiumRecoveryPlan(CACHE, entries, () => true)).toEqual({
+      kind: "borrow",
+      executablePath: shell("chromium-1248"),
+    });
+  });
+
+  it("skips a newer build whose binary is missing and borrows the older one", () => {
+    const entries = ["chromium_headless_shell-1200", "chromium-1248"];
+    const plan = chromiumRecoveryPlan(
+      CACHE,
+      entries,
+      (p) => p === shell("chromium_headless_shell-1200")
+    );
+    expect(plan).toEqual({
+      kind: "borrow",
+      executablePath: shell("chromium_headless_shell-1200"),
+    });
   });
 });
 

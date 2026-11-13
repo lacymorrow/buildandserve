@@ -74,11 +74,11 @@ export const HeroHeader = () => {
 
   return (
     <header>
-      <nav aria-label="Primary" className="group fixed z-20 w-full pt-2 px-1">
+      <nav aria-label="Primary" className="group fixed z-20 w-full px-1 pt-2">
         <div
           className={cn(
             "mx-auto max-w-7xl rounded-3xl border border-border/0 px-6 transition-all duration-200 group-hover:border-border lg:px-12",
-            hasScrolled && "bg-background/50 backdrop-blur-2xl border-border/30"
+            hasScrolled && "border-border/30 bg-background/50 backdrop-blur-2xl"
           )}
         >
           <motion.div
@@ -106,13 +106,13 @@ export const HeroHeader = () => {
                 <Menu
                   className={cn(
                     "m-auto size-6 duration-200",
-                    menuState ? "rotate-180 scale-0 opacity-0" : "rotate-0 scale-100 opacity-100"
+                    menuState ? "scale-0 rotate-180 opacity-0" : "scale-100 rotate-0 opacity-100"
                   )}
                 />
                 <X
                   className={cn(
-                    "absolute inset-0 m-auto size-6 -rotate-180 scale-0 opacity-0 duration-200",
-                    menuState ? "rotate-0 scale-100 opacity-100" : "-rotate-180 scale-0 opacity-0"
+                    "absolute inset-0 m-auto size-6 scale-0 -rotate-180 opacity-0 duration-200",
+                    menuState ? "scale-100 rotate-0 opacity-100" : "scale-0 -rotate-180 opacity-0"
                   )}
                 />
               </motion.button>
@@ -125,10 +125,10 @@ export const HeroHeader = () => {
               >
                 <ul className="flex gap-8 text-sm">
                   {menuItems.map((item) => (
-                    <li key={item.href} className="relative group/nav">
+                    <li key={item.href} className="group/nav relative">
                       <Link
                         href={item.href}
-                        className="text-muted-foreground hover:text-accent-foreground flex items-center gap-1 duration-150"
+                        className="flex items-center gap-1 text-muted-foreground duration-150 hover:text-accent-foreground"
                       >
                         <span>{item.name}</span>
                         {item.children && (
@@ -136,13 +136,13 @@ export const HeroHeader = () => {
                         )}
                       </Link>
                       {item.children && (
-                        <div className="absolute left-0 top-full pt-2 opacity-0 pointer-events-none group-hover/nav:opacity-100 group-hover/nav:pointer-events-auto transition-opacity duration-150">
-                          <div className="bg-background rounded-xl border shadow-md py-1 min-w-[180px]">
+                        <div className="pointer-events-none absolute top-full left-0 pt-2 opacity-0 transition-opacity duration-150 group-hover/nav:pointer-events-auto group-hover/nav:opacity-100">
+                          <div className="min-w-[180px] rounded-xl border bg-background py-1 shadow-md">
                             {item.children.map((child) => (
                               <Link
                                 key={child.href}
                                 href={child.href}
-                                className="block px-4 py-2 text-sm text-muted-foreground hover:text-accent-foreground hover:bg-muted/50 duration-150"
+                                className="block px-4 py-2 text-sm text-muted-foreground duration-150 hover:bg-muted/50 hover:text-accent-foreground"
                               >
                                 {child.name}
                               </Link>
@@ -158,7 +158,7 @@ export const HeroHeader = () => {
 
             {menuState && (
               <motion.div
-                className="bg-background mb-6 block w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:hidden"
+                className="mb-6 block w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border bg-background p-6 shadow-2xl shadow-zinc-300/20 md:flex-nowrap lg:hidden"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
@@ -170,7 +170,7 @@ export const HeroHeader = () => {
                       <li key={item.href}>
                         <Link
                           href={item.href}
-                          className="text-muted-foreground hover:text-accent-foreground block duration-150"
+                          className="block text-muted-foreground duration-150 hover:text-accent-foreground"
                           onClick={() => setMenuState(false)}
                         >
                           <span>{item.name}</span>
@@ -181,7 +181,7 @@ export const HeroHeader = () => {
                               <li key={child.href}>
                                 <Link
                                   href={child.href}
-                                  className="text-muted-foreground/70 hover:text-accent-foreground block text-sm duration-150"
+                                  className="block text-sm text-muted-foreground/70 duration-150 hover:text-accent-foreground"
                                   onClick={() => setMenuState(false)}
                                 >
                                   {child.name}
@@ -197,7 +197,7 @@ export const HeroHeader = () => {
                 <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
                   <ScheduleCallModal
                     trigger={
-                      <Button className="rounded-full pl-5 pr-3 text-base">
+                      <Button className="rounded-full pr-3 pl-5 text-base">
                         <span className="text-nowrap">Book now</span>
                         <ChevronRight className="ml-1" />
                       </Button>
@@ -206,10 +206,10 @@ export const HeroHeader = () => {
                 </div>
               </motion.div>
             )}
-            <div className="hidden lg:flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
+            <div className="hidden w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit lg:flex">
               <ScheduleCallModal
                 trigger={
-                  <Button className="rounded-full pl-5 pr-3 text-base">
+                  <Button className="rounded-full pr-3 pl-5 text-base">
                     <span className="text-nowrap">Book now</span>
                     <ChevronRight className="ml-1" />
                   </Button>

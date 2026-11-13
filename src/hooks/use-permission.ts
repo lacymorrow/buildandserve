@@ -76,6 +76,7 @@ export const usePermission = ({ resource, action, context }: UsePermissionOption
       return;
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- effect starts an async permission check; the setState calls live in that checker
     void checkPermission();
   }, [status, checkPermission]);
 

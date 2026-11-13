@@ -16,7 +16,7 @@ export const metadata: Metadata = constructMetadata({ path: "/" });
 
 export default function BuildAndServePage() {
   return (
-    <div className="min-h-screen container mx-auto">
+    <div className="container mx-auto min-h-screen">
       <JsonLd organization website />
       <Script id="ld-home-webpage" type="application/ld+json" strategy="worker">
         {JSON.stringify({

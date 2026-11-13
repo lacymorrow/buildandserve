@@ -10,8 +10,6 @@ interface AskAiButtonsProps {
  * Ask AI buttons stub — @emblemvault/ask-ai package not installed.
  * TODO: Install package and restore functionality when needed.
  */
-export const AskAiButtons = ({
-  className,
-}: AskAiButtonsProps) => {
+export const AskAiButtons = ({ className }: AskAiButtonsProps) => {
   return <div className={className} />;
 };

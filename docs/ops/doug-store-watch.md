@@ -19,10 +19,10 @@ The job has to walk the path a paying customer walks and prove it got there.
 
 ## The two stores
 
-| Store | Platform | Checkout path |
-|---|---|---|
-| raw-kratom.com | BigCommerce | `/cart.php`, `/checkout` |
-| thepurplehaze.com | Shopify | `/cart`, `/checkout` |
+| Store             | Platform    | Checkout path            |
+| ----------------- | ----------- | ------------------------ |
+| raw-kratom.com    | BigCommerce | `/cart.php`, `/checkout` |
+| thepurplehaze.com | Shopify     | `/cart`, `/checkout`     |
 
 ## Hard rules
 
@@ -52,15 +52,15 @@ picture. The exception: if DNS or the homepage is down, the purchase path will
 obviously fail too, and the ticket should say the store is down rather than
 listing every downstream symptom.
 
-| # | Check | Passes when |
-|---|---|---|
-| 1 | DNS | The apex name resolves to at least one A record |
-| 2 | TLS | The leaf certificate is valid for **more than 14 days** |
-| 3 | Homepage | `GET /` returns 200 |
-| 4 | Product page | A real product page returns 200 |
-| 5 | Add to cart | The item is still in the cart after reloading the cart page |
-| 6 | Checkout | The checkout page renders contact/shipping/payment fields |
-| 7 | Signup form | The account registration flow renders a usable credential field |
+| #   | Check        | Passes when                                                     |
+| --- | ------------ | --------------------------------------------------------------- |
+| 1   | DNS          | The apex name resolves to at least one A record                 |
+| 2   | TLS          | The leaf certificate is valid for **more than 14 days**         |
+| 3   | Homepage     | `GET /` returns 200                                             |
+| 4   | Product page | A real product page returns 200                                 |
+| 5   | Add to cart  | The item is still in the cart after reloading the cart page     |
+| 6   | Checkout     | The checkout page renders contact/shipping/payment fields       |
+| 7   | Signup form  | The account registration flow renders a usable credential field |
 
 ### Things that look like failures and are not
 
@@ -131,10 +131,10 @@ Layouts and URLs change. That is expected and is not an incident by itself.
 `add_to_cart` reaches exit 2 for two unrelated reasons. Read which one the
 report names before you go looking for a renamed control.
 
-| Report says | What happened | What to do |
-|---|---|---|
-| "No add-to-cart control matched on ... within 25s" | The control never became visible. | This is the layout change. Find the new control, record it in Notes. |
-| "was found and visible, but two clicks timed out" | The control is there. Two clicks did not land, with the age gate re-cleared between them. | Nothing changed on the store. Re-run the job. Open `<store>-product.png` in the run's evidence to see what was covering the button. |
+| Report says                                        | What happened                                                                             | What to do                                                                                                                          |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| "No add-to-cart control matched on ... within 25s" | The control never became visible.                                                         | This is the layout change. Find the new control, record it in Notes.                                                                |
+| "was found and visible, but two clicks timed out"  | The control is there. Two clicks did not land, with the age gate re-cleared between them. | Nothing changed on the store. Re-run the job. Open `<store>-product.png` in the run's evidence to see what was covering the button. |
 
 Both quote the Playwright error that ended the attempt. The product screenshot
 is saved either way.
@@ -180,13 +180,13 @@ That is the whole message. The ticket carries the detail and the evidence.
 
 ## Severity
 
-| Severity | Means | Output |
-|---|---|---|
-| Down | DNS fails, or homepage is not 200 | Ticket + Slack DM |
-| Checkout broken | Cannot add to cart, or checkout does not render | Ticket + Slack DM |
-| Degraded | Signup form missing, or TLS under 14 days | Ticket only |
-| Adapted | Layout changed, job recovered on its own | No ticket. Append to Notes |
-| Blind | No run has landed in 5h | Slack DM only, once per gap |
+| Severity        | Means                                           | Output                      |
+| --------------- | ----------------------------------------------- | --------------------------- |
+| Down            | DNS fails, or homepage is not 200               | Ticket + Slack DM           |
+| Checkout broken | Cannot add to cart, or checkout does not render | Ticket + Slack DM           |
+| Degraded        | Signup form missing, or TLS under 14 days       | Ticket only                 |
+| Adapted         | Layout changed, job recovered on its own        | No ticket. Append to Notes  |
+| Blind           | No run has landed in 5h                         | Slack DM only, once per gap |
 
 ## Running it on the BAS server
 
@@ -211,6 +211,13 @@ working directory, because an agent woken on this job runs inside a disposable
 git worktree (`.paperclip/worktrees/<issue>/`) and evidence written there dies
 with the worktree (LAC-4300). Pass `--out <dir>` to override; an explicit
 `--out` is used as given.
+
+The Playwright browser cache (`~/Library/Caches/ms-playwright`) lives outside
+every repo and is shared host-wide, so anything that cleans caches used to end
+the run at exit 3 with nothing verified. The script now borrows the newest
+Chromium already in the cache and, if there is none, downloads the pinned
+headless shell once (~100MB) and carries on. `PLAYWRIGHT_CHROMIUM_PATH` still
+overrides both.
 
 Each run prunes evidence older than 30 days, so the directory stays bounded
 without anyone tending it.
@@ -281,10 +288,10 @@ and the gap keeps its unsent alert for the next hour.
 Credentials come from the environment, not from a path on Lacy's laptop, so any
 host runs the same file:
 
-| Variable | Value |
-|---|---|
-| `STORE_WATCH_SLACK_TOKEN` | clawdbot bot token (`~/.openclaw/openclaw.json`, `.channels.slack.botToken`) |
-| `STORE_WATCH_SLACK_CHANNEL` | `U3XC80UUQ` (DMs Lacy) |
+| Variable                    | Value                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------- |
+| `STORE_WATCH_SLACK_TOKEN`   | clawdbot bot token (`~/.openclaw/openclaw.json`, `.channels.slack.botToken`) |
+| `STORE_WATCH_SLACK_CHANNEL` | `U3XC80UUQ` (DMs Lacy)                                                       |
 
 ### What is scheduled, and where
 
@@ -352,7 +359,7 @@ appends a line here.
   20:03Z and nothing had changed on the store. The 16:14Z run before it and the
   21:21Z run after it both added the same product
   (`/products/top-shelf-pre-roll-5-pack-0-5g-each`) and reached checkout. The
-  control was found and visible; it was the *click* that timed out at 20s, so
+  control was found and visible; it was the _click_ that timed out at 20s, so
   the "No add-to-cart control matched" wording in that report was misleading.
   **A lone exit 2 on add_to_cart is not evidence of a layout change. Re-run the
   job first.** If the next run is clean, the store is fine and there is nothing

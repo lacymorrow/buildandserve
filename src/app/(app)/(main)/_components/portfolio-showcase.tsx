@@ -128,12 +128,12 @@ const ProjectTile = ({ project }: { project: PortfolioProject }) => {
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
 
       {/* Category eyebrow — dark chip so it stays legible over light screenshots */}
-      <span className="absolute left-4 top-4 z-10 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white backdrop-blur-md ring-1 ring-white/15">
+      <span className="absolute top-4 left-4 z-10 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white ring-1 ring-white/15 backdrop-blur-md">
         {project.category}
       </span>
 
       {/* Hover affordance */}
-      <span className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white opacity-0 backdrop-blur-md ring-1 ring-white/15 transition-all duration-300 group-hover:opacity-100 group-hover:-translate-y-0.5">
+      <span className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/45 text-white opacity-0 ring-1 ring-white/15 backdrop-blur-md transition-all duration-300 group-hover:-translate-y-0.5 group-hover:opacity-100">
         <ArrowUpRight className="h-4 w-4" />
       </span>
 
@@ -188,7 +188,7 @@ export const PortfolioShowcase = () => {
       <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-medium text-primary">Selected work</p>
-          <h2 className="mt-2 text-balance text-4xl font-semibold text-foreground">
+          <h2 className="mt-2 text-4xl font-semibold text-balance text-foreground">
             Websites, apps, and dashboards
             <br />
             we&apos;re proud of
@@ -199,7 +199,7 @@ export const PortfolioShowcase = () => {
           className="group inline-flex items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           View all work
-          <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
         </Link>
       </div>
 

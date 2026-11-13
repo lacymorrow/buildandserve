@@ -62,7 +62,12 @@ const eslintConfig = [
 		plugins: {
 			"react-hooks": pluginReactHooks,
 		},
-		rules: pluginReactHooks.configs.recommended.rules,
+		rules: {
+			...pluginReactHooks.configs.recommended.rules,
+			// React Compiler rules shipped as errors in eslint-plugin-react-hooks 7.
+			// set-state-in-effect, refs and preserve-manual-memoization are errors again
+			// (LAC-7306). Remaining sites carry a line-scoped disable plus a reason.
+		},
 	},
 
 	// Next.js plugin (core-web-vitals includes recommended)

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mapClerkSession } from "@/lib/auth/session-mapping";
 
 /**
@@ -52,11 +52,18 @@ describe("mapClerkSession", () => {
   });
 
   it("maps the client user with a Date expiry to the same person", () => {
-    const expireAt = new Date("2030-01-02T03:04:05.000Z");
-    const fromClient = mapClerkSession(clientUser, expireAt);
-    const fromServer = mapClerkSession(serverUser, expireAt.getTime() / 1000);
-    expect(fromClient).toEqual(fromServer);
-    expect(fromClient?.expires).toBe("2030-01-02T03:04:05.000Z");
+    // emailVerified falls back to `new Date()`, so freeze the clock or two calls can straddle a millisecond.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-01T00:00:00.000Z"));
+    try {
+      const expireAt = new Date("2030-01-02T03:04:05.000Z");
+      const fromClient = mapClerkSession(clientUser, expireAt);
+      const fromServer = mapClerkSession(serverUser, expireAt.getTime() / 1000);
+      expect(fromClient).toEqual(fromServer);
+      expect(fromClient?.expires).toBe("2030-01-02T03:04:05.000Z");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("treats anything but publicMetadata.role=admin as a plain user", () => {
