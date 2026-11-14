@@ -1305,6 +1305,20 @@ ${HOLD_LATERAL}
 `;
 
 /**
+ * The issues the ownership arm must look at: every identifier either lane
+ * named, once. Pure so a lane that drops out of the union is a red test, not a
+ * silent hole (LAC-8030 was a lane that never reached the arm; LAC-8138 is the
+ * guard that went missing when `shapeBoard` replaced the source-text asserts).
+ * First-seen order, blocked lane first, matches the query order the arm needs.
+ */
+export function ownershipIdentifiers(
+  blockedRows: Record<string, unknown>[],
+  deferredRows: Record<string, unknown>[]
+): string[] {
+  return [...new Set([...blockedRows, ...deferredRows].map((row) => String(row.identifier)))];
+}
+
+/**
  * Both lanes' rows plus the ownership candidates in, the two verdict inputs
  * out. Pure and synchronous so the lane wiring is testable without Postgres
  * (LAC-8086): `readBoard` used to hold this inline, and the tests asserted on
@@ -1392,9 +1406,7 @@ async function readBoard(
     // Measured 2026-11-13: 43 park rows + 0 deferred -> 53 candidate runs on 16
     // issues, ~11s. The watch runs once a day (`paperclip-sweep.sh`), so the
     // cost is bounded and paid where the answer is wrong without it.
-    const identifiers = [
-      ...new Set([...blockedRows, ...deferredRows].map((row) => String(row.identifier))),
-    ];
+    const identifiers = ownershipIdentifiers(blockedRows, deferredRows);
     const candidates = new Map<string, OwnershipCandidate[]>();
     if (identifiers.length > 0) {
       const rows = (await sql.unsafe(OWNERSHIP_QUERY, [

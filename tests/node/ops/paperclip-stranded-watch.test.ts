@@ -45,6 +45,7 @@ import {
   type OwnershipCandidate,
   type OwnershipHold,
   ownershipHold,
+  ownershipIdentifiers,
   shapeBoard,
   type ProcessProbe,
   readDeployState,
@@ -784,6 +785,26 @@ describe("both lanes are wired to the ownership arm (LAC-8030, LAC-8086)", () =>
   const blockedRow = { identifier: "LAC-4931", title: "t", stranded_since_ms: 1, hold_cause: "" };
   const deferredRow = { identifier: "LAC-4931", title: "t", saved_count: 1, oldest_ms: 1 };
   const held = new Map([["LAC-4931", [candidate({ processPid: 4242 })]]]);
+
+  it("asks the ownership arm about an issue only the park lane named", () => {
+    expect(ownershipIdentifiers([{ identifier: "LAC-1" }], [])).toEqual(["LAC-1"]);
+  });
+
+  it("asks the ownership arm about an issue only the deferred lane named", () => {
+    expect(ownershipIdentifiers([], [{ identifier: "LAC-2" }])).toEqual(["LAC-2"]);
+  });
+
+  it("names an issue in both lanes once, blocked lane first", () => {
+    const ids = ownershipIdentifiers(
+      [{ identifier: "LAC-1" }, { identifier: "LAC-3" }],
+      [{ identifier: "LAC-3" }, { identifier: "LAC-2" }]
+    );
+    expect(ids).toEqual(["LAC-1", "LAC-3", "LAC-2"]);
+  });
+
+  it("names nothing on a quiet board, so the ownership query is skipped", () => {
+    expect(ownershipIdentifiers([], [])).toEqual([]);
+  });
 
   it("gives the park lane and the deferred lane the same ownership hold", () => {
     const board = shapeBoard([blockedRow], [deferredRow], held, probeOf([4242]));
