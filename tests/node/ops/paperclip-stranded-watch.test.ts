@@ -45,6 +45,8 @@ import {
   type OwnershipCandidate,
   type OwnershipHold,
   ownershipHold,
+  ownershipIdentifiers,
+  shapeBoard,
   type ProcessProbe,
   readDeployState,
   stranded,
@@ -779,26 +781,71 @@ describe("mergeHold", () => {
  * The defect it closes was not a wrong line of logic but a lane that never
  * called the logic at all.
  */
-describe("both lanes are wired to the ownership arm (LAC-8030)", () => {
-  const source = readFileSync(
-    path.resolve(__dirname, "../../../scripts/paperclip-stranded-watch.ts"),
-    "utf8"
-  );
+describe("both lanes are wired to the ownership arm (LAC-8030, LAC-8086)", () => {
+  const blockedRow = { identifier: "LAC-4931", title: "t", stranded_since_ms: 1, hold_cause: "" };
+  const deferredRow = { identifier: "LAC-4931", title: "t", saved_count: 1, oldest_ms: 1 };
+  const held = new Map([["LAC-4931", [candidate({ processPid: 4242 })]]]);
 
-  it("merges the two holds through one function, once per lane", () => {
-    expect(source.match(/mergeHold\(/g) ?? []).toHaveLength(3); // definition + 2 lanes
+  it("asks the ownership arm about an issue only the park lane named", () => {
+    expect(ownershipIdentifiers([{ identifier: "LAC-1" }], [])).toEqual(["LAC-1"]);
   });
 
-  it("probes ownership over both lanes' identifiers, not just the deferred one", () => {
-    expect(source).toContain(
-      "[...blockedRows, ...deferredRows].map((row) => String(row.identifier))"
+  it("asks the ownership arm about an issue only the deferred lane named", () => {
+    expect(ownershipIdentifiers([], [{ identifier: "LAC-2" }])).toEqual(["LAC-2"]);
+  });
+
+  it("names an issue in both lanes once, blocked lane first", () => {
+    const ids = ownershipIdentifiers(
+      [{ identifier: "LAC-1" }, { identifier: "LAC-3" }],
+      [{ identifier: "LAC-3" }, { identifier: "LAC-2" }]
     );
+    expect(ids).toEqual(["LAC-1", "LAC-3", "LAC-2"]);
   });
 
-  it("calls ownershipHold in one place, so the two lanes cannot disagree", () => {
-    // Memoised per issue in `holdFor`: an issue both lanes name must get one
-    // answer, and the probe shells out to `ps` for every live pid it meets.
-    expect(source.match(/ownershipHold\(candidates\.get/g) ?? []).toHaveLength(1);
+  it("names nothing on a quiet board, so the ownership query is skipped", () => {
+    expect(ownershipIdentifiers([], [])).toEqual([]);
+  });
+
+  it("gives the park lane and the deferred lane the same ownership hold", () => {
+    const board = shapeBoard([blockedRow], [deferredRow], held, probeOf([4242]));
+    expect(board.blocked[0]?.holdCause).toBe("execution_owner_active");
+    expect(board.deferred[0]?.holdCause).toBe("execution_owner_active");
+    expect(board.blocked[0]?.holdNote).toBe(board.deferred[0]?.holdNote);
+  });
+
+  it("lets the ownership arm win over the SQL cause in both lanes", () => {
+    const board = shapeBoard(
+      [{ ...blockedRow, hold_cause: "sql_cause" }],
+      [{ ...deferredRow, hold_cause: "sql_cause" }],
+      held,
+      probeOf([4242])
+    );
+    expect(board.blocked[0]?.holdCause).toBe("execution_owner_active");
+    expect(board.deferred[0]?.holdCause).toBe("execution_owner_active");
+  });
+
+  it("keeps the SQL cause in both lanes when nothing holds", () => {
+    const board = shapeBoard(
+      [{ ...blockedRow, hold_cause: "sql_cause" }],
+      [{ ...deferredRow, hold_cause: "sql_cause" }],
+      new Map(),
+      probeOf([])
+    );
+    expect(board.blocked[0]?.holdCause).toBe("sql_cause");
+    expect(board.deferred[0]?.holdCause).toBe("sql_cause");
+  });
+
+  it("probes an issue named by both lanes once, not once per lane", () => {
+    let probes = 0;
+    const counting: ProcessProbe = {
+      mayBeAlive: (target) => {
+        probes += 1;
+        return target === 4242;
+      },
+      startedAtMs: () => null,
+    };
+    shapeBoard([blockedRow, blockedRow], [deferredRow], held, counting);
+    expect(probes).toBe(1);
   });
 });
 
