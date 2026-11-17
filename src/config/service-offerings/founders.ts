@@ -7,7 +7,7 @@ export const founderApps: Offering = {
   title: "We help founders build and launch their app",
   shortName: "Build and launch your app",
   pillar: true,
-  metaTitle: "We Build and Launch Your App for Founders | Build And Serve",
+  metaTitle: "App Development for Founders | Build And Serve",
   metaDescription:
     "From idea to a live app with real users. A senior engineering team builds your first version, handles hosting and payments, and hands you the code.",
   intro:
