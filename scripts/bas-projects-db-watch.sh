@@ -124,6 +124,23 @@ SLACK_CHANNEL=${PROJECTS_DB_SLACK_CHANNEL:-}
 # bot token to rotate rather than a third copy of it.
 SLACK_TOKEN_FILE=${SLACK_TOKEN_FILE:-$HOME/.openclaw/config.json}
 
+# --- LAC-8649 slack DM send gate ---
+# A 40-character content floor and a per-sender weekly ceiling, in one sourced
+# library rather than a wrapper, because there is no shared send path: five
+# senders reach Lacy's DM through ~/.openclaw/scripts/slack-post.sh and seven
+# post directly with their own token. The policy lives in one file so a ceiling
+# raised for one path cannot stay low on another.
+#
+# The lookup never reaches for anything on zero, and an absent library means
+# send: a host the gate was never installed on degrades to the old behaviour,
+# not to silence. Same reason the gate fails open on an unwritable state dir.
+for _slack_gate_lib in "${SLACK_GATE_LIB:-}" "$(dirname "$0")/slack-send-gate.sh" \
+  "$HOME/.paperclip/scripts/slack-send-gate.sh" "$HOME/.openclaw/scripts/slack-send-gate.sh"; do
+  [ -n "$_slack_gate_lib" ] && [ -r "$_slack_gate_lib" ] && { . "$_slack_gate_lib"; break; }
+done
+command -v slack_gate_allows >/dev/null 2>&1 || slack_gate_allows() { return 0; }
+# --- LAC-8649 end ---
+
 # The box, over the tailnet. Ops left the public port in LAC-6059 and this is
 # ops: it reads a container log over ssh, so it has no business on 26432.
 BAS_SSH=${BAS_SSH:-root@bas.hyrax-boga.ts.net}
@@ -211,6 +228,13 @@ page() {
 	if [ -z "${token:-}" ] || [ -z "${channel:-}" ]; then
 		echo "cannot page: no slack token or channel (set PROJECTS_DB_SLACK_TOKEN/_CHANNEL or $SLACK_TOKEN_FILE)" >&2
 		return 1
+	fi
+	# The gate's verdict is final. A dropped or suppressed message is recorded
+	# with its text, reported on stderr and read by the Sunday digest, so the
+	# caller must not retry it: returning 0 here means "handled", not
+	# "delivered" (LAC-8649).
+	if ! slack_gate_allows "bas-projects-db-watch" "$text" "$channel"; then
+	  return 0
 	fi
 	payload=$(TEXT="$text" CHANNEL="$channel" python3 -I -c '
 import json, os

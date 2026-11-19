@@ -45,6 +45,7 @@ import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { slackGateAllows } from "./slack-send-gate";
 import postgres from "postgres";
 
 /**
@@ -1556,6 +1557,18 @@ async function slackDm(text: string): Promise<string | null> {
   const channel = process.env.STRANDED_WATCH_SLACK_CHANNEL;
   if (!token || !channel) {
     return "STRANDED_WATCH_SLACK_TOKEN and STRANDED_WATCH_SLACK_CHANNEL must both be set to notify";
+  }
+
+  // --- LAC-8649 slack DM send gate ---
+  // A 40-character content floor and a per-sender weekly ceiling, decided by
+  // `slack-send-gate.sh` so that bash senders and these watchers cannot drift
+  // apart. The verdict is final: a refusal is recorded with its text and read
+  // by the Sunday digest, so returning null here means "handled", not
+  // "delivered", and nothing retries it.
+  const gate = slackGateAllows("paperclip-stranded-watch", text, channel);
+  if (!gate.allowed) {
+    console.error(`slack-send-gate: ${gate.decision}: ${gate.detail}`);
+    return null;
   }
   try {
     const res = await fetch("https://slack.com/api/chat.postMessage", {

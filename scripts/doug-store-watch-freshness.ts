@@ -32,6 +32,7 @@
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { slackGateAllows } from "./slack-send-gate";
 import { evidenceBaseFor } from "./utils/store-watch-evidence";
 
 /**
@@ -192,6 +193,18 @@ async function slackDm(line: string): Promise<string | null> {
   const channel = process.env.STORE_WATCH_SLACK_CHANNEL;
   if (!token || !channel) {
     return "STORE_WATCH_SLACK_TOKEN and STORE_WATCH_SLACK_CHANNEL must both be set to notify";
+  }
+
+  // --- LAC-8649 slack DM send gate ---
+  // A 40-character content floor and a per-sender weekly ceiling, decided by
+  // `slack-send-gate.sh` so that bash senders and these watchers cannot drift
+  // apart. The verdict is final: a refusal is recorded with its text and read
+  // by the Sunday digest, so returning null here means "handled", not
+  // "delivered", and nothing retries it.
+  const gate = slackGateAllows("doug-store-watch-freshness", line, channel);
+  if (!gate.allowed) {
+    console.error(`slack-send-gate: ${gate.decision}: ${gate.detail}`);
+    return null;
   }
   try {
     const res = await fetch("https://slack.com/api/chat.postMessage", {
