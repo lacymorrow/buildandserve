@@ -48,7 +48,7 @@ interface Verdict {
 async function check(
   sender: string,
   text: string,
-  opts: { channel?: string; env?: Record<string, string>; script?: string } = {},
+  opts: { channel?: string; env?: Record<string, string>; script?: string } = {}
 ): Promise<Verdict> {
   const script = opts.script ?? gatePath;
   // spawnSync, not execFile: the gate reads the message on stdin, and
@@ -113,7 +113,7 @@ describe("the content floor", () => {
   });
 
   it("MUTANT drop-the-floor: the defect sends", async () => {
-    const mutant = await mutate("s/^  if \\[ \"\\$len\" -lt \"\\$floor\" \\]; then$/  if false; then/");
+    const mutant = await mutate('s/^  if \\[ "\\$len" -lt "\\$floor" \\]; then$/  if false; then/');
     const v = await check("post-queue", DEFECT, { script: mutant });
     expect(v.code).toBe(SEND);
   });
@@ -140,7 +140,13 @@ describe("the content floor", () => {
   });
 
   it("MUTANT raw-length floor: the padded defect sends", async () => {
-    const mutant = await mutate('s/^  len=\\$(slack_gate_content_length "\\$text")$/  len=${#text}/');
+    const mutant = await mutate(
+      // The brace expression below is bash string-length syntax inside a
+      // single-quoted sed expression, not a JS placeholder. It is the mutant's
+      // payload and has to stay literal.
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: bash syntax in a sed expression
+      's/^  len=\\$(slack_gate_content_length "\\$text")$/  len=${#text}/'
+    );
     const padded = `${DEFECT}\n\n\n\n     \n\n\n\n          \n\n\n\n     `;
     expect((await check("post-queue", padded, { script: mutant })).code).toBe(SEND);
   });
@@ -157,7 +163,9 @@ describe("the per-sender weekly ceiling", () => {
   });
 
   it("MUTANT drop-the-ceiling-check: the eighth send goes out", async () => {
-    const mutant = await mutate("s/^  if \\[ \"\\$count\" -ge \"\\$ceiling\" \\]; then$/  if false; then/");
+    const mutant = await mutate(
+      's/^  if \\[ "\\$count" -ge "\\$ceiling" \\]; then$/  if false; then/'
+    );
     for (let i = 0; i < 8; i++) {
       const v = await check("bas-projects-db-watch", `${SHORTEST_REAL} #${i}`, { script: mutant });
       expect(v.code).toBe(SEND);
@@ -175,7 +183,7 @@ describe("the per-sender weekly ceiling", () => {
 
   it("MUTANT ignore-the-registry: the governor is gagged at 7", async () => {
     const mutant = await mutate(
-      's/^  ceiling=\\$(slack_gate_ceiling_for "\\$sender")$/  ceiling=$SLACK_GATE_DEFAULT_CEILING/',
+      's/^  ceiling=\\$(slack_gate_ceiling_for "\\$sender")$/  ceiling=$SLACK_GATE_DEFAULT_CEILING/'
     );
     let suppressed = 0;
     for (let i = 0; i < 20; i++) {
@@ -187,14 +195,17 @@ describe("the per-sender weekly ceiling", () => {
 
   it("counts a rolling seven days, so a send eight days old does not count", async () => {
     const eightDaysAgo = Math.floor(Date.now() / 1000) - 8 * 86400;
-    const stale = Array.from({ length: 20 }, () => `${eightDaysAgo}\tbas-projects-db-watch`).join("\n");
+    const stale = Array.from({ length: 20 }, () => `${eightDaysAgo}\tbas-projects-db-watch`).join(
+      "\n"
+    );
     await writeFile(path.join(dir, "sends.tsv"), `${stale}\n`);
     const v = await check("bas-projects-db-watch", SHORTEST_REAL);
     expect(v.code).toBe(SEND);
   });
 
   it("does not count its own dropped and suppressed messages as sends", async () => {
-    for (let i = 0; i < 10; i++) expect((await check("bas-projects-db-watch", DEFECT)).code).toBe(DROPPED_FLOOR);
+    for (let i = 0; i < 10; i++)
+      expect((await check("bas-projects-db-watch", DEFECT)).code).toBe(DROPPED_FLOOR);
     // Ten floor drops must leave the whole weekly allowance intact.
     for (let i = 0; i < 7; i++) {
       expect((await check("bas-projects-db-watch", `${SHORTEST_REAL} #${i}`)).code).toBe(SEND);
@@ -213,7 +224,9 @@ describe("the fleet-dark-watch exemption", () => {
   });
 
   it("MUTANT drop-the-exemption: the outage alarm is gagged after 7", async () => {
-    const mutant = await mutate('s/^  if slack_gate_is_exempt "\\$sender"; then$/  if false; then/');
+    const mutant = await mutate(
+      's/^  if slack_gate_is_exempt "\\$sender"; then$/  if false; then/'
+    );
     let suppressed = 0;
     for (let i = 0; i < 30; i++) {
       const v = await check("fleet-dark-watch", `${SHORTEST_REAL} #${i}`, { script: mutant });
@@ -240,7 +253,11 @@ describe("the record the Sunday digest reads (LAC-8648)", () => {
     await check("post-queue", DEFECT);
     const rows = await records();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ sender: "post-queue", decision: "dropped_floor", text: DEFECT });
+    expect(rows[0]).toMatchObject({
+      sender: "post-queue",
+      decision: "dropped_floor",
+      text: DEFECT,
+    });
     expect(rows[0].chars).toBe(23);
   });
 
@@ -256,7 +273,8 @@ describe("the record the Sunday digest reads (LAC-8648)", () => {
 
   it("MUTANT drop-the-suppression-record: the suppression is invisible", async () => {
     const mutant = await mutate('s/^    slack_gate_record "suppressed_ceiling".*$//');
-    for (let i = 0; i < 7; i++) await check("bas-projects-db-watch", `${SHORTEST_REAL} #${i}`, { script: mutant });
+    for (let i = 0; i < 7; i++)
+      await check("bas-projects-db-watch", `${SHORTEST_REAL} #${i}`, { script: mutant });
     const v = await check("bas-projects-db-watch", `${SHORTEST_REAL} #gone`, { script: mutant });
     expect(v.code).toBe(SUPPRESSED_CEILING);
     expect((await records()).filter((r) => r.decision === "suppressed_ceiling")).toHaveLength(0);
@@ -275,7 +293,10 @@ describe("fail open", () => {
     await mkdir(locked);
     await chmod(locked, 0o500);
     const v = await check("post-queue", SHORTEST_REAL, {
-      env: { SLACK_GATE_DIR: path.join(locked, "state"), SLACK_GATE_FALLBACK_DIR: path.join(locked, "fallback") },
+      env: {
+        SLACK_GATE_DIR: path.join(locked, "state"),
+        SLACK_GATE_FALLBACK_DIR: path.join(locked, "fallback"),
+      },
     });
     await chmod(locked, 0o700);
     expect(v.code).toBe(SEND);
@@ -283,13 +304,16 @@ describe("fail open", () => {
   });
 
   it("MUTANT fail-closed: a full disk silences the channel", async () => {
-    const mutant = await mutate('s/^    return 0  # fail open$/    return 1/');
+    const mutant = await mutate("s/^    return 0  # fail open$/    return 1/");
     const locked = path.join(dir, "locked2");
     await mkdir(locked);
     await chmod(locked, 0o500);
     const v = await check("post-queue", SHORTEST_REAL, {
       script: mutant,
-      env: { SLACK_GATE_DIR: path.join(locked, "state"), SLACK_GATE_FALLBACK_DIR: path.join(locked, "fallback") },
+      env: {
+        SLACK_GATE_DIR: path.join(locked, "state"),
+        SLACK_GATE_FALLBACK_DIR: path.join(locked, "fallback"),
+      },
     });
     await chmod(locked, 0o700);
     expect(v.code).not.toBe(SEND);
@@ -317,7 +341,7 @@ describe("fail open", () => {
     const { stdout } = await run("bash", [
       "-c",
       `grep -c 'slack_gate_allows() { return 0; }' ${JSON.stringify(
-        path.resolve(__dirname, "../../../scripts/fleet-dark-watch.sh"),
+        path.resolve(__dirname, "../../../scripts/fleet-dark-watch.sh")
       )}`,
     ]);
     expect(Number(stdout.trim())).toBeGreaterThan(0);
@@ -343,7 +367,12 @@ describe("scope", () => {
 describe("the declared-ceiling registry", () => {
   it("declares a ceiling for every sender in the 30-day census", async () => {
     const { stdout } = await run("bash", [GATE, "--registry"]);
-    const declared = new Set(stdout.split("\n").filter(Boolean).map((l) => l.split("\t")[0]));
+    const declared = new Set(
+      stdout
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => l.split("\t")[0])
+    );
     for (const sender of [
       "usage-governor",
       "fleet-dark-watch",
@@ -365,7 +394,10 @@ describe("the declared-ceiling registry", () => {
 
   it("carries the measured peak beside each declared ceiling, so the digest can print the gap", async () => {
     const { stdout } = await run("bash", [GATE, "--registry"]);
-    const rows = stdout.split("\n").filter(Boolean).map((l) => l.split("\t"));
+    const rows = stdout
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => l.split("\t"));
     for (const row of rows) expect(row, `malformed registry row: ${row.join("|")}`).toHaveLength(3);
     const governor = rows.find((r) => r[0] === "usage-governor");
     expect(governor?.[1]).toBe("150");
@@ -399,7 +431,7 @@ echo "POSTED:$TEXT"
   /** The three host-local callers, each at its real anchor line. */
   const CALLERS: Record<string, string> = {
     ".paperclip/scripts/usage-governor.py": [
-      "        subprocess.run([str(SLACK_POST), \"-c\", SLACK_DM, \"-m\", msg], timeout=30,",
+      '        subprocess.run([str(SLACK_POST), "-c", SLACK_DM, "-m", msg], timeout=30,',
       "                       capture_output=True, text=True)",
     ].join("\n"),
     ".paperclip/scripts/lacy-qa-ping.sh": [
@@ -450,11 +482,15 @@ echo "POSTED:$TEXT"
     await expect(
       run("bash", [post, "-c", DM, "--sender", "post-queue", "-m", DEFECT], {
         env: { ...process.env, SLACK_GATE_DIR: dir },
-      } as never),
+      } as never)
     ).rejects.toMatchObject({ code: DROPPED_FLOOR });
-    const { stdout } = await run("bash", [post, "-c", DM, "--sender", "post-queue", "-m", SHORTEST_REAL], {
-      env: { ...process.env, SLACK_GATE_DIR: dir },
-    } as never);
+    const { stdout } = await run(
+      "bash",
+      [post, "-c", DM, "--sender", "post-queue", "-m", SHORTEST_REAL],
+      {
+        env: { ...process.env, SLACK_GATE_DIR: dir },
+      } as never
+    );
     expect(stdout).toContain(`POSTED:${SHORTEST_REAL}`);
   });
 
@@ -470,7 +506,10 @@ echo "POSTED:$TEXT"
 
   it("threads --sender through all three host-local callers", async () => {
     await install();
-    const governor = await readFile(path.join(host, ".paperclip/scripts/usage-governor.py"), "utf8");
+    const governor = await readFile(
+      path.join(host, ".paperclip/scripts/usage-governor.py"),
+      "utf8"
+    );
     expect(governor).toContain('"-c", SLACK_DM, "--sender", "usage-governor", "-m", msg');
     const ping = await readFile(path.join(host, ".paperclip/scripts/lacy-qa-ping.sh"), "utf8");
     expect(ping).toContain('-c "$LACY_SLACK" --sender lacy-qa-ping --force');
@@ -489,17 +528,27 @@ echo "POSTED:$TEXT"
   });
 
   it("says so loudly and exits non-zero when a caller anchor has moved", async () => {
-    await writeFile(path.join(host, ".paperclip/scripts/lacy-qa-ping.sh"), "#!/bin/bash\n# rewritten\n");
+    await writeFile(
+      path.join(host, ".paperclip/scripts/lacy-qa-ping.sh"),
+      "#!/bin/bash\n# rewritten\n"
+    );
     await expect(install()).rejects.toMatchObject({ code: 1 });
     const result = spawnSync("bash", [INSTALLER], {
-      env: { ...process.env, SLACK_GATE_INSTALL_DIR: path.join(host, "scripts"), SLACK_GATE_CALLER_HOME: host },
+      env: {
+        ...process.env,
+        SLACK_GATE_INSTALL_DIR: path.join(host, "scripts"),
+        SLACK_GATE_CALLER_HOME: host,
+      },
       encoding: "utf8",
     });
     expect(result.stderr).toContain("CANNOT TAG");
     expect(result.stderr).toContain("lacy-qa-ping");
     // The other two are still tagged: one unreachable caller does not abandon
     // the rest, it just keeps that one sending as adhoc.
-    const governor = await readFile(path.join(host, ".paperclip/scripts/usage-governor.py"), "utf8");
+    const governor = await readFile(
+      path.join(host, ".paperclip/scripts/usage-governor.py"),
+      "utf8"
+    );
     expect(governor).toContain('"--sender", "usage-governor"');
   });
 
@@ -508,7 +557,10 @@ echo "POSTED:$TEXT"
     const first = await readFile(path.join(host, "scripts", "slack-post.sh"), "utf8");
     await install();
     expect(await readFile(path.join(host, "scripts", "slack-post.sh"), "utf8")).toBe(first);
-    const { stdout } = await run("bash", ["-c", `ls ${JSON.stringify(path.join(host, "scripts"))} | grep -c '\\.bak-'`]);
+    const { stdout } = await run("bash", [
+      "-c",
+      `ls ${JSON.stringify(path.join(host, "scripts"))} | grep -c '\\.bak-'`,
+    ]);
     expect(Number(stdout.trim())).toBe(1);
   });
 });

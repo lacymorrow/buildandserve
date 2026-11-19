@@ -64,7 +64,11 @@ export function gateScriptPath(): string | null {
 export function slackGateAllows(sender: string, text: string, channel: string): GateVerdict {
   const script = gateScriptPath();
   if (!script) {
-    return { allowed: true, decision: "ungated", detail: "no slack-send-gate.sh found, sending ungated" };
+    return {
+      allowed: true,
+      decision: "ungated",
+      detail: "no slack-send-gate.sh found, sending ungated",
+    };
   }
   const result = spawnSync("bash", [script, "--check", sender, channel], {
     input: text,
@@ -80,7 +84,8 @@ export function slackGateAllows(sender: string, text: string, channel: string): 
   }
   const detail = (result.stderr ?? "").trim();
   if (result.status === DROPPED_FLOOR) return { allowed: false, decision: "dropped_floor", detail };
-  if (result.status === SUPPRESSED_CEILING) return { allowed: false, decision: "suppressed_ceiling", detail };
+  if (result.status === SUPPRESSED_CEILING)
+    return { allowed: false, decision: "suppressed_ceiling", detail };
   // Anything else, including a usage error in the gate itself, sends. A gate
   // that refuses on its own bug is a gate that can cause the outage it watches.
   return { allowed: true, decision: "sent", detail };
