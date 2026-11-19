@@ -114,6 +114,23 @@ SLACK_API_URL="${FLEET_DARK_WATCH_SLACK_API:-https://slack.com/api/chat.postMess
 # token and take the notifier down with it.
 SLACK_TOKEN_FILE="${FLEET_DARK_WATCH_SLACK_TOKEN_FILE:-$PRIMARY_DIR/slack-token}"
 
+# --- LAC-8649 slack DM send gate ---
+# A 40-character content floor and a per-sender weekly ceiling, in one sourced
+# library rather than a wrapper, because there is no shared send path: five
+# senders reach Lacy's DM through ~/.openclaw/scripts/slack-post.sh and seven
+# post directly with their own token. The policy lives in one file so a ceiling
+# raised for one path cannot stay low on another.
+#
+# The lookup never reaches for anything on zero, and an absent library means
+# send: a host the gate was never installed on degrades to the old behaviour,
+# not to silence. Same reason the gate fails open on an unwritable state dir.
+for _slack_gate_lib in "${SLACK_GATE_LIB:-}" "$(dirname "$0")/slack-send-gate.sh" \
+  "$PRIMARY_DIR/slack-send-gate.sh" "$HOME/.openclaw/scripts/slack-send-gate.sh"; do
+  [ -n "$_slack_gate_lib" ] && [ -r "$_slack_gate_lib" ] && { . "$_slack_gate_lib"; break; }
+done
+command -v slack_gate_allows >/dev/null 2>&1 || slack_gate_allows() { return 0; }
+# --- LAC-8649 end ---
+
 # --- the channel that survives Do Not Disturb (LAC-5366) -------------------
 #
 # Slack above is the readable log of what happened. This is the thing that wakes
@@ -283,6 +300,13 @@ json_string() {
 
 notify_slack() {
   local text=$1 response token=$SLACK_TOKEN
+  # The gate's verdict is final. A dropped or suppressed message is recorded
+  # with its text, reported on stderr and read by the Sunday digest, so the
+  # caller must not retry it: returning 0 here means "handled", not
+  # "delivered" (LAC-8649).
+  if ! slack_gate_allows "fleet-dark-watch" "$text" "$SLACK_CHANNEL"; then
+    return 0
+  fi
   if [ -z "$token" ] && [ -r "$SLACK_TOKEN_FILE" ]; then
     token=$(tr -d ' \t\n\r' < "$SLACK_TOKEN_FILE")
   fi

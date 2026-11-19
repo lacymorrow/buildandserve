@@ -175,6 +175,23 @@ SLACK_TOKEN="${TS_WATCHDOG_SLACK_TOKEN:-}"
 SLACK_TOKEN_FILE="${TS_WATCHDOG_SLACK_TOKEN_FILE:-$HOME/.openclaw/openclaw.json}"
 SLACK_API_URL="${TS_WATCHDOG_SLACK_API:-https://slack.com/api/chat.postMessage}"
 
+# --- LAC-8649 slack DM send gate ---
+# A 40-character content floor and a per-sender weekly ceiling, in one sourced
+# library rather than a wrapper, because there is no shared send path: five
+# senders reach Lacy's DM through ~/.openclaw/scripts/slack-post.sh and seven
+# post directly with their own token. The policy lives in one file so a ceiling
+# raised for one path cannot stay low on another.
+#
+# The lookup never reaches for anything on zero, and an absent library means
+# send: a host the gate was never installed on degrades to the old behaviour,
+# not to silence. Same reason the gate fails open on an unwritable state dir.
+for _slack_gate_lib in "${SLACK_GATE_LIB:-}" "$(dirname "$0")/slack-send-gate.sh" \
+  "$HOME/.paperclip/scripts/slack-send-gate.sh" "$HOME/.openclaw/scripts/slack-send-gate.sh"; do
+  [ -n "$_slack_gate_lib" ] && [ -r "$_slack_gate_lib" ] && { . "$_slack_gate_lib"; break; }
+done
+command -v slack_gate_allows >/dev/null 2>&1 || slack_gate_allows() { return 0; }
+# --- LAC-8649 end ---
+
 REPAIR=0
 NOTIFY=0
 for arg in "$@"; do
@@ -294,6 +311,13 @@ slack_post() {
 # still leaves the event in the log and the exit code honest.
 notify() {
   local text=$1 token response
+  # The gate's verdict is final. A dropped or suppressed message is recorded
+  # with its text, reported on stderr and read by the Sunday digest, so the
+  # caller must not retry it: returning 0 here means "handled", not
+  # "delivered" (LAC-8649).
+  if ! slack_gate_allows "tailscale-watchdog" "$text" "$SLACK_CHANNEL"; then
+    return 0
+  fi
   token=$(slack_token)
   if [ -z "${token:-}" ]; then
     printf 'no Slack token: set TS_WATCHDOG_SLACK_TOKEN or fix %s\n' "$SLACK_TOKEN_FILE" >&2
