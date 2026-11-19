@@ -16,7 +16,13 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    setupFiles: ["./tests/setup-env.ts", "./tests/setup.ts"],
+    setupFiles: [
+      "./tests/setup-env.ts",
+      "./tests/setup.ts",
+      // Keeps the ops senders' real Slack send gate off the live state
+      // directory, per test. See the file for the measurement (LAC-8649).
+      "./tests/setup-slack-gate.ts",
+    ],
     include: ["tests/node/**/*.test.{ts,tsx}"],
     watch: false,
     // A timeout is a hang guard, not a speed assertion. The ops suite spawns real

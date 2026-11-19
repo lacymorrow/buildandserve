@@ -287,6 +287,76 @@ describe("the record the Sunday digest reads (LAC-8648)", () => {
   });
 });
 
+describe("the bounded decision log", () => {
+  /** One seeded row of a chosen age, in the shape `slack_gate_record` writes. */
+  function row(ageDays: number, i: number): string {
+    const ts = Math.floor(Date.now() / 1000) - Math.round(ageDays * 86400);
+    return JSON.stringify({
+      ts,
+      iso: new Date(ts * 1000).toISOString().replace(/\.\d{3}Z$/, "Z"),
+      host: "zero",
+      sender: "post-queue",
+      decision: "dropped_floor",
+      chars: 23,
+      count7d: 0,
+      ceiling: 40,
+      exempt: false,
+      text_truncated: false,
+      text: `seeded ${i}`,
+    });
+  }
+
+  /** `old` rows 40 days old, `fresh` rows one day old. */
+  async function seed(old: number, fresh: number) {
+    const lines = [
+      ...Array.from({ length: old }, (_, i) => row(40, i)),
+      ...Array.from({ length: fresh }, (_, i) => row(1, i)),
+    ];
+    await writeFile(path.join(dir, "decisions.jsonl"), `${lines.join("\n")}\n`);
+  }
+
+  it("drops rows past the 30-day cutoff once the file is over 2000 lines", async () => {
+    await seed(1500, 600);
+    const v = await check("post-queue", DEFECT);
+    expect(v.code).toBe(DROPPED_FLOOR);
+    const rows = await records();
+    // The 600 inside the window, plus the decision that triggered the trim.
+    expect(rows).toHaveLength(601);
+    const cutoff = Math.floor(Date.now() / 1000) - 30 * 86400;
+    for (const r of rows) expect(Number(r.ts)).toBeGreaterThanOrEqual(cutoff);
+  });
+
+  it("leaves the file alone below the line threshold, so the rewrite is not paid per message", async () => {
+    // 1900 old rows plus one new one is still under the threshold, and every
+    // one of them is older than the cutoff. Trimming here would be correct and
+    // still wrong: a rewrite of the whole file on every DM is what the line
+    // count exists to avoid.
+    await seed(1900, 0);
+    await check("post-queue", DEFECT);
+    expect(await records()).toHaveLength(1901);
+  });
+
+  it("MUTANT drop-the-trim-call: the log grows without bound", async () => {
+    const mutant = await mutate('s/^  slack_gate_trim "\\$file"$//');
+    await seed(1500, 600);
+    await check("post-queue", DEFECT, { script: mutant });
+    expect(await records()).toHaveLength(2101);
+  });
+
+  it("MUTANT trim-everything: a cutoff in the future takes the rows the digest reads", async () => {
+    // Not a cutoff of now: the row just recorded carries this second's ts and
+    // would survive it, which makes the arm turn on a clock race. Sixty seconds
+    // ahead drops every row there is, so the assert above is pinned to the
+    // cutoff and not merely to "the file got shorter".
+    const mutant = await mutate(
+      "s/^  cutoff=\\$(( \\$(date +%s) - 30 \\* 86400 ))$/  cutoff=$(( $(date +%s) + 60 ))/"
+    );
+    await seed(1500, 600);
+    await check("post-queue", DEFECT, { script: mutant });
+    expect(await records()).toHaveLength(0);
+  });
+});
+
 describe("fail open", () => {
   it("sends when the state directory cannot be written", async () => {
     const locked = path.join(dir, "locked");
@@ -411,7 +481,12 @@ describe("the declared-ceiling registry", () => {
 });
 
 describe("the slack-post.sh installer", () => {
-  /** The real file, as it stands on both hosts before this change. */
+  /**
+   * The real file, as it stands on both hosts before this change. `--force` and
+   * the stdin read are carried because `lacy-qa-ping.sh` uses both: it pipes
+   * its text and passes `--force`, and a fixture that rejected either would
+   * make the caller arms below test a call shape that does not exist.
+   */
   const ORIGINAL = `#!/bin/bash
 set -u
 set -o pipefail
@@ -420,9 +495,14 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -c|--channel) CHANNEL="$2"; shift 2 ;;
     -m|--text)    TEXT="$2"; shift 2 ;;
+    --force)      FORCE=1; shift ;;
     *) echo "slack-post.sh: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+if [ -z "$TEXT" ]; then
+  [ -t 0 ] && { echo "slack-post.sh: no text (use -m or pipe it on stdin)" >&2; exit 2; }
+  TEXT=$(cat)
+fi
 [ -z "$TEXT" ] && { echo "slack-post.sh: empty message, nothing posted" >&2; exit 2; }
 PAYLOAD=$(jq -n --arg channel "$CHANNEL" --arg text "$TEXT" '{channel: $channel, text: $text}')
 echo "POSTED:$TEXT"
@@ -556,6 +636,193 @@ echo "POSTED:$TEXT"
     );
     expect(governor).toContain('"--sender", "usage-governor"');
   });
+
+  /**
+   * The two callers that act on a non-zero exit from `slack-post.sh`, each
+   * reproduced at the structure that decides this ticket: a dedupe record
+   * written only after the send returned 0, and read on the next tick.
+   *
+   * `fleet-health-check.sh:791` (`lacy_dm`) returns 1 on a non-zero exit, and
+   * its routine-fail caller at :2792 writes the stamp only inside
+   * `if lacy_dm ...`. `lacy-qa-ping.sh:89` is `|| exit $?`, so the ledger write
+   * at :98 never runs. A withheld dedupe record is a retry: the next tick sends
+   * the same text into the gate, which refuses and records it again, every tick
+   * until the seven-day window rolls. That is review block 2.
+   */
+  const FLEET_HEALTH_CALLER = `#!/bin/bash
+# Lifted from ~/.paperclip/fleet-health-check.sh:791 (lacy_dm) and :2778-2794
+# (the age check, and the stamp written only on success).
+set -u
+SLACK_POST="$1"; STAMP="$2"; TEXT="$3"
+LACY_DM="${DM}"
+ROUTINE_FAIL_REPEAT_SEC=43200
+lacy_dm() {
+  local out
+  if out=$("$SLACK_POST" -c "$LACY_DM" --sender fleet-health-check -m "$1" 2>&1); then
+    echo "SLACK dm: $out"; return 0
+  fi
+  echo "ERROR lacy_dm via slack-post.sh failed: $out" >&2; return 1
+}
+if [ -s "$STAMP" ]; then
+  age=$(( $(date +%s) - $(head -1 "$STAMP") ))
+  if [ "$age" -lt "$ROUTINE_FAIL_REPEAT_SEC" ]; then
+    echo "INFO routine-fail alert suppressed, age $age"
+    exit 0
+  fi
+fi
+if lacy_dm "$TEXT"; then
+  printf '%s\\n%s\\n' "$(date +%s)" "a-routine" > "$STAMP"
+fi
+exit 0
+`;
+
+  const LACY_QA_PING_CALLER = `#!/bin/bash
+# Lifted from ~/.paperclip/scripts/lacy-qa-ping.sh:80-100. The dry-run arm is
+# left out: it is not what the exit code question turns on.
+set -u
+SLACK_POST="$1"; LEDGER_FILE="$2"; TEXT="$3"
+LACY_SLACK="${DM}"
+if [ -e "$LEDGER_FILE" ]; then
+  echo "lacy-qa-ping: already sent for this ask on $(cat "$LEDGER_FILE" 2>/dev/null); not sending again" >&2
+  exit 0
+fi
+printf '%s' "$TEXT" | "$SLACK_POST" -c "$LACY_SLACK" --sender lacy-qa-ping --force || exit $?
+umask 077
+date -u +%Y-%m-%dT%H:%M:%SZ > "$LEDGER_FILE"
+exit 0
+`;
+
+  /** Writes a caller fixture into the fake host and returns its path. */
+  async function writeCaller(name: string, body: string): Promise<string> {
+    const target = path.join(host, "callers", name);
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, body);
+    await chmod(target, 0o755);
+    return target;
+  }
+
+  /** One launchd tick. SLACK_GATE_DIR is the test's state dir, never the live one. */
+  const tick = (script: string, dedupe: string, text: string) =>
+    run("bash", [script, path.join(host, "scripts", "slack-post.sh"), dedupe, text], {
+      env: { ...process.env, SLACK_GATE_DIR: dir },
+    } as never).catch((e: { code?: number }) => e);
+
+  const exists = (p: string) =>
+    readFile(p, "utf8")
+      .then(() => true)
+      .catch(() => false);
+
+  /** Spends a sender's whole declared week, so its next send is suppressed. */
+  async function spendTheWeek(sender: string, ceiling: number) {
+    const now = Math.floor(Date.now() / 1000);
+    const rows = Array.from({ length: ceiling }, () => `${now}\t${sender}`).join("\n");
+    await writeFile(path.join(dir, "sends.tsv"), `${rows}\n`);
+  }
+
+  /** The declared ceiling, read from the gate so this arm cannot drift from it. */
+  async function ceilingFor(sender: string): Promise<number> {
+    const { stdout } = await run("bash", [GATE, "--ceiling", sender]);
+    const n = Number(stdout.trim());
+    expect(n).toBeGreaterThan(0);
+    return n;
+  }
+
+  /**
+   * Puts the pre-fix refusal back: exit 10, or 11 on a ceiling suppression.
+   * This is the mutant for block 2, and it has to be the shipped file with one
+   * thing changed, so the arms above and below run the same caller fixtures.
+   */
+  async function restorePreFixExit() {
+    const post = path.join(host, "scripts", "slack-post.sh");
+    const body = await readFile(post, "utf8");
+    expect(
+      body.split("\n").filter((l) => l === "  exit 0"),
+      "the gate's refusal exit is not where this mutant thinks it is"
+    ).toHaveLength(1);
+    await writeFile(
+      post,
+      body.replace(
+        "\n  exit 0\n",
+        // The brace below is bash parameter expansion in the pre-fix refusal,
+        // not a JS placeholder. It is the mutant's payload and has to stay
+        // literal, the same way the raw-length mutant's is above.
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: bash syntax in a patch string
+        '\n  case "${SLACK_GATE_LAST_DECISION:-}" in\n' +
+          "    suppressed_ceiling) exit 11 ;;\n" +
+          "    *) exit 10 ;;\n" +
+          "  esac\n"
+      )
+    );
+  }
+
+  const CALLER_ARMS = [
+    { sender: "fleet-health-check", dedupe: "routine-fail.stamp", body: FLEET_HEALTH_CALLER },
+    { sender: "lacy-qa-ping", dedupe: "lacy-qa-ping/LAC-8649", body: LACY_QA_PING_CALLER },
+  ] as const;
+
+  for (const arm of CALLER_ARMS) {
+    const prepare = async () => {
+      await install();
+      const script = await writeCaller(`${arm.sender}.sh`, arm.body);
+      const dedupe = path.join(host, "state", arm.dedupe);
+      await mkdir(path.dirname(dedupe), { recursive: true });
+      return { script, dedupe };
+    };
+
+    it(`${arm.sender} keeps its dedupe record when the floor drops the message, and the next tick does not re-gate`, async () => {
+      const { script, dedupe } = await prepare();
+
+      const first = await tick(script, dedupe, DEFECT);
+      expect((first as { stdout?: string }).stdout ?? "").not.toContain("POSTED:");
+      // Written although nothing was sent. A gate refusal is handled, not
+      // deferred, so the caller's dedupe record has to land or the message
+      // comes back every tick.
+      expect(await exists(dedupe), "dedupe record withheld on a refusal").toBe(true);
+      expect(await records()).toHaveLength(1);
+      expect((await records())[0]).toMatchObject({
+        sender: arm.sender,
+        decision: "dropped_floor",
+        text: DEFECT,
+      });
+
+      const second = await tick(script, dedupe, DEFECT);
+      expect((second as { stdout?: string }).stdout ?? "").not.toContain("POSTED:");
+      // No second record: the caller read its own dedupe record and never
+      // reached the gate.
+      expect(await records()).toHaveLength(1);
+    });
+
+    it(`${arm.sender} keeps its dedupe record when the ceiling suppresses the message, and the next tick does not re-gate`, async () => {
+      const { script, dedupe } = await prepare();
+      await spendTheWeek(arm.sender, await ceilingFor(arm.sender));
+
+      const first = await tick(script, dedupe, SHORTEST_REAL);
+      expect((first as { stdout?: string }).stdout ?? "").not.toContain("POSTED:");
+      expect(await exists(dedupe), "dedupe record withheld on a refusal").toBe(true);
+      const rows = await records();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ sender: arm.sender, decision: "suppressed_ceiling" });
+
+      await tick(script, dedupe, SHORTEST_REAL);
+      expect(await records()).toHaveLength(1);
+    });
+
+    it(`MUTANT pre-fix 10/11 exit: ${arm.sender} withholds its dedupe record and re-gates the same message every tick`, async () => {
+      const { script, dedupe } = await prepare();
+      await restorePreFixExit();
+
+      // fleet-health-check swallows the non-zero inside lacy_dm and still exits
+      // 0; lacy-qa-ping propagates it with `|| exit $?`. Neither exit code is
+      // what this arm is about: the dedupe record is.
+      await tick(script, dedupe, DEFECT);
+      expect(await exists(dedupe)).toBe(false);
+      expect(await records()).toHaveLength(1);
+
+      await tick(script, dedupe, DEFECT);
+      // Two records for one message, and a third next tick, for seven days.
+      expect(await records()).toHaveLength(2);
+    });
+  }
 
   it("is idempotent and keeps exactly one backup", async () => {
     await install();
