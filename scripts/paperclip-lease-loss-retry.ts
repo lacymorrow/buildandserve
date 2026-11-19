@@ -104,8 +104,47 @@ const DEFAULT_STATE_PATH = path.join(
   "lease-loss-retry-state.json"
 );
 
+/** `result_json.cancellation.source` the reaper writes when a lease is lost after dispatch. */
+export const LEASE_CANCELLATION_SOURCE = "controller_lease";
+
+/** The turn cap doing its job. A lease record can sit downstream of it; it is not a casualty. */
+export const TURN_CAP_STOP_REASON = "max_turns_exhausted";
+
+/**
+ * Which half of the lease-loss class a row belongs to (LAC-8659).
+ *
+ * - `prelaunch`: lost before the adapter dispatched. Stamped with the literal
+ *   error string, zero tokens, no output. Restarting is free and duplicates
+ *   nothing, and the server's exact-run retry accepts it (`status=failed`).
+ * - `midstream`: lost after dispatch. The adapter was streaming, so the row is
+ *   coded `status=cancelled, error_code=cancelled` and the only field that still
+ *   names the cause is `result_json.cancellation.source`. 62 of 70 such runs had
+ *   already commented on their issue, and the server's exact-run retry answers
+ *   409 for every one of them (`canContinueCancelledRun` wants source
+ *   provider/transport, not controller_lease).
+ */
+export type LeaseTier = "prelaunch" | "midstream";
+
+/**
+ * Classify one candidate row, or return null when it is not a lease casualty.
+ * The SQL only narrows the scan; this is the predicate, so it is testable
+ * without Postgres.
+ */
+export function leaseTier(row: {
+  error: string | null;
+  cancellationSource: string | null;
+  stopReason: string | null;
+}): LeaseTier | null {
+  if (row.error === LEASE_LOST_ERROR) return "prelaunch";
+  if (row.cancellationSource !== LEASE_CANCELLATION_SOURCE) return null;
+  if (row.stopReason === TURN_CAP_STOP_REASON) return null;
+  return "midstream";
+}
+
 /** One reaped run, with the result of every guard resolved in SQL. */
 export interface ReapedRun {
+  /** See `LeaseTier`. */
+  tier: LeaseTier;
   runId: string;
   agentId: string;
   agentName: string;
@@ -180,6 +219,17 @@ export function decide(
       action: "skip",
       reason: "superseded",
       detail: "a later run already started on this issue",
+    };
+  }
+  // Ahead of grace and age on purpose: it is permanent until someone settles the
+  // resume question, and the log should say so rather than say "wait".
+  if (run.tier === "midstream") {
+    return {
+      action: "skip",
+      reason: "midstream_no_safe_lever",
+      detail:
+        "lease lost mid-stream: the server's exact-run retry refuses it (409) and a " +
+        "plain wake is not proven safe against re-doing landed work (LAC-8659)",
     };
   }
   if (ageMs < graceMinutes * 60_000) {
@@ -274,9 +324,13 @@ const QUERY = `
            r.company_id,
            coalesce(r.finished_at, r.created_at) AS died_at,
            r.created_at AS requested_at,
-           r.context_snapshot ->> 'issueId' AS issue_id
+           r.context_snapshot ->> 'issueId' AS issue_id,
+           r.error AS error,
+           r.result_json -> 'cancellation' ->> 'source' AS cancellation_source,
+           r.result_json ->> 'stopReason' AS stop_reason
       FROM heartbeat_runs r
-     WHERE r.error = $1
+     WHERE (r.error = $1
+            OR r.result_json -> 'cancellation' ->> 'source' = '${LEASE_CANCELLATION_SOURCE}')
        AND r.company_id <> $2
        -- Bounded on the reap clock, which is the looser of the two on purpose:
        -- created_at <= finished_at, so anything decide() could still retry on
@@ -286,6 +340,9 @@ const QUERY = `
        AND coalesce(r.finished_at, r.created_at) > now() - ($3 || ' hours')::interval
   )
   SELECT x.id AS run_id,
+         x.error,
+         x.cancellation_source,
+         x.stop_reason,
          x.agent_id,
          coalesce(a.name, '') AS agent_name,
          coalesce(a.status, '') AS agent_status,
@@ -330,21 +387,33 @@ async function readReapedRuns(url: string, maxAgeHours: number): Promise<ReapedR
       GHOST_COMPANY_ID,
       String(maxAgeHours),
     ])) as unknown as Record<string, unknown>[];
-    return rows.map((row) => ({
-      runId: String(row.run_id),
-      agentId: String(row.agent_id),
-      agentName: String(row.agent_name ?? ""),
-      agentStatus: String(row.agent_status ?? ""),
-      identifier: String(row.identifier ?? ""),
-      title: String(row.title ?? ""),
-      issueStatus: String(row.issue_status ?? ""),
-      originKind: String(row.origin_kind ?? ""),
-      diedAtMs: Number(row.died_at_ms),
-      requestedAtMs: Number(row.requested_at_ms),
-      newerRunForIssue: row.newer_run_for_issue === true,
-      alreadyRetried: row.already_retried === true,
-      agentBusy: row.agent_busy === true,
-    }));
+    const out: ReapedRun[] = [];
+    for (const row of rows) {
+      const tier = leaseTier({
+        error: row.error === null ? null : String(row.error),
+        cancellationSource:
+          row.cancellation_source === null ? null : String(row.cancellation_source),
+        stopReason: row.stop_reason === null ? null : String(row.stop_reason),
+      });
+      if (tier === null) continue;
+      out.push({
+        tier,
+        runId: String(row.run_id),
+        agentId: String(row.agent_id),
+        agentName: String(row.agent_name ?? ""),
+        agentStatus: String(row.agent_status ?? ""),
+        identifier: String(row.identifier ?? ""),
+        title: String(row.title ?? ""),
+        issueStatus: String(row.issue_status ?? ""),
+        originKind: String(row.origin_kind ?? ""),
+        diedAtMs: Number(row.died_at_ms),
+        requestedAtMs: Number(row.requested_at_ms),
+        newerRunForIssue: row.newer_run_for_issue === true,
+        alreadyRetried: row.already_retried === true,
+        agentBusy: row.agent_busy === true,
+      });
+    }
+    return out;
   } finally {
     await sql.end({ timeout: 5 });
   }

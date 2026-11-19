@@ -4,6 +4,9 @@ import {
   describe as describeRun,
   formatAge,
   GRACE_MINUTES,
+  LEASE_CANCELLATION_SOURCE,
+  leaseTier,
+  TURN_CAP_STOP_REASON,
   LEASE_LOST_ERROR,
   MAX_AGE_HOURS,
   pruneKeys,
@@ -15,6 +18,7 @@ const NOW = Date.parse("2026-10-16T10:00:00.000Z");
 const minutesAgo = (m: number) => NOW - m * 60_000;
 
 const reaped = (over: Partial<ReapedRun> = {}): ReapedRun => ({
+  tier: "prelaunch",
   runId: "9742cd51-bebc-4aef-87d2-ae5f59c9e0aa",
   agentId: "e9f0a1b2-c3d4-4e5f-8a9b-0c1d2e3f4a5b",
   agentName: "Founding Engineer",
@@ -276,5 +280,74 @@ describe("constants", () => {
     expect(MAX_AGE_HOURS).toBeLessThan(4);
     expect(GRACE_MINUTES).toBeGreaterThan(0);
     expect(GRACE_MINUTES * 60).toBeLessThan(MAX_AGE_HOURS * 3_600);
+  });
+});
+
+describe("leaseTier (LAC-8659)", () => {
+  const row = (over: Partial<Parameters<typeof leaseTier>[0]> = {}) => ({
+    error: null as string | null,
+    cancellationSource: null as string | null,
+    stopReason: null as string | null,
+    ...over,
+  });
+
+  it("keeps the pre-dispatch tier it always saw", () => {
+    expect(leaseTier(row({ error: LEASE_LOST_ERROR, stopReason: "adapter_failed" }))).toBe(
+      "prelaunch"
+    );
+  });
+
+  it("sees a run coded cancelled whose only tell is the cancellation source", () => {
+    expect(
+      leaseTier(
+        row({ error: "cancelled", cancellationSource: "controller_lease", stopReason: "cancelled" })
+      )
+    ).toBe("midstream");
+  });
+
+  it("leaves the turn cap out", () => {
+    expect(
+      leaseTier(
+        row({ cancellationSource: LEASE_CANCELLATION_SOURCE, stopReason: TURN_CAP_STOP_REASON })
+      )
+    ).toBeNull();
+  });
+
+  it("negative control: an ordinary cancellation is not a casualty", () => {
+    expect(leaseTier(row({ error: "cancelled", stopReason: "cancelled" }))).toBeNull();
+    expect(
+      leaseTier(row({ error: "cancelled", cancellationSource: "user", stopReason: "cancelled" }))
+    ).toBeNull();
+  });
+
+  it("matches the source literally, not by substring", () => {
+    expect(leaseTier(row({ cancellationSource: "controller_lease_x" }))).toBeNull();
+  });
+});
+
+describe("decide, mid-stream tier (LAC-8659)", () => {
+  it("never posts the exact-run retry the server answers 409", () => {
+    expect(decide(reaped({ tier: "midstream" }), NOW)).toMatchObject({
+      action: "skip",
+      reason: "midstream_no_safe_lever",
+    });
+  });
+
+  it("still reports the permanent reasons ahead of it", () => {
+    expect(decide(reaped({ tier: "midstream", issueStatus: "done" }), NOW)).toMatchObject({
+      reason: "issue_terminal",
+    });
+    expect(decide(reaped({ tier: "midstream", alreadyRetried: true }), NOW)).toMatchObject({
+      reason: "already_retried",
+    });
+    expect(decide(reaped({ tier: "midstream", newerRunForIssue: true }), NOW)).toMatchObject({
+      reason: "superseded",
+    });
+  });
+
+  it("keeps the already-retried guard live for the pre-dispatch tier", () => {
+    expect(decide(reaped({ alreadyRetried: true }), NOW)).toMatchObject({
+      reason: "already_retried",
+    });
   });
 });
