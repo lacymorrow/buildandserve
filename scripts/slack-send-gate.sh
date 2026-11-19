@@ -249,6 +249,28 @@ slack_gate_record() {
     "$truncated" \
     "$(slack_gate_json_string "$kept")" \
     >> "$file" 2>/dev/null
+  slack_gate_trim "$file"
+}
+
+# Bounded on the same 30-day cutoff as sends.tsv, and for the same reason: every
+# refusal appends up to 2KB of message text, and zero reached zero bytes free on
+# 2026-11-16. Gated on a line count so the rewrite is not paid per message. The
+# ceiling never counts from this file, so trimming it cannot move a verdict.
+slack_gate_trim() {
+  local file="$1" lines cutoff
+  lines=$(wc -l < "$file" 2>/dev/null | tr -d ' ')
+  [ -z "$lines" ] && return 0
+  [ "$lines" -gt 2000 ] || return 0
+  cutoff=$(( $(date +%s) - 30 * 86400 ))
+  awk -v c="$cutoff" '
+    match($0, /"ts":[0-9]+/) {
+      ts = substr($0, RSTART + 5, RLENGTH - 5) + 0
+      if (ts >= c) print
+      next
+    }
+    { print }
+  ' "$file" > "$file.tmp" 2>/dev/null && mv -f "$file.tmp" "$file" 2>/dev/null
+  return 0
 }
 
 # A separate, deliberately tiny file for counting. `decisions.jsonl` carries the

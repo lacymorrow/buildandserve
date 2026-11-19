@@ -479,11 +479,16 @@ echo "POSTED:$TEXT"
   it("installs the gate beside slack-post.sh and makes it drop the defect", async () => {
     await install();
     const post = path.join(host, "scripts", "slack-post.sh");
-    await expect(
-      run("bash", [post, "-c", DM, "--sender", "post-queue", "-m", DEFECT], {
-        env: { ...process.env, SLACK_GATE_DIR: dir },
-      } as never)
-    ).rejects.toMatchObject({ code: DROPPED_FLOOR });
+    // Exit 0, not 10. `slack-post.sh`'s contract is that non-zero means the
+    // caller should act, and two callers act by retrying or by withholding a
+    // dedupe stamp, which would re-gate the same message every tick. A gate
+    // refusal is final, so it reads as handled and the text is simply absent.
+    const refused = await run("bash", [post, "-c", DM, "--sender", "post-queue", "-m", DEFECT], {
+      env: { ...process.env, SLACK_GATE_DIR: dir },
+    } as never);
+    expect(refused.stdout).not.toContain("POSTED:");
+    expect(refused.stderr).toMatch(/dropped/i);
+    expect((await records())[0]).toMatchObject({ decision: "dropped_floor", text: DEFECT });
     const { stdout } = await run(
       "bash",
       [post, "-c", DM, "--sender", "post-queue", "-m", SHORTEST_REAL],
