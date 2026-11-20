@@ -87,3 +87,91 @@ export const websites: Offering = {
   related: ["build-and-launch-your-app", "ai-tools-for-business", "take-over-your-codebase"],
   publishedAt: "2026-11-13",
 };
+
+export const marketingSites: Offering = {
+  number: 22,
+  slug: "marketing-sites-that-convert",
+  title: "We build marketing sites that convert",
+  shortName: "Marketing sites that convert",
+  pillar: false,
+  parent: "websites-and-digital-presence",
+  metaTitle: "Marketing Websites That Convert Visitors | Build And Serve",
+  metaDescription:
+    "A marketing site built to turn visitors into leads: clear message, fast pages, simple forms and analytics that show what works. Next.js, based in Charlotte.",
+  intro:
+    "For companies whose website gets traffic but not enough inquiries. We build the site around one job: getting the right visitor to take the next step.",
+  painHeading: "Why visitors leave without acting",
+  pains: [
+    {
+      title: "Nobody can tell what you do in five seconds",
+      body: "A vague headline and a stock photo make people hunt for the point. If they can't tell who it's for and what to do next, they go back to search.",
+    },
+    {
+      title: "The next step is buried",
+      body: "Contact forms hidden in a footer, six competing buttons and a booking flow that takes four clicks. Every extra step loses people.",
+    },
+    {
+      title: "The page is slow on a phone",
+      body: "Heavy images and scripts make mobile visitors wait. Many leave before the page finishes loading.",
+    },
+    {
+      title: "You can't see what's working",
+      body: "Without analytics and tracked forms, you're guessing which pages bring leads and which just bring traffic.",
+    },
+  ],
+  outcomes: [
+    "A site with a clear message and one main action per page",
+    "Fast, mobile-first pages built on Next.js",
+    "Forms and booking that work and send every lead straight to you",
+    "Analytics set up so you can see which pages and sources produce inquiries",
+  ],
+  processHeading: "How we build for conversion",
+  process: [
+    {
+      title: "Define the goal",
+      body: "Who the site is for and the one action you want from them: a call, a quote request, a booking, a purchase.",
+    },
+    {
+      title: "Message and structure",
+      body: "We lay out the pages and write or tighten the headline, the proof and the call to action. We use your real work and customers, never invented ones.",
+    },
+    {
+      title: "Build for speed",
+      body: "A clean design in your brand, tested on phones first, with the forms wired to where your leads need to go.",
+    },
+    {
+      title: "Measure and improve",
+      body: "After launch we look at what visitors actually do and adjust. Hosting and care are available monthly.",
+    },
+  ],
+  proof: [proofShipkit, proofCreditKarma],
+  faqs: [
+    {
+      question: "How do you measure conversion?",
+      answer:
+        "We set up analytics and tracked forms so you can see visits, form submissions and bookings by page and source. We don't promise a specific lift, because it depends on your offer and your traffic.",
+    },
+    {
+      question: "Will you write the copy?",
+      answer:
+        "We can write it or tighten what you have. You know your customers best, so we work from your input and keep claims to things you can back up.",
+    },
+    {
+      question: "Can you redesign our current site instead of starting fresh?",
+      answer:
+        "Yes. We keep your URLs and content that works so you don't lose the search traffic you already have.",
+    },
+    {
+      question: "Can I edit the site myself afterward?",
+      answer:
+        "If you want that, we can add a content editor so you can change text and images without a developer.",
+    },
+    {
+      question: "What does it cost?",
+      answer:
+        "Our pricing page lists starting points and the minimum engagement. We confirm the exact price in writing after a free call.",
+    },
+  ],
+  related: ["websites-and-digital-presence", "build-and-launch-your-app", "ai-tools-for-business"],
+  publishedAt: "2026-11-17",
+};

@@ -1,7 +1,7 @@
 import { aiFeatures, aiTools } from "./ai-tools";
-import { codebaseTakeover, founderApps, mvp30 } from "./founders";
+import { codebaseTakeover, figmaToProduct, founderApps, mvp30, rescueProjects } from "./founders";
 import type { Offering } from "./types";
-import { websites } from "./websites";
+import { marketingSites, websites } from "./websites";
 
 export type { Offering } from "./types";
 
@@ -11,8 +11,11 @@ export const offerings: Offering[] = [
   aiFeatures,
   founderApps,
   mvp30,
+  figmaToProduct,
+  rescueProjects,
   codebaseTakeover,
   websites,
+  marketingSites,
 ];
 
 export const getOffering = (slug: string): Offering | undefined =>
