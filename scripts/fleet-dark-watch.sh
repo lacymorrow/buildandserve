@@ -121,6 +121,18 @@ SLACK_TOKEN_FILE="${FLEET_DARK_WATCH_SLACK_TOKEN_FILE:-$PRIMARY_DIR/slack-token}
 # post directly with their own token. The policy lives in one file so a ceiling
 # raised for one path cannot stay low on another.
 #
+# The gate counts and records in a directory of its own, and its default is
+# under $HOME. That is wrong for this script specifically: it runs from cron as
+# root on library, which is Unraid, where / is rootfs in RAM and /etc is rebuilt
+# from /boot/config at every boot. A seven-day counter and the decision log the
+# Sunday digest reads (LAC-8648) would both be erased by a reboot, and a path in
+# library's RAM is not readable from zero, where that digest runs. So anchor the
+# state on the same persistent directory this script already keeps its own state
+# and its copy of the gate in. Measured 2026-11-19 on library: `df` reports
+# rootfs 16G for / against a persistent 932G /mnt/cachex, at 24 days of uptime.
+SLACK_GATE_DIR="${SLACK_GATE_DIR:-$PRIMARY_DIR/slack-gate-state}"
+export SLACK_GATE_DIR
+
 # The lookup never reaches for anything on zero, and an absent library means
 # send: a host the gate was never installed on degrades to the old behaviour,
 # not to silence. Same reason the gate fails open on an unwritable state dir.

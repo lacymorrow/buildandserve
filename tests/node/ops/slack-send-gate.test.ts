@@ -836,3 +836,179 @@ exit 0
     expect(Number(stdout.trim())).toBe(1);
   });
 });
+
+describe("where a library sender's gate state lands (LAC-8649)", () => {
+  /**
+   * `fleet-dark-watch.sh` and `library-mirror-refresh.sh` are the two senders
+   * that run from cron on library rather than from launchd on a Mac, and they
+   * run as root. Library is Unraid: `/root` is rootfs in RAM and `/etc` is
+   * regenerated from `/boot/config` at every boot, so the gate's default state
+   * directory of `$HOME/.paperclip/state/slack-send-gate` is erased on reboot
+   * and is not readable from zero, where the Sunday digest (LAC-8648) runs.
+   * Measured 2026-11-19: library `df` reports `rootfs 16G` for `/` against a
+   * persistent 932G `/mnt/cachex`, after 24 days of uptime.
+   *
+   * So each of the two anchors the state directory on the same host-persistent
+   * directory it already finds the gate library in: `$PRIMARY_DIR` for
+   * fleet-dark-watch, the Slack token's directory for library-mirror-refresh.
+   * On library both resolve to one directory, which is what a per-sender weekly
+   * counter and a single digest read both want.
+   *
+   * Each arm below runs the real sender with a probe standing in for the gate
+   * library, through the `SLACK_GATE_LIB` hook the senders already honour
+   * first. The probe records the `SLACK_GATE_DIR` it was handed and refuses the
+   * send, so the sender takes its handled-not-delivered path and no arm here
+   * touches the network, a real token, or a live counter.
+   */
+  const DARK = path.resolve(__dirname, "../../../scripts/fleet-dark-watch.sh");
+  const MIRROR = path.resolve(__dirname, "../../../scripts/library-mirror-refresh.sh");
+
+  /** Writes the state dir it was handed, then refuses so nothing is posted. */
+  async function probe(): Promise<{ lib: string; out: string }> {
+    const out = path.join(dir, "probe-out");
+    const lib = path.join(dir, "probe-gate.sh");
+    await writeFile(
+      lib,
+      [
+        "#!/usr/bin/env bash",
+        `printf '%s\\n' "\${SLACK_GATE_DIR-<unset>}" > ${JSON.stringify(out)}`,
+        "slack_gate_allows() { return 1; }",
+        "",
+      ].join("\n"),
+      { mode: 0o755 }
+    );
+    return { lib, out };
+  }
+
+  /**
+   * The ambient `SLACK_GATE_DIR` comes from `tests/setup-slack-gate.ts`, which
+   * gives every ops test its own directory. These arms are about the default a
+   * sender picks when nothing set one, so both keys are removed rather than
+   * overridden.
+   */
+  function bareEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
+    const env: NodeJS.ProcessEnv = { ...process.env, ...extra };
+    delete env.SLACK_GATE_DIR;
+    delete env.SLACK_GATE_FALLBACK_DIR;
+    return env;
+  }
+
+  /** The state dir the sender handed the gate. */
+  async function resolvedDir(
+    script: string,
+    extra: Record<string, string>,
+    keepGateDir = false
+  ): Promise<string> {
+    const { lib, out } = await probe();
+    const env = keepGateDir
+      ? { ...process.env, ...extra, SLACK_GATE_LIB: lib }
+      : bareEnv({ ...extra, SLACK_GATE_LIB: lib });
+    spawnSync("bash", [script], { env, encoding: "utf8", timeout: 30_000 });
+    return (await readFile(out, "utf8").catch(() => "<never sourced>")).trim();
+  }
+
+  /** fleet-dark-watch, pointed at a closed port and its own state dir. */
+  function darkEnv(home: string, primary: string): Record<string, string> {
+    return {
+      HOME: home,
+      FLEET_DARK_WATCH_DIR: primary,
+      FLEET_DARK_WATCH_URL: "http://127.0.0.1:1/api/health",
+      FLEET_DARK_WATCH_NTFY_TOPIC: "",
+      FLEET_DARK_WATCH_NTFY_TOPIC_FILE: "/proc/nonexistent/topic",
+      FLEET_DARK_WATCH_NTFY_URL: "http://127.0.0.1:1",
+    };
+  }
+
+  /** library-mirror-refresh, with no GitHub token so it stops early. */
+  function mirrorEnv(home: string, tokenDir: string): Record<string, string> {
+    return {
+      HOME: home,
+      LIBRARY_MIRROR_STATE_DIR: path.join(dir, "mirror-state"),
+      LIBRARY_MIRROR_TOKEN_FILE: path.join(dir, "no-such-github-token"),
+      LIBRARY_MIRROR_SLACK_TOKEN_FILE: path.join(tokenDir, "slack-token"),
+      LIBRARY_MIRROR_SLACK_API: "http://127.0.0.1:1/chat.postMessage",
+    };
+  }
+
+  it("fleet-dark-watch anchors it on its own persistent directory", async () => {
+    const primary = path.join(dir, "appdata", "fleet-dark-watch");
+    const resolved = await resolvedDir(DARK, darkEnv(path.join(dir, "home"), primary));
+    expect(resolved).toBe(path.join(primary, "slack-gate-state"));
+  });
+
+  it("library-mirror-refresh anchors it beside the Slack token", async () => {
+    const tokenDir = path.join(dir, "appdata", "fleet-dark-watch");
+    const resolved = await resolvedDir(MIRROR, mirrorEnv(path.join(dir, "home"), tokenDir));
+    expect(resolved).toBe(path.join(tokenDir, "slack-gate-state"));
+  });
+
+  it("puts both library senders in one directory, so one digest read covers the host", async () => {
+    const shared = path.join(dir, "appdata", "fleet-dark-watch");
+    const home = path.join(dir, "home");
+    const dark = await resolvedDir(DARK, darkEnv(home, shared));
+    const mirror = await resolvedDir(MIRROR, mirrorEnv(home, shared));
+    // Named, not just compared: two senders that both resolved to nothing are
+    // also equal, and that is the pre-fix behaviour this arm has to fail on.
+    expect(dark).toBe(path.join(shared, "slack-gate-state"));
+    expect(mirror).toBe(dark);
+  });
+
+  it("never lands under $HOME, which is RAM on library", async () => {
+    const home = path.join(dir, "home");
+    const primary = path.join(dir, "appdata", "fleet-dark-watch");
+    for (const resolved of [
+      await resolvedDir(DARK, darkEnv(home, primary)),
+      await resolvedDir(MIRROR, mirrorEnv(home, primary)),
+    ]) {
+      expect(resolved.startsWith(home)).toBe(false);
+      expect(resolved).not.toBe("<unset>");
+      expect(resolved).not.toBe("<never sourced>");
+    }
+  });
+
+  it("still yields to an explicit SLACK_GATE_DIR, so the test setup and installer keep working", async () => {
+    const explicit = path.join(dir, "explicitly-set");
+    const resolved = await resolvedDir(
+      DARK,
+      { ...darkEnv(path.join(dir, "home"), path.join(dir, "appdata")), SLACK_GATE_DIR: explicit },
+      true
+    );
+    expect(resolved).toBe(explicit);
+  });
+
+  /**
+   * One mutant per sender: the default is deleted and nothing else changes, so
+   * the gate is handed whatever the ambient environment holds. Both arms above
+   * would pass against a sender that merely happened to run in a directory
+   * matching the expectation; these prove the added lines are what put it there.
+   */
+  async function withoutTheDefault(src: string): Promise<string> {
+    const body = await readFile(src, "utf8");
+    const mutated = body
+      .split("\n")
+      .filter((line) => !/^SLACK_GATE_DIR=/.test(line) && !/^export SLACK_GATE_DIR$/.test(line))
+      .join("\n");
+    if (mutated === body) throw new Error(`mutant is identical to ${src}: nothing was removed`);
+    const target = path.join(dir, `mutant-${path.basename(src)}`);
+    await writeFile(target, mutated, { mode: 0o755 });
+    return target;
+  }
+
+  it("mutant: fleet-dark-watch without the default hands the gate nothing", async () => {
+    const primary = path.join(dir, "appdata", "fleet-dark-watch");
+    const resolved = await resolvedDir(
+      await withoutTheDefault(DARK),
+      darkEnv(path.join(dir, "home"), primary)
+    );
+    expect(resolved).toBe("<unset>");
+  });
+
+  it("mutant: library-mirror-refresh without the default hands the gate nothing", async () => {
+    const tokenDir = path.join(dir, "appdata", "fleet-dark-watch");
+    const resolved = await resolvedDir(
+      await withoutTheDefault(MIRROR),
+      mirrorEnv(path.join(dir, "home"), tokenDir)
+    );
+    expect(resolved).toBe("<unset>");
+  });
+});

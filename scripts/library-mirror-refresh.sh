@@ -88,6 +88,17 @@ SLACK_TOKEN_FILE="${LIBRARY_MIRROR_SLACK_TOKEN_FILE:-/mnt/cachex/appdata/fleet-d
 # post directly with their own token. The policy lives in one file so a ceiling
 # raised for one path cannot stay low on another.
 #
+# Anchored beside the Slack token rather than under $HOME, and for the same
+# reason the library lookup below is: this runs from cron as root on library,
+# where / is rootfs in RAM and /etc is rebuilt from /boot/config at every boot,
+# so a $HOME state dir loses the seven-day counter and the decision log the
+# Sunday digest reads (LAC-8648) at the next reboot, and a path in library's RAM
+# is not readable from zero, where that digest runs. The token's directory is on
+# the persistent pool and is shared with fleet-dark-watch, so both of library's
+# senders count and record in one directory: one digest read covers the host.
+SLACK_GATE_DIR="${SLACK_GATE_DIR:-$(dirname "$SLACK_TOKEN_FILE")/slack-gate-state}"
+export SLACK_GATE_DIR
+
 # The lookup never reaches for anything on zero, and an absent library means
 # send: a host the gate was never installed on degrades to the old behaviour,
 # not to silence. Same reason the gate fails open on an unwritable state dir.
