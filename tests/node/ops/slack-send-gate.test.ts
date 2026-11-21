@@ -1,4 +1,5 @@
 import { execFile, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -654,6 +655,143 @@ echo "POSTED:$TEXT"
       "utf8"
     );
     expect(governor).toContain('"--sender", "usage-governor"');
+  });
+
+  /**
+   * `--check` is the only read-only way to ask whether the gate a host runs is
+   * the gate in the repo, and until LAC-8846 it never looked. It keyed off the
+   * patch marker in `slack-post.sh` and the `--sender` tags in the callers, and
+   * none of those move when the policy inside `slack-send-gate.sh` changes. So
+   * a gate two commits behind printed four clean lines, measured on zero on
+   * 2026-11-21 with the Nov 19 build installed and the merged build in hand.
+   */
+  describe("--check compares the installed gate's bytes (LAC-8846)", () => {
+    /** Reported, not written: `--check` found the installed gate stale or absent. */
+    const CHECK_STALE = 3;
+
+    /** Stands in for a gate a couple of commits behind: loadable, just not current. */
+    const DRIFTED = "#!/usr/bin/env bash\n# the Nov 19 gate\nslack_gate_allows() { return 0; }\n";
+
+    const mutantDirs: string[] = [];
+
+    afterEach(async () => {
+      await Promise.all(mutantDirs.map((d) => rm(d, { recursive: true, force: true })));
+      mutantDirs.length = 0;
+    });
+
+    const installedGate = () => path.join(host, "scripts", "slack-send-gate.sh");
+
+    /** The whole report, whatever its exit. `--check` writes nothing. */
+    const checkReport = (installer: string = INSTALLER) =>
+      spawnSync("bash", [installer, "--check"], {
+        env: {
+          ...process.env,
+          SLACK_GATE_INSTALL_DIR: path.join(host, "scripts"),
+          SLACK_GATE_CALLER_HOME: host,
+        },
+        encoding: "utf8",
+      });
+
+    const sha256 = async (file: string) =>
+      createHash("sha256")
+        .update(await readFile(file))
+        .digest("hex");
+
+    /**
+     * A copy of the installer with one line removed, in its own directory with
+     * the real gate beside it, because the installer resolves `GATE_SRC` from
+     * its own dirname and a mutant in `tmpdir` alone would exit 1 before it
+     * reached the branch under test. Same contract as `mutate` above: a mutant
+     * byte-identical to the shipped file is not a mutant.
+     */
+    async function mutateInstaller(sed: string): Promise<string> {
+      const src = await mkdtemp(path.join(tmpdir(), "slack-installer-"));
+      mutantDirs.push(src);
+      const result = spawnSync("sed", [sed, INSTALLER], { encoding: "utf8" });
+      if (result.status !== 0) throw new Error(`sed failed: ${result.stderr}`);
+      if (result.stdout === (await readFile(INSTALLER, "utf8")))
+        throw new Error(`mutant did not change anything: ${sed}`);
+      await writeFile(path.join(src, "slack-send-gate.sh"), await readFile(GATE));
+      const target = path.join(src, "slack-send-gate-install.sh");
+      await writeFile(target, result.stdout);
+      await chmod(target, 0o755);
+      return target;
+    }
+
+    it("says current, and prints the sha, when the installed gate matches the source", async () => {
+      await install();
+      const report = checkReport();
+      expect(report.status).toBe(0);
+      // The sha is on the line on purpose. Comparing two hosts means running
+      // this on each and reading one value off each report; a bare "current"
+      // would only prove each host matches whatever source it was run from.
+      expect(report.stdout).toContain(`current: ${installedGate()} ${await sha256(GATE)}`);
+    });
+
+    it("says STALE, with both shas, when the installed gate drifts behind the source", async () => {
+      await install();
+      await writeFile(installedGate(), DRIFTED);
+      const report = checkReport();
+      expect(report.status).toBe(CHECK_STALE);
+      expect(report.stdout).toContain(
+        `STALE ${await sha256(installedGate())} vs ${await sha256(GATE)}`
+      );
+      expect(report.stdout).not.toContain("current:");
+    });
+
+    it("MUTANT drop-the-comparison: a drifted gate prints the four clean lines again", async () => {
+      await install();
+      await writeFile(installedGate(), DRIFTED);
+      const blind = await mutateInstaller("/compare_gate || status=/d");
+      const report = checkReport(blind);
+      expect(report.status).toBe(0);
+      expect(report.stdout).not.toContain("STALE");
+      expect(report.stdout).toContain("already installed:");
+    });
+
+    it("leaves the drifted gate where it is, because --check is a report and not a repair", async () => {
+      await install();
+      await writeFile(installedGate(), DRIFTED);
+      checkReport();
+      expect(await readFile(installedGate(), "utf8")).toBe(DRIFTED);
+    });
+
+    it("still reports every caller under a stale gate, so one finding does not hide the rest", async () => {
+      await install();
+      await writeFile(installedGate(), DRIFTED);
+      const report = checkReport();
+      expect(report.status).toBe(CHECK_STALE);
+      for (const rel of Object.keys(CALLERS)) {
+        expect(report.stdout).toContain(`tagged: ${path.join(host, rel)}`);
+      }
+    });
+
+    it("reports a missing gate rather than reading the host as installed", async () => {
+      await install();
+      await rm(installedGate());
+      const report = checkReport();
+      expect(report.status).toBe(CHECK_STALE);
+      expect(report.stdout).toContain(`MISSING gate: ${installedGate()}`);
+      // The marker is still in slack-post.sh, which is exactly the shape that
+      // used to read clean. slack-post.sh degrades to sending when it cannot
+      // source the library, so an absent gate is silent at send time too.
+      expect(report.stdout).toContain("already installed:");
+    });
+
+    it("does not call an unpatched host with no gate clean either", async () => {
+      const report = checkReport();
+      expect(report.stdout).toContain("NOT installed:");
+      expect(report.stdout).toContain("MISSING gate:");
+      expect(report.status).toBe(CHECK_STALE);
+    });
+
+    it("an install clears the finding, which is what makes the report actionable", async () => {
+      await install();
+      await writeFile(installedGate(), DRIFTED);
+      expect(checkReport().status).toBe(CHECK_STALE);
+      await install();
+      expect(checkReport().status).toBe(0);
+    });
   });
 
   /**
