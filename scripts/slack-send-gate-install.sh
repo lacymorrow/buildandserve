@@ -33,8 +33,10 @@
 #   SLACK_GATE_CALLER_HOME=/some/home ...          # look for callers elsewhere
 #   slack-send-gate-install.sh --check             # report, change nothing
 #
-# Exit codes: 0 fully installed, 1 something could not be patched and is named on
-# stderr, 2 usage. A caller that could not be patched keeps sending, as `adhoc`.
+# Exit codes: 0 fully installed, or `--check` found nothing wrong. 1 something
+# could not be patched and is named on stderr. 2 usage. 3 `--check` found the
+# installed gate stale or missing, which is a report, not a failed write.
+# A caller that could not be patched keeps sending, as `adhoc`.
 
 set -uo pipefail
 
@@ -43,8 +45,10 @@ GATE_SRC="$HERE/slack-send-gate.sh"
 TARGET_DIR="${SLACK_GATE_INSTALL_DIR:-$HOME/.openclaw/scripts}"
 CALLER_HOME="${SLACK_GATE_CALLER_HOME:-$HOME}"
 POST="$TARGET_DIR/slack-post.sh"
+INSTALLED_GATE="$TARGET_DIR/slack-send-gate.sh"
 MARKER="# --- LAC-8649 slack DM send gate ---"
 CHECK_ONLY=0
+STALE_GATE=3
 
 case "${1-}" in
   --check) CHECK_ONLY=1 ;;
@@ -179,6 +183,48 @@ tag_callers() {
   return "$failed"
 }
 
+# --- the installed gate's bytes, which --check could not see (LAC-8846) -----
+
+# `--check` used to key entirely off the patch marker in slack-post.sh and the
+# `--sender` tags in the callers. None of those move when the policy changes, so
+# a gate two commits behind read as four clean lines. Measured on zero,
+# 2026-11-21: the Nov 19 gate installed, the merged gate in hand, four clean
+# lines. The gate is also the file most likely to drift, because the policy in
+# it changes more often than the patch around it, and `--check` is the only
+# read-only way to ask whether the two hosts match.
+sha_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then openssl dgst -sha256 "$1" | awk '{print $NF}'
+  else return 1
+  fi
+}
+
+# Prints the installed sha on the `current` line on purpose: comparing two hosts
+# means running this on both and reading one value off each, and a bare
+# "current" would only prove each host matches whatever source it was run from.
+#
+# A missing gate is reported, not passed over. slack-post.sh degrades to sending
+# when it cannot source the library, which is the right direction for an alert
+# but means an absent gate is silent at send time as well as here.
+compare_gate() {
+  if [ ! -r "$INSTALLED_GATE" ]; then
+    printf 'MISSING gate: %s\n' "$INSTALLED_GATE"
+    return 1
+  fi
+  local have want
+  if ! have=$(sha_of "$INSTALLED_GATE") || ! want=$(sha_of "$GATE_SRC"); then
+    printf 'CANNOT COMPARE gate: no sha256sum, shasum or openssl on this host\n'
+    return 1
+  fi
+  if [ "$have" = "$want" ]; then
+    printf 'current: %s %s\n' "$INSTALLED_GATE" "$have"
+    return 0
+  fi
+  printf 'STALE %s vs %s\n' "$have" "$want"
+  return 1
+}
+
 # --- run --------------------------------------------------------------------
 
 if grep -q "$MARKER" "$POST"; then
@@ -188,18 +234,20 @@ if grep -q "$MARKER" "$POST"; then
   # failure this script exists to prevent. Tagging still runs: a reinstall has
   # to be able to pick up a caller the first run could not reach.
   if [ "$CHECK_ONLY" -eq 0 ]; then
-    cp "$GATE_SRC" "$TARGET_DIR/slack-send-gate.sh"
-    chmod 755 "$TARGET_DIR/slack-send-gate.sh"
+    cp "$GATE_SRC" "$INSTALLED_GATE"
+    chmod 755 "$INSTALLED_GATE"
   fi
 elif [ "$CHECK_ONLY" -eq 1 ]; then
   printf 'NOT installed: %s\n' "$POST"
 else
-  cp "$GATE_SRC" "$TARGET_DIR/slack-send-gate.sh"
-  chmod 755 "$TARGET_DIR/slack-send-gate.sh"
+  cp "$GATE_SRC" "$INSTALLED_GATE"
+  chmod 755 "$INSTALLED_GATE"
   patch_slack_post || exit 1
 fi
 
 if [ "$CHECK_ONLY" -eq 1 ]; then
+  status=0
+  compare_gate || status=$STALE_GATE
   for f in "$CALLER_HOME/.paperclip/scripts/usage-governor.py" \
            "$CALLER_HOME/.paperclip/scripts/lacy-qa-ping.sh" \
            "$CALLER_HOME/.paperclip/fleet-health-check.sh"; do
@@ -207,7 +255,9 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
     elif grep -qF -- '--sender' "$f"; then printf 'tagged: %s\n' "$f"
     else printf 'UNTAGGED: %s\n' "$f"; fi
   done
-  exit 0
+  # The whole report prints before the exit: a stale gate is not a reason to
+  # stop telling the operator which callers are tagged.
+  exit "$status"
 fi
 
 tag_callers || {
