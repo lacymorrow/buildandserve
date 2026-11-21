@@ -474,6 +474,25 @@ describe("the declared-ceiling registry", () => {
     expect(governor?.[2]).toBe("93");
   });
 
+  it("labels the count as rolling 7d and per host, from one place (LAC-8667)", async () => {
+    const { stdout } = await run("bash", [GATE, "--window"]);
+    expect(stdout.trim()).toBe("rolling 7d, per host");
+  });
+
+  it("keeps the label out of --registry, which is three columns and nothing else", async () => {
+    const { stdout } = await run("bash", [GATE, "--registry"]);
+    const rows = stdout.split("\n").filter(Boolean);
+    for (const row of rows) expect(row.split("\t")).toHaveLength(3);
+    expect(rows.some((l) => l.includes("rolling 7d"))).toBe(false);
+  });
+
+  it("says in the registry comment that the ceiling is counted per host", async () => {
+    const src = await readFile(GATE, "utf8");
+    const header = src.slice(0, src.indexOf("slack_gate_registry() {"));
+    expect(header).toMatch(/count is per host/);
+    expect(header).toMatch(/usage-governor/);
+  });
+
   it("gives an undeclared sender the bare default of 7, and says so", async () => {
     const { stdout } = await run("bash", [GATE, "--ceiling", "something-new"]);
     expect(stdout.trim()).toBe("7");

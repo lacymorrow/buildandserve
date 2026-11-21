@@ -48,6 +48,7 @@
 #   slack-send-gate.sh --registry      # sender<TAB>ceiling<TAB>measured-peak
 #   slack-send-gate.sh --ceiling <id>  # the number this sender is held to
 #   slack-send-gate.sh --floor
+#   slack-send-gate.sh --window        # how to label a count: rolling 7d, per host
 #
 # Exit codes for --check: 0 send it, 10 dropped by the floor, 11 suppressed by
 # the ceiling, 2 bad usage. 0 is also what an unwritable state directory
@@ -88,6 +89,12 @@ SLACK_GATE_EXEMPT="${SLACK_GATE_EXEMPT:-fleet-dark-watch}"
 SLACK_GATE_DIR="${SLACK_GATE_DIR:-$HOME/.paperclip/state/slack-send-gate}"
 SLACK_GATE_FALLBACK_DIR="${SLACK_GATE_FALLBACK_DIR:-/tmp/slack-send-gate}"
 
+# How to label a count from this gate, wherever one is printed. One string, in
+# one place, because the number is easy to misread in two ways at once: it is a
+# rolling seven days and not a calendar week, and it is this host's sends and
+# not the fleet's. Read by `--window` and by anything that sources this file.
+SLACK_GATE_WINDOW_LABEL="rolling 7d, per host"
+
 # Set to 0 to get the verdict without writing anything, which is what
 # `slack-post.sh --dry-run` needs: a dry run that books a send would inflate the
 # week it is only previewing.
@@ -106,6 +113,32 @@ SLACK_GATE_LAST_DECISION=""
 # days to 2026-11-19. The peak is carried so the Sunday digest (LAC-8648) can
 # print declared against actual, which is the number the CEO said they are
 # waiting on before setting any fleet-wide total. Do not invent that total here.
+#
+# The count is per host, and so is every ceiling below. State lives in
+# `$HOME/.paperclip/state/slack-send-gate`, one copy per machine, so a sender
+# scheduled on two hosts is held to its declared number twice and the most it
+# can send fleet-wide is its ceiling times the hosts it runs on. Measured
+# 2026-11-21: `usage-governor` has a launchd job and live `sends.tsv` rows on
+# both zero (10) and graphite (1), ceiling 150 on each, so 300 aggregate.
+# `fleet-health-check` has a job on both Macs. `lacy-qa-ping` is installed on
+# graphite by the fleet-health deploy but has no scheduled caller there, so it
+# is single-host in practice and the LAC-8667 ticket text overstated it.
+# `fleet-dark-watch` and `library-mirror-refresh` run from cron on `library`, a
+# third host with its own state directory.
+#
+# Not aggregated, on purpose. A shared count needs a store all three hosts can
+# write, and the two senders on `library` are there precisely so they do not
+# depend on zero (see "Why this is a sourceable library" above). A per-host
+# ceiling that is looser than it reads is still a runaway detector; a runaway
+# detector that needs the network is not. So the number is documented, not
+# centralised, and the label lives in one place: `--window` prints it, so the
+# Sunday digest (LAC-8648) cannot drift from the thing it is reporting.
+#
+# The measured-peak column is the other half of this. It was counted from Slack
+# DM history, which is fleet-wide, while the ceiling it sits next to is per
+# host. Declared-against-actual is still the right comparison for spotting a
+# runaway, but 93 is every host's governor added together and 150 is one host's
+# allowance. Do not subtract them and call the difference headroom.
 #
 # The ceilings are set from the measured peak with headroom, not from the
 # decision's "~10/wk" observation, and that is the whole risk this ticket flags.
@@ -359,6 +392,7 @@ slack_gate_main() {
   case "${1-}" in
     --registry) slack_gate_registry ;;
     --floor) printf '%s\n' "$SLACK_GATE_FLOOR" ;;
+    --window) printf '%s\n' "$SLACK_GATE_WINDOW_LABEL" ;;
     --ceiling)
       [ -n "${2-}" ] || { printf 'slack-send-gate.sh: --ceiling needs a sender id\n' >&2; return 2; }
       slack_gate_ceiling_for "$2"
@@ -379,7 +413,7 @@ slack_gate_main() {
         *) return 10 ;;
       esac
       ;;
-    -h | --help | "") sed -n '2,60p' "$0"; return 0 ;;
+    -h | --help | "") sed -n '2,61p' "$0"; return 0 ;;
     *) printf 'slack-send-gate.sh: unknown argument: %s\n' "${1-}" >&2; return 2 ;;
   esac
 }
